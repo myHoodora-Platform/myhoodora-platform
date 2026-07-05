@@ -99,15 +99,15 @@ type(optional scope): description
 
 ### Commit Types
 
-| Type       | When to use                                                                 |
-| :--------- | :-------------------------------------------------------------------------- |
-| `feat`     | A new feature                                                               |
-| `fix`      | A bug fix                                                                   |
-| `chore`    | Changes to the build process or auxiliary tools and libraries               |
-| `docs`     | Documentation only changes                                                  |
-| `style`    | Changes that do not affect the meaning of the code (white-space, etc)       |
-| `refactor` | A code change that neither fixes a bug nor adds a feature                  |
-| `test`     | Adding missing tests or correcting existing tests                           |
+| Type       | When to use                                                           |
+| :--------- | :-------------------------------------------------------------------- |
+| `feat`     | A new feature                                                         |
+| `fix`      | A bug fix                                                             |
+| `chore`    | Changes to the build process or auxiliary tools and libraries         |
+| `docs`     | Documentation only changes                                            |
+| `style`    | Changes that do not affect the meaning of the code (white-space, etc) |
+| `refactor` | A code change that neither fixes a bug nor adds a feature             |
+| `test`     | Adding missing tests or correcting existing tests                     |
 
 ### Examples
 
@@ -128,7 +128,7 @@ If you absolutely need to bypass the hooks (e.g., for a work-in-progress commit 
 git commit -m "wip: temporary commit" --no-verify
 ```
 
-*Note: Bypassing hooks should be avoided whenever possible and is only acceptable for temporary local commits.*
+_Note: Bypassing hooks should be avoided whenever possible and is only acceptable for temporary local commits._
 
 ## CI/CD
 
