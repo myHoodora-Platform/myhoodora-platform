@@ -27,6 +27,7 @@
     "rxjs": "^7.8.0"
   },
   "devDependencies": {
+    "@nestjs/cli": "^10.0.0",
     "@myhoodora/eslint-config": "workspace:*",
     "@nestjs/cli": "^10.0.0",
     "@types/express": "^5.0.6",
