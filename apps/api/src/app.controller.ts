@@ -1,12 +1,23 @@
-import { Controller, Get } from "@nestjs/common";
-import { AppService } from "./app.service";
+import { Controller, Get } from '@nestjs/common';
+import { HealthCheck, HealthCheckService, MongooseHealthIndicator } from '@nestjs/terminus';
+import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { Public } from './common/decorators/public.decorator';
 
+@ApiTags('health')
 @Controller()
 export class AppController {
-  constructor(private readonly appService: AppService) {}
+  constructor(
+    private readonly health: HealthCheckService,
+    private readonly mongooseIndicator: MongooseHealthIndicator,
+  ) { }
 
-  @Get()
-  getRoot() {
-    return this.appService.getHello();
+  @Public()
+  @Get('health')
+  @HealthCheck()
+  @ApiOperation({ summary: 'Health check', description: 'Returns service status and MongoDB connectivity.' })
+  check() {
+    return this.health.check([
+      () => this.mongooseIndicator.pingCheck('mongodb'),
+    ]);
   }
 }
