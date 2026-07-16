@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { AnimatedSection } from "@/components/shared/AnimatedSection";
 
 export function CTASection() {
     return (
         <section className="py-20 px-6 lg:px-20 mb-10">
-            <motion.div
+            <AnimatedSection
                 initial={{ opacity: 0, scale: 0.95 }}
                 whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
                 transition={{ duration: 0.6 }}
                 className="max-w-5xl mx-auto rounded-[2rem] bg-primary p-12 lg:p-20 text-center relative overflow-hidden"
             >
@@ -37,7 +37,7 @@ export function CTASection() {
                         </Link>
                     </div>
                 </div>
-            </motion.div>
+            </AnimatedSection>
         </section>
     );
 }

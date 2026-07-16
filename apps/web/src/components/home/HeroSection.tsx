@@ -2,15 +2,13 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { MapPin } from "lucide-react";
 
 export function HeroSection() {
     return (
         <section className="relative min-h-[85vh] flex items-center justify-center px-6 lg:px-20 py-12 overflow-hidden">
-            {/* Hero Background Image with Overlay */}
             <div className="absolute inset-0 z-0">
-                {/* Using Next Image with unoptimized flag to bypass domain restriction for remote images */}
                 <Image
                     unoptimized
                     className="w-full h-full object-cover"
@@ -19,11 +17,11 @@ export function HeroSection() {
                     height={1080}
                     src="https://lh3.googleusercontent.com/aida-public/AB6AXuAZPorGgpykC8rkOoSv9p7pu8IXYGoXjrvnIBz3n6SGvpSTpVS1T2WU4ASBYobokKKwQrH2mIZ5gpqZv3hOfeCBQpxS0uHsqEuO7qnnmZGGf0kJsm9nTf_410sJIuM4x53dm1DnpjlM2NlYKf3Vn0zZIcWfoTdwo5W5jrh93_kULt_thEWbS092el47OO5gmqW4UZo0DGlUImz41DpiaZRQkiqDMM0EKqhw6tTMQfzYoIeJtvXc3LF0HrgzQxwZCeWutrlFIrb6iUg"
                 />
-                <div className="absolute inset-0 bg-gradient-to-r from-background/95 via-background/60 to-transparent dark:from-background/95 dark:via-background/70"></div>
+                <div className="absolute inset-0 bg-gradient-to-r from-background/95 via-background/60 to-transparent"></div>
             </div>
 
             <div className="relative z-10 max-w-7xl w-full grid lg:grid-cols-2 gap-12 items-center">
-                <motion.div
+                <AnimatedSection
                     initial={{ opacity: 0, y: 30 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.6, ease: "easeOut" }}
@@ -41,7 +39,7 @@ export function HeroSection() {
                         <div className="flex-1 relative group">
                             <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors size-5" />
                             <input
-                                className="w-full pl-12 pr-4 py-4 rounded-xl border-2 border-transparent bg-white dark:bg-slate-800 shadow-xl focus:border-primary focus:ring-0 transition-all outline-none text-foreground"
+                                className="w-full pl-12 pr-4 py-4 rounded-xl border-2 border-transparent bg-white shadow-xl focus:border-primary focus:ring-0 transition-all outline-none text-foreground"
                                 placeholder="Enter your address"
                                 type="text"
                             />
@@ -50,14 +48,13 @@ export function HeroSection() {
                             Find my hood
                         </button>
                     </div>
-                </motion.div>
+                </AnimatedSection>
 
-                {/* Signup/Auth Card */}
-                <motion.div
+                <AnimatedSection
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 0.5, delay: 0.2 }}
-                    className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm p-8 rounded-3xl shadow-2xl border border-border max-w-md w-full ml-auto"
+                    className="bg-white/95 backdrop-blur-sm p-8 rounded-3xl shadow-2xl border border-border max-w-md w-full ml-auto"
                 >
                     <h3 className="text-2xl font-bold mb-2">Welcome to myHoodora</h3>
                     <p className="text-muted-foreground mb-8 text-sm">Choose how you&apos;d like to join your community.</p>
@@ -95,7 +92,7 @@ export function HeroSection() {
                     <p className="mt-6 text-center text-xs text-muted-foreground leading-relaxed">
                         By signing up, you agree to our <Link className="underline hover:text-primary transition-colors" href="/terms">Terms of Service</Link> and <Link className="underline hover:text-primary transition-colors" href="/privacy">Privacy Policy</Link>.
                     </p>
-                </motion.div>
+                </AnimatedSection>
             </div>
         </section>
     );
