@@ -24,21 +24,26 @@ export function AnimatedSection({
   const controls = useAnimationControls();
   const inView = useInView(ref, { once: true });
 
-  useEffect(() => {
-    if (initial) {
-      controls.set(initial);
-    }
-  }, []);
+  const initialRef = useRef(initial);
+  const animateRef = useRef(animate);
+  const whileInViewRef = useRef(whileInView);
+  const transitionRef = useRef(transition);
 
   useEffect(() => {
-    if (whileInView) {
-      if (inView) {
-        controls.start({ ...whileInView, transition });
-      }
-    } else if (animate) {
-      controls.start({ ...animate, transition });
+    if (initialRef.current) {
+      controls.set(initialRef.current);
     }
-  }, [inView]);
+  }, [controls]);
+
+  useEffect(() => {
+    if (whileInViewRef.current) {
+      if (inView) {
+        controls.start({ ...whileInViewRef.current, transition: transitionRef.current });
+      }
+    } else if (animateRef.current) {
+      controls.start({ ...animateRef.current, transition: transitionRef.current });
+    }
+  }, [inView, controls]);
 
   return (
     <motion.div ref={ref} animate={controls} className={className}>
