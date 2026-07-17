@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Home, Compass } from "lucide-react";
 import { motion } from "framer-motion";
+import { Button } from "@myhoodora/ui/button";
 
 export default function NotFound() {
     const router = useRouter();
@@ -27,19 +28,20 @@ export default function NotFound() {
                 </p>
 
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-6 w-full max-w-md">
-                    <button
+                    <Button
+                        variant="outline"
                         onClick={() => router.back()}
-                        className="w-full flex items-center justify-center gap-2 bg-background border-2 border-border text-foreground font-bold py-3 px-6 rounded-xl hover:bg-muted transition-all active:scale-95"
+                        className="w-full"
                     >
                         <ArrowLeft className="size-5" />
                         Go Back
-                    </button>
+                    </Button>
 
                     <Link href="/" className="w-full">
-                        <button className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground font-bold py-3 px-6 rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 active:scale-95">
+                        <Button className="w-full">
                             <Home className="size-5" />
                             Return Home
-                        </button>
+                        </Button>
                     </Link>
                 </div>
             </motion.div>

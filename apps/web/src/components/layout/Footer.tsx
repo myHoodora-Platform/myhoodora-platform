@@ -1,19 +1,13 @@
 import Link from "next/link";
 import { Globe, Share2 } from "lucide-react";
+import { Logo } from "@myhoodora/ui/logo";
 
 export function Footer() {
     return (
         <footer className="bg-slate-950 text-slate-400 py-16 px-6 lg:px-20 border-t border-slate-900">
             <div className="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-12 text-sm">
                 <div className="col-span-2 space-y-6">
-                    <div className="flex items-center gap-2 text-white">
-                        <div className="size-6 text-primary">
-                            <svg fill="currentColor" viewBox="0 0 48 48">
-                                <path d="M24 45.8096C19.6865 45.8096 15.4698 44.5305 11.8832 42.134C8.29667 39.7376 5.50128 36.3314 3.85056 32.3462C2.19985 28.361 1.76794 23.9758 2.60947 19.7452C3.451 15.5145 5.52816 11.6284 8.57829 8.5783C11.6284 5.52817 15.5145 3.45101 19.7452 2.60948C23.9758 1.76795 28.361 2.19986 32.3462 3.85057C36.3314 5.50129 39.7376 8.29668 42.134 11.8833C44.5305 15.4698 45.8096 19.6865 45.8096 24L24 24L24 45.8096Z" />
-                            </svg>
-                        </div>
-                        <span className="text-xl font-bold">myHoodora</span>
-                    </div>
+                    <Logo size="sm" className="text-white" />
                     <p className="max-w-xs leading-relaxed text-slate-400">
                         Connecting neighbors across the globe to build better places to live, work, and thrive.
                     </p>
