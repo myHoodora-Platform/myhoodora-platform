@@ -32,6 +32,33 @@ export class UsersController {
         });
     }
 
+    @Patch('me/onboarding')
+    @ApiOperation({ summary: 'Complete onboarding', description: 'Updates displayName and location details, marking user as onboarded.' })
+    @ApiBody({
+        schema: {
+            type: 'object',
+            properties: {
+                displayName: { type: 'string', example: 'Jane Hoodora' },
+                location: {
+                    type: 'object',
+                    properties: {
+                        lat: { type: 'number', example: 37.7749 },
+                        lng: { type: 'number', example: -122.4194 },
+                        address: { type: 'string', example: '123 Neighborhood Way' },
+                    },
+                },
+            },
+        },
+    })
+    @ApiResponse({ status: 200, description: 'User marked as onboarded and profile updated.' })
+    @ApiResponse({ status: 401, description: 'Missing or invalid Firebase token.' })
+    async completeOnboarding(
+        @CurrentUser() user: DecodedIdToken,
+        @Body() body: { displayName?: string; location?: { lat?: number; lng?: number; address?: string } },
+    ) {
+        return this.usersService.completeOnboarding(user.uid, body);
+    }
+
     @Patch('me')
     @ApiOperation({ summary: 'Update current user', description: 'Update display name or neighborhood.' })
     @ApiBody({

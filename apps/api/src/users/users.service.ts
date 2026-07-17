@@ -24,6 +24,17 @@ export class UsersService {
         return created.save();
     }
 
+    async completeOnboarding(
+        uid: string,
+        payload: { displayName?: string; location?: { lat?: number; lng?: number; address?: string } },
+    ): Promise<UserDocument> {
+        const updates: Partial<User> = {
+            isOnboarded: true,
+            ...payload,
+        };
+        return this.update(uid, updates);
+    }
+
     async update(
         uid: string,
         updates: Partial<User>,

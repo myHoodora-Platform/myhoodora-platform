@@ -25,6 +25,23 @@ export class User {
 
     @Prop({ default: true })
     isActive!: boolean;
+
+    @Prop({ default: false })
+    isOnboarded!: boolean;
+
+    @Prop({
+        type: {
+            lat: Number,
+            lng: Number,
+            address: String,
+        },
+        _id: false,
+    })
+    location?: {
+        lat?: number;
+        lng?: number;
+        address?: string;
+    };
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

@@ -67,3 +67,43 @@ export async function signInWithApple(): Promise<User> {
 export async function logoutUser(): Promise<void> {
   await signOut(auth);
 }
+
+export async function fetchUserProfile(user: User): Promise<unknown> {
+  const token = await user.getIdToken();
+  const response = await fetch(`${API_BASE_URL}/users/me`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || "Failed to fetch user profile.");
+  }
+
+  return response.json();
+}
+
+export async function completeOnboardingApi(
+  user: User,
+  payload: { displayName?: string; location?: { lat?: number; lng?: number; address?: string } }
+): Promise<unknown> {
+  const token = await user.getIdToken();
+  const response = await fetch(`${API_BASE_URL}/users/me/onboarding`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || "Failed to complete onboarding on server.");
+  }
+
+  return response.json();
+}
