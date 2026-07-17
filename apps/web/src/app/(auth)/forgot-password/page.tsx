@@ -9,6 +9,7 @@ import { Button } from "@myhoodora/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { forgotPasswordSchema, type ForgotPasswordInput } from "@/lib/validation/auth";
 import { resetUserPassword } from "@/lib/firebase/auth";
+import { getAuthErrorMessage } from "@/lib/firebase/errors";
 
 export default function ForgotPasswordPage() {
   const [authError, setAuthError] = useState<string | null>(null);
@@ -29,9 +30,10 @@ export default function ForgotPasswordPage() {
       await resetUserPassword(data.email);
       setSuccessMessage("We've sent a password reset link to your email address.");
     } catch (err: unknown) {
-      console.error(err);
-      const message = err instanceof Error ? err.message : String(err);
-      setAuthError(message || "Failed to send password reset email.");
+      const { message, silent } = getAuthErrorMessage(err);
+      if (!silent) {
+        setAuthError(message);
+      }
     }
   };
 

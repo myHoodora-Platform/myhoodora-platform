@@ -10,6 +10,7 @@ import { PasswordInput } from "@myhoodora/ui/password-input";
 import { Button } from "@myhoodora/ui/button";
 import { loginSchema, type LoginInput } from "@/lib/validation/auth";
 import { signInUser, signInWithGoogle, signInWithApple } from "@/lib/firebase/auth";
+import { getAuthErrorMessage } from "@/lib/firebase/errors";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -31,9 +32,10 @@ export default function LoginPage() {
       await signInUser(data.email, data.password);
       router.push("/dashboard");
     } catch (err: unknown) {
-      console.error(err);
-      const message = err instanceof Error ? err.message : String(err);
-      setAuthError(message || "Failed to log in. Please check your credentials.");
+      const { message, silent } = getAuthErrorMessage(err);
+      if (!silent) {
+        setAuthError(message);
+      }
     }
   };
 
@@ -44,9 +46,10 @@ export default function LoginPage() {
       await signInWithGoogle();
       router.push("/dashboard");
     } catch (err: unknown) {
-      console.error(err);
-      const message = err instanceof Error ? err.message : String(err);
-      setAuthError(message || "Google sign-in failed.");
+      const { message, silent } = getAuthErrorMessage(err);
+      if (!silent) {
+        setAuthError(message);
+      }
     } finally {
       setGoogleLoading(false);
     }
@@ -59,9 +62,10 @@ export default function LoginPage() {
       await signInWithApple();
       router.push("/dashboard");
     } catch (err: unknown) {
-      console.error(err);
-      const message = err instanceof Error ? err.message : String(err);
-      setAuthError(message || "Apple sign-in failed.");
+      const { message, silent } = getAuthErrorMessage(err);
+      if (!silent) {
+        setAuthError(message);
+      }
     } finally {
       setAppleLoading(false);
     }

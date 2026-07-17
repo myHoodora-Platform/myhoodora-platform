@@ -10,6 +10,7 @@ import { PasswordInput } from "@myhoodora/ui/password-input";
 import { Button } from "@myhoodora/ui/button";
 import { registerSchema, type RegisterInput } from "@/lib/validation/auth";
 import { signUpUser, signInWithGoogle, signInWithApple } from "@/lib/firebase/auth";
+import { getAuthErrorMessage } from "@/lib/firebase/errors";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -35,9 +36,10 @@ export default function RegisterPage() {
       // New registration redirects to onboarding
       router.push("/onboarding");
     } catch (err: unknown) {
-      console.error(err);
-      const message = err instanceof Error ? err.message : String(err);
-      setAuthError(message || "Failed to create an account.");
+      const { message, silent } = getAuthErrorMessage(err);
+      if (!silent) {
+        setAuthError(message);
+      }
     }
   };
 
@@ -51,9 +53,10 @@ export default function RegisterPage() {
       // For this phase, we redirect to onboarding as a default for signup path.
       router.push("/onboarding");
     } catch (err: unknown) {
-      console.error(err);
-      const message = err instanceof Error ? err.message : String(err);
-      setAuthError(message || "Google sign-in failed.");
+      const { message, silent } = getAuthErrorMessage(err);
+      if (!silent) {
+        setAuthError(message);
+      }
     } finally {
       setGoogleLoading(false);
     }
@@ -66,9 +69,10 @@ export default function RegisterPage() {
       await signInWithApple();
       router.push("/onboarding");
     } catch (err: unknown) {
-      console.error(err);
-      const message = err instanceof Error ? err.message : String(err);
-      setAuthError(message || "Apple sign-in failed.");
+      const { message, silent } = getAuthErrorMessage(err);
+      if (!silent) {
+        setAuthError(message);
+      }
     } finally {
       setAppleLoading(false);
     }

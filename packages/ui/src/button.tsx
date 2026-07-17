@@ -43,15 +43,15 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           baseClasses,
           variantClasses[variant],
           sizeClasses[size],
-          loading && "relative text-transparent! select-none pointer-events-none",
+          loading && "relative select-none pointer-events-none",
           className
         )}
         {...props}
       >
         {loading && (
-          <span className="absolute inset-0 flex items-center justify-center text-current">
+          <span className="absolute inset-0 flex items-center justify-center">
             <svg
-              className="animate-spin size-5 text-current"
+              className="animate-spin size-5"
               xmlns="http://www.w3.org/2000/svg"
               fill="none"
               viewBox="0 0 24 24"
@@ -72,7 +72,9 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
             </svg>
           </span>
         )}
-        {children}
+        <span className={cn("inline-flex items-center justify-center gap-2", loading && "opacity-0")}>
+          {children}
+        </span>
       </button>
     );
   }
