@@ -27,6 +27,7 @@ import {
   MapPin,
   CheckCircle2,
 } from "lucide-react";
+import { Skeleton } from "@myhoodora/ui/skeleton";
 
 function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -65,8 +66,58 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
 
   if (loading || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="min-h-screen flex bg-slate-50 font-sans">
+        {/* Persistent Desktop Sidebar Skeleton */}
+        <aside className="w-64 bg-white border-r border-slate-100 p-6 flex flex-col justify-between hidden lg:flex shrink-0">
+          <div className="space-y-8">
+            <Skeleton className="h-8 w-32" />
+            <div className="space-y-4">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <Skeleton className="size-5 rounded-md" />
+                  <Skeleton className="h-4 w-32" />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Skeleton className="size-10 rounded-full" />
+            <div className="space-y-1.5 flex-1">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-3 w-16" />
+            </div>
+          </div>
+        </aside>
+
+        {/* Main Content Area Skeleton */}
+        <div className="flex-1 flex flex-col min-h-screen">
+          <header className="h-16 border-b border-slate-100 bg-white px-6 flex items-center justify-between">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-6 w-24 rounded-full" />
+          </header>
+          <main className="flex-1 p-6 max-w-4xl w-full mx-auto space-y-6">
+            {/* Quick Post Box Skeleton */}
+            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-4">
+              <Skeleton className="h-4 w-36" />
+              <Skeleton className="h-12 w-full" />
+            </div>
+
+            {/* Feed Items Skeletons */}
+            {[1, 2].map((i) => (
+              <div key={i} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-4">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="size-10 rounded-full" />
+                  <div className="space-y-1.5">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-3 w-20" />
+                  </div>
+                </div>
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-5/6" />
+              </div>
+            ))}
+          </main>
+        </div>
       </div>
     );
   }

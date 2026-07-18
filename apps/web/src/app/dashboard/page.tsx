@@ -4,10 +4,41 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@myhoodora/ui/button";
 import { Heart, MessageSquare, Share2 } from "lucide-react";
+import { Skeleton } from "@myhoodora/ui/skeleton";
+
+interface MockPost {
+  author: string;
+  neighborhood: string;
+  time: string;
+  content: string;
+  likes: number;
+  comments: number;
+}
+
+const mockFeedPosts: MockPost[] = [
+  {
+    author: "David Miller",
+    neighborhood: "Oakwood Heights",
+    time: "2 hours ago",
+    content: "Has anyone seen a black cat wandering around Oakwood Lane? Friendly but didn't have a collar. Let me know if she belongs to you!",
+    likes: 12,
+    comments: 3,
+  },
+  {
+    author: "Sarah Thompson",
+    neighborhood: "Maple Woods",
+    time: "5 hours ago",
+    content: "Huge thank you to everyone who helped clean up Maple Park this morning! The neighborhood looks fantastic, and kids are already enjoying the swings.",
+    likes: 34,
+    comments: 8,
+  },
+];
 
 export default function DashboardFeedPage() {
   const { runGatedAction } = useAuth();
   const [successActionMsg, setSuccessActionMsg] = useState<string | null>(null);
+  const [posts, setPosts] = useState<MockPost[]>([]);
+  const [loadingPosts, setLoadingPosts] = useState(true);
 
   const handleCreatePost = () => {
     runGatedAction(() => {
@@ -22,24 +53,14 @@ export default function DashboardFeedPage() {
     }
   }, [successActionMsg]);
 
-  const mockFeedPosts = [
-    {
-      author: "David Miller",
-      neighborhood: "Oakwood Heights",
-      time: "2 hours ago",
-      content: "Has anyone seen a black cat wandering around Oakwood Lane? Friendly but didn't have a collar. Let me know if she belongs to you!",
-      likes: 12,
-      comments: 3,
-    },
-    {
-      author: "Sarah Thompson",
-      neighborhood: "Maple Woods",
-      time: "5 hours ago",
-      content: "Huge thank you to everyone who helped clean up Maple Park this morning! The neighborhood looks fantastic, and kids are already enjoying the swings.",
-      likes: 34,
-      comments: 8,
-    },
-  ];
+  useEffect(() => {
+    // Simulate real database/network fetch timing (e.g., 600ms)
+    const timer = setTimeout(() => {
+      setPosts(mockFeedPosts);
+      setLoadingPosts(false);
+    }, 600);
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -76,38 +97,58 @@ export default function DashboardFeedPage() {
 
       {/* Feed Posts */}
       <div className="space-y-4">
-        {mockFeedPosts.map((post, idx) => (
-          <article
-            key={idx}
-            className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <h4 className="text-sm font-black text-slate-800">{post.author}</h4>
-                <p className="text-[10px] text-muted-foreground">
-                  {post.neighborhood} • {post.time}
-                </p>
+        {loadingPosts ? (
+          <>
+            {[1, 2].map((i) => (
+              <div key={i} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="size-10 rounded-full shrink-0" />
+                  <div className="space-y-1.5 flex-1">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-3 w-20" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-5/6" />
+                </div>
               </div>
-              <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
-                General
-              </span>
-            </div>
-            <p className="text-sm leading-relaxed text-slate-600">{post.content}</p>
-            <div className="flex items-center gap-6 pt-2 border-t border-slate-100 text-slate-400">
-              <button className="flex items-center gap-1.5 text-xs hover:text-rose-500 transition-colors">
-                <Heart className="size-4" />
-                {post.likes}
-              </button>
-              <button className="flex items-center gap-1.5 text-xs hover:text-primary transition-colors">
-                <MessageSquare className="size-4" />
-                {post.comments}
-              </button>
-              <button className="flex items-center gap-1.5 text-xs hover:text-slate-600 transition-colors ml-auto">
-                <Share2 className="size-4" />
-              </button>
-            </div>
-          </article>
-        ))}
+            ))}
+          </>
+        ) : (
+          posts.map((post, idx) => (
+            <article
+              key={idx}
+              className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-black text-slate-800">{post.author}</h4>
+                  <p className="text-[10px] text-muted-foreground">
+                    {post.neighborhood} • {post.time}
+                  </p>
+                </div>
+                <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
+                  General
+                </span>
+              </div>
+              <p className="text-sm leading-relaxed text-slate-600">{post.content}</p>
+              <div className="flex items-center gap-6 pt-2 border-t border-slate-100 text-slate-400">
+                <button className="flex items-center gap-1.5 text-xs hover:text-rose-500 transition-colors">
+                  <Heart className="size-4" />
+                  {post.likes}
+                </button>
+                <button className="flex items-center gap-1.5 text-xs hover:text-primary transition-colors">
+                  <MessageSquare className="size-4" />
+                  {post.comments}
+                </button>
+                <button className="flex items-center gap-1.5 text-xs hover:text-slate-600 transition-colors ml-auto">
+                  <Share2 className="size-4" />
+                </button>
+              </div>
+            </article>
+          ))
+        )}
       </div>
     </div>
   );

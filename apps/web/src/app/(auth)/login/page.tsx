@@ -11,10 +11,10 @@ import { Button } from "@myhoodora/ui/button";
 import { loginSchema, type LoginInput } from "@/lib/validation/auth";
 import { signInUser, signInWithGoogle, signInWithApple } from "@/lib/firebase/auth";
 import { getAuthErrorMessage } from "@/lib/firebase/errors";
+import { toast } from "sonner";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [authError, setAuthError] = useState<string | null>(null);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [appleLoading, setAppleLoading] = useState(false);
 
@@ -27,20 +27,18 @@ export default function LoginPage() {
   });
 
   const onSubmit = async (data: LoginInput) => {
-    setAuthError(null);
     try {
       await signInUser(data.email, data.password);
       router.push("/dashboard");
     } catch (err: unknown) {
       const { message, silent } = getAuthErrorMessage(err);
       if (!silent) {
-        setAuthError(message);
+        toast.error(message);
       }
     }
   };
 
   const handleGoogleSignIn = async () => {
-    setAuthError(null);
     setGoogleLoading(true);
     try {
       await signInWithGoogle();
@@ -48,7 +46,7 @@ export default function LoginPage() {
     } catch (err: unknown) {
       const { message, silent } = getAuthErrorMessage(err);
       if (!silent) {
-        setAuthError(message);
+        toast.error(message);
       }
     } finally {
       setGoogleLoading(false);
@@ -56,7 +54,6 @@ export default function LoginPage() {
   };
 
   const handleAppleSignIn = async () => {
-    setAuthError(null);
     setAppleLoading(true);
     try {
       await signInWithApple();
@@ -64,7 +61,7 @@ export default function LoginPage() {
     } catch (err: unknown) {
       const { message, silent } = getAuthErrorMessage(err);
       if (!silent) {
-        setAuthError(message);
+        toast.error(message);
       }
     } finally {
       setAppleLoading(false);
@@ -79,26 +76,6 @@ export default function LoginPage() {
           Welcome back! Log in to connect with your community.
         </p>
       </div>
-
-      {authError && (
-        <div className="p-4 bg-destructive/10 text-destructive text-sm font-semibold rounded-xl flex items-center gap-2 animate-in fade-in duration-200">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={2.5}
-            stroke="currentColor"
-            className="size-5 shrink-0"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"
-            />
-          </svg>
-          <span>{authError}</span>
-        </div>
-      )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div>

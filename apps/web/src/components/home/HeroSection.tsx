@@ -14,11 +14,11 @@ import { PasswordInput } from "@myhoodora/ui/password-input";
 import { registerSchema, type RegisterInput } from "@/lib/validation/auth";
 import { signUpUser, signInWithGoogle, signInWithApple } from "@/lib/firebase/auth";
 import { getAuthErrorMessage } from "@/lib/firebase/errors";
+import { toast } from "sonner";
 
 export function HeroSection() {
     const router = useRouter();
     const [showEmailRegister, setShowEmailRegister] = useState(false);
-    const [authError, setAuthError] = useState<string | null>(null);
     const [googleLoading, setGoogleLoading] = useState(false);
     const [appleLoading, setAppleLoading] = useState(false);
 
@@ -34,20 +34,18 @@ export function HeroSection() {
     });
 
     const onSubmit = async (data: RegisterInput) => {
-        setAuthError(null);
         try {
             await signUpUser(data.email, data.password);
             router.push("/onboarding");
         } catch (err: unknown) {
             const { message, silent } = getAuthErrorMessage(err);
             if (!silent) {
-                setAuthError(message);
+                toast.error(message);
             }
         }
     };
 
     const handleGoogleSignIn = async () => {
-        setAuthError(null);
         setGoogleLoading(true);
         try {
             await signInWithGoogle();
@@ -55,7 +53,7 @@ export function HeroSection() {
         } catch (err: unknown) {
             const { message, silent } = getAuthErrorMessage(err);
             if (!silent) {
-                setAuthError(message);
+                toast.error(message);
             }
         } finally {
             setGoogleLoading(false);
@@ -63,7 +61,6 @@ export function HeroSection() {
     };
 
     const handleAppleSignIn = async () => {
-        setAuthError(null);
         setAppleLoading(true);
         try {
             await signInWithApple();
@@ -71,7 +68,7 @@ export function HeroSection() {
         } catch (err: unknown) {
             const { message, silent } = getAuthErrorMessage(err);
             if (!silent) {
-                setAuthError(message);
+                toast.error(message);
             }
         } finally {
             setAppleLoading(false);
@@ -134,7 +131,6 @@ export function HeroSection() {
                                 <button
                                     onClick={() => {
                                         setShowEmailRegister(false);
-                                        setAuthError(null);
                                     }}
                                     className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline uppercase tracking-wider mb-2 outline-none"
                                 >
@@ -144,26 +140,6 @@ export function HeroSection() {
                                 <h3 className="text-2xl font-bold">Sign up with Email</h3>
                                 <p className="text-muted-foreground text-sm">Enter your credentials to join your local neighborhood.</p>
                             </div>
-
-                            {authError && (
-                                <div className="p-4 bg-destructive/10 text-destructive text-sm font-semibold rounded-xl flex items-center gap-2 animate-in fade-in duration-200">
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                        strokeWidth={2.5}
-                                        stroke="currentColor"
-                                        className="size-5 shrink-0"
-                                    >
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"
-                                        />
-                                    </svg>
-                                    <span>{authError}</span>
-                                </div>
-                            )}
 
                             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                                 <div>
@@ -226,25 +202,6 @@ export function HeroSection() {
                                 <p className="text-muted-foreground text-sm">Choose how you&apos;d like to join your community.</p>
                             </div>
 
-                            {authError && (
-                                <div className="p-4 bg-destructive/10 text-destructive text-sm font-semibold rounded-xl flex items-center gap-2 animate-in fade-in duration-200">
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                        strokeWidth={2.5}
-                                        className="size-5 shrink-0 stroke-destructive"
-                                    >
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"
-                                        />
-                                    </svg>
-                                    <span>{authError}</span>
-                                </div>
-                            )}
-
                             <div className="space-y-3">
                                 <Button
                                     variant="outline"
@@ -282,7 +239,6 @@ export function HeroSection() {
                                     className="w-full"
                                     onClick={() => {
                                         setShowEmailRegister(true);
-                                        setAuthError(null);
                                     }}
                                 >
                                     Sign up with Email

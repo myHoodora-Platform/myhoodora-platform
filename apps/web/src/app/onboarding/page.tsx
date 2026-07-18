@@ -7,6 +7,7 @@ import { Button } from "@myhoodora/ui/button";
 import { Input } from "@myhoodora/ui/input";
 import { Logo } from "@myhoodora/ui/logo";
 import { MapPin, Navigation, ArrowRight, ShieldCheck, Check } from "lucide-react";
+import { Skeleton } from "@myhoodora/ui/skeleton";
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -98,15 +99,15 @@ export default function OnboardingPage() {
         // Wait another moment for the success state, then route
         setTimeout(() => {
           router.push("/dashboard");
-        }, 800);
+        }, 1200);
       } catch (err) {
-        console.error(err);
-        setOnboardingError("Failed to save onboarding details to server. Please try again.");
+        console.error("Onboarding backend completion failed", err);
+        setOnboardingError("Verification could not be saved to backend. Please retry.");
         setStep(1);
       }
     };
 
-    const timer4 = setTimeout(finalize, 4500);
+    const timer4 = setTimeout(finalize, 4800);
 
     return () => {
       clearTimeout(timer1);
@@ -118,8 +119,51 @@ export default function OnboardingPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="min-h-screen flex flex-col bg-slate-50 text-foreground font-sans">
+        {/* Top Header Skeleton */}
+        <header className="w-full px-6 py-4 flex items-center justify-between border-b border-slate-100 bg-white">
+          <Skeleton className="h-8 w-28" />
+          <Skeleton className="h-6 w-12" />
+        </header>
+
+        {/* Main Content Skeleton */}
+        <main className="flex-1 flex items-center justify-center p-6">
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-xl overflow-hidden max-w-4xl w-full grid md:grid-cols-[280px_1fr] min-h-[500px]">
+            {/* Left Panel Step Progress Skeleton */}
+            <div className="bg-slate-50/50 p-8 border-r border-slate-100 space-y-8 hidden md:block">
+              {[1, 2, 3].map((s) => (
+                <div key={s} className="flex gap-4 items-start animate-pulse">
+                  <Skeleton className="size-8 rounded-full shrink-0" />
+                  <div className="space-y-2 flex-1">
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-3 w-28" />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Right Panel Content Skeleton */}
+            <div className="p-8 md:p-12 flex flex-col justify-between">
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <Skeleton className="h-8 w-48" />
+                  <Skeleton className="h-4 w-72" />
+                </div>
+                <div className="space-y-4 pt-4">
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-10 w-full" />
+                  </div>
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-10 w-full" />
+                  </div>
+                </div>
+              </div>
+              <Skeleton className="h-10 w-full mt-8" />
+            </div>
+          </div>
+        </main>
       </div>
     );
   }

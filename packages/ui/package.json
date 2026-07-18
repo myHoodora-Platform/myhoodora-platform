@@ -10,6 +10,7 @@
     "./password-input": "./src/password-input.tsx",
     "./logo": "./src/logo.tsx",
     "./sidebar": "./src/sidebar.tsx",
+    "./skeleton": "./src/skeleton.tsx",
     "./utils": "./src/utils.ts"
   },
   "scripts": {
