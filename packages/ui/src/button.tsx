@@ -32,12 +32,15 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   (
-    { variant = "default", size = "default", className, loading, disabled, children, ...props },
+    { variant = "default", size = "default", className, loading, disabled, children, type = "button", ...props },
     ref
   ) => {
     return (
       <button
         ref={ref}
+        // Default to "button" so Buttons without an explicit type never accidentally
+        // submit a parent <form>. Only type="submit" triggers form submission.
+        type={type}
         disabled={disabled || loading}
         className={cn(
           baseClasses,

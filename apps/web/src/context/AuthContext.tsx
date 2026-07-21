@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { onAuthStateChanged, User } from "firebase/auth";
+import { onIdTokenChanged, User } from "firebase/auth";
 import { auth } from "@/lib/firebase/config";
 import { fetchUserProfile, completeOnboardingApi } from "@/lib/firebase/auth";
 
@@ -52,17 +52,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       if (firebaseUser) {
         try {
+          const idToken = await firebaseUser.getIdToken();
+          await fetch("/api/auth/session", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ idToken }),
+          });
+
           const data = await fetchUserProfile(firebaseUser);
           setProfile(data as UserProfile);
         } catch (err) {
-          console.error("Failed to fetch user profile from backend:", err);
+          console.error("Failed to fetch user profile or update session cookie:", err);
           setProfile(null);
         }
       } else {
+        try {
+          await fetch("/api/auth/logout", {
+            method: "POST",
+          });
+        } catch (err) {
+          console.error("Failed to clear session cookie on logout:", err);
+        }
         setProfile(null);
       }
       setLoading(false);
