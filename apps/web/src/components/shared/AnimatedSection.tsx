@@ -1,7 +1,13 @@
 "use client";
 
 import { useRef, useEffect } from "react";
-import { motion, useAnimationControls, useInView, type Target, type Transition } from "framer-motion";
+import {
+  motion,
+  useAnimationControls,
+  useInView,
+  type Target,
+  type Transition,
+} from "framer-motion";
 
 type AnimatedSectionProps = {
   children: React.ReactNode;
@@ -38,10 +44,16 @@ export function AnimatedSection({
   useEffect(() => {
     if (whileInViewRef.current) {
       if (inView) {
-        controls.start({ ...whileInViewRef.current, transition: transitionRef.current });
+        controls.start({
+          ...whileInViewRef.current,
+          transition: transitionRef.current,
+        });
       }
     } else if (animateRef.current) {
-      controls.start({ ...animateRef.current, transition: transitionRef.current });
+      controls.start({
+        ...animateRef.current,
+        transition: transitionRef.current,
+      });
     }
   }, [inView, controls]);
 

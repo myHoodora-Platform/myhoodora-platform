@@ -6,7 +6,13 @@ import { useAuth } from "@/context/AuthContext";
 import { Button } from "@myhoodora/ui/button";
 import { Input } from "@myhoodora/ui/input";
 import { Logo } from "@myhoodora/ui/logo";
-import { MapPin, Navigation, ArrowRight, ShieldCheck, Check } from "lucide-react";
+import {
+  MapPin,
+  Navigation,
+  ArrowRight,
+  ShieldCheck,
+  Check,
+} from "lucide-react";
 import { Skeleton } from "@myhoodora/ui/skeleton";
 
 export default function OnboardingPage() {
@@ -15,7 +21,9 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(1);
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
-  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(
+    null,
+  );
   const [detecting, setDetecting] = useState(false);
   const [verifyingStatus, setVerifyingStatus] = useState(0);
   const [onboardingError, setOnboardingError] = useState<string | null>(null);
@@ -45,15 +53,19 @@ export default function OnboardingPage() {
       (position) => {
         const { latitude, longitude } = position.coords;
         setCoords({ lat: latitude, lng: longitude });
-        setAddress(`Lat: ${latitude.toFixed(4)}, Lng: ${longitude.toFixed(4)} (Detected Location)`);
+        setAddress(
+          `Lat: ${latitude.toFixed(4)}, Lng: ${longitude.toFixed(4)} (Detected Location)`,
+        );
         setDetecting(false);
       },
       (error) => {
         console.error(error);
-        setOnboardingError("Unable to detect location. Please enter your address manually.");
+        setOnboardingError(
+          "Unable to detect location. Please enter your address manually.",
+        );
         setDetecting(false);
       },
-      { timeout: 10000 }
+      { timeout: 10000 },
     );
   };
 
@@ -64,7 +76,9 @@ export default function OnboardingPage() {
         return;
       }
       if (!address.trim()) {
-        setOnboardingError("Please enter your address or detect your location.");
+        setOnboardingError(
+          "Please enter your address or detect your location.",
+        );
         return;
       }
       setOnboardingError(null);
@@ -102,7 +116,9 @@ export default function OnboardingPage() {
         }, 1200);
       } catch (err) {
         console.error("Onboarding backend completion failed", err);
-        setOnboardingError("Verification could not be saved to backend. Please retry.");
+        setOnboardingError(
+          "Verification could not be saved to backend. Please retry.",
+        );
         setStep(1);
       }
     };
@@ -207,18 +223,25 @@ export default function OnboardingPage() {
               const isActive = step === currentStep;
 
               return (
-                <div key={idx} className="flex flex-col items-center relative z-10 text-center flex-1">
+                <div
+                  key={idx}
+                  className="flex flex-col items-center relative z-10 text-center flex-1"
+                >
                   {/* Step Node Icon/Bubble */}
                   <div
                     className={`size-9 rounded-full flex items-center justify-center border-2 transition-all duration-300 ${
                       isCompleted
                         ? "bg-primary border-primary text-white"
                         : isActive
-                        ? "bg-white border-primary text-primary shadow-lg shadow-primary/10 ring-4 ring-primary/10"
-                        : "bg-white border-slate-200 text-slate-400"
+                          ? "bg-white border-primary text-primary shadow-lg shadow-primary/10 ring-4 ring-primary/10"
+                          : "bg-white border-slate-200 text-slate-400"
                     }`}
                   >
-                    {isCompleted ? <Check className="size-4" /> : <span className="text-xs font-bold">{currentStep}</span>}
+                    {isCompleted ? (
+                      <Check className="size-4" />
+                    ) : (
+                      <span className="text-xs font-bold">{currentStep}</span>
+                    )}
                   </div>
                   {/* Step Info */}
                   <span
@@ -249,9 +272,12 @@ export default function OnboardingPage() {
             {step === 1 && (
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-2xl font-black mb-2 tracking-tight">Tell us about yourself</h2>
+                  <h2 className="text-2xl font-black mb-2 tracking-tight">
+                    Tell us about yourself
+                  </h2>
                   <p className="text-sm text-muted-foreground">
-                    Enter your name and address to find your local neighbourhood community.
+                    Enter your name and address to find your local neighbourhood
+                    community.
                   </p>
                 </div>
 
@@ -279,7 +305,9 @@ export default function OnboardingPage() {
                         disabled={detecting}
                         className="text-xs font-extrabold text-primary hover:underline flex items-center gap-1 cursor-pointer disabled:opacity-50"
                       >
-                        <Navigation className={`size-3 ${detecting ? "animate-pulse" : ""}`} />
+                        <Navigation
+                          className={`size-3 ${detecting ? "animate-pulse" : ""}`}
+                        />
                         {detecting ? "Detecting..." : "Use current location"}
                       </button>
                     </div>
@@ -303,9 +331,12 @@ export default function OnboardingPage() {
             {step === 2 && (
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-2xl font-black mb-2 tracking-tight">Confirm your neighborhood</h2>
+                  <h2 className="text-2xl font-black mb-2 tracking-tight">
+                    Confirm your neighborhood
+                  </h2>
                   <p className="text-sm text-muted-foreground">
-                    We detected you belong in the local community map section below.
+                    We detected you belong in the local community map section
+                    below.
                   </p>
                 </div>
 
@@ -349,7 +380,11 @@ export default function OnboardingPage() {
                 </div>
 
                 <div className="flex gap-4">
-                  <Button variant="outline" className="flex-1" onClick={() => setStep(1)}>
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => setStep(1)}
+                  >
                     Back
                   </Button>
                   <Button className="flex-1" onClick={handleNextStep}>
@@ -370,9 +405,12 @@ export default function OnboardingPage() {
                 </div>
 
                 <div className="text-center space-y-2 max-w-sm">
-                  <h3 className="text-lg font-black">Verifying Address Authenticity</h3>
+                  <h3 className="text-lg font-black">
+                    Verifying Address Authenticity
+                  </h3>
                   <p className="text-sm text-muted-foreground">
-                    Please stand by while we verify your address fits local neighborhood guidelines.
+                    Please stand by while we verify your address fits local
+                    neighborhood guidelines.
                   </p>
                 </div>
 
@@ -388,7 +426,13 @@ export default function OnboardingPage() {
                     >
                       {verifyingStatus > 0 ? "✓" : "1"}
                     </div>
-                    <span className={verifyingStatus >= 0 ? "font-bold text-slate-800" : "text-slate-400"}>
+                    <span
+                      className={
+                        verifyingStatus >= 0
+                          ? "font-bold text-slate-800"
+                          : "text-slate-400"
+                      }
+                    >
                       Checking address coordinates...
                     </span>
                   </div>
@@ -403,7 +447,13 @@ export default function OnboardingPage() {
                     >
                       {verifyingStatus > 1 ? "✓" : "2"}
                     </div>
-                    <span className={verifyingStatus >= 1 ? "font-bold text-slate-800" : "text-slate-400"}>
+                    <span
+                      className={
+                        verifyingStatus >= 1
+                          ? "font-bold text-slate-800"
+                          : "text-slate-400"
+                      }
+                    >
                       Checking active sector boundary...
                     </span>
                   </div>
@@ -418,7 +468,13 @@ export default function OnboardingPage() {
                     >
                       {verifyingStatus > 2 ? "✓" : "3"}
                     </div>
-                    <span className={verifyingStatus >= 2 ? "font-bold text-slate-800" : "text-slate-400"}>
+                    <span
+                      className={
+                        verifyingStatus >= 2
+                          ? "font-bold text-slate-800"
+                          : "text-slate-400"
+                      }
+                    >
                       Setting up neighborhood feed access...
                     </span>
                   </div>

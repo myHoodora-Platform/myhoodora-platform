@@ -55,7 +55,7 @@ export const SidebarProvider = forwardRef<
       children,
       ...props
     },
-    ref
+    ref,
   ) => {
     const [isMobile, setIsMobile] = useState(false);
     const [openMobile, setOpenMobile] = useState(false);
@@ -76,7 +76,7 @@ export const SidebarProvider = forwardRef<
           document.cookie = `${SIDEBAR_COOKIE_NAME}=${value}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
         }
       },
-      [openProp, onOpenChange]
+      [openProp, onOpenChange],
     );
 
     const toggleSidebar = useCallback(() => {
@@ -127,7 +127,7 @@ export const SidebarProvider = forwardRef<
           }
           className={cn(
             "flex min-h-screen w-full text-slate-800 bg-slate-50 font-sans",
-            className
+            className,
           )}
           {...props}
         >
@@ -135,7 +135,7 @@ export const SidebarProvider = forwardRef<
         </div>
       </SidebarContext.Provider>
     );
-  }
+  },
 );
 SidebarProvider.displayName = "SidebarProvider";
 
@@ -146,73 +146,71 @@ export const Sidebar = forwardRef<
     variant?: "sidebar" | "floating" | "inset";
     collapsible?: "offcanvas" | "icon" | "none";
   }
->(
-  (
-    {
-      side = "left",
-      className,
-      children,
-      ...props
-    },
-    ref
-  ) => {
-    const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
+>(({ side = "left", className, children, ...props }, ref) => {
+  const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
 
-    // Mobile View Overlay and Drawer
-    if (isMobile) {
-      return (
-        <>
-          {/* Backdrop Blur Overlay */}
-          <div
-            className={cn(
-              "fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs transition-opacity duration-300",
-              openMobile ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
-            )}
-            onClick={() => setOpenMobile(false)}
-          />
-          {/* Drawer Body */}
-          <aside
-            ref={ref}
-            style={{ width: SIDEBAR_WIDTH_MOBILE }}
-            className={cn(
-              "fixed bottom-0 top-0 z-50 flex h-full flex-col bg-white border-r border-slate-100 shadow-xl transition-transform duration-300 ease-in-out",
-              side === "left" ? "left-0" : "right-0",
-              openMobile ? "translate-x-0" : side === "left" ? "-translate-x-full" : "translate-x-full",
-              className
-            )}
-            {...props}
-          >
-            <div className="flex h-full w-full flex-col">{children}</div>
-          </aside>
-        </>
-      );
-    }
-
-    // Desktop View
+  // Mobile View Overlay and Drawer
+  if (isMobile) {
     return (
-      <div
-        className="group peer hidden lg:block"
-        style={{
-          width: state === "expanded" ? SIDEBAR_WIDTH : SIDEBAR_WIDTH_ICON,
-          transition: "width 0.3s ease-in-out",
-        }}
-      >
+      <>
+        {/* Backdrop Blur Overlay */}
+        <div
+          className={cn(
+            "fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs transition-opacity duration-300",
+            openMobile
+              ? "opacity-100 pointer-events-auto"
+              : "opacity-0 pointer-events-none",
+          )}
+          onClick={() => setOpenMobile(false)}
+        />
+        {/* Drawer Body */}
         <aside
           ref={ref}
+          style={{ width: SIDEBAR_WIDTH_MOBILE }}
           className={cn(
-            "fixed bottom-0 top-0 z-20 flex h-full flex-col bg-white border-r border-slate-100 transition-[width] duration-300 ease-in-out",
+            "fixed bottom-0 top-0 z-50 flex h-full flex-col bg-white border-r border-slate-100 shadow-xl transition-transform duration-300 ease-in-out",
             side === "left" ? "left-0" : "right-0",
-            state === "expanded" ? "w-[var(--sidebar-width)]" : "w-[var(--sidebar-width-icon)]",
-            className
+            openMobile
+              ? "translate-x-0"
+              : side === "left"
+                ? "-translate-x-full"
+                : "translate-x-full",
+            className,
           )}
           {...props}
         >
           <div className="flex h-full w-full flex-col">{children}</div>
         </aside>
-      </div>
+      </>
     );
   }
-);
+
+  // Desktop View
+  return (
+    <div
+      className="group peer hidden lg:block"
+      style={{
+        width: state === "expanded" ? SIDEBAR_WIDTH : SIDEBAR_WIDTH_ICON,
+        transition: "width 0.3s ease-in-out",
+      }}
+    >
+      <aside
+        ref={ref}
+        className={cn(
+          "fixed bottom-0 top-0 z-20 flex h-full flex-col bg-white border-r border-slate-100 transition-[width] duration-300 ease-in-out",
+          side === "left" ? "left-0" : "right-0",
+          state === "expanded"
+            ? "w-[var(--sidebar-width)]"
+            : "w-[var(--sidebar-width-icon)]",
+          className,
+        )}
+        {...props}
+      >
+        <div className="flex h-full w-full flex-col">{children}</div>
+      </aside>
+    </div>
+  );
+});
 Sidebar.displayName = "Sidebar";
 
 export const SidebarTrigger = forwardRef<
@@ -227,7 +225,7 @@ export const SidebarTrigger = forwardRef<
       data-sidebar="trigger"
       className={cn(
         "inline-flex items-center justify-center rounded-lg p-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-2",
-        className
+        className,
       )}
       onClick={(event) => {
         onClick?.(event);
@@ -235,7 +233,11 @@ export const SidebarTrigger = forwardRef<
       }}
       {...props}
     >
-      {isMobile ? <Menu className="size-5" /> : <PanelLeft className="size-5" />}
+      {isMobile ? (
+        <Menu className="size-5" />
+      ) : (
+        <PanelLeft className="size-5" />
+      )}
       <span className="sr-only">Toggle Sidebar</span>
     </button>
   );
@@ -264,7 +266,7 @@ export const SidebarContent = forwardRef<
     data-sidebar="content"
     className={cn(
       "flex flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden p-3",
-      className
+      className,
     )}
     {...props}
   />
@@ -278,7 +280,10 @@ export const SidebarFooter = forwardRef<
   <div
     ref={ref}
     data-sidebar="footer"
-    className={cn("flex flex-col p-4 border-t border-slate-100 mt-auto", className)}
+    className={cn(
+      "flex flex-col p-4 border-t border-slate-100 mt-auto",
+      className,
+    )}
     {...props}
   />
 ));
@@ -310,7 +315,7 @@ export const SidebarGroupLabel = forwardRef<
       data-sidebar="group-label"
       className={cn(
         "px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 select-none",
-        className
+        className,
       )}
       {...props}
     />
@@ -376,7 +381,7 @@ export const SidebarMenuButton = forwardRef<
         "flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-primary transition-all duration-200 outline-none select-none text-left relative",
         isActive && "bg-primary/5 text-primary hover:bg-primary/5",
         isCollapsed ? "justify-center px-0 py-3" : "justify-start",
-        className
+        className,
       )}
       title={isCollapsed ? tooltip : undefined}
       {...props}

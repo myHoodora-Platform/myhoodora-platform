@@ -10,7 +10,8 @@ import {
 } from "firebase/auth";
 import { auth } from "./config";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
 
 /**
  * Syncs the Firebase user profile to the NestJS backend DB.
@@ -34,20 +35,35 @@ export async function syncUserProfile(user: User): Promise<unknown> {
   return response.json();
 }
 
-export async function signInUser(email: string, password: string): Promise<User> {
+export async function signInUser(
+  email: string,
+  password: string,
+): Promise<User> {
   const credential = await signInWithEmailAndPassword(auth, email, password);
   await syncUserProfile(credential.user);
   return credential.user;
 }
 
-export async function signUpUser(email: string, password: string): Promise<User> {
-  const credential = await createUserWithEmailAndPassword(auth, email, password);
+export async function signUpUser(
+  email: string,
+  password: string,
+): Promise<User> {
+  const credential = await createUserWithEmailAndPassword(
+    auth,
+    email,
+    password,
+  );
   await syncUserProfile(credential.user);
   return credential.user;
 }
 
 export async function resetUserPassword(email: string): Promise<void> {
-  await sendPasswordResetEmail(auth, email);
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const actionCodeSettings = {
+    url: `${appUrl}/reset-password`,
+    handleCodeInApp: true,
+  };
+  await sendPasswordResetEmail(auth, email, actionCodeSettings);
 }
 
 export async function signInWithGoogle(): Promise<User> {
@@ -88,7 +104,10 @@ export async function fetchUserProfile(user: User): Promise<unknown> {
 
 export async function completeOnboardingApi(
   user: User,
-  payload: { displayName?: string; location?: { lat?: number; lng?: number; address?: string } }
+  payload: {
+    displayName?: string;
+    location?: { lat?: number; lng?: number; address?: string };
+  },
 ): Promise<unknown> {
   const token = await user.getIdToken();
   const response = await fetch(`${API_BASE_URL}/users/me/onboarding`, {

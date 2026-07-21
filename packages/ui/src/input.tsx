@@ -18,7 +18,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           className={cn(
             baseClasses,
             error ? "border-destructive focus:border-destructive" : "",
-            className
+            className,
           )}
           {...props}
         />
@@ -43,7 +43,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
         )}
       </div>
     );
-  }
+  },
 );
 
 Input.displayName = "Input";

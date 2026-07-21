@@ -19,6 +19,9 @@ export async function POST(request: NextRequest) {
     return response;
   } catch (err) {
     console.error("Session cookie setting failed:", err);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }

@@ -9,7 +9,11 @@ import { Input } from "@myhoodora/ui/input";
 import { PasswordInput } from "@myhoodora/ui/password-input";
 import { Button } from "@myhoodora/ui/button";
 import { loginSchema, type LoginInput } from "@/lib/validation/auth";
-import { signInUser, signInWithGoogle, signInWithApple } from "@/lib/firebase/auth";
+import {
+  signInUser,
+  signInWithGoogle,
+  signInWithApple,
+} from "@/lib/firebase/auth";
 import { getAuthErrorMessage } from "@/lib/firebase/errors";
 import { toast } from "sonner";
 
@@ -31,7 +35,10 @@ export default function LoginPage() {
       await signInUser(data.email, data.password);
       router.push("/dashboard");
     } catch (err: unknown) {
-      const { message, silent } = getAuthErrorMessage(err);
+      const { code, message, silent } = getAuthErrorMessage(err);
+      if (process.env.NODE_ENV === "development" && code) {
+        console.warn(`[AuthError code]: ${code}`);
+      }
       if (!silent) {
         toast.error(message);
       }
@@ -44,7 +51,10 @@ export default function LoginPage() {
       await signInWithGoogle();
       router.push("/dashboard");
     } catch (err: unknown) {
-      const { message, silent } = getAuthErrorMessage(err);
+      const { code, message, silent } = getAuthErrorMessage(err);
+      if (process.env.NODE_ENV === "development" && code) {
+        console.warn(`[AuthError code]: ${code}`);
+      }
       if (!silent) {
         toast.error(message);
       }
@@ -59,7 +69,10 @@ export default function LoginPage() {
       await signInWithApple();
       router.push("/dashboard");
     } catch (err: unknown) {
-      const { message, silent } = getAuthErrorMessage(err);
+      const { code, message, silent } = getAuthErrorMessage(err);
+      if (process.env.NODE_ENV === "development" && code) {
+        console.warn(`[AuthError code]: ${code}`);
+      }
       if (!silent) {
         toast.error(message);
       }
@@ -71,7 +84,9 @@ export default function LoginPage() {
   return (
     <div className="space-y-6">
       <div className="text-center space-y-2">
-        <h1 className="text-3xl font-black tracking-tight text-foreground">Log in</h1>
+        <h1 className="text-3xl font-black tracking-tight text-foreground">
+          Log in
+        </h1>
         <p className="text-sm text-muted-foreground">
           Welcome back! Log in to connect with your community.
         </p>
@@ -116,7 +131,9 @@ export default function LoginPage() {
 
       <div className="flex items-center gap-4 py-1">
         <div className="h-px flex-1 bg-border"></div>
-        <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">or</span>
+        <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+          or
+        </span>
         <div className="h-px flex-1 bg-border"></div>
       </div>
 

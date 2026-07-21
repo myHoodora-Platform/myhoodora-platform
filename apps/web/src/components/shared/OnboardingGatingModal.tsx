@@ -43,9 +43,12 @@ export function OnboardingGatingModal() {
           </div>
 
           <div className="space-y-2">
-            <h3 className="text-xl font-black tracking-tight text-slate-800">Complete Onboarding</h3>
+            <h3 className="text-xl font-black tracking-tight text-slate-800">
+              Complete Onboarding
+            </h3>
             <p className="text-sm text-muted-foreground px-2">
-              To contribute to your local community, post updates, list items, or RSVP to events, you need to verify your address first.
+              To contribute to your local community, post updates, list items,
+              or RSVP to events, you need to verify your address first.
             </p>
           </div>
         </div>
@@ -55,7 +58,11 @@ export function OnboardingGatingModal() {
           <Button className="w-full" onClick={handleGoToOnboarding}>
             Verify neighborhood location
           </Button>
-          <Button variant="ghost" className="w-full" onClick={() => setIsGatingModalOpen(false)}>
+          <Button
+            variant="ghost"
+            className="w-full"
+            onClick={() => setIsGatingModalOpen(false)}
+          >
             Maybe later
           </Button>
         </div>

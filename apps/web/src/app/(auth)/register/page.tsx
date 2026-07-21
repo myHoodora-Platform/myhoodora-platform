@@ -9,7 +9,11 @@ import { Input } from "@myhoodora/ui/input";
 import { PasswordInput } from "@myhoodora/ui/password-input";
 import { Button } from "@myhoodora/ui/button";
 import { registerSchema, type RegisterInput } from "@/lib/validation/auth";
-import { signUpUser, signInWithGoogle, signInWithApple } from "@/lib/firebase/auth";
+import {
+  signUpUser,
+  signInWithGoogle,
+  signInWithApple,
+} from "@/lib/firebase/auth";
 import { getAuthErrorMessage } from "@/lib/firebase/errors";
 import { toast } from "sonner";
 
@@ -35,7 +39,10 @@ export default function RegisterPage() {
       // New registration redirects to onboarding
       router.push("/onboarding");
     } catch (err: unknown) {
-      const { message, silent } = getAuthErrorMessage(err);
+      const { code, message, silent } = getAuthErrorMessage(err);
+      if (process.env.NODE_ENV === "development" && code) {
+        console.warn(`[AuthError code]: ${code}`);
+      }
       if (!silent) {
         toast.error(message);
       }
@@ -51,7 +58,10 @@ export default function RegisterPage() {
       // For this phase, we redirect to onboarding as a default for signup path.
       router.push("/onboarding");
     } catch (err: unknown) {
-      const { message, silent } = getAuthErrorMessage(err);
+      const { code, message, silent } = getAuthErrorMessage(err);
+      if (process.env.NODE_ENV === "development" && code) {
+        console.warn(`[AuthError code]: ${code}`);
+      }
       if (!silent) {
         toast.error(message);
       }
@@ -66,7 +76,10 @@ export default function RegisterPage() {
       await signInWithApple();
       router.push("/onboarding");
     } catch (err: unknown) {
-      const { message, silent } = getAuthErrorMessage(err);
+      const { code, message, silent } = getAuthErrorMessage(err);
+      if (process.env.NODE_ENV === "development" && code) {
+        console.warn(`[AuthError code]: ${code}`);
+      }
       if (!silent) {
         toast.error(message);
       }
@@ -78,7 +91,9 @@ export default function RegisterPage() {
   return (
     <div className="space-y-6">
       <div className="text-center space-y-2">
-        <h1 className="text-3xl font-black tracking-tight text-foreground">Sign up</h1>
+        <h1 className="text-3xl font-black tracking-tight text-foreground">
+          Sign up
+        </h1>
         <p className="text-sm text-muted-foreground">
           Join your local community to connect with neighbors.
         </p>
@@ -127,7 +142,9 @@ export default function RegisterPage() {
 
       <div className="flex items-center gap-4 py-1">
         <div className="h-px flex-1 bg-border"></div>
-        <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">or</span>
+        <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+          or
+        </span>
         <div className="h-px flex-1 bg-border"></div>
       </div>
 
@@ -164,11 +181,17 @@ export default function RegisterPage() {
             />
             <span className="text-xs text-muted-foreground leading-normal">
               I agree to myHoodora&apos;s{" "}
-              <Link href="/terms" className="underline hover:text-primary transition-all font-semibold">
+              <Link
+                href="/terms"
+                className="underline hover:text-primary transition-all font-semibold"
+              >
                 Terms of Service
               </Link>{" "}
               and{" "}
-              <Link href="/privacy" className="underline hover:text-primary transition-all font-semibold">
+              <Link
+                href="/privacy"
+                className="underline hover:text-primary transition-all font-semibold"
+              >
                 Privacy Policy
               </Link>
               .

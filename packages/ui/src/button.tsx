@@ -7,12 +7,9 @@ type ButtonSize = "sm" | "default" | "lg";
 const variantClasses: Record<ButtonVariant, string> = {
   default:
     "bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20",
-  outline:
-    "bg-background border border-border text-foreground hover:bg-muted",
-  ghost:
-    "text-foreground hover:bg-primary/5",
-  secondary:
-    "bg-background text-primary hover:bg-slate-100 shadow-xl",
+  outline: "bg-background border border-border text-foreground hover:bg-muted",
+  ghost: "text-foreground hover:bg-primary/5",
+  secondary: "bg-background text-primary hover:bg-slate-100 shadow-xl",
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
@@ -32,8 +29,17 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   (
-    { variant = "default", size = "default", className, loading, disabled, children, type = "button", ...props },
-    ref
+    {
+      variant = "default",
+      size = "default",
+      className,
+      loading,
+      disabled,
+      children,
+      type = "button",
+      ...props
+    },
+    ref,
   ) => {
     return (
       <button
@@ -47,7 +53,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           variantClasses[variant],
           sizeClasses[size],
           loading && "relative select-none pointer-events-none",
-          className
+          className,
         )}
         {...props}
       >
@@ -75,12 +81,17 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
             </svg>
           </span>
         )}
-        <span className={cn("inline-flex items-center justify-center gap-2", loading && "opacity-0")}>
+        <span
+          className={cn(
+            "inline-flex items-center justify-center gap-2",
+            loading && "opacity-0",
+          )}
+        >
           {children}
         </span>
       </button>
     );
-  }
+  },
 );
 
 Button.displayName = "Button";

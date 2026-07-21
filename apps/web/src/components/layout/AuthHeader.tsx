@@ -17,7 +17,9 @@ export function AuthHeader() {
         <div>
           {pathname === "/login" && (
             <div className="flex items-center gap-3">
-              <span className="hidden sm:inline text-sm text-muted-foreground">New to myHoodora?</span>
+              <span className="hidden sm:inline text-sm text-muted-foreground">
+                New to myHoodora?
+              </span>
               <Link href="/register">
                 <Button variant="outline" size="sm">
                   Sign up
@@ -27,7 +29,9 @@ export function AuthHeader() {
           )}
           {pathname === "/register" && (
             <div className="flex items-center gap-3">
-              <span className="hidden sm:inline text-sm text-muted-foreground">Already have an account?</span>
+              <span className="hidden sm:inline text-sm text-muted-foreground">
+                Already have an account?
+              </span>
               <Link href="/login">
                 <Button variant="outline" size="sm">
                   Log in

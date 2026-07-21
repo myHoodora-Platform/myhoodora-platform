@@ -7,7 +7,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Input } from "@myhoodora/ui/input";
 import { Button } from "@myhoodora/ui/button";
 import { ArrowLeft } from "lucide-react";
-import { forgotPasswordSchema, type ForgotPasswordInput } from "@/lib/validation/auth";
+import {
+  forgotPasswordSchema,
+  type ForgotPasswordInput,
+} from "@/lib/validation/auth";
 import { resetUserPassword } from "@/lib/firebase/auth";
 import { getAuthErrorMessage } from "@/lib/firebase/errors";
 import { toast } from "sonner";
@@ -27,11 +30,19 @@ export default function ForgotPasswordPage() {
     setSuccessMessage(null);
     try {
       await resetUserPassword(data.email);
-      setSuccessMessage("We've sent a password reset link to your email address.");
+      setSuccessMessage(
+        "If an account exists, we've sent a password reset link to your email address.",
+      );
     } catch (err: unknown) {
-      const { message, silent } = getAuthErrorMessage(err);
-      if (!silent) {
-        toast.error(message);
+      const { code, message, silent } = getAuthErrorMessage(err);
+      if (code === "auth/user-not-found" || code === "auth/user-disabled") {
+        setSuccessMessage(
+          "If an account exists, we've sent a password reset link to your email address.",
+        );
+      } else {
+        if (!silent) {
+          toast.error(message);
+        }
       }
     }
   };
@@ -46,9 +57,12 @@ export default function ForgotPasswordPage() {
           <ArrowLeft className="size-4" />
           Back to Log in
         </Link>
-        <h1 className="text-3xl font-black tracking-tight text-foreground">Reset password</h1>
+        <h1 className="text-3xl font-black tracking-tight text-foreground">
+          Reset password
+        </h1>
         <p className="text-sm text-muted-foreground">
-          Enter your email address and we&apos;ll send you a recovery link to get back into your account.
+          Enter your email address and we&apos;ll send you a recovery link to
+          get back into your account.
         </p>
       </div>
 

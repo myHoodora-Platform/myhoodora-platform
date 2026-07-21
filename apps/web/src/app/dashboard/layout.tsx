@@ -104,7 +104,10 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
 
             {/* Feed Items Skeletons */}
             {[1, 2].map((i) => (
-              <div key={i} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-4">
+              <div
+                key={i}
+                className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-4"
+              >
                 <div className="flex items-center gap-3">
                   <Skeleton className="size-10 rounded-full" />
                   <div className="space-y-1.5">
@@ -154,7 +157,11 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         <SidebarHeader className="flex flex-row items-center justify-between">
           <div className="flex items-center gap-2 overflow-hidden">
             <Logo size="sm" className={isCollapsed ? "scale-90" : ""} />
-            {!isCollapsed && <span className="text-[10px] font-extrabold text-primary tracking-widest uppercase bg-primary/5 px-2 py-0.5 rounded-md">V0.1</span>}
+            {!isCollapsed && (
+              <span className="text-[10px] font-extrabold text-primary tracking-widest uppercase bg-primary/5 px-2 py-0.5 rounded-md">
+                V0.1
+              </span>
+            )}
           </div>
           {!isCollapsed && <SidebarTrigger className="hidden lg:inline-flex" />}
         </SidebarHeader>
@@ -181,21 +188,27 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
           {!isCollapsed ? (
             <div className="flex items-start gap-2.5 p-1 rounded-xl bg-slate-50/50 border border-slate-100/50">
               <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-black shrink-0">
-                {(profile?.displayName || user.email || "?").charAt(0).toUpperCase()}
+                {(profile?.displayName || user.email || "?")
+                  .charAt(0)
+                  .toUpperCase()}
               </div>
               <div className="overflow-hidden">
                 <p className="text-xs font-bold text-slate-800 truncate">
                   {profile?.displayName || user.email}
                 </p>
                 <p className="text-[9px] text-muted-foreground truncate">
-                  {profile?.isOnboarded ? profile.location?.address : "Onboarding skipped"}
+                  {profile?.isOnboarded
+                    ? profile.location?.address
+                    : "Onboarding skipped"}
                 </p>
               </div>
             </div>
           ) : (
             <div className="flex justify-center">
               <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-black">
-                {(profile?.displayName || user.email || "?").charAt(0).toUpperCase()}
+                {(profile?.displayName || user.email || "?")
+                  .charAt(0)
+                  .toUpperCase()}
               </div>
             </div>
           )}
@@ -218,7 +231,9 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         <header className="sticky top-0 z-30 w-full border-b border-slate-100 bg-white/80 backdrop-blur-md px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <SidebarTrigger className="lg:hidden" />
-            {isCollapsed && <SidebarTrigger className="hidden lg:inline-flex" />}
+            {isCollapsed && (
+              <SidebarTrigger className="hidden lg:inline-flex" />
+            )}
             <span className="text-base font-black tracking-tight text-slate-800 hidden sm:inline-block">
               Neighborhood Dashboard
             </span>
@@ -256,7 +271,11 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <SidebarProvider>
       <DashboardLayoutContent>{children}</DashboardLayoutContent>

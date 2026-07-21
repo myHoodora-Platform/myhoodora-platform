@@ -1,6 +1,12 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  ReactNode,
+} from "react";
 import { onIdTokenChanged, User } from "firebase/auth";
 import { auth } from "@/lib/firebase/config";
 import { fetchUserProfile, completeOnboardingApi } from "@/lib/firebase/auth";
@@ -68,7 +74,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const data = await fetchUserProfile(firebaseUser);
           setProfile(data as UserProfile);
         } catch (err) {
-          console.error("Failed to fetch user profile or update session cookie:", err);
+          console.error(
+            "Failed to fetch user profile or update session cookie:",
+            err,
+          );
           setProfile(null);
         }
       } else {
