@@ -60,14 +60,19 @@ export function ComingSoon() {
           {features.map(({ title, description, icon: Icon }) => (
             <motion.article
               key={title}
-              variants={{ hidden: { opacity: 0, y: 14 }, visible: { opacity: 1, y: 0 } }}
+              variants={{
+                hidden: { opacity: 0, y: 14 },
+                visible: { opacity: 1, y: 0 },
+              }}
               transition={{ duration: 0.45, ease: "easeOut" }}
               className="rounded-2xl border border-border bg-card p-6 text-left shadow-sm"
             >
               <div className="mb-4 inline-flex rounded-xl bg-brand-teal/10 p-3 text-brand-teal">
                 <Icon className="h-5 w-5" aria-hidden="true" />
               </div>
-              <h2 className="text-lg font-semibold text-card-foreground">{title}</h2>
+              <h2 className="text-lg font-semibold text-card-foreground">
+                {title}
+              </h2>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                 {description}
               </p>
