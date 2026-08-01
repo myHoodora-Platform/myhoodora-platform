@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { Button } from "@myhoodora/ui/button";
-import { Logo } from "@myhoodora/ui/logo";
+import { LogoFull } from "@myhoodora/ui/logo";
 
 export function Header() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-primary/10 bg-background/80 backdrop-blur-md px-6 lg:px-20 py-4">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
         <Link href="/">
-          <Logo size="md" className="text-foreground" />
+          <LogoFull size="md" />
         </Link>
         <nav className="hidden md:flex flex-1 justify-center gap-8">
           <Link
