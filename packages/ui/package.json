@@ -5,7 +5,13 @@
   "exports": {
     "./button": "./src/button.tsx",
     "./card": "./src/card.tsx",
-    "./code": "./src/code.tsx"
+    "./code": "./src/code.tsx",
+    "./input": "./src/input.tsx",
+    "./password-input": "./src/password-input.tsx",
+    "./logo": "./src/logo.tsx",
+    "./sidebar": "./src/sidebar.tsx",
+    "./skeleton": "./src/skeleton.tsx",
+    "./utils": "./src/utils.ts"
   },
   "scripts": {
     "lint": "eslint .",
@@ -21,7 +27,10 @@
     "typescript": "5.9.2"
   },
   "dependencies": {
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.24.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "tailwind-merge": "^2.6.0"
   }
 }
