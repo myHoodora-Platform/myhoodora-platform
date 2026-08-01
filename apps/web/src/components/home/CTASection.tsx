@@ -1,48 +1,50 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
 import { AnimatedSection } from "@/components/shared/AnimatedSection";
+import { Button } from "@myhoodora/ui/button";
+import { ArrowRight, Users } from "lucide-react";
 
 export function CTASection() {
   return (
-    <section className="py-20 px-6 lg:px-20 mb-10">
-      <AnimatedSection
-        initial={{ opacity: 0, scale: 0.95 }}
-        whileInView={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.6 }}
-        className="max-w-5xl mx-auto rounded-[2rem] bg-primary p-12 lg:p-20 text-center relative overflow-hidden"
-      >
-        <div className="absolute inset-0 opacity-10">
-          <svg
-            className="w-full h-full"
-            preserveAspectRatio="none"
-            viewBox="0 0 100 100"
-          >
-            <path d="M0 100 C 20 0 50 0 100 100 Z" fill="white" />
-          </svg>
-        </div>
-        <div className="relative z-10 space-y-8">
-          <h2 className="text-4xl lg:text-5xl font-black text-primary-foreground leading-tight">
-            Ready to meet your neighbors?
-          </h2>
-          <p className="text-primary-foreground/90 text-lg max-w-xl mx-auto">
-            Join millions of neighbors already using myHoodora to build
-            stronger, safer, and more connected communities.
-          </p>
-          <div className="pt-4">
-            <Link href="/register">
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="bg-background text-primary font-black py-5 px-12 rounded-2xl hover:bg-slate-100 transition-all text-lg shadow-xl"
-              >
-                Get started for free
-              </motion.button>
-            </Link>
+    <section className="py-16 sm:py-20 px-6 lg:px-20">
+      <div className="max-w-7xl mx-auto">
+        <AnimatedSection
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="relative rounded-3xl bg-slate-900 text-white p-8 sm:p-12 lg:p-16 border border-slate-800 shadow-2xl overflow-hidden"
+        >
+          {/* Subtle background glow accents matching brand colors */}
+          <div className="absolute -top-24 -right-24 size-96 bg-primary/20 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-24 -left-24 size-96 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
+
+          <div className="relative z-10 max-w-3xl mx-auto text-center space-y-6">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-800/80 border border-slate-700 text-xs font-semibold text-primary-foreground/90">
+              <Users className="size-3.5 text-primary" />
+              <span>Join Your Neighborhood</span>
+            </div>
+
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white leading-tight">
+              Ready to meet your neighbors?
+            </h2>
+
+            <p className="text-slate-300 text-base sm:text-lg max-w-xl mx-auto leading-relaxed">
+              Join thousands of neighbors already using myHoodora to build
+              stronger, safer, and more connected communities.
+            </p>
+
+            <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-4">
+              <Link href="/register">
+                <Button size="lg" className="gap-2 font-bold text-base px-8 py-6 rounded-xl shadow-lg">
+                  <span>Get started for free</span>
+                  <ArrowRight className="size-5" />
+                </Button>
+              </Link>
+            </div>
           </div>
-        </div>
-      </AnimatedSection>
+        </AnimatedSection>
+      </div>
     </section>
   );
 }
