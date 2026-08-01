@@ -66,12 +66,12 @@ async function bootstrap() {
       operationsSorter: 'alpha',
     },
   });
-  logger.log(`📄 Swagger docs available at http://localhost:${config.get('port') ?? 3000}/api/docs`);
+  const port = config.get<number>('port') ?? 3000;
+  logger.log(`Swagger docs available at http://localhost:${port}/api/docs`);
 
   // ── Listen ────────────────────────────────────────────────────────────────
-  const port = config.get<number>('port') ?? 3000;
-  await app.listen(port);
-  logger.log(`🚀 MyHoodora API is running on http://localhost:${port}/api`);
+    await app.listen(port);
+  logger.log(`MyHoodora API is running on http://localhost:${port}/api`);
 }
 
 bootstrap();

@@ -58,13 +58,13 @@ import { AppService } from './app.service';
   providers: [
     AppService,
 
-    // 1️⃣ Rate-limit guard — runs first, before auth
+    // 1. Rate-limit guard — runs first, before auth
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
     },
 
-    // 2️⃣ Firebase Auth guard — applied to every route; opt-out with @Public()
+    // 2. Firebase Auth guard — applied to every route; opt-out with @Public()
     {
       provide: APP_GUARD,
       useClass: FirebaseAuthGuard,

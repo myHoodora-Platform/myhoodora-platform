@@ -20,4 +20,12 @@ export class AuthService {
     async revokeTokens(uid: string): Promise<void> {
         await getFirebaseAdmin().auth().revokeRefreshTokens(uid);
     }
+
+    async login(payload: object) {
+
+    }
+
+    async signup(dto: object) {
+
+    }
 }
