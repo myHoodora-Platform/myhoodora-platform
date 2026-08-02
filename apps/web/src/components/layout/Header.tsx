@@ -1,20 +1,20 @@
 import Link from "next/link";
-import { Button } from "@myhoodora/ui/button";
-import { Logo } from "@myhoodora/ui/logo";
+import { LogoFull } from "@myhoodora/ui/logo";
+import { HeaderActions } from "./HeaderActions";
 
 export function Header() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-primary/10 bg-background/80 backdrop-blur-md px-6 lg:px-20 py-4">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
         <Link href="/">
-          <Logo size="md" className="text-foreground" />
+          <LogoFull size="md" />
         </Link>
         <nav className="hidden md:flex flex-1 justify-center gap-8">
           <Link
             className="text-sm font-semibold hover:text-primary transition-colors"
-            href="/feed"
+            href="/how-it-works"
           >
-            Feed
+            How It Works
           </Link>
           <Link
             className="text-sm font-semibold hover:text-primary transition-colors"
@@ -24,29 +24,12 @@ export function Header() {
           </Link>
           <Link
             className="text-sm font-semibold hover:text-primary transition-colors"
-            href="/safety"
+            href="/for-business"
           >
-            Safety
-          </Link>
-          <Link
-            className="text-sm font-semibold hover:text-primary transition-colors"
-            href="/events"
-          >
-            Events
+            For Business
           </Link>
         </nav>
-        <div className="flex items-center gap-3">
-          <Link href="/login">
-            <Button variant="ghost" size="sm" className="hidden sm:inline-flex">
-              Log in
-            </Button>
-          </Link>
-          <Link href="/register">
-            <Button variant="default" size="sm">
-              Sign up
-            </Button>
-          </Link>
-        </div>
+        <HeaderActions />
       </div>
     </header>
   );
