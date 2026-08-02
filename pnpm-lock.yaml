@@ -186,7 +186,7 @@ importers:
     dependencies:
       '@hookform/resolvers':
         specifier: ^3.10.0
-        version: 3.10.0(react-hook-form@7.81.0(react@19.2.0))
+        version: 3.10.0(react-hook-form@7.84.0(react@19.2.0))
       '@myhoodora/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -201,7 +201,7 @@ importers:
         version: 12.42.2(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       jose:
         specifier: ^6.2.3
-        version: 6.2.3
+        version: 6.2.7
       lucide-react:
         specifier: ^1.17.0
         version: 1.24.0(react@19.2.0)
@@ -216,7 +216,7 @@ importers:
         version: 19.2.0(react@19.2.0)
       react-hook-form:
         specifier: ^7.54.2
-        version: 7.81.0(react@19.2.0)
+        version: 7.84.0(react@19.2.0)
       sonner:
         specifier: ^2.0.7
         version: 2.0.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
@@ -290,7 +290,7 @@ importers:
         specifier: ^2.1.1
         version: 2.1.1
       lucide-react:
-        specifier: ^1.17.0
+        specifier: ^1.24.0
         version: 1.24.0(react@19.2.0)
       react:
         specifier: ^19.2.0
@@ -4968,8 +4968,8 @@ packages:
   jose@4.15.9:
     resolution: {integrity: sha512-1vUQX+IdDMVPj4k8kOxgUqlcK518yluMuGZwqlr44FS1ppZB/5GWh4rZG89erpOBOJjU/OBsnCVFfapsRz6nEA==}
 
-  jose@6.2.3:
-    resolution: {integrity: sha512-YYVDInQKFJfR/xa3ojUTl8c2KoTwiL1R5Wg9YCydwH0x0B9grbzlg5HC7mMjCtUJjbQ/YnGEZIhI5tCgfTb4Hw==}
+  jose@6.2.7:
+    resolution: {integrity: sha512-hq1OB1bALKfydZNoViyg6hPVGV4i93ny9Op+n4zP5RSf7SCZEXa/TsG2O3IEr7+WlHRTPnpqDmHfMH6qXAD60w==}
 
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
@@ -6054,8 +6054,8 @@ packages:
     peerDependencies:
       react: '>=17.0.0'
 
-  react-hook-form@7.81.0:
-    resolution: {integrity: sha512-ocbmr2p5KBMoAfj4WCUvped33lVi1Kd5DuDUvQDnB6VEAacOjPI/jMbtDdbhco4y9ct4xUuCmMY0b/C9L0QHjw==}
+  react-hook-form@7.84.0:
+    resolution: {integrity: sha512-+hWvQP6GLco56mDwrbU4XnHix8t1z90ltZsDIrREl+jnQFQxYLX8oAzqe/Xn8nHpmoXTY5M6oEXrAhbP1qevNQ==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       react: ^16.8.0 || ^17 || ^18 || ^19
@@ -9041,9 +9041,9 @@ snapshots:
     dependencies:
       '@hapi/hoek': 9.3.0
 
-  '@hookform/resolvers@3.10.0(react-hook-form@7.81.0(react@19.2.0))':
+  '@hookform/resolvers@3.10.0(react-hook-form@7.84.0(react@19.2.0))':
     dependencies:
-      react-hook-form: 7.81.0(react@19.2.0)
+      react-hook-form: 7.84.0(react@19.2.0)
 
   '@humanfs/core@0.19.1': {}
 
@@ -13300,7 +13300,7 @@ snapshots:
 
   jose@4.15.9: {}
 
-  jose@6.2.3: {}
+  jose@6.2.7: {}
 
   js-tokens@4.0.0: {}
 
@@ -14431,7 +14431,7 @@ snapshots:
     dependencies:
       react: 19.2.3
 
-  react-hook-form@7.81.0(react@19.2.0):
+  react-hook-form@7.84.0(react@19.2.0):
     dependencies:
       react: 19.2.0
 
