@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@myhoodora/ui/button";
 import { Input } from "@myhoodora/ui/input";
-import { Logo } from "@myhoodora/ui/logo";
+import { LogoFull } from "@myhoodora/ui/logo";
 import {
   MapPin,
   Navigation,
@@ -194,7 +194,7 @@ export default function OnboardingPage() {
     <div className="min-h-screen flex flex-col bg-slate-50 text-foreground font-sans">
       {/* Top Header */}
       <header className="w-full px-6 py-4 flex items-center justify-between border-b border-slate-100 bg-white">
-        <Logo size="md" />
+        <LogoFull size="md" />
         <button
           onClick={handleSkip}
           className="text-xs font-bold text-muted-foreground uppercase tracking-widest hover:text-primary transition-colors"

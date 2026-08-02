@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { Logo } from "@myhoodora/ui/logo";
+import { LogoMark, LogoFull } from "@myhoodora/ui/logo";
 import {
   SidebarProvider,
   Sidebar,
@@ -156,7 +156,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
       <Sidebar>
         <SidebarHeader className="flex flex-row items-center justify-between">
           <div className="flex items-center gap-2 overflow-hidden">
-            <Logo size="sm" className={isCollapsed ? "scale-90" : ""} />
+            {isCollapsed ? <LogoMark size="sm" /> : <LogoFull size="sm" />}
             {!isCollapsed && (
               <span className="text-[10px] font-extrabold text-primary tracking-widest uppercase bg-primary/5 px-2 py-0.5 rounded-md">
                 V0.1
