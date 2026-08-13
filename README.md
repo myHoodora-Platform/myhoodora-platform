@@ -12,6 +12,7 @@ The MyHoodora platform is designed to facilitate local interaction, community ma
 - **Package Manager**: [pnpm](https://pnpm.io/)
 - **Frontend**: [Next.js](https://nextjs.org/) (React 19)
 - **Backend**: [NestJS](https://nestjs.com/)
+- **Mobile**: [Expo](https://expo.dev/) (React Native)
 - **Language**: [TypeScript](https://www.typescriptlang.org/)
 - **Database**: [MongoDB](https://www.mongodb.com/) with [Mongoose](https://mongoosejs.com/)
 - **Authentication**: [Firebase Auth](https://firebase.google.com/docs/auth) + JWT
@@ -23,6 +24,7 @@ The MyHoodora platform is designed to facilitate local interaction, community ma
 .
 ├── apps/
 │   ├── api/          # NestJS Backend API
+│   ├── mobile/       # Expo (React Native) Mobile App
 │   └── web/          # Next.js Frontend Web Application
 ├── packages/
 │   ├── ui/           # Shared React Component Library
@@ -45,7 +47,7 @@ The MyHoodora platform is designed to facilitate local interaction, community ma
 1.  **Clone the repository**:
 
     ```bash
-    git clone https://github.com/arakunle22/myhoodora-platform.git
+    git clone https://github.com/myhoodora-hub/myhoodora-platform.git
     cd myhoodora-platform
     ```
 
@@ -57,14 +59,22 @@ The MyHoodora platform is designed to facilitate local interaction, community ma
 
 3.  **Environment Configuration**:
     Copy the environment example files in the respective applications:
-    - `apps/api/.env.example` -> `apps/api/.env`
-    - `apps/web/.env.example` -> `apps/web/.env`
+
+    - **API** — copy `apps/api/.env.example` to `apps/api/.env`
+      (MongoDB URI, Firebase Admin SDK credentials, JWT secret, CORS origin).
+    - **Web** — create `apps/web/.env.local` with your Firebase client keys.
+      Required variables (see `apps/web/src/lib/firebase/config.ts`):
+      `NEXT_PUBLIC_FIREBASE_API_KEY`, `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`,
+      `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`,
+      `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`, `NEXT_PUBLIC_FIREBASE_APP_ID`,
+      plus `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_APP_URL`.
 
 4.  **Run the development server**:
     ```bash
     pnpm dev
     ```
-    This will start both the API and Web applications in development mode.
+    This will start the API, Web, and Mobile applications in development mode
+    (Turborepo runs the `dev` script in every workspace that defines one).
 
 ## Development Workflow
 
