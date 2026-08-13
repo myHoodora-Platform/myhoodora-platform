@@ -1,30 +1,26 @@
 "use client";
 
 import { AnimatedSection } from "@/components/shared/AnimatedSection";
+import { Section, SectionHeading } from "@myhoodora/ui/section";
 import { CheckCircle, BellRing } from "lucide-react";
 
 export function CommunityFeedSection() {
   return (
-    <section className="py-24 px-6 lg:px-20 overflow-hidden">
-      <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-16">
+    <Section className="overflow-hidden py-24">
+      <div className="flex flex-col lg:flex-row items-center gap-16">
         <AnimatedSection
           initial={{ opacity: 0, x: -30 }}
           whileInView={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.6 }}
-          className="flex-1 space-y-6"
+          className="flex-1"
         >
-          <span className="inline-block px-4 py-1.5 bg-primary/10 text-primary text-xs font-bold uppercase tracking-widest rounded-full">
-            Community Feed
-          </span>
-          <h2 className="text-4xl font-bold leading-tight">
-            Your neighborhood at a glance
-          </h2>
-          <p className="text-muted-foreground text-lg leading-relaxed">
-            Stay updated with your community. See where active discussions are
-            happening, find local recommendations, and keep track of community
-            events with our real-time feed.
-          </p>
-          <ul className="space-y-4 pt-4">
+          <SectionHeading
+            align="left"
+            kicker="Community Feed"
+            title="Your neighborhood at a glance"
+            description="Stay updated with your community. See where active discussions are happening, find local recommendations, and keep track of community events with our real-time feed."
+          />
+          <ul className="space-y-4 pt-6">
             <li className="flex items-center gap-3">
               <CheckCircle className="text-primary size-6 shrink-0" />
               <span className="font-medium">
@@ -121,6 +117,6 @@ export function CommunityFeedSection() {
           </AnimatedSection>
         </AnimatedSection>
       </div>
-    </section>
+    </Section>
   );
 }

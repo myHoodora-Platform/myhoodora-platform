@@ -4,6 +4,7 @@ export * from "./code";
 export * from "./input";
 export * from "./password-input";
 export * from "./logo";
+export * from "./section";
 export * from "./sidebar";
 export * from "./skeleton";
 export * from "./utils";
