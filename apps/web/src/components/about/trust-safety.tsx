@@ -1,13 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { Section, SectionHeading } from "@myhoodora/ui/section";
-import { CheckCircle2, ShieldCheck } from "lucide-react";
+import { Button } from "@myhoodora/ui/button";
+import { CheckCircle2, ShieldCheck, ArrowRight } from "lucide-react";
 
 const POINTS = [
-  "Every member verifies their real address before joining.",
-  "Neighbors are real people, not anonymous accounts.",
-  "Communities are moderated to keep conversations constructive.",
+  "Your exact address is never shown publicly — only your neighborhood.",
+  "You choose what you share, and with whom.",
+  "Every neighbor is address-verified, so you're talking to real people — not anonymous accounts.",
 ];
 
 export function TrustSafetySection() {
@@ -24,8 +26,8 @@ export function TrustSafetySection() {
             <SectionHeading
               align="left"
               kicker="Trust & safety"
-              title="Your real neighborhood, verified"
-              description="We take safety seriously because real communities are built on trust."
+              title="Your address stays yours — always"
+              description="We understand how much your privacy matters. In Nigeria, your home is your safe place, and where you live is nobody's business but yours and your neighbors'. That's why we never post your exact address or share it with strangers."
             />
             <ul className="mt-8 space-y-4">
               {POINTS.map((point) => (
@@ -35,6 +37,21 @@ export function TrustSafetySection() {
                 </li>
               ))}
             </ul>
+
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <Link href="/privacy">
+                <Button variant="outline" className="gap-2">
+                  How we protect your data
+                  <ArrowRight className="size-4" />
+                </Button>
+              </Link>
+              <Link
+                href="/guidelines"
+                className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
+              >
+                Read our Community Guidelines
+              </Link>
+            </div>
           </div>
 
           <div className="flex justify-center lg:justify-end">

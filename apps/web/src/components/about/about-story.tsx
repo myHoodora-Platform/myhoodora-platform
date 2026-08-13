@@ -16,19 +16,19 @@ const VALUES: Value[] = [
     icon: Users,
     title: "Community first",
     description:
-      "We believe the people closest to you are your greatest resource.",
+      "From the compound to the city, looking out for one another is how we've always survived — and thrived.",
   },
   {
     icon: ShieldCheck,
     title: "Trust & safety",
     description:
-      "Every member is address-verified, so your neighborhood stays as safe as your street.",
+      "Your address stays yours. Neighbors are verified without your exact location ever being made public.",
   },
   {
     icon: Star,
     title: "Local empowerment",
     description:
-      "We help local voices, events, and businesses thrive right where they are.",
+      "From the corner shop to the town market, we lift up the businesses and voices that hold the community together.",
   },
 ];
 
@@ -44,16 +44,18 @@ export function AboutStory() {
           <SectionHeading
             align="left"
             kicker="Our mission"
-            title="Stronger communities start with knowing your neighbors"
-            description="myHoodora was built on a simple idea: the best way to make a neighborhood safer, friendlier, and more vibrant is to help the people in it talk to one another."
+            title="Bringing the 'we' back to the neighborhood"
+            description="Nigeria's strength has always been its communities — the compound, the street, the town union. myHoodora brings that same closeness online, so the neighbors you already trust can look out for one another in real time."
           />
           <p className="mt-6 leading-relaxed text-muted-foreground">
-            When neighbors know each other, they look out for each other. They
-            share a lost pet alert before a flyer goes up, recommend the
-            plumber who actually showed up on time, and organize the clean-up
-            that turns a park into a gathering place. myHoodora exists to make
-            those small connections easy — so every street feels like a
-            community.
+            From Lagos to Kano, Enugu to Port Harcourt, we&apos;ve always found
+            safety and opportunity through the people around us — the neighbor
+            who keeps an eye on your gate, the market woman who vouches for you,
+            the street association that settles a dispute before it escalates.
+            myHoodora exists to give that everyday trust a home online: a
+            verified, local space where your neighborhood can share news, raise
+            alarms, and support one another before trouble ever reaches your
+            door.
           </p>
         </AnimatedSection>
 
