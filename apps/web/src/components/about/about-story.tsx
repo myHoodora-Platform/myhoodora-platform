@@ -49,7 +49,7 @@ export function AboutStory() {
         >
           <SectionHeading
             align="left"
-            kicker="Our mission"
+            kicker="Our mission & purpose"
             title="Bringing the 'we' back to the neighborhood"
             description="Nigeria's strength has always been its communities — the compound, the street, the town union. myHoodora brings that same closeness online, so the neighbors you already trust can look out for one another in real time."
           />

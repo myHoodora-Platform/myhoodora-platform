@@ -21,6 +21,7 @@ export function Section({ className, children, ...props }: SectionProps) {
 export interface SectionHeadingProps
   extends Omit<React.HTMLAttributes<HTMLDivElement>, "title"> {
   kicker?: React.ReactNode;
+  kickerClassName?: string;
   title: React.ReactNode;
   description?: React.ReactNode;
   align?: "center" | "left";
@@ -29,6 +30,7 @@ export interface SectionHeadingProps
 /** Kicker pill + title + optional description, used at the top of sections. */
 export function SectionHeading({
   kicker,
+  kickerClassName,
   title,
   description,
   align = "center",
@@ -45,7 +47,12 @@ export function SectionHeading({
       {...props}
     >
       {kicker && (
-        <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider text-primary">
+        <span
+          className={cn(
+            "inline-flex items-center gap-2 rounded-full bg-primary/10 px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider text-primary",
+            kickerClassName,
+          )}
+        >
           {kicker}
         </span>
       )}

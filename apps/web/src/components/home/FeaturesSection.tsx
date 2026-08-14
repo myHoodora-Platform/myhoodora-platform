@@ -42,7 +42,7 @@ export function FeaturesSection() {
           transition={{ duration: 0.5, delay: 0.2 }}
           className="flex flex-col items-center text-center group p-8 rounded-2xl hover:bg-primary/5 transition-all"
         >
-          <div className="size-20 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+          <div className="size-20 bg-brand-coral/10 text-brand-coral rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
             <BellRing className="size-10" />
           </div>
           <h3 className="text-xl font-bold mb-4">

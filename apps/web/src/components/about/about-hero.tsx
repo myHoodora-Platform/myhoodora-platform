@@ -5,9 +5,7 @@ import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { Button } from "@myhoodora/ui/button";
 import { SmartImage } from "@myhoodora/ui/image";
 import { ArrowRight, BellRing } from "lucide-react";
-
-const HERO_IMAGE =
-  "https://upload.wikimedia.org/wikipedia/commons/4/4c/Aerial_view_of_Lagos_Island.jpg";
+import { ABOUT_AERIAL } from "@/lib/site-images";
 
 export function AboutHero() {
   return (
@@ -15,8 +13,8 @@ export function AboutHero() {
       <SmartImage
         fill
         priority
-        alt="Aerial view of Lagos Island, Nigeria"
-        src={HERO_IMAGE}
+        alt={ABOUT_AERIAL.alt}
+        src={ABOUT_AERIAL.src}
         className="object-cover"
       />
       <div className="absolute inset-0 bg-gradient-to-b from-slate-900/70 via-slate-900/60 to-slate-900/80" />
@@ -53,14 +51,14 @@ export function AboutHero() {
         </div>
       </AnimatedSection>
 
-      {/* Photo credit (CC BY-SA 4.0) */}
+      {/* Photo credit */}
       <a
-        href="https://commons.wikimedia.org/wiki/File:Aerial_view_of_Lagos_Island.jpg"
+        href={ABOUT_AERIAL.creditUrl}
         target="_blank"
         rel="noopener noreferrer"
         className="absolute bottom-3 right-4 z-10 text-[11px] text-white/50 transition-colors hover:text-white/80"
       >
-        Photo: Ei&apos;eke (CC BY-SA 4.0)
+        Photo: {ABOUT_AERIAL.credit}
       </a>
     </section>
   );

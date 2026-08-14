@@ -16,8 +16,8 @@ interface NavLink {
 
 const MARKETING_NAV: NavLink[] = [
   { label: "How It Works", href: "/how-it-works" },
-  { label: "Marketplace", href: "/marketplace" },
-  { label: "For Business", href: "/for-business" },
+  { label: "Marketplace", href: "/coming-soon/marketplace" },
+  { label: "For Business", href: "/coming-soon/for-business" },
 ];
 
 interface AuthCta {

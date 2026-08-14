@@ -6,9 +6,7 @@ import { Section, SectionHeading } from "@myhoodora/ui/section";
 import { Button } from "@myhoodora/ui/button";
 import { SmartImage } from "@myhoodora/ui/image";
 import { CheckCircle2, ShieldCheck, ArrowRight } from "lucide-react";
-
-const TRUST_IMAGE =
-  "https://upload.wikimedia.org/wikipedia/commons/thumb/d/db/A_smiling_market_woman_at_the_Monday_Market_in_Kakuri%2C_Kaduna_02.jpg/1920px-A_smiling_market_woman_at_the_Monday_Market_in_Kakuri%2C_Kaduna_02.jpg";
+import { TRUST_IMAGE } from "@/lib/site-images";
 
 const POINTS = [
   "Your exact address is never shown publicly — only your neighborhood.",
@@ -23,20 +21,21 @@ export function TrustSafetySection() {
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="relative overflow-hidden rounded-3xl border border-primary/10 bg-gradient-to-br from-primary/5 to-transparent p-8 sm:p-12 lg:p-16"
+        className="relative overflow-hidden rounded-3xl border border-brand-coral/15 bg-gradient-to-br from-brand-coral/5 to-transparent p-8 sm:p-12 lg:p-16"
       >
         <div className="grid items-center gap-10 lg:grid-cols-2">
           <div>
             <SectionHeading
               align="left"
               kicker="Trust & safety"
+              kickerClassName="bg-brand-coral/10 text-brand-coral"
               title="Your address stays yours — always"
               description="We understand how much your privacy matters. In Nigeria, your home is your safe place, and where you live is nobody's business but yours and your neighbors'. That's why we never post your exact address or share it with strangers."
             />
             <ul className="mt-8 space-y-4">
               {POINTS.map((point) => (
                 <li key={point} className="flex items-start gap-3">
-                  <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-primary" />
+                  <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-brand-coral" />
                   <span className="text-muted-foreground">{point}</span>
                 </li>
               ))}
@@ -61,15 +60,15 @@ export function TrustSafetySection() {
           <div>
             <div className="relative">
               <SmartImage
-                src={TRUST_IMAGE}
-                alt="A smiling market woman at a market in Kaduna, Nigeria"
+                src={TRUST_IMAGE.src}
+                alt={TRUST_IMAGE.alt}
                 width={800}
                 height={600}
                 sizes="(min-width: 1024px) 480px, 100vw"
                 className="aspect-[4/3] w-full rounded-3xl border border-border object-cover shadow-xl"
               />
               <div className="absolute -bottom-5 left-6 flex items-center gap-2.5 rounded-2xl border border-border bg-white px-4 py-3 shadow-lg">
-                <ShieldCheck className="size-5 shrink-0 text-primary" />
+                <ShieldCheck className="size-5 shrink-0 text-brand-coral" />
                 <div>
                   <p className="text-sm font-bold text-foreground">
                     Address-verified
@@ -81,7 +80,15 @@ export function TrustSafetySection() {
               </div>
             </div>
             <p className="mt-8 text-[11px] text-muted-foreground/70">
-              Photo: Kambai Akau (CC BY-SA 4.0), via Wikimedia Commons
+              Photo:{" "}
+              <a
+                href={TRUST_IMAGE.creditUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-foreground"
+              >
+                {TRUST_IMAGE.credit}
+              </a>
             </p>
           </div>
         </div>

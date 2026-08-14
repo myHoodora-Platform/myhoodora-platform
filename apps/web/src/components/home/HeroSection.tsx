@@ -19,6 +19,7 @@ import {
 } from "@/lib/firebase/auth";
 import { getAuthErrorMessage } from "@/lib/firebase/errors";
 import { toast } from "sonner";
+import { HERO_IMAGE } from "@/lib/site-images";
 
 export function HeroSection() {
   const router = useRouter();
@@ -95,10 +96,18 @@ export function HeroSection() {
           fill
           priority
           className="object-cover"
-          alt="A busy market street in Lagos, Nigeria"
-          src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/42/A_Busy_Market_in_Mile_12%2C_Lagos-_Nigeria.jpg/1920px-A_Busy_Market_in_Mile_12%2C_Lagos-_Nigeria.jpg"
+          alt={HERO_IMAGE.alt}
+          src={HERO_IMAGE.src}
         />
         <div className="absolute inset-0 bg-gradient-to-r from-background/95 via-background/60 to-transparent"></div>
+        <a
+          href={HERO_IMAGE.creditUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="absolute bottom-3 right-4 z-10 rounded-md bg-black/25 px-2 py-0.5 text-[11px] text-white/60 backdrop-blur-sm transition-colors hover:text-white/90"
+        >
+          Photo: {HERO_IMAGE.credit}
+        </a>
       </div>
 
       <div className="relative z-10 max-w-7xl w-full grid lg:grid-cols-2 gap-12 items-center">

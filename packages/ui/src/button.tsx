@@ -1,12 +1,14 @@
 import React from "react";
 import { cn } from "./utils";
 
-type ButtonVariant = "default" | "outline" | "ghost" | "secondary";
+type ButtonVariant = "default" | "outline" | "ghost" | "secondary" | "coral";
 type ButtonSize = "sm" | "default" | "lg";
 
 const variantClasses: Record<ButtonVariant, string> = {
   default:
     "bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20",
+  coral:
+    "bg-brand-coral text-white hover:bg-brand-coral/90 shadow-lg shadow-brand-coral/30",
   outline: "bg-background border border-border text-foreground hover:bg-muted",
   ghost: "text-foreground hover:bg-primary/5",
   secondary: "bg-background text-primary hover:bg-slate-100 shadow-xl",
