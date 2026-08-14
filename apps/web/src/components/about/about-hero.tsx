@@ -1,22 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { Button } from "@myhoodora/ui/button";
+import { SmartImage } from "@myhoodora/ui/image";
 import { ArrowRight, BellRing } from "lucide-react";
 
 const HERO_IMAGE =
-  "https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=1920&q=80&auto=format&fit=crop";
+  "https://upload.wikimedia.org/wikipedia/commons/4/4c/Aerial_view_of_Lagos_Island.jpg";
 
 export function AboutHero() {
   return (
     <section className="relative flex min-h-[70vh] items-center justify-center overflow-hidden">
-      <Image
-        unoptimized
+      <SmartImage
         fill
         priority
-        alt="Aerial view of a city neighborhood at dusk"
+        alt="Aerial view of Lagos Island, Nigeria"
         src={HERO_IMAGE}
         className="object-cover"
       />
@@ -53,6 +52,16 @@ export function AboutHero() {
           </Link>
         </div>
       </AnimatedSection>
+
+      {/* Photo credit (CC BY-SA 4.0) */}
+      <a
+        href="https://commons.wikimedia.org/wiki/File:Aerial_view_of_Lagos_Island.jpg"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="absolute bottom-3 right-4 z-10 text-[11px] text-white/50 transition-colors hover:text-white/80"
+      >
+        Photo: Ei&apos;eke (CC BY-SA 4.0)
+      </a>
     </section>
   );
 }

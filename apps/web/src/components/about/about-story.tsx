@@ -32,6 +32,12 @@ const VALUES: Value[] = [
   },
 ];
 
+const STATS = [
+  { value: "100%", label: "Address-verified members" },
+  { value: "24/7", label: "Real-time local alerts" },
+  { value: "0", label: "Anonymous accounts" },
+];
+
 export function AboutStory() {
   return (
     <Section className="py-20 lg:py-24">
@@ -82,6 +88,24 @@ export function AboutStory() {
             </AnimatedSection>
           ))}
         </div>
+      </div>
+
+      {/* By the numbers */}
+      <div className="mt-16 grid grid-cols-3 gap-6 border-t border-border pt-12">
+        {STATS.map((stat, index) => (
+          <AnimatedSection
+            key={stat.label}
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: index * 0.1 }}
+            className="text-center"
+          >
+            <div className="text-4xl font-black tracking-tight text-primary sm:text-5xl">
+              {stat.value}
+            </div>
+            <p className="mt-2 text-sm text-muted-foreground">{stat.label}</p>
+          </AnimatedSection>
+        ))}
       </div>
     </Section>
   );

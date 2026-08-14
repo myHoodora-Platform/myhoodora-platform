@@ -4,7 +4,11 @@ import Link from "next/link";
 import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { Section, SectionHeading } from "@myhoodora/ui/section";
 import { Button } from "@myhoodora/ui/button";
+import { SmartImage } from "@myhoodora/ui/image";
 import { CheckCircle2, ShieldCheck, ArrowRight } from "lucide-react";
+
+const TRUST_IMAGE =
+  "https://upload.wikimedia.org/wikipedia/commons/thumb/d/db/A_smiling_market_woman_at_the_Monday_Market_in_Kakuri%2C_Kaduna_02.jpg/1920px-A_smiling_market_woman_at_the_Monday_Market_in_Kakuri%2C_Kaduna_02.jpg";
 
 const POINTS = [
   "Your exact address is never shown publicly — only your neighborhood.",
@@ -54,10 +58,31 @@ export function TrustSafetySection() {
             </div>
           </div>
 
-          <div className="flex justify-center lg:justify-end">
-            <div className="flex size-40 items-center justify-center rounded-full border-2 border-dashed border-primary/30 bg-white text-primary shadow-sm sm:size-48">
-              <ShieldCheck className="size-20 sm:size-24" />
+          <div>
+            <div className="relative">
+              <SmartImage
+                src={TRUST_IMAGE}
+                alt="A smiling market woman at a market in Kaduna, Nigeria"
+                width={800}
+                height={600}
+                sizes="(min-width: 1024px) 480px, 100vw"
+                className="aspect-[4/3] w-full rounded-3xl border border-border object-cover shadow-xl"
+              />
+              <div className="absolute -bottom-5 left-6 flex items-center gap-2.5 rounded-2xl border border-border bg-white px-4 py-3 shadow-lg">
+                <ShieldCheck className="size-5 shrink-0 text-primary" />
+                <div>
+                  <p className="text-sm font-bold text-foreground">
+                    Address-verified
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Real neighbors, real trust
+                  </p>
+                </div>
+              </div>
             </div>
+            <p className="mt-8 text-[11px] text-muted-foreground/70">
+              Photo: Kambai Akau (CC BY-SA 4.0), via Wikimedia Commons
+            </p>
           </div>
         </div>
       </AnimatedSection>

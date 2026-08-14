@@ -2,6 +2,7 @@ export * from "./button";
 export * from "./card";
 export * from "./code";
 export * from "./input";
+export * from "./image";
 export * from "./password-input";
 export * from "./logo";
 export * from "./section";
