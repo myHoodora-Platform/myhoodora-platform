@@ -115,7 +115,8 @@ export const ABOUT_AERIAL: SiteImage = {
   alt: "Aerial view of Lagos Island, Nigeria",
   label: "Lagos Island aerial",
   credit: "Ei'eke (CC BY-SA 4.0)",
-  creditUrl: "https://commons.wikimedia.org/wiki/File:Aerial_view_of_Lagos_Island.jpg",
+  creditUrl:
+    "https://commons.wikimedia.org/wiki/File:Aerial_view_of_Lagos_Island.jpg",
 };
 
 /** Safe indexed access so the active image is always typed as defined. */

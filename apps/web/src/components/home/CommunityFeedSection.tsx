@@ -2,11 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { ComponentType } from "react";
-import {
-  motion,
-  AnimatePresence,
-  useScroll,
-} from "framer-motion";
+import { motion, AnimatePresence, useScroll } from "framer-motion";
 import {
   BatteryFull,
   BellRing,
@@ -42,7 +38,8 @@ const NOTIFICATIONS: PushNotification[] = [
     iconBg: "bg-brand-coral/10",
     iconColor: "text-brand-coral",
     title: "Safety alert",
-    message: "Gate near Ajah Estate is locked — use the expressway exit instead.",
+    message:
+      "Gate near Ajah Estate is locked — use the expressway exit instead.",
     time: "now",
   },
   {
@@ -197,7 +194,9 @@ function FeedPost({ post }: { post: FeedPost }) {
         </div>
       </div>
 
-      <p className="mt-2 text-[13px] leading-snug text-foreground">{post.text}</p>
+      <p className="mt-2 text-[13px] leading-snug text-foreground">
+        {post.text}
+      </p>
 
       <div className="mt-2.5 flex items-center justify-between gap-2">
         <span
@@ -221,7 +220,9 @@ function FeedPost({ post }: { post: FeedPost }) {
                 liked ? "fill-brand-coral text-brand-coral" : ""
               }`}
             />
-            <span className="text-xs tabular-nums">{post.likes + (liked ? 1 : 0)}</span>
+            <span className="text-xs tabular-nums">
+              {post.likes + (liked ? 1 : 0)}
+            </span>
           </button>
           <span className="flex items-center gap-1 px-1.5">
             <MessageCircle className="size-4" />
@@ -303,8 +304,8 @@ export function CommunityFeedSection() {
               Your neighborhood at a glance
             </h2>
             <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-muted-foreground sm:text-base lg:mx-0">
-              Real-time updates from the people on your street — recommendations,
-              safety alerts, and local events.
+              Real-time updates from the people on your street —
+              recommendations, safety alerts, and local events.
             </p>
             <ul className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-muted-foreground sm:text-sm lg:justify-start">
               <li className="flex items-center gap-2">
