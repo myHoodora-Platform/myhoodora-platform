@@ -81,7 +81,7 @@ export const TRUST_IMAGES: SiteImage[] = [
   {
     src: "/images/trust-current.webp",
     alt: "A smiling market woman at the Monday Market in Kakuri, Kaduna, Nigeria",
-    label: "Smiling market woman (current)",
+    label: "Smiling market woman",
     credit: "Kambai Akau (CC BY-SA 4.0)",
     creditUrl:
       "https://commons.wikimedia.org/wiki/File:A_smiling_market_woman_at_the_Monday_Market_in_Kakuri,_Kaduna_02.jpg",
@@ -89,7 +89,7 @@ export const TRUST_IMAGES: SiteImage[] = [
   {
     src: "/images/trust-neighbors.webp",
     alt: "Women in colorful clothes sitting together on a bench outdoors",
-    label: "Neighbors on a bench",
+    label: "Neighbors on a bench (current)",
     credit: "Random Institute",
     creditUrl: "https://unsplash.com/@randominstitute",
   },
@@ -127,4 +127,4 @@ function at<T>(list: T[], index: number): T {
 
 /** Active image for each slot — change the index to pick a different one. */
 export const HERO_IMAGE = at(HERO_IMAGES, 0);
-export const TRUST_IMAGE = at(TRUST_IMAGES, 0);
+export const TRUST_IMAGE = at(TRUST_IMAGES, 2);
