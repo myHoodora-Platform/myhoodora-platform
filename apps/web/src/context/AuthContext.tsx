@@ -25,6 +25,7 @@ interface AuthContextType {
   user: User | null;
   profile: UserProfile | null;
   loading: boolean;
+  authReady: boolean;
   isGatingModalOpen: boolean;
   setIsGatingModalOpen: (open: boolean) => void;
   refreshProfile: () => Promise<void>;
@@ -41,6 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authReady, setAuthReady] = useState(false);
   const [isGatingModalOpen, setIsGatingModalOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
 
@@ -60,6 +62,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
+      // Auth state is resolved here — flip this fast so header/UI can render
+      // the correct logged-in/logged-out state without waiting for the
+      // session-cookie + profile network round-trips below.
+      setAuthReady(true);
       if (firebaseUser) {
         try {
           const idToken = await firebaseUser.getIdToken();
@@ -129,6 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         profile,
         loading,
+        authReady,
         isGatingModalOpen,
         setIsGatingModalOpen,
         refreshProfile,

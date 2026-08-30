@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -10,6 +9,7 @@ import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { MapPin, ArrowLeft } from "lucide-react";
 import { Button } from "@myhoodora/ui/button";
 import { Input } from "@myhoodora/ui/input";
+import { SmartImage } from "@myhoodora/ui/image";
 import { PasswordInput } from "@myhoodora/ui/password-input";
 import { registerSchema, type RegisterInput } from "@/lib/validation/auth";
 import {
@@ -19,6 +19,7 @@ import {
 } from "@/lib/firebase/auth";
 import { getAuthErrorMessage } from "@/lib/firebase/errors";
 import { toast } from "sonner";
+import { HERO_IMAGE } from "@/lib/site-images";
 
 export function HeroSection() {
   const router = useRouter();
@@ -91,15 +92,22 @@ export function HeroSection() {
   return (
     <section className="relative min-h-[85vh] flex items-center justify-center px-6 lg:px-20 py-12 overflow-hidden">
       <div className="absolute inset-0 z-0">
-        <Image
-          unoptimized
-          className="w-full h-full object-cover"
-          alt="Sunlit friendly suburban neighborhood street with trees"
-          width={1920}
-          height={1080}
-          src="https://lh3.googleusercontent.com/aida-public/AB6AXuAZPorGgpykC8rkOoSv9p7pu8IXYGoXjrvnIBz3n6SGvpSTpVS1T2WU4ASBYobokKKwQrH2mIZ5gpqZv3hOfeCBQpxS0uHsqEuO7qnnmZGGf0kJsm9nTf_410sJIuM4x53dm1DnpjlM2NlYKf3Vn0zZIcWfoTdwo5W5jrh93_kULt_thEWbS092el47OO5gmqW4UZo0DGlUImz41DpiaZRQkiqDMM0EKqhw6tTMQfzYoIeJtvXc3LF0HrgzQxwZCeWutrlFIrb6iUg"
+        <SmartImage
+          fill
+          priority
+          className="object-cover"
+          alt={HERO_IMAGE.alt}
+          src={HERO_IMAGE.src}
         />
         <div className="absolute inset-0 bg-gradient-to-r from-background/95 via-background/60 to-transparent"></div>
+        <a
+          href={HERO_IMAGE.creditUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="absolute bottom-3 right-4 z-10 rounded-md bg-black/25 px-2 py-0.5 text-[11px] text-white/60 backdrop-blur-sm transition-colors hover:text-white/90"
+        >
+          Photo: {HERO_IMAGE.credit}
+        </a>
       </div>
 
       <div className="relative z-10 max-w-7xl w-full grid lg:grid-cols-2 gap-12 items-center">

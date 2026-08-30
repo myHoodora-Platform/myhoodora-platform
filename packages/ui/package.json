@@ -8,8 +8,10 @@
     "./card": "./src/card.tsx",
     "./code": "./src/code.tsx",
     "./input": "./src/input.tsx",
+    "./image": "./src/image.tsx",
     "./password-input": "./src/password-input.tsx",
     "./logo": "./src/logo.tsx",
+    "./section": "./src/section.tsx",
     "./sidebar": "./src/sidebar.tsx",
     "./skeleton": "./src/skeleton.tsx",
     "./utils": "./src/utils.ts"
@@ -25,6 +27,7 @@
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",
     "eslint": "^9.39.1",
+    "next": "16.2.0",
     "typescript": "5.9.2"
   },
   "dependencies": {
