@@ -42,6 +42,9 @@ export class User {
     lng?: number;
     address?: string;
   };
+
+  @Prop({ required: true, default: "member" })
+  role!: string; // 'member' | 'admin' | 'moderator'
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
