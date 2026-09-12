@@ -42,11 +42,11 @@ Create a `.env` file in this directory based on `.env.example`:
 cp .env.example .env
 ```
 
-| Variable       | Description                  | Default |
-| :------------- | :--------------------------- | :------ |
-| `PORT`         | Port for the API server      | `3333`  |
-| `MONGODB_URI`  | MongoDB connection string    | -       |
-| `FIREBASE_PROJECT_ID` | Firebase Project ID   | -       |
+| Variable              | Description               | Default |
+| :-------------------- | :------------------------ | :------ |
+| `PORT`                | Port for the API server   | `3333`  |
+| `MONGODB_URI`         | MongoDB connection string | -       |
+| `FIREBASE_PROJECT_ID` | Firebase Project ID       | -       |
 
 ## Available Scripts
 
