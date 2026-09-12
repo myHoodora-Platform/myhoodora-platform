@@ -1,0 +1,178 @@
+"use client";
+
+import { useRouter, usePathname } from "next/navigation";
+import Link from "next/link";
+import { useAuth } from "@/context/AuthContext";
+import { cn } from "@myhoodora/ui/utils";
+import { LogoMark, LogoFull } from "@myhoodora/ui/logo";
+import {
+  Sidebar,
+  SidebarHeader,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarGroupContent,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarTrigger,
+  useSidebar,
+} from "@myhoodora/ui/sidebar";
+import { LogOut } from "lucide-react";
+import { logoutUser } from "@/lib/firebase/auth";
+import { DASHBOARD_NAV } from "./navigation";
+
+function navItemClassName(isActive: boolean, isCollapsed: boolean): string {
+  return cn(
+    "group relative flex w-full items-center rounded-lg text-[13px] font-semibold text-slate-600 transition-colors duration-150 outline-none select-none",
+    "hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-ring/40",
+    isCollapsed ? "justify-center px-0 py-2.5" : "gap-2.5 px-3 py-2",
+    isActive && "bg-primary/10 text-primary hover:bg-primary/10 hover:text-primary",
+  );
+}
+
+interface DashboardSidebarProps {
+  /** Called when a gated (non-routed) nav item succeeds, to surface a message. */
+  onNavAction?: (message: string) => void;
+}
+
+export function DashboardSidebar({ onNavAction }: DashboardSidebarProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const { user, profile, runGatedAction } = useAuth();
+  const { state } = useSidebar();
+  const isCollapsed = state === "collapsed";
+
+  const userInitial = (profile?.displayName || user?.email || "?")
+    .charAt(0)
+    .toUpperCase();
+
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+      router.push("/login");
+    } catch (err) {
+      console.error("Failed to log out:", err);
+    }
+  };
+
+  return (
+    <Sidebar>
+      {/* Brand */}
+      <SidebarHeader className="h-16 flex-row items-center justify-between px-4 py-0">
+        <div className="flex min-w-0 items-center gap-2 overflow-hidden">
+          {isCollapsed ? <LogoMark size="sm" /> : <LogoFull size="sm" />}
+          {!isCollapsed && (
+            <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-widest text-primary">
+              V0.1
+            </span>
+          )}
+        </div>
+        {!isCollapsed && <SidebarTrigger className="hidden lg:inline-flex" />}
+      </SidebarHeader>
+
+      {/* Navigation */}
+      <SidebarContent>
+        {DASHBOARD_NAV.map((section) => (
+          <SidebarGroup key={section.label}>
+            <SidebarGroupLabel>{section.label}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {section.items.map((item) => {
+                  const isActive = Boolean(
+                    item.href &&
+                      (pathname === item.href ||
+                        pathname.startsWith(`${item.href}/`)),
+                  );
+                  const className = navItemClassName(isActive, isCollapsed);
+                  const label = isCollapsed ? item.title : undefined;
+
+                  if (item.href) {
+                    return (
+                      <SidebarMenuItem key={item.title}>
+                        <Link
+                          href={item.href}
+                          title={label}
+                          aria-current={isActive ? "page" : undefined}
+                          className={className}
+                        >
+                          {isActive && (
+                            <span
+                              aria-hidden
+                              className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-primary"
+                            />
+                          )}
+                          <item.icon className="size-[18px] shrink-0" />
+                          {!isCollapsed && <span className="truncate">{item.title}</span>}
+                        </Link>
+                      </SidebarMenuItem>
+                    );
+                  }
+
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <button
+                        type="button"
+                        title={label}
+                        className={className}
+                        onClick={() =>
+                          runGatedAction(() => {
+                            if (item.successText) onNavAction?.(item.successText);
+                          })
+                        }
+                      >
+                        <item.icon className="size-[18px] shrink-0" />
+                        {!isCollapsed && <span className="truncate">{item.title}</span>}
+                      </button>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
+      </SidebarContent>
+
+      {/* User + logout */}
+      <SidebarFooter className="gap-2.5">
+        {!isCollapsed ? (
+          <div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/60 p-2.5">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+              {userInitial}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-slate-800">
+                {profile?.displayName || user?.email}
+              </p>
+              <p className="truncate text-[11px] text-muted-foreground">
+                {profile?.isOnboarded
+                  ? profile.location?.address
+                  : "Onboarding skipped"}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex justify-center">
+            <div className="flex size-9 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+              {userInitial}
+            </div>
+          </div>
+        )}
+
+        <button
+          type="button"
+          title={isCollapsed ? "Log out" : undefined}
+          onClick={handleLogout}
+          className={cn(
+            "flex w-full items-center rounded-lg text-[13px] font-semibold text-muted-foreground transition-colors duration-150 outline-none select-none",
+            "hover:bg-destructive/10 hover:text-destructive",
+            isCollapsed ? "justify-center px-0 py-2.5" : "gap-2.5 px-3 py-2",
+          )}
+        >
+          <LogOut className="size-[18px] shrink-0" />
+          {!isCollapsed && <span>Log out</span>}
+        </button>
+      </SidebarFooter>
+    </Sidebar>
+  );
+}

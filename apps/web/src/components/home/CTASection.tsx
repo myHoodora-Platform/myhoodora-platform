@@ -2,49 +2,43 @@
 
 import Link from "next/link";
 import { AnimatedSection } from "@/components/shared/AnimatedSection";
+import { Section } from "@myhoodora/ui/section";
 import { Button } from "@myhoodora/ui/button";
-import { ArrowRight, Users } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 export function CTASection() {
   return (
-    <section className="py-16 sm:py-20 px-6 lg:px-20">
-      <div className="max-w-7xl mx-auto">
-        <AnimatedSection
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="relative rounded-3xl bg-slate-900 text-white p-8 sm:p-12 lg:p-16 border border-slate-800 shadow-2xl overflow-hidden"
-        >
-          {/* Subtle background glow accents matching brand colors */}
-          <div className="absolute -top-24 -right-24 size-96 bg-primary/20 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-24 -left-24 size-96 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
+    <Section className="py-24 sm:py-32">
+      <AnimatedSection
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="mx-auto max-w-2xl text-center"
+      >
+        <h2 className="text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl lg:text-5xl">
+          Connect with your neighbors
+        </h2>
 
-          <div className="relative z-10 max-w-3xl mx-auto text-center space-y-6">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-800/80 border border-slate-700 text-xs font-semibold text-primary-foreground/90">
-              <Users className="size-3.5 text-primary" />
-              <span>Join Your Neighborhood</span>
-            </div>
+        <p className="mt-5 text-base leading-relaxed text-muted-foreground sm:text-lg">
+          A private, secure place for your street — verified neighbors, local
+          alerts, and trusted recommendations. Free to join.
+        </p>
 
-            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white leading-tight">
-              Ready to meet your neighbors?
-            </h2>
-
-            <p className="text-slate-300 text-base sm:text-lg max-w-xl mx-auto leading-relaxed">
-              Join thousands of neighbors already using myHoodora to build
-              stronger, safer, and more connected communities.
-            </p>
-
-            <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link href="/register">
-                <Button size="lg" className="gap-2 font-bold text-base px-8 py-6 rounded-xl shadow-lg">
-                  <span>Get started for free</span>
-                  <ArrowRight className="size-5" />
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </AnimatedSection>
-      </div>
-    </section>
+        <div className="mt-9 flex flex-col items-center justify-center gap-4 sm:flex-row">
+          <Link href="/register">
+            <Button size="lg" className="gap-2 px-8 font-bold">
+              Join myHoodora
+              <ArrowRight className="size-4" />
+            </Button>
+          </Link>
+          <Link
+            href="/coming-soon/business-pages"
+            className="text-sm font-semibold text-primary hover:underline"
+          >
+            Have a business? Create a page
+          </Link>
+        </div>
+      </AnimatedSection>
+    </Section>
   );
 }

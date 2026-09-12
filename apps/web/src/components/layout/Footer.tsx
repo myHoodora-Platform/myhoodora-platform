@@ -73,7 +73,7 @@ export function Footer() {
             <li>
               <Link
                 className="hover:text-primary transition-colors"
-                href="/careers"
+                href="/coming-soon/careers"
               >
                 Careers
               </Link>
@@ -81,7 +81,7 @@ export function Footer() {
             <li>
               <Link
                 className="hover:text-primary transition-colors"
-                href="/press"
+                href="/coming-soon/press"
               >
                 Press
               </Link>
@@ -89,7 +89,7 @@ export function Footer() {
             <li>
               <Link
                 className="hover:text-primary transition-colors"
-                href="/contact"
+                href="/coming-soon/contact"
               >
                 Contact
               </Link>
@@ -103,7 +103,7 @@ export function Footer() {
             <li>
               <Link
                 className="hover:text-primary transition-colors"
-                href="/verification"
+                href="/coming-soon/verification"
               >
                 Neighbor Verification
               </Link>
@@ -111,7 +111,7 @@ export function Footer() {
             <li>
               <Link
                 className="hover:text-primary transition-colors"
-                href="/safety-center"
+                href="/coming-soon/safety-center"
               >
                 Safety Center
               </Link>
@@ -119,7 +119,7 @@ export function Footer() {
             <li>
               <Link
                 className="hover:text-primary transition-colors"
-                href="/business-pages"
+                href="/coming-soon/business-pages"
               >
                 Business Pages
               </Link>
@@ -127,7 +127,7 @@ export function Footer() {
             <li>
               <Link
                 className="hover:text-primary transition-colors"
-                href="/api"
+                href="/coming-soon/api"
               >
                 Developer API
               </Link>
