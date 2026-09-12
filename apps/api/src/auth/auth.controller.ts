@@ -26,30 +26,6 @@ type SignupDto = {
 export class AuthController {
     constructor(private readonly authService: AuthService) { }
 
-    @Post('login')
-    @HttpCode(HttpStatus.OK)
-    @ApiOperation({
-        summary: 'Login',
-        description: 'Authenticates a user with Firebase and returns an authorization token.',
-    })
-    @ApiResponse({ status: 200, description: 'Successfully logged in.' })
-    @ApiResponse({ status: 401, description: 'Invalid credentials.' })
-    async login(@Body() payload: LoginDto): Promise<unknown> {
-        return this.authService.login(payload);
-    }
-
-    @Post('signup')
-    @HttpCode(HttpStatus.CREATED)
-    @ApiOperation({
-        summary: 'Signup',
-        description: 'Registers a new user with Firebase and returns an authorization token.',
-    })
-    @ApiResponse({ status: 201, description: 'Successfully signed up.' })
-    @ApiResponse({ status: 400, description: 'Invalid signup data.' })
-    async signup(@Body() payload: SignupDto): Promise<unknown> {
-        return this.authService.signup(payload);
-    }
-
     @Post('logout')
     @HttpCode(HttpStatus.NO_CONTENT)
     @ApiOperation({
