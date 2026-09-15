@@ -87,10 +87,10 @@ export class UsersController {
   @ApiBody({
     schema: {
       type: "object",
-      required: ["lat", "lng"],
+      required: ["lng", "lat"],
       properties: {
-        lat: { type: "number", example: 37.7749 },
-        lng: { type: "number", example: -122.4194 },
+        lng: { type: "number", example: 37.7749 },
+        lat: { type: "number", example: -122.4194 },
       },
     },
   })
@@ -102,7 +102,7 @@ export class UsersController {
   })
   async verifyLocation(
     @CurrentUser() user: DecodedIdToken,
-    @Body() body: { lat: number; lng: number },
+    @Body() body: { lng: number; lat: number },
   ) {
     return this.usersService.verifyLocation(user.uid, body);
   }

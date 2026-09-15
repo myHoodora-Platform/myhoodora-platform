@@ -47,14 +47,14 @@ export class UsersService {
    */
   async verifyLocation(
     uid: string,
-    coords: { lat: number; lng: number },
+    coords: { lng: number; lat: number },
   ): Promise<{
     verificationStatus: string;
     neighborhoodId?: string;
     distanceMeters?: number;
     reason?: string;
   }> {
-    const { lat, lng } = coords;
+    const { lng, lat } = coords;
     if (
       typeof lat !== "number" ||
       typeof lng !== "number" ||
@@ -65,10 +65,10 @@ export class UsersService {
     }
 
     const match = await this.neighborhoodsService.findVerifiedMatch(
-      lat,
       lng,
+      lat,
     );
-    const lastKnownLocation = { lat, lng };
+    const lastKnownLocation = { lng, lat };
 
     if (!match) {
       await this.update(uid, {
