@@ -43,8 +43,36 @@ export class User {
     address?: string;
   };
 
-  @Prop({ required: true, default: "member" })
+  @Prop({ 
+    required: true,
+    default: "member",
+    enum: ["member", "admin", "moderator"]
+  })
   role!: string; // 'member' | 'admin' | 'moderator'
+
+  @Prop({
+    enum: ["verified", "unverified", "banned"],
+    default: "unverified"
+  })
+  verificationStatus!: string; // 'verified' | 'unverified' | 'banned'
+
+  @Prop({
+    type: Date,
+    required: true
+  })
+  verifiedAt!: Date; // Timestamp when the user was verified
+
+  @Prop({
+    type: {
+      lat: Number,
+      lng: Number,
+    },
+    _id: false,
+  })
+  lastKnownLocation?: {
+    lat?: number;
+    lng?: number;
+  };
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

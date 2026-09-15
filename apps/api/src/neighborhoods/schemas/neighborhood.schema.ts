@@ -33,6 +33,12 @@ export class Neighborhood {
 
   @Prop({ default: true })
   isActive!: boolean;
+
+  @Prop({
+    required: true,
+    type: Number,
+  })
+  radiusMeters!: number; // Radius in meters for the neighborhood boundary
 }
 
 export const NeighborhoodSchema = SchemaFactory.createForClass(Neighborhood);

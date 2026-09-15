@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Body } from "@nestjs/common";
+import { Controller, Get, Patch, Post, Body, HttpCode } from "@nestjs/common";
 import {
   ApiTags,
   ApiBearerAuth,
@@ -75,6 +75,36 @@ export class UsersController {
     },
   ) {
     return this.usersService.completeOnboarding(user.uid, body);
+  }
+
+  @Post("me/verify-location")
+  @HttpCode(200)
+  @ApiOperation({
+    summary: "Verify current user's location",
+    description:
+      "Checks the given coordinates against neighborhood boundaries and assigns the nearest neighborhood whose own radius covers the point. Leaves the user unverified with an 'outside_coverage' reason if none match.",
+  })
+  @ApiBody({
+    schema: {
+      type: "object",
+      required: ["lat", "lng"],
+      properties: {
+        lat: { type: "number", example: 37.7749 },
+        lng: { type: "number", example: -122.4194 },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, description: "Verification result returned." })
+  @ApiResponse({ status: 400, description: "Invalid or missing coordinates." })
+  @ApiResponse({
+    status: 401,
+    description: "Missing or invalid Firebase token.",
+  })
+  async verifyLocation(
+    @CurrentUser() user: DecodedIdToken,
+    @Body() body: { lat: number; lng: number },
+  ) {
+    return this.usersService.verifyLocation(user.uid, body);
   }
 
   @Patch("me")

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
-import { Model } from "mongoose";
+import { Model, Types } from "mongoose";
 import {
   Neighborhood,
   NeighborhoodDocument,
@@ -45,5 +45,37 @@ export class NeighborhoodsService {
         isActive: true,
       })
       .exec();
+  }
+
+  /**
+   * Find the nearest active neighborhood whose own `radiusMeters` actually
+   * covers the given coordinate. Unlike `findNearby`, the distance cutoff is
+   * per-document, so this can't be expressed with a single `$near` query.
+   */
+  async findVerifiedMatch(
+    lat: number,
+    lng: number,
+  ): Promise<{ neighborhoodId: string; distanceMeters: number } | null> {
+    const [match] = await this.neighborhoodModel
+      .aggregate<{ _id: Types.ObjectId; distanceMeters: number }>([
+        {
+          $geoNear: {
+            near: { type: "Point", coordinates: [lng, lat] },
+            distanceField: "distanceMeters",
+            spherical: true,
+            query: { isActive: true },
+          },
+        },
+        { $match: { $expr: { $lte: ["$distanceMeters", "$radiusMeters"] } } },
+        { $limit: 1 },
+        { $project: { distanceMeters: 1 } },
+      ])
+      .exec();
+
+    if (!match) return null;
+    return {
+      neighborhoodId: match._id.toString(),
+      distanceMeters: match.distanceMeters,
+    };
   }
 }
