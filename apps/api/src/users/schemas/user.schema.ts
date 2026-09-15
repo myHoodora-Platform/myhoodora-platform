@@ -57,10 +57,9 @@ export class User {
   verificationStatus!: string; // 'verified' | 'unverified' | 'banned'
 
   @Prop({
-    type: Date,
-    required: true
+    type: Date
   })
-  verifiedAt!: Date; // Timestamp when the user was verified
+  verifiedAt?: Date; // Timestamp when the user was verified
 
   @Prop({
     type: {
