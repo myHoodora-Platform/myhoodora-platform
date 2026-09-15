@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Body, Param, Query } from "@nestjs/common";
+import {
+  Controller,
+  Get,
+  Post,
+  Delete,
+  Body,
+  Param,
+  Query,
+  HttpCode,
+} from "@nestjs/common";
 import {
   ApiTags,
   ApiBearerAuth,
@@ -107,5 +116,15 @@ export class NeighborhoodsController {
   @ApiResponse({ status: 404, description: "Not found." })
   findOne(@Param("id") id: string) {
     return this.neighborhoodsService.findById(id);
+  }
+
+  @Delete(":id")
+  @HttpCode(204)
+  @ApiOperation({ summary: "Delete a neighbourhood by ID" })
+  @ApiParam({ name: "id", description: "Neighbourhood MongoDB ObjectId" })
+  @ApiResponse({ status: 204, description: "Neighbourhood deleted." })
+  @ApiResponse({ status: 404, description: "Not found." })
+  async remove(@Param("id") id: string) {
+    await this.neighborhoodsService.delete(id);
   }
 }

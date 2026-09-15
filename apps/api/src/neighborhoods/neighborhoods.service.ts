@@ -18,6 +18,24 @@ export class NeighborhoodsService {
     return hood.save();
   }
 
+  /**
+   * Idempotent upsert keyed by the unique `name` field, so seed scripts can
+   * be re-run safely without hitting duplicate-key errors.
+   */
+  async upsertByName(
+    data: Partial<Neighborhood> & { name: string },
+  ): Promise<NeighborhoodDocument> {
+    const hood = await this.neighborhoodModel
+      .findOneAndUpdate({ name: data.name }, data, {
+        upsert: true,
+        new: true,
+        setDefaultsOnInsert: true,
+      })
+      .exec();
+    if (!hood) throw new Error(`Failed to upsert neighborhood "${data.name}"`);
+    return hood;
+  }
+
   async findAll(): Promise<NeighborhoodDocument[]> {
     return this.neighborhoodModel.find({ isActive: true }).exec();
   }
@@ -26,6 +44,11 @@ export class NeighborhoodsService {
     const hood = await this.neighborhoodModel.findById(id).exec();
     if (!hood) throw new NotFoundException(`Neighborhood ${id} not found`);
     return hood;
+  }
+
+  async delete(id: string): Promise<void> {
+    const hood = await this.neighborhoodModel.findByIdAndDelete(id).exec();
+    if (!hood) throw new NotFoundException(`Neighborhood ${id} not found`);
   }
 
   /** Find neighborhoods within `maxDistanceMeters` of a coordinate pair */
@@ -53,8 +76,8 @@ export class NeighborhoodsService {
    * per-document, so this can't be expressed with a single `$near` query.
    */
   async findVerifiedMatch(
-    lat: number,
     lng: number,
+    lat: number,
   ): Promise<{ neighborhoodId: string; distanceMeters: number } | null> {
     const [match] = await this.neighborhoodModel
       .aggregate<{ _id: Types.ObjectId; distanceMeters: number }>([
@@ -71,6 +94,7 @@ export class NeighborhoodsService {
         { $project: { distanceMeters: 1 } },
       ])
       .exec();
+      console.log("findVerifiedMatch result:", match);
 
     if (!match) return null;
     return {
