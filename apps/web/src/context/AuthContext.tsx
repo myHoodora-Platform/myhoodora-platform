@@ -13,6 +13,8 @@ import {
   fetchUserProfile,
   completeOnboardingApi,
   verifyLocationApi,
+  updateProfileApi,
+  revokeBackendSession,
   logoutUser,
 } from "@/lib/firebase/auth";
 
@@ -49,6 +51,10 @@ interface AuthContextType {
     distanceMeters?: number;
     reason?: string;
   }>;
+  updateProfile: (payload: {
+    displayName?: string;
+    neighborhoodId?: string;
+  }) => Promise<void>;
   runGatedAction: (action: () => void) => void;
   logout: () => Promise<void>;
 }
@@ -135,7 +141,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return result;
   };
 
+  const updateProfile = async (payload: {
+    displayName?: string;
+    neighborhoodId?: string;
+  }) => {
+    if (!user) throw new Error("No authenticated user session found.");
+    const updatedProfile = await updateProfileApi(user, payload);
+    setProfile(updatedProfile as UserProfile);
+  };
+
   const logout = async () => {
+    // Revoke the Firebase refresh token server-side while the bearer token
+    // is still valid — signOut() below discards it, and this call would
+    // fail (401) if attempted after.
+    if (user) {
+      try {
+        await revokeBackendSession(user);
+      } catch (err) {
+        console.error("Failed to revoke session on server:", err);
+      }
+    }
+
     await logoutUser();
     // Explicitly await the cookie clear rather than relying on the
     // onIdTokenChanged listener's side effect above, which races with any
@@ -177,6 +203,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         refreshProfile,
         completeOnboarding,
         verifyLocation,
+        updateProfile,
         runGatedAction,
         logout,
       }}

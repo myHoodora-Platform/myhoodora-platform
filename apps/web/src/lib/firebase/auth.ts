@@ -129,6 +129,70 @@ export async function verifyLocationApi(
   return response.json();
 }
 
+export async function updateProfileApi(
+  user: User,
+  payload: { displayName?: string; neighborhoodId?: string },
+): Promise<unknown> {
+  const token = await user.getIdToken();
+  const response = await fetch(`${API_BASE_URL}/users/me`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || "Failed to update profile on server.");
+  }
+
+  return response.json();
+}
+
+// Revokes the user's Firebase refresh tokens server-side. Must be called
+// with a still-valid bearer token, before signOut() discards it.
+export async function revokeBackendSession(user: User): Promise<void> {
+  const token = await user.getIdToken();
+  const response = await fetch(`${API_BASE_URL}/auth/logout`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to revoke session on server: ${response.status}`);
+  }
+}
+
+export interface NeighborhoodSummary {
+  name: string;
+  city: string;
+  country: string;
+}
+
+export async function fetchNeighborhood(
+  user: User,
+  neighborhoodId: string,
+): Promise<NeighborhoodSummary | null> {
+  const token = await user.getIdToken();
+  const response = await fetch(`${API_BASE_URL}/neighborhoods/${neighborhoodId}`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    throw new Error(`Failed to fetch neighborhood: ${response.status}`);
+  }
+
+  return response.json();
+}
+
 export async function completeOnboardingApi(
   user: User,
   payload: {
