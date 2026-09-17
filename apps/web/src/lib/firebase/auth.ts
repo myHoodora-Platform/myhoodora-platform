@@ -170,8 +170,28 @@ export async function revokeBackendSession(user: User): Promise<void> {
 export interface NeighborhoodSummary {
   _id: string;
   name: string;
+  description?: string;
   city: string;
   country: string;
+  radiusMeters?: number;
+  isActive?: boolean;
+  location?: {
+    type: "Point";
+    coordinates: [number, number];
+  };
+}
+
+export interface CreateNeighborhoodPayload {
+  name: string;
+  city: string;
+  country: string;
+  radiusMeters: number;
+  description?: string;
+  isActive?: boolean;
+  location?: {
+    type: "Point";
+    coordinates: [number, number];
+  };
 }
 
 export async function fetchNeighborhood(
@@ -207,6 +227,70 @@ export async function fetchNeighborhoods(
 
   if (!response.ok) {
     throw new Error(`Failed to fetch neighborhoods: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function createNeighborhood(
+  user: User,
+  payload: CreateNeighborhoodPayload,
+): Promise<NeighborhoodSummary> {
+  const token = await user.getIdToken();
+  const response = await fetch(`${API_BASE_URL}/neighborhoods`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || "Failed to create neighborhood.");
+  }
+
+  return response.json();
+}
+
+export async function deleteNeighborhood(
+  user: User,
+  neighborhoodId: string,
+): Promise<void> {
+  const token = await user.getIdToken();
+  const response = await fetch(
+    `${API_BASE_URL}/neighborhoods/${neighborhoodId}`,
+    {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to delete neighborhood: ${response.status}`);
+  }
+}
+
+export async function fetchNearbyNeighborhoods(
+  user: User,
+  coords: { lng: number; lat: number },
+  maxDistanceMeters?: number,
+): Promise<NeighborhoodSummary[]> {
+  const token = await user.getIdToken();
+  const params = new URLSearchParams({
+    lng: String(coords.lng),
+    lat: String(coords.lat),
+  });
+  if (maxDistanceMeters) params.set("maxDistance", String(maxDistanceMeters));
+
+  const response = await fetch(
+    `${API_BASE_URL}/neighborhoods/nearby?${params.toString()}`,
+    { method: "GET", headers: { Authorization: `Bearer ${token}` } },
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch nearby neighborhoods: ${response.status}`);
   }
 
   return response.json();

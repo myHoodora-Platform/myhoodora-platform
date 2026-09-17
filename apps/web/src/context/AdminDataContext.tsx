@@ -10,7 +10,11 @@ import React, {
 import { useAuth } from "@/context/AuthContext";
 import {
   fetchNeighborhoods,
+  createNeighborhood as createNeighborhoodApi,
+  deleteNeighborhood as deleteNeighborhoodApi,
+  fetchNearbyNeighborhoods,
   type NeighborhoodSummary,
+  type CreateNeighborhoodPayload,
 } from "@/lib/firebase/auth";
 import {
   MOCK_USERS,
@@ -30,6 +34,12 @@ interface AdminDataContextType {
   activity: MockActivity[];
   neighborhoods: NeighborhoodSummary[];
   neighborhoodsLoading: boolean;
+  createNeighborhood: (payload: CreateNeighborhoodPayload) => Promise<void>;
+  deleteNeighborhood: (id: string) => Promise<void>;
+  checkNearbyNeighborhoods: (
+    coords: { lng: number; lat: number },
+    maxDistanceMeters?: number,
+  ) => Promise<NeighborhoodSummary[]>;
   verifyUser: (uid: string, neighborhoodId: string) => void;
   restrictUser: (uid: string) => void;
   unrestrictUser: (uid: string) => void;
@@ -73,6 +83,29 @@ export function AdminDataProvider({ children }: { children: ReactNode }) {
         ...prev,
       ].slice(0, 20),
     );
+  };
+
+  const createNeighborhood = async (payload: CreateNeighborhoodPayload) => {
+    if (!user) throw new Error("Not authenticated.");
+    const created = await createNeighborhoodApi(user, payload);
+    setNeighborhoods((prev) => [...prev, created]);
+    logActivity(`You added the neighborhood "${created.name}"`);
+  };
+
+  const deleteNeighborhood = async (id: string) => {
+    if (!user) throw new Error("Not authenticated.");
+    const target = neighborhoods.find((n) => n._id === id);
+    await deleteNeighborhoodApi(user, id);
+    setNeighborhoods((prev) => prev.filter((n) => n._id !== id));
+    if (target) logActivity(`You removed the neighborhood "${target.name}"`);
+  };
+
+  const checkNearbyNeighborhoods = async (
+    coords: { lng: number; lat: number },
+    maxDistanceMeters?: number,
+  ) => {
+    if (!user) throw new Error("Not authenticated.");
+    return fetchNearbyNeighborhoods(user, coords, maxDistanceMeters);
   };
 
   const verifyUser = (uid: string, neighborhoodId: string) => {
@@ -167,6 +200,9 @@ export function AdminDataProvider({ children }: { children: ReactNode }) {
         activity,
         neighborhoods,
         neighborhoodsLoading,
+        createNeighborhood,
+        deleteNeighborhood,
+        checkNearbyNeighborhoods,
         verifyUser,
         restrictUser,
         unrestrictUser,

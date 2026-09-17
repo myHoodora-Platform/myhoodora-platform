@@ -1,5 +1,11 @@
 import type { ComponentType, SVGProps } from "react";
-import { LayoutDashboard, Users, MessageSquareWarning, Bell } from "lucide-react";
+import {
+  LayoutDashboard,
+  Users,
+  MessageSquareWarning,
+  Bell,
+  MapPin,
+} from "lucide-react";
 
 export interface AdminNavItem {
   title: string;
@@ -21,6 +27,7 @@ export const ADMIN_NAV: AdminNavSection[] = [
     label: "Management",
     items: [
       { title: "Users", href: "/admin/users", icon: Users },
+      { title: "Neighborhoods", href: "/admin/neighborhoods", icon: MapPin },
       { title: "Queries", href: "/admin/queries", icon: MessageSquareWarning },
       { title: "Notifications", href: "/admin/notifications", icon: Bell },
     ],
