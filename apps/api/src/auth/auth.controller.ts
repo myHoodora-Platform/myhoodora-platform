@@ -1,4 +1,4 @@
-import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, HttpCode, HttpStatus } from '@nestjs/common';
 import {
     ApiTags,
     ApiBearerAuth,
@@ -8,17 +8,6 @@ import {
 import { AuthService } from './auth.service';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { DecodedIdToken } from 'firebase-admin/auth';
-
-type LoginDto = {
-    email: string;
-    password: string;
-};
-
-type SignupDto = {
-    email: string;
-    password: string;
-    displayName?: string;
-};
 
 @ApiTags('auth')
 @ApiBearerAuth('firebase-jwt')
