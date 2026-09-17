@@ -18,8 +18,9 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@myhoodora/ui/sidebar";
-import { LogOut } from "lucide-react";
-import { DASHBOARD_NAV } from "./navigation";
+import { Avatar, AvatarFallback } from "@myhoodora/ui/avatar";
+import { LogOut, ChevronRight } from "lucide-react";
+import { DASHBOARD_NAV, isNavItemActive } from "./navigation";
 
 function navItemClassName(isActive: boolean, isCollapsed: boolean): string {
   return cn(
@@ -79,9 +80,7 @@ export function DashboardSidebar({ onNavAction }: DashboardSidebarProps) {
               <SidebarMenu>
                 {section.items.map((item) => {
                   const isActive = Boolean(
-                    item.href &&
-                      (pathname === item.href ||
-                        pathname.startsWith(`${item.href}/`)),
+                    item.href && isNavItemActive(pathname, item.href),
                   );
                   const className = navItemClassName(isActive, isCollapsed);
                   const label = isCollapsed ? item.title : undefined;
@@ -135,10 +134,14 @@ export function DashboardSidebar({ onNavAction }: DashboardSidebarProps) {
       {/* User + logout */}
       <SidebarFooter className="gap-2.5">
         {!isCollapsed ? (
-          <div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/60 p-2.5">
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
-              {userInitial}
-            </div>
+          <Link
+            href="/dashboard/settings"
+            title="Profile & settings"
+            className="group flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/60 p-2.5 transition-colors hover:border-primary/20 hover:bg-primary/5"
+          >
+            <Avatar className="size-9 shrink-0">
+              <AvatarFallback className="text-sm">{userInitial}</AvatarFallback>
+            </Avatar>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-slate-800">
                 {profile?.displayName || user?.email}
@@ -149,13 +152,14 @@ export function DashboardSidebar({ onNavAction }: DashboardSidebarProps) {
                   : "Onboarding skipped"}
               </p>
             </div>
-          </div>
+            <ChevronRight className="size-4 shrink-0 text-slate-300 transition-colors group-hover:text-primary" />
+          </Link>
         ) : (
-          <div className="flex justify-center">
-            <div className="flex size-9 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
-              {userInitial}
-            </div>
-          </div>
+          <Link href="/dashboard/settings" title="Profile & settings" className="flex justify-center">
+            <Avatar className="size-9">
+              <AvatarFallback className="text-sm">{userInitial}</AvatarFallback>
+            </Avatar>
+          </Link>
         )}
 
         <button

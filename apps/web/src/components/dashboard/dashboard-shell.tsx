@@ -8,6 +8,7 @@ import { OnboardingGatingModal } from "@/components/shared/OnboardingGatingModal
 import { DashboardSidebar } from "./dashboard-sidebar";
 import { DashboardHeader } from "./dashboard-header";
 import { DashboardSkeleton } from "./dashboard-skeleton";
+import { VerificationBanner } from "./verification-banner";
 import { getActiveNavItem } from "./navigation";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
@@ -41,6 +42,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <DashboardHeader title={title} />
+        <VerificationBanner />
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
           <div className="mx-auto w-full max-w-5xl space-y-6">
