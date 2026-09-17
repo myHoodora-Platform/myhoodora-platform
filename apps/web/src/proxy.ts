@@ -16,7 +16,9 @@ export async function proxy(request: NextRequest) {
   const sessionCookie = request.cookies.get("__session")?.value;
 
   const isProtectedRoute =
-    pathname.startsWith("/dashboard") || pathname === "/onboarding";
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/admin") ||
+    pathname === "/onboarding";
   const isGuestOnlyRoute =
     pathname === "/login" ||
     pathname === "/register" ||
@@ -68,6 +70,7 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     "/dashboard/:path*",
+    "/admin/:path*",
     "/onboarding",
     "/login",
     "/register",

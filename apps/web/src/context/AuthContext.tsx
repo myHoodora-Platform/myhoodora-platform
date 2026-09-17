@@ -28,6 +28,7 @@ interface UserProfile {
   };
   neighborhoodId?: string;
   verificationStatus?: string;
+  role?: string;
 }
 
 interface AuthContextType {

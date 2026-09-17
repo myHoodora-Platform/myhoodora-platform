@@ -168,6 +168,7 @@ export async function revokeBackendSession(user: User): Promise<void> {
 }
 
 export interface NeighborhoodSummary {
+  _id: string;
   name: string;
   city: string;
   country: string;
@@ -188,6 +189,24 @@ export async function fetchNeighborhood(
   if (response.status === 404) return null;
   if (!response.ok) {
     throw new Error(`Failed to fetch neighborhood: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function fetchNeighborhoods(
+  user: User,
+): Promise<NeighborhoodSummary[]> {
+  const token = await user.getIdToken();
+  const response = await fetch(`${API_BASE_URL}/neighborhoods`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch neighborhoods: ${response.status}`);
   }
 
   return response.json();
