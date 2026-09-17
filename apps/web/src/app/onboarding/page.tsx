@@ -17,7 +17,8 @@ import { Skeleton } from "@myhoodora/ui/skeleton";
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { user, profile, completeOnboarding, loading } = useAuth();
+  const { user, profile, completeOnboarding, verifyLocation, loading } =
+    useAuth();
   const [step, setStep] = useState(1);
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
@@ -27,6 +28,7 @@ export default function OnboardingPage() {
   const [detecting, setDetecting] = useState(false);
   const [verifyingStatus, setVerifyingStatus] = useState(0);
   const [onboardingError, setOnboardingError] = useState<string | null>(null);
+  const [coverageNotice, setCoverageNotice] = useState<string | null>(null);
 
   // Initialize name from Firebase user profile
   useEffect(() => {
@@ -102,6 +104,22 @@ export default function OnboardingPage() {
 
     const finalize = async () => {
       try {
+        let unverified = false;
+        try {
+          const result = await verifyLocation({
+            lat: coords?.lat || 0,
+            lng: coords?.lng || 0,
+          });
+          if (result.verificationStatus === "unverified") {
+            unverified = true;
+            setCoverageNotice(
+              "You're outside our current coverage area right now — you can still continue, but you won't see a neighborhood feed yet.",
+            );
+          }
+        } catch (verifyErr) {
+          console.error("Location verification failed", verifyErr);
+        }
+
         await completeOnboarding({
           displayName: name,
           location: {
@@ -111,9 +129,12 @@ export default function OnboardingPage() {
           },
         });
         // Wait another moment for the success state, then route
-        setTimeout(() => {
-          router.push("/dashboard");
-        }, 1200);
+        setTimeout(
+          () => {
+            router.push("/dashboard");
+          },
+          unverified ? 2600 : 1200,
+        );
       } catch (err) {
         console.error("Onboarding backend completion failed", err);
         setOnboardingError(
@@ -131,7 +152,7 @@ export default function OnboardingPage() {
       clearTimeout(timer3);
       clearTimeout(timer4);
     };
-  }, [step, name, address, coords, completeOnboarding, router]);
+  }, [step, name, address, coords, completeOnboarding, verifyLocation, router]);
 
   if (loading) {
     return (
@@ -479,6 +500,13 @@ export default function OnboardingPage() {
                     </span>
                   </div>
                 </div>
+
+                {coverageNotice && (
+                  <div className="w-full max-w-xs p-3 bg-amber-50 text-amber-800 text-xs font-semibold rounded-xl flex items-center gap-2">
+                    <MapPin className="size-4 shrink-0" />
+                    <span>{coverageNotice}</span>
+                  </div>
+                )}
               </div>
             )}
           </div>

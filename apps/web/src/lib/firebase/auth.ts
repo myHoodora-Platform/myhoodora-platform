@@ -102,6 +102,33 @@ export async function fetchUserProfile(user: User): Promise<unknown> {
   return response.json();
 }
 
+export async function verifyLocationApi(
+  user: User,
+  coords: { lat: number; lng: number },
+): Promise<{
+  verificationStatus: string;
+  neighborhoodId?: string;
+  distanceMeters?: number;
+  reason?: string;
+}> {
+  const token = await user.getIdToken();
+  const response = await fetch(`${API_BASE_URL}/users/me/verify-location`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ lng: coords.lng, lat: coords.lat }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || "Failed to verify location on server.");
+  }
+
+  return response.json();
+}
+
 export async function completeOnboardingApi(
   user: User,
   payload: {

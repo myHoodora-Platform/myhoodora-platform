@@ -9,7 +9,11 @@ import React, {
 } from "react";
 import { onIdTokenChanged, User } from "firebase/auth";
 import { auth } from "@/lib/firebase/config";
-import { fetchUserProfile, completeOnboardingApi } from "@/lib/firebase/auth";
+import {
+  fetchUserProfile,
+  completeOnboardingApi,
+  verifyLocationApi,
+} from "@/lib/firebase/auth";
 
 interface UserProfile {
   isOnboarded: boolean;
@@ -19,6 +23,8 @@ interface UserProfile {
     lng?: number;
     address?: string;
   };
+  neighborhoodId?: string;
+  verificationStatus?: string;
 }
 
 interface AuthContextType {
@@ -33,6 +39,15 @@ interface AuthContextType {
     displayName?: string;
     location?: { lat?: number; lng?: number; address?: string };
   }) => Promise<void>;
+  verifyLocation: (coords: {
+    lat: number;
+    lng: number;
+  }) => Promise<{
+    verificationStatus: string;
+    neighborhoodId?: string;
+    distanceMeters?: number;
+    reason?: string;
+  }>;
   runGatedAction: (action: () => void) => void;
 }
 
@@ -111,6 +126,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(updatedProfile as UserProfile);
   };
 
+  const verifyLocation = async (coords: { lat: number; lng: number }) => {
+    if (!user) throw new Error("No authenticated user session found.");
+    const result = await verifyLocationApi(user, coords);
+    await refreshProfile();
+    return result;
+  };
+
   const runGatedAction = (action: () => void) => {
     if (profile?.isOnboarded) {
       action();
@@ -140,6 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsGatingModalOpen,
         refreshProfile,
         completeOnboarding,
+        verifyLocation,
         runGatedAction,
       }}
     >
