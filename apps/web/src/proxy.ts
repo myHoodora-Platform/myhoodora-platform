@@ -42,14 +42,27 @@ export async function proxy(request: NextRequest) {
   // Intercepting Redirects
   if (isProtectedRoute && !isValidSession) {
     const redirectUrl = new URL("/login", request.url);
-    return NextResponse.redirect(redirectUrl);
+    const response = NextResponse.redirect(redirectUrl);
+    response.headers.set("Cache-Control", "no-store, must-revalidate");
+    return response;
   }
 
   if (isGuestOnlyRoute && isValidSession) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    const response = NextResponse.redirect(new URL("/dashboard", request.url));
+    response.headers.set("Cache-Control", "no-store, must-revalidate");
+    return response;
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next();
+  // Protected pages must never be served from the browser's back-forward
+  // cache after logout — without this, hitting "back" post-logout can show
+  // a stale authenticated dashboard snapshot instead of re-running this
+  // check. This forces a real revalidation request on every back/forward
+  // navigation to a protected route.
+  if (isProtectedRoute) {
+    response.headers.set("Cache-Control", "no-store, must-revalidate");
+  }
+  return response;
 }
 
 export const config = {
