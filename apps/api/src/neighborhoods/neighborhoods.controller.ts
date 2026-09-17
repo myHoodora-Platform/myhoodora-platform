@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Body, Param, Query } from "@nestjs/common";
+import {
+  Controller,
+  Get,
+  Post,
+  Delete,
+  Body,
+  Param,
+  Query,
+  HttpCode,
+} from "@nestjs/common";
 import {
   ApiTags,
   ApiBearerAuth,
@@ -6,6 +15,7 @@ import {
   ApiResponse,
   ApiParam,
   ApiQuery,
+  ApiBody,
 } from "@nestjs/swagger";
 import { NeighborhoodsService } from "./neighborhoods.service";
 import { Neighborhood } from "./schemas/neighborhood.schema";
@@ -18,6 +28,35 @@ export class NeighborhoodsController {
 
   @Post()
   @ApiOperation({ summary: "Create a neighbourhood" })
+  @ApiBody({
+    schema: {
+      type: "object",
+      required: ["name", "city", "country", "radiusMeters"],
+      properties: {
+        name: { type: "string", example: "Ikeja GRA" },
+        description: {
+          type: "string",
+          example: "Upscale residential neighbourhood",
+        },
+        city: { type: "string", example: "Lagos" },
+        country: { type: "string", example: "Nigeria" },
+        radiusMeters: { type: "number", example: 1500 },
+        isActive: { type: "boolean", example: true },
+        location: {
+          type: "object",
+          properties: {
+            type: { type: "string", example: "Point" },
+            coordinates: {
+              type: "array",
+              items: { type: "number" },
+              example: [3.3515, 6.5833],
+              description: "[longitude, latitude]",
+            },
+          },
+        },
+      },
+    },
+  })
   @ApiResponse({ status: 201, description: "Neighbourhood created." })
   create(@Body() body: Partial<Neighborhood>) {
     return this.neighborhoodsService.create(body);
@@ -77,5 +116,15 @@ export class NeighborhoodsController {
   @ApiResponse({ status: 404, description: "Not found." })
   findOne(@Param("id") id: string) {
     return this.neighborhoodsService.findById(id);
+  }
+
+  @Delete(":id")
+  @HttpCode(204)
+  @ApiOperation({ summary: "Delete a neighbourhood by ID" })
+  @ApiParam({ name: "id", description: "Neighbourhood MongoDB ObjectId" })
+  @ApiResponse({ status: 204, description: "Neighbourhood deleted." })
+  @ApiResponse({ status: 404, description: "Not found." })
+  async remove(@Param("id") id: string) {
+    await this.neighborhoodsService.delete(id);
   }
 }
