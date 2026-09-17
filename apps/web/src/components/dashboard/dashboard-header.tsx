@@ -25,7 +25,7 @@ export function DashboardHeader({ title }: DashboardHeaderProps) {
       </h1>
 
       <div className="ml-auto flex shrink-0 items-center gap-3">
-        {profile?.isOnboarded ? (
+        {profile?.verificationStatus === "verified" ? (
           <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
             <MapPin className="size-3" />
             <span className="hidden sm:inline">Verified Local</span>

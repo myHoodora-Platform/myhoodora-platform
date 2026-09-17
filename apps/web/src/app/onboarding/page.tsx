@@ -14,6 +14,7 @@ import {
   Check,
 } from "lucide-react";
 import { Skeleton } from "@myhoodora/ui/skeleton";
+import { LocationMap } from "@/components/onboarding/location-map";
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -26,6 +27,7 @@ export default function OnboardingPage() {
     null,
   );
   const [detecting, setDetecting] = useState(false);
+  const [geocoding, setGeocoding] = useState(false);
   const [verifyingStatus, setVerifyingStatus] = useState(0);
   const [onboardingError, setOnboardingError] = useState<string | null>(null);
   const [coverageNotice, setCoverageNotice] = useState<string | null>(null);
@@ -44,6 +46,30 @@ export default function OnboardingPage() {
     }
   }, [loading, profile, router]);
 
+  // Sets coords + a placeholder address immediately, then replaces it with a
+  // real reverse-geocoded address once that resolves (left as-is if it fails).
+  const applyDetectedLocation = async (
+    lat: number,
+    lng: number,
+    approximate: boolean,
+  ) => {
+    setCoords({ lat, lng });
+    setAddress(
+      approximate
+        ? `Approximate location (Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)})`
+        : `Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)} (Detected Location)`,
+    );
+    try {
+      const res = await fetch(`/api/reverse-geocode?lat=${lat}&lng=${lng}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.address) setAddress(data.address);
+      }
+    } catch (err) {
+      console.error("Reverse geocoding failed", err);
+    }
+  };
+
   const handleDetectLocation = () => {
     if (!navigator.geolocation) {
       setOnboardingError("Geolocation is not supported by your browser.");
@@ -52,26 +78,55 @@ export default function OnboardingPage() {
     setDetecting(true);
     setOnboardingError(null);
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        setCoords({ lat: latitude, lng: longitude });
-        setAddress(
-          `Lat: ${latitude.toFixed(4)}, Lng: ${longitude.toFixed(4)} (Detected Location)`,
+      async (position) => {
+        await applyDetectedLocation(
+          position.coords.latitude,
+          position.coords.longitude,
+          false,
         );
         setDetecting(false);
       },
-      (error) => {
+      async (error) => {
         console.error(error);
-        setOnboardingError(
-          "Unable to detect location. Please enter your address manually.",
-        );
+
+        // GPS failed — fall back to an approximate location derived from the
+        // request itself (hosting-platform geo headers, e.g. Vercel/
+        // Cloudflare, or an IP-address lookup as a last resort).
+        try {
+          const res = await fetch("/api/ip-location");
+          if (res.ok) {
+            const data = await res.json();
+            await applyDetectedLocation(data.lat, data.lng, true);
+            setOnboardingError(
+              "We couldn't get your exact GPS location, so we used your approximate network location instead. Please check the address below and adjust it if it's not quite right.",
+            );
+            setDetecting(false);
+            return;
+          }
+        } catch (ipErr) {
+          console.error("IP location fallback failed", ipErr);
+        }
+
+        if (error.code === error.PERMISSION_DENIED) {
+          setOnboardingError(
+            "Location permission was denied. Please allow location access for this site, or enter your address manually.",
+          );
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          setOnboardingError(
+            "Your device couldn't determine a location just now — check that Location Services are enabled for your browser in your system settings, or enter your address manually.",
+          );
+        } else {
+          setOnboardingError(
+            "Location detection timed out. Please enter your address manually.",
+          );
+        }
         setDetecting(false);
       },
       { timeout: 10000 },
     );
   };
 
-  const handleNextStep = () => {
+  const handleNextStep = async () => {
     if (step === 1) {
       if (!name.trim()) {
         setOnboardingError("Please enter your name.");
@@ -84,6 +139,27 @@ export default function OnboardingPage() {
         return;
       }
       setOnboardingError(null);
+
+      if (!coords) {
+        setGeocoding(true);
+        try {
+          const res = await fetch(
+            `/api/geocode?address=${encodeURIComponent(address)}`,
+          );
+          if (!res.ok) throw new Error("Address not found");
+          const data = await res.json();
+          setCoords({ lat: data.lat, lng: data.lng });
+        } catch (err) {
+          console.error("Geocoding failed", err);
+          setOnboardingError(
+            "We couldn't locate that address. Please check it, or use \"Use current location\" instead.",
+          );
+          setGeocoding(false);
+          return;
+        }
+        setGeocoding(false);
+      }
+
       setStep(2);
     } else if (step === 2) {
       setStep(3);
@@ -336,13 +412,21 @@ export default function OnboardingPage() {
                       type="text"
                       placeholder="123 Neighborhood St, City"
                       value={address}
-                      onChange={(e) => setAddress(e.target.value)}
+                      onChange={(e) => {
+                        setAddress(e.target.value);
+                        // Manual edits invalidate any previously detected coordinates.
+                        setCoords(null);
+                      }}
                     />
                   </div>
                 </div>
 
-                <Button className="w-full mt-4" onClick={handleNextStep}>
-                  Continue
+                <Button
+                  className="w-full mt-4"
+                  onClick={handleNextStep}
+                  disabled={geocoding}
+                >
+                  {geocoding ? "Locating address..." : "Continue"}
                   <ArrowRight className="size-4" />
                 </Button>
               </div>
@@ -361,33 +445,13 @@ export default function OnboardingPage() {
                   </p>
                 </div>
 
-                {/* Styled CSS Mock Map */}
-                <div className="relative h-48 w-full bg-slate-100 rounded-xl overflow-hidden border border-slate-200 flex items-center justify-center">
-                  {/* Grid Lines Mock Map Background */}
-                  <div
-                    className="absolute inset-0 opacity-20"
-                    style={{
-                      backgroundImage: `
-                        radial-gradient(circle, #0D9488 1px, transparent 1px),
-                        linear-gradient(to right, #ccc 1px, transparent 1px),
-                        linear-gradient(to bottom, #ccc 1px, transparent 1px)
-                      `,
-                      backgroundSize: "20px 20px, 40px 40px, 40px 40px",
-                    }}
-                  ></div>
-
-                  {/* Circular Boundary Grid */}
-                  <div className="absolute size-36 border-2 border-dashed border-primary/20 rounded-full animate-pulse opacity-40"></div>
-
-                  {/* Pulsing Marker */}
-                  <div className="relative z-10 flex flex-col items-center">
-                    <span className="absolute -top-3 size-6 bg-primary/20 rounded-full animate-ping"></span>
-                    <MapPin className="size-8 text-primary fill-primary/30 relative z-10" />
-                  </div>
+                {/* Real map, centered on the detected/geocoded coordinates */}
+                <div className="relative h-48 w-full bg-slate-100 rounded-xl overflow-hidden border border-slate-200">
+                  {coords && <LocationMap lat={coords.lat} lng={coords.lng} />}
 
                   {/* Coordinate Metadata Tag */}
-                  <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-lg border border-slate-200 text-[10px] font-bold text-slate-600 shadow-sm flex items-center gap-1.5">
-                    <Navigation className="size-3 text-primary animate-spin" />
+                  <div className="absolute z-[1000] bottom-3 left-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-lg border border-slate-200 text-[10px] font-bold text-slate-600 shadow-sm flex items-center gap-1.5 pointer-events-none">
+                    <Navigation className="size-3 text-primary" />
                     GPS Connected
                   </div>
                 </div>

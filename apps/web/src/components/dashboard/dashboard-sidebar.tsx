@@ -19,7 +19,6 @@ import {
   useSidebar,
 } from "@myhoodora/ui/sidebar";
 import { LogOut } from "lucide-react";
-import { logoutUser } from "@/lib/firebase/auth";
 import { DASHBOARD_NAV } from "./navigation";
 
 function navItemClassName(isActive: boolean, isCollapsed: boolean): string {
@@ -39,7 +38,7 @@ interface DashboardSidebarProps {
 export function DashboardSidebar({ onNavAction }: DashboardSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, profile, runGatedAction } = useAuth();
+  const { user, profile, runGatedAction, logout } = useAuth();
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
 
@@ -49,7 +48,7 @@ export function DashboardSidebar({ onNavAction }: DashboardSidebarProps) {
 
   const handleLogout = async () => {
     try {
-      await logoutUser();
+      await logout();
       router.push("/login");
     } catch (err) {
       console.error("Failed to log out:", err);

@@ -13,6 +13,7 @@ import {
   fetchUserProfile,
   completeOnboardingApi,
   verifyLocationApi,
+  logoutUser,
 } from "@/lib/firebase/auth";
 
 interface UserProfile {
@@ -49,6 +50,7 @@ interface AuthContextType {
     reason?: string;
   }>;
   runGatedAction: (action: () => void) => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -133,6 +135,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return result;
   };
 
+  const logout = async () => {
+    await logoutUser();
+    // Explicitly await the cookie clear rather than relying on the
+    // onIdTokenChanged listener's side effect above, which races with any
+    // navigation the caller does right after this resolves.
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch (err) {
+      console.error("Failed to clear session cookie on logout:", err);
+    }
+  };
+
   const runGatedAction = (action: () => void) => {
     if (profile?.isOnboarded) {
       action();
@@ -164,6 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         completeOnboarding,
         verifyLocation,
         runGatedAction,
+        logout,
       }}
     >
       {children}
