@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "@myhoodora/ui/select";
 import { Skeleton } from "@myhoodora/ui/skeleton";
-import { ConfirmOverlay } from "@/components/admin/confirm-overlay";
+import { ConfirmOverlay } from "@/components/shared/confirm-overlay";
 import {
   Search,
   ShieldCheck,

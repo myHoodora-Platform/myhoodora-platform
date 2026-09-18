@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useAdminData } from "@/context/AdminDataContext";
-import { ConfirmOverlay } from "@/components/admin/confirm-overlay";
+import { ConfirmOverlay } from "@/components/shared/confirm-overlay";
 import { Badge } from "@myhoodora/ui/badge";
 import { Button } from "@myhoodora/ui/button";
 import { Input } from "@myhoodora/ui/input";
