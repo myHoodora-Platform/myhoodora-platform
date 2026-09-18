@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, RefreshCw } from "lucide-react";
+import { Button } from "@myhoodora/ui/button";
 import { OnboardingGatingModal } from "@/components/shared/OnboardingGatingModal";
 import { DashboardSidebar } from "./dashboard-sidebar";
 import { DashboardHeader } from "./dashboard-header";
@@ -11,11 +12,14 @@ import { DashboardSkeleton } from "./dashboard-skeleton";
 import { VerificationBanner } from "./verification-banner";
 import { getActiveNavItem } from "./navigation";
 
+const LOADING_TIMEOUT_MS = 8000;
+
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, loading } = useAuth();
+  const { user, loading, refreshProfile } = useAuth();
   const [navSuccess, setNavSuccess] = useState<string | null>(null);
+  const [loadingTooLong, setLoadingTooLong] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -30,7 +34,40 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     }
   }, [navSuccess]);
 
+  useEffect(() => {
+    if (!loading) {
+      setLoadingTooLong(false);
+      return;
+    }
+    const timer = setTimeout(() => setLoadingTooLong(true), LOADING_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [loading]);
+
+  const handleRetry = () => {
+    setLoadingTooLong(false);
+    refreshProfile();
+    router.refresh();
+  };
+
   if (loading || !user) {
+    if (loadingTooLong) {
+      return (
+        <div className="flex min-h-screen w-full items-center justify-center bg-slate-50 p-6">
+          <div className="w-full max-w-sm space-y-3 rounded-2xl border border-slate-100 bg-white p-6 text-center shadow-sm">
+            <p className="text-sm font-bold text-slate-800">
+              This is taking longer than expected
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Your session may need refreshing.
+            </p>
+            <Button className="w-full" onClick={handleRetry}>
+              <RefreshCw className="size-4" />
+              Retry
+            </Button>
+          </div>
+        </div>
+      );
+    }
     return <DashboardSkeleton />;
   }
 

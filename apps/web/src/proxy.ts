@@ -55,16 +55,14 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
-  const response = NextResponse.next();
-  // Protected pages must never be served from the browser's back-forward
-  // cache after logout — without this, hitting "back" post-logout can show
-  // a stale authenticated dashboard snapshot instead of re-running this
-  // check. This forces a real revalidation request on every back/forward
-  // navigation to a protected route.
-  if (isProtectedRoute) {
-    response.headers.set("Cache-Control", "no-store, must-revalidate");
-  }
-  return response;
+  // Note: normal pass-through responses intentionally allow the browser's
+  // back-forward cache (no no-store here) — disabling bfcache for every
+  // dashboard navigation made "back" force a full cold reload every time.
+  // The stale-page-after-logout case this used to guard against is instead
+  // handled client-side: AuthProvider listens for `pageshow` with
+  // `event.persisted` and re-validates the session when a page is restored
+  // from bfcache, which is the standard fix for this exact scenario.
+  return NextResponse.next();
 }
 
 export const config = {

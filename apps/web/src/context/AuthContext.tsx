@@ -126,6 +126,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, []);
 
+  useEffect(() => {
+    // When a page is restored from the browser's back-forward cache, its
+    // React state is frozen from before navigation — if auth/profile
+    // changed elsewhere in the meantime (e.g. logged out in another tab),
+    // this re-syncs it without needing a full reload.
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        refreshProfile();
+      }
+    };
+    window.addEventListener("pageshow", handlePageShow);
+    return () => window.removeEventListener("pageshow", handlePageShow);
+  }, []);
+
   const completeOnboarding = async (payload: {
     displayName?: string;
     location?: { lat?: number; lng?: number; address?: string };
