@@ -16,7 +16,9 @@ export async function proxy(request: NextRequest) {
   const sessionCookie = request.cookies.get("__session")?.value;
 
   const isProtectedRoute =
-    pathname.startsWith("/dashboard") || pathname === "/onboarding";
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/admin") ||
+    pathname === "/onboarding";
   const isGuestOnlyRoute =
     pathname === "/login" ||
     pathname === "/register" ||
@@ -42,19 +44,31 @@ export async function proxy(request: NextRequest) {
   // Intercepting Redirects
   if (isProtectedRoute && !isValidSession) {
     const redirectUrl = new URL("/login", request.url);
-    return NextResponse.redirect(redirectUrl);
+    const response = NextResponse.redirect(redirectUrl);
+    response.headers.set("Cache-Control", "no-store, must-revalidate");
+    return response;
   }
 
   if (isGuestOnlyRoute && isValidSession) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    const response = NextResponse.redirect(new URL("/dashboard", request.url));
+    response.headers.set("Cache-Control", "no-store, must-revalidate");
+    return response;
   }
 
+  // Note: normal pass-through responses intentionally allow the browser's
+  // back-forward cache (no no-store here) — disabling bfcache for every
+  // dashboard navigation made "back" force a full cold reload every time.
+  // The stale-page-after-logout case this used to guard against is instead
+  // handled client-side: AuthProvider listens for `pageshow` with
+  // `event.persisted` and re-validates the session when a page is restored
+  // from bfcache, which is the standard fix for this exact scenario.
   return NextResponse.next();
 }
 
 export const config = {
   matcher: [
     "/dashboard/:path*",
+    "/admin/:path*",
     "/onboarding",
     "/login",
     "/register",

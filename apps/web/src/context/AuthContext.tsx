@@ -9,7 +9,14 @@ import React, {
 } from "react";
 import { onIdTokenChanged, User } from "firebase/auth";
 import { auth } from "@/lib/firebase/config";
-import { fetchUserProfile, completeOnboardingApi } from "@/lib/firebase/auth";
+import {
+  fetchUserProfile,
+  completeOnboardingApi,
+  verifyLocationApi,
+  updateProfileApi,
+  revokeBackendSession,
+  logoutUser,
+} from "@/lib/firebase/auth";
 
 interface UserProfile {
   isOnboarded: boolean;
@@ -19,6 +26,9 @@ interface UserProfile {
     lng?: number;
     address?: string;
   };
+  neighborhoodId?: string;
+  verificationStatus?: string;
+  role?: string;
 }
 
 interface AuthContextType {
@@ -33,7 +43,21 @@ interface AuthContextType {
     displayName?: string;
     location?: { lat?: number; lng?: number; address?: string };
   }) => Promise<void>;
+  verifyLocation: (coords: {
+    lat: number;
+    lng: number;
+  }) => Promise<{
+    verificationStatus: string;
+    neighborhoodId?: string;
+    distanceMeters?: number;
+    reason?: string;
+  }>;
+  updateProfile: (payload: {
+    displayName?: string;
+    neighborhoodId?: string;
+  }) => Promise<void>;
   runGatedAction: (action: () => void) => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -102,6 +126,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, []);
 
+  useEffect(() => {
+    // When a page is restored from the browser's back-forward cache, its
+    // React state is frozen from before navigation — if auth/profile
+    // changed elsewhere in the meantime (e.g. logged out in another tab),
+    // this re-syncs it without needing a full reload.
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        refreshProfile();
+      }
+    };
+    window.addEventListener("pageshow", handlePageShow);
+    return () => window.removeEventListener("pageshow", handlePageShow);
+  }, []);
+
   const completeOnboarding = async (payload: {
     displayName?: string;
     location?: { lat?: number; lng?: number; address?: string };
@@ -109,6 +147,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!user) throw new Error("No authenticated user session found.");
     const updatedProfile = await completeOnboardingApi(user, payload);
     setProfile(updatedProfile as UserProfile);
+  };
+
+  const verifyLocation = async (coords: { lat: number; lng: number }) => {
+    if (!user) throw new Error("No authenticated user session found.");
+    const result = await verifyLocationApi(user, coords);
+    await refreshProfile();
+    return result;
+  };
+
+  const updateProfile = async (payload: {
+    displayName?: string;
+    neighborhoodId?: string;
+  }) => {
+    if (!user) throw new Error("No authenticated user session found.");
+    const updatedProfile = await updateProfileApi(user, payload);
+    setProfile(updatedProfile as UserProfile);
+  };
+
+  const logout = async () => {
+    // Revoke the Firebase refresh token server-side while the bearer token
+    // is still valid — signOut() below discards it, and this call would
+    // fail (401) if attempted after.
+    if (user) {
+      try {
+        await revokeBackendSession(user);
+      } catch (err) {
+        console.error("Failed to revoke session on server:", err);
+      }
+    }
+
+    await logoutUser();
+    // Explicitly await the cookie clear rather than relying on the
+    // onIdTokenChanged listener's side effect above, which races with any
+    // navigation the caller does right after this resolves.
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch (err) {
+      console.error("Failed to clear session cookie on logout:", err);
+    }
   };
 
   const runGatedAction = (action: () => void) => {
@@ -140,7 +217,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsGatingModalOpen,
         refreshProfile,
         completeOnboarding,
+        verifyLocation,
+        updateProfile,
         runGatedAction,
+        logout,
       }}
     >
       {children}

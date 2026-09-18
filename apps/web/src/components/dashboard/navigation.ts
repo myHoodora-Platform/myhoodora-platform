@@ -42,15 +42,13 @@ export const DASHBOARD_NAV: DashboardNavSection[] = [
     items: [
       {
         title: "Safety Watch Group",
+        href: "/dashboard/safety-watch",
         icon: Users,
-        gatedAction: "Safety Watch Group",
-        successText: "Group joined",
       },
       {
         title: "Community Events",
+        href: "/dashboard/events",
         icon: Calendar,
-        gatedAction: "Community Events",
-        successText: "Event RSVPed",
       },
     ],
   },
@@ -59,13 +57,24 @@ export const DASHBOARD_NAV: DashboardNavSection[] = [
     items: [
       {
         title: "Marketplace Listings",
+        href: "/dashboard/marketplace",
         icon: ShoppingBag,
-        gatedAction: "Marketplace Listings",
-        successText: "Listing created",
       },
     ],
   },
 ];
+
+/**
+ * Whether a nav item's href should be considered active for the current
+ * pathname. "/dashboard" is a literal prefix of every other dashboard route
+ * (e.g. "/dashboard/events"), so it must only match exactly — otherwise it
+ * would incorrectly show as active on every nested dashboard page.
+ */
+export function isNavItemActive(pathname: string, href: string): boolean {
+  if (pathname === href) return true;
+  if (href === "/dashboard") return false;
+  return pathname.startsWith(`${href}/`);
+}
 
 /** Resolve the nav item matching the current pathname (exact or nested route). */
 export function getActiveNavItem(
@@ -73,10 +82,7 @@ export function getActiveNavItem(
 ): DashboardNavItem | undefined {
   for (const section of DASHBOARD_NAV) {
     for (const item of section.items) {
-      if (
-        item.href &&
-        (pathname === item.href || pathname.startsWith(`${item.href}/`))
-      ) {
+      if (item.href && isNavItemActive(pathname, item.href)) {
         return item;
       }
     }
