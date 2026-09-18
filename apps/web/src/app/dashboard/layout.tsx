@@ -1,5 +1,6 @@
 import { SidebarProvider } from "@myhoodora/ui/sidebar";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
+import { FeedProvider } from "@/context/FeedContext";
 
 export default function DashboardLayout({
   children,
@@ -8,7 +9,9 @@ export default function DashboardLayout({
 }) {
   return (
     <SidebarProvider>
-      <DashboardShell>{children}</DashboardShell>
+      <FeedProvider>
+        <DashboardShell>{children}</DashboardShell>
+      </FeedProvider>
     </SidebarProvider>
   );
 }
