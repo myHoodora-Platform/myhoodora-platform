@@ -8,7 +8,7 @@ export function PrivacyPolicyContent() {
           <li>
             <strong className="text-foreground">From you:</strong> your name,
             email address, and phone number when you create an account, and
-            your display name, neighborhood, and address when you set up your
+            your display name, neighbourhood, and address when you set up your
             profile.
           </li>
           <li>
@@ -27,8 +27,8 @@ export function PrivacyPolicyContent() {
       <LegalSection title="2. How Is My Personal Information Used?">
         <ul className="list-disc space-y-2 pl-5">
           <li>
-            <strong className="text-foreground">Establish and develop neighborhoods:</strong>{" "}
-            verify your address and place you in the right neighborhood.
+            <strong className="text-foreground">Establish and develop neighbourhoods:</strong>{" "}
+            verify your address and place you in the right neighbourhood.
           </li>
           <li>
             <strong className="text-foreground">Set you up on myHoodora:</strong>{" "}
@@ -36,7 +36,7 @@ export function PrivacyPolicyContent() {
           </li>
           <li>
             <strong className="text-foreground">Provide, develop, and improve our services:</strong>{" "}
-            show you relevant updates, deliver real-time neighborhood alerts,
+            show you relevant updates, deliver real-time neighbourhood alerts,
             and improve the platform.
           </li>
           <li>
@@ -46,17 +46,17 @@ export function PrivacyPolicyContent() {
         </ul>
       </LegalSection>
 
-      <LegalSection title="3. Your Location & Neighborhood">
+      <LegalSection title="3. Your Location & Neighbourhood">
         <p>
           We know how much your location matters to you. Your address is used
           for one purpose: to verify that you live where you say you live. We
-          then place you in your neighborhood and show only that — never your
+          then place you in your neighbourhood and show only that — never your
           street address, house number, or exact coordinates — to other users.
         </p>
         <p>
           Your address is not posted anywhere, sold, or shared with strangers.
           You control your profile visibility and decide which personal details
-          you share with your neighbors.
+          you share with your neighbours.
         </p>
       </LegalSection>
 
@@ -105,8 +105,8 @@ export function PrivacyPolicyContent() {
       <LegalSection title="7. How Is My Personal Information Protected?">
         <p>
           We use encryption in transit and reasonable technical and
-          organizational safeguards to protect your information against
-          unauthorized access, loss, or misuse.
+          organisational safeguards to protect your information against
+          unauthorised access, loss, or misuse.
         </p>
         <p>
           <strong className="text-foreground">Account security:</strong> keep

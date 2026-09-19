@@ -97,7 +97,7 @@ export default function RegisterPage() {
           Sign up
         </h1>
         <p className="text-sm text-muted-foreground">
-          Join your local community to connect with neighbors.
+          Join your local community to connect with neighbours.
         </p>
       </div>
 

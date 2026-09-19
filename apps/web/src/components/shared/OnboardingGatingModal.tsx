@@ -56,7 +56,7 @@ export function OnboardingGatingModal() {
         {/* Action Buttons */}
         <div className="mt-6 flex flex-col gap-2">
           <Button className="w-full" onClick={handleGoToOnboarding}>
-            Verify neighborhood location
+            Verify neighbourhood location
           </Button>
           <Button
             variant="ghost"

@@ -53,7 +53,7 @@ export interface MockQuery {
 
 export const MOCK_QUERIES: MockQuery[] = [
   { id: "q1", uid: "u4", userName: "Chidi Nwosu", subject: "Can't verify my address", message: "I tried using my current location three times and it keeps failing. My address is correct on the map though.", status: "open", priority: "high", createdAt: "2026-09-16T09:10:00Z" },
-  { id: "q2", uid: "u9", userName: "Amara Nnamdi", subject: "Wrong neighborhood assigned", message: "I live in Gbagada but the app matched me to a neighborhood on the other side of Lagos.", status: "open", priority: "normal", createdAt: "2026-09-15T14:22:00Z" },
+  { id: "q2", uid: "u9", userName: "Amara Nnamdi", subject: "Wrong neighbourhood assigned", message: "I live in Gbagada but the app matched me to a neighbourhood on the other side of Lagos.", status: "open", priority: "normal", createdAt: "2026-09-15T14:22:00Z" },
   { id: "q3", uid: "u16", userName: "Peter Udoh", subject: "Marketplace listing not showing", message: "I posted an item for sale yesterday but I don't see it anywhere in the marketplace.", status: "in_progress", priority: "normal", createdAt: "2026-09-14T11:05:00Z" },
   { id: "q4", uid: "u7", userName: "Bisi Ogundipe", subject: "Why was my account restricted?", message: "I woke up and I can't post anymore. Can someone tell me what happened?", status: "in_progress", priority: "high", createdAt: "2026-09-13T08:40:00Z" },
   { id: "q5", uid: "u2", userName: "Tunde Bakare", subject: "Feature request: dark mode", message: "Loving the app so far! Would be great to have a dark mode option for night use.", status: "resolved", priority: "low", createdAt: "2026-09-10T19:15:00Z", adminResponse: "Thanks for the suggestion — we've added it to our roadmap!" },
@@ -71,7 +71,7 @@ export interface MockNotification {
 
 export const MOCK_NOTIFICATIONS: MockNotification[] = [
   { id: "n1", title: "Scheduled maintenance tonight", body: "myHoodora will be briefly unavailable between 1–2am WAT for scheduled maintenance.", audience: "all", audienceLabel: "All users", sentAt: "2026-09-15T20:00:00Z" },
-  { id: "n2", title: "New Safety Watch feature", body: "You can now join your neighborhood's Safety Watch group directly from the sidebar.", audience: "neighborhood", audienceLabel: "Ikeja, Lagos", sentAt: "2026-09-12T10:00:00Z" },
+  { id: "n2", title: "New Safety Watch feature", body: "You can now join your neighbourhood's Safety Watch group directly from the sidebar.", audience: "neighborhood", audienceLabel: "Ikeja, Lagos", sentAt: "2026-09-12T10:00:00Z" },
 ];
 
 export interface MockActivity {

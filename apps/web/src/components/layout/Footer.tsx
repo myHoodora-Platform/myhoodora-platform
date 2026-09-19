@@ -8,8 +8,7 @@ export function Footer() {
         <div className="col-span-2 space-y-6">
           <MascotWordmark size="md" tone="reversed" />
           <p className="max-w-xs leading-relaxed text-slate-400">
-            Connecting neighbors across the globe to build better places to
-            live, work, and thrive.
+            Hometown, Previous Hood.
           </p>
           <div className="flex gap-3">
             <Link
@@ -105,7 +104,7 @@ export function Footer() {
                 className="hover:text-primary transition-colors"
                 href="/coming-soon/verification"
               >
-                Neighbor Verification
+                Neighbour Verification
               </Link>
             </li>
             <li>
@@ -113,7 +112,7 @@ export function Footer() {
                 className="hover:text-primary transition-colors"
                 href="/coming-soon/safety-center"
               >
-                Safety Center
+                Safety Centre
               </Link>
             </li>
             <li>

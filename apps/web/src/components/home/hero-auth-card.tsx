@@ -117,7 +117,7 @@ export function HeroAuthCard({ className }: HeroAuthCardProps) {
             </button>
             <h3 className="text-2xl font-semibold">Sign up with Email</h3>
             <p className="text-muted-foreground text-sm">
-              Enter your credentials to join your local neighborhood.
+              Enter your credentials to join your local neighbourhood.
             </p>
           </div>
 

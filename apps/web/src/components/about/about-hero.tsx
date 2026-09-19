@@ -46,8 +46,8 @@ export function AboutHero() {
         </h1>
 
         <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-white/85">
-          myHoodora turns your neighborhood into a real-time network of
-          verified neighbors — sharing security alerts, emergencies, and
+          myHoodora turns your neighbourhood into a real-time network of
+          verified neighbours — sharing security alerts, emergencies, and
           community news the moment they happen.
         </p>
 

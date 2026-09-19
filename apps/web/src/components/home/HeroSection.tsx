@@ -13,10 +13,10 @@ function HeroCopy() {
     <>
       <h1 className="text-4xl font-bold tracking-tight leading-tight text-foreground sm:text-5xl lg:text-6xl">
         Discover your <br />
-        <span className="text-primary">neighborhood</span>
+        <span className="text-primary">neighbourhood</span>
       </h1>
       <p className="text-base text-muted-foreground max-w-lg leading-relaxed sm:text-lg lg:text-xl">
-        Connect with neighbors, get real-time alerts, and build a safer,
+        Connect with neighbours, get real-time alerts, and build a safer,
         friendlier place to live.
       </p>
     </>

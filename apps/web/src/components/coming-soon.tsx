@@ -38,7 +38,7 @@ const FEATURES: Record<string, FeatureMeta> = {
   careers: {
     title: "Careers",
     description:
-      "We're assembling the team that will connect every neighborhood in Nigeria. Roles in engineering, community, and design are on the way.",
+      "We're assembling the team that will connect every neighbourhood in Nigeria. Roles in engineering, community, and design are on the way.",
     icon: Briefcase,
   },
   press: {
@@ -54,15 +54,15 @@ const FEATURES: Record<string, FeatureMeta> = {
     icon: MessageCircle,
   },
   verification: {
-    title: "Neighbor Verification",
+    title: "Neighbour Verification",
     description:
-      "A step-by-step guide to our address-verification flow is being written — learn how we keep every hood full of real neighbors.",
+      "A step-by-step guide to our address-verification flow is being written — learn how we keep every hood full of real neighbours.",
     icon: BadgeCheck,
   },
   "safety-center": {
-    title: "Safety Center",
+    title: "Safety Centre",
     description:
-      "Tools, resources, and emergency guidance to keep your neighborhood safe are coming together here.",
+      "Tools, resources, and emergency guidance to keep your neighbourhood safe are coming together here.",
     icon: ShieldCheck,
   },
   "business-pages": {
@@ -74,7 +74,7 @@ const FEATURES: Record<string, FeatureMeta> = {
   api: {
     title: "Developer API",
     description:
-      "A public API and developer portal are on the roadmap so you can build on top of your neighborhood graph.",
+      "A public API and developer portal are on the roadmap so you can build on top of your neighbourhood graph.",
     icon: Code2,
   },
   marketplace: {
@@ -86,7 +86,7 @@ const FEATURES: Record<string, FeatureMeta> = {
   "for-business": {
     title: "For Business",
     description:
-      "Tools to help local businesses reach the neighbors around them — coming soon.",
+      "Tools to help local businesses reach the neighbours around them — coming soon.",
     icon: Building2,
   },
 };
@@ -258,7 +258,7 @@ export function ComingSoonPage({ feature }: { feature: string }) {
               transition={{ delay: 0.3 }}
               className="mt-10 text-xs text-muted-foreground/70"
             >
-              myHoodora — connecting neighbors, one hood at a time.
+              myHoodora — Hometown, Previous Hood.
             </motion.p>
           </div>
         </Section>

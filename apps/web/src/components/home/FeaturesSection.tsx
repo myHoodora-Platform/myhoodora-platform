@@ -15,7 +15,7 @@ export function FeaturesSection() {
       >
         <SectionHeading
           title="Everything you need to stay connected"
-          description="myHoodora brings the best of your neighborhood to your fingertips, ensuring you're always in the loop."
+          description="myHoodora brings the best of your neighbourhood to your fingertips, ensuring you're always in the loop."
         />
       </AnimatedSection>
 
@@ -32,7 +32,7 @@ export function FeaturesSection() {
           <h3 className="text-xl font-semibold mb-4">A secure environment</h3>
           <p className="text-muted-foreground leading-relaxed">
             Every member is verified with their home address, ensuring your
-            digital neighborhood is as safe as your physical one.
+            digital neighbourhood is as safe as your physical one.
           </p>
         </AnimatedSection>
 
@@ -66,7 +66,7 @@ export function FeaturesSection() {
           <h3 className="text-xl font-semibold mb-4">Discover local favorites</h3>
           <p className="text-muted-foreground leading-relaxed">
             Find the best plumber, reliable babysitters, or hidden gems in
-            your area recommended by neighbors you can trust.
+            your area recommended by neighbours you can trust.
           </p>
         </AnimatedSection>
       </div>

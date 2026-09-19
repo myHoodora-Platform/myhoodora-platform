@@ -9,9 +9,9 @@ import { CheckCircle2, ShieldCheck, ArrowRight } from "lucide-react";
 import { TRUST_IMAGE } from "@/lib/site-images";
 
 const POINTS = [
-  "Your exact address is never shown publicly — only your neighborhood.",
+  "Your exact address is never shown publicly — only your neighbourhood.",
   "You choose what you share, and with whom.",
-  "Every neighbor is address-verified, so you're talking to real people — not anonymous accounts.",
+  "Every neighbour is address-verified, so you're talking to real people — not anonymous accounts.",
 ];
 
 export function TrustSafetySection() {
@@ -30,7 +30,7 @@ export function TrustSafetySection() {
               kicker="Trust & safety"
               kickerClassName="bg-brand-coral/10 text-brand-coral"
               title="Your address stays yours — always"
-              description="We understand how much your privacy matters. In Nigeria, your home is your safe place, and where you live is nobody's business but yours and your neighbors'. That's why we never post your exact address or share it with strangers."
+              description="We understand how much your privacy matters. In Nigeria, your home is your safe place, and where you live is nobody's business but yours and your neighbours'. That's why we never post your exact address or share it with strangers."
             />
             <ul className="mt-8 space-y-4">
               {POINTS.map((point) => (
@@ -74,7 +74,7 @@ export function TrustSafetySection() {
                     Address-verified
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Real neighbors, real trust
+                    Real neighbours, real trust
                   </p>
                 </div>
               </div>

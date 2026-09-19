@@ -41,7 +41,7 @@ export const metadata: Metadata = {
     locale: "en_US",
     url: "https://www.myhoodora.com",
     siteName: "myHoodora",
-    title: "myHoodora — Your neighbourhood, connected",
+    title: "myHoodora — Hometown, Previous Hood.",
     description:
       "myHoodora connects neighbours to share updates, stay informed, and support local businesses in their community.",
     images: [
@@ -49,13 +49,13 @@ export const metadata: Metadata = {
         url: "/og/og-teal.png",
         width: 1200,
         height: 630,
-        alt: "myHoodora — Your neighbourhood, connected",
+        alt: "myHoodora — Hometown, Previous Hood.",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "myHoodora — Your neighbourhood, connected",
+    title: "myHoodora — Hometown, Previous Hood.",
     description:
       "myHoodora connects neighbours to share updates, stay informed, and support local businesses in their community.",
     images: ["/og/og-teal.png"],

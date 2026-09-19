@@ -16,11 +16,11 @@ export function CTASection() {
         className="mx-auto max-w-2xl text-center"
       >
         <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl lg:text-5xl">
-          Connect with your neighbors
+          Connect with your neighbours
         </h2>
 
         <p className="mt-5 text-base leading-relaxed text-muted-foreground sm:text-lg">
-          A private, secure place for your street — verified neighbors, local
+          A private, secure place for your street — verified neighbours, local
           alerts, and trusted recommendations. Free to join.
         </p>
 

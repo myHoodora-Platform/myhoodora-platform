@@ -89,7 +89,7 @@ export function AdminDataProvider({ children }: { children: ReactNode }) {
     if (!user) throw new Error("Not authenticated.");
     const created = await createNeighborhoodApi(user, payload);
     setNeighborhoods((prev) => [...prev, created]);
-    logActivity(`You added the neighborhood "${created.name}"`);
+    logActivity(`You added the neighbourhood "${created.name}"`);
   };
 
   const deleteNeighborhood = async (id: string) => {
@@ -97,7 +97,7 @@ export function AdminDataProvider({ children }: { children: ReactNode }) {
     const target = neighborhoods.find((n) => n._id === id);
     await deleteNeighborhoodApi(user, id);
     setNeighborhoods((prev) => prev.filter((n) => n._id !== id));
-    if (target) logActivity(`You removed the neighborhood "${target.name}"`);
+    if (target) logActivity(`You removed the neighbourhood "${target.name}"`);
   };
 
   const checkNearbyNeighborhoods = async (

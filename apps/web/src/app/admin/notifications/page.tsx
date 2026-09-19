@@ -20,7 +20,7 @@ const TEMPLATES = [
   {
     label: "Verification approved",
     title: "You're verified!",
-    body: "Your address has been verified. Welcome to your neighborhood feed.",
+    body: "Your address has been verified. Welcome to your neighbourhood feed.",
   },
   {
     label: "Maintenance notice",
@@ -62,7 +62,7 @@ export default function AdminNotificationsPage() {
     if (audience === "neighborhood")
       return (
         neighborhoods.find((n) => n._id === targetNeighborhoodId)?.name ??
-        "Select a neighborhood"
+        "Select a neighbourhood"
       );
     return "";
   }, [audience, targetUid, targetNeighborhoodId, users, neighborhoods]);
@@ -77,7 +77,7 @@ export default function AdminNotificationsPage() {
       return;
     }
     if (audience === "neighborhood" && !targetNeighborhoodId) {
-      toast.error("Choose a neighborhood to notify.");
+      toast.error("Choose a neighbourhood to notify.");
       return;
     }
     sendNotification({
@@ -152,7 +152,7 @@ export default function AdminNotificationsPage() {
             <SelectContent>
               <SelectItem value="all">All users</SelectItem>
               <SelectItem value="user">Specific user</SelectItem>
-              <SelectItem value="neighborhood">Neighborhood</SelectItem>
+              <SelectItem value="neighborhood">Neighbourhood</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -178,7 +178,7 @@ export default function AdminNotificationsPage() {
             onValueChange={setTargetNeighborhoodId}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Choose a neighborhood" />
+              <SelectValue placeholder="Choose a neighbourhood" />
             </SelectTrigger>
             <SelectContent>
               {neighborhoods.map((n) => (

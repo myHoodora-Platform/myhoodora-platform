@@ -71,7 +71,7 @@ export default function SettingsPage() {
         />
         <SettingsListRow
           icon={MapPin}
-          label="Neighborhood"
+          label="Neighbourhood"
           description={
             neighborhoodName ??
             (profile?.neighborhoodId ? "Loading..." : "Not verified yet")

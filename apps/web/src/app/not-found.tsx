@@ -19,7 +19,7 @@ export default function NotFound() {
             404
           </h1>
           <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
-            Looks like you&apos;re lost in the neighborhood
+            Looks like you&apos;re lost in the neighbourhood
           </h2>
           <p className="text-muted-foreground max-w-md mx-auto text-lg leading-relaxed">
             The page you are looking for doesn&apos;t exist or has been moved.

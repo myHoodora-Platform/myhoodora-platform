@@ -16,13 +16,13 @@ const STEPS: Step[] = [
     icon: MapPin,
     title: "Verify your address",
     description:
-      "Join with your real address to unlock your actual neighborhood — no anonymous accounts, just verified neighbors you can trust.",
+      "Join with your real address to unlock your actual neighbourhood — no anonymous accounts, just verified neighbours you can trust.",
   },
   {
     icon: MessageSquare,
-    title: "Connect with neighbors",
+    title: "Connect with neighbours",
     description:
-      "Share updates, ask for recommendations, and join conversations on your neighborhood feed and safety watch groups.",
+      "Share updates, ask for recommendations, and join conversations on your neighbourhood feed and safety watch groups.",
   },
   {
     icon: Users,
@@ -44,7 +44,7 @@ export function HowItWorksSection() {
         <SectionHeading
           kicker="How it works"
           title="From your address to your community in three steps"
-          description="Getting started is simple — and every step is designed to keep your neighborhood real, local, and safe."
+          description="Getting started is simple — and every step is designed to keep your neighbourhood real, local, and safe."
         />
       </AnimatedSection>
 

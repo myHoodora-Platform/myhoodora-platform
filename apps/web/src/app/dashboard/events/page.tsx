@@ -32,7 +32,7 @@ const mockEvents: CommunityEvent[] = [
     day: "Sat",
     date: "20",
     month: "Sep",
-    title: "Neighborhood Park Cleanup",
+    title: "Neighbourhood Park Cleanup",
     time: "9:00 AM – 11:00 AM",
     location: "Maple Park, Main Entrance",
     category: "Cleanup",
@@ -85,7 +85,7 @@ export default function CommunityEventsPage() {
         <FeaturePreviewHeader
           icon={Calendar}
           title="Community Events"
-          description="Upcoming meetups, cleanups, and get-togethers happening around your neighborhood."
+          description="Upcoming meetups, cleanups, and get-togethers happening around your neighbourhood."
         />
 
         <div className="space-y-4">

@@ -19,7 +19,7 @@ export function VerificationBanner() {
               Pending Verification
             </p>
             <p className="text-xs text-amber-800/80">
-              We couldn&apos;t confirm your address yet, so some neighborhood
+              We couldn&apos;t confirm your address yet, so some neighbourhood
               features are limited. Having trouble? Our support team can help.
             </p>
           </div>

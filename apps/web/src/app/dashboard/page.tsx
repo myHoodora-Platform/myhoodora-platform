@@ -352,7 +352,7 @@ function PostCard({
         <ConfirmOverlay
           icon={Trash2}
           title="Delete this post?"
-          description="This removes it from the neighborhood feed for everyone."
+          description="This removes it from the neighbourhood feed for everyone."
           confirmLabel={deleting ? "Deleting..." : "Delete post"}
           destructive
           onConfirm={handleDelete}
@@ -446,7 +446,7 @@ function PostComposer() {
         type,
         mediaUrl: imagePreviewUrl ?? undefined,
       });
-      toast.success("Posted to your neighborhood feed.");
+      toast.success("Posted to your neighbourhood feed.");
       reset();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to create post.");
@@ -468,7 +468,7 @@ function PostComposer() {
           onClick={() => setExpanded(true)}
           className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-sm text-muted-foreground transition-colors hover:bg-slate-100/70"
         >
-          What&apos;s going on in the neighborhood?
+          What&apos;s going on in the neighbourhood?
         </button>
       ) : (
         <>
@@ -688,7 +688,7 @@ function DashboardFeedPageContent() {
         <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center">
           <p className="text-sm font-bold text-slate-700">No posts yet</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Be the first to share something with your neighbors.
+            Be the first to share something with your neighbours.
           </p>
         </div>
       ) : (

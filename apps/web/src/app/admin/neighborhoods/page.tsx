@@ -86,10 +86,10 @@ export default function AdminNeighborhoodsPage() {
       const matches = await checkNearbyNeighborhoods({ lng, lat }, radius);
       setNearbyMatches(matches);
       if (matches.length === 0) {
-        toast.success("No overlapping neighborhoods nearby.");
+        toast.success("No overlapping neighbourhoods nearby.");
       }
     } catch {
-      toast.error("Failed to check nearby neighborhoods.");
+      toast.error("Failed to check nearby neighbourhoods.");
     } finally {
       setCheckingNearby(false);
     }
@@ -128,11 +128,11 @@ export default function AdminNeighborhoodsPage() {
       setNearbyMatches([]);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to create neighborhood.";
+        err instanceof Error ? err.message : "Failed to create neighbourhood.";
       toast.error(
         message.toLowerCase().includes("duplicate") ||
           message.toLowerCase().includes("e11000")
-          ? `A neighborhood named "${form.name.trim()}" already exists.`
+          ? `A neighbourhood named "${form.name.trim()}" already exists.`
           : message,
       );
     } finally {
@@ -148,7 +148,7 @@ export default function AdminNeighborhoodsPage() {
       toast.success(`"${pendingDelete.name}" removed.`);
       setPendingDelete(null);
     } catch {
-      toast.error("Failed to delete neighborhood.");
+      toast.error("Failed to delete neighbourhood.");
     } finally {
       setDeleting(false);
     }
@@ -159,10 +159,10 @@ export default function AdminNeighborhoodsPage() {
       <div className="space-y-4 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
         <div>
           <h2 className="text-sm font-bold tracking-tight text-slate-900">
-            Add neighborhood
+            Add neighbourhood
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            Writes directly to the neighborhoods collection — real data, no
+            Writes directly to the neighbourhoods collection — real data, no
             mock layer.
           </p>
         </div>
@@ -295,7 +295,7 @@ export default function AdminNeighborhoodsPage() {
           ) : (
             <Plus className="size-4" />
           )}
-          Add neighborhood
+          Add neighbourhood
         </Button>
       </div>
 
@@ -305,7 +305,7 @@ export default function AdminNeighborhoodsPage() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search neighborhoods..."
+            placeholder="Search neighbourhoods..."
             className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm shadow-sm outline-none focus:border-primary"
           />
         </div>
@@ -313,7 +313,7 @@ export default function AdminNeighborhoodsPage() {
         <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-sm font-bold tracking-tight text-slate-900">
-              All neighborhoods
+              All neighbourhoods
             </h2>
             <span className="text-xs text-muted-foreground">
               {neighborhoodsLoading ? "…" : `${neighborhoods.length} total`}
@@ -328,7 +328,7 @@ export default function AdminNeighborhoodsPage() {
             </div>
           ) : filtered.length === 0 ? (
             <p className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-muted-foreground">
-              No neighborhoods match your search.
+              No neighbourhoods match your search.
             </p>
           ) : (
             <div className="max-h-[560px] space-y-2 overflow-y-auto">
@@ -373,8 +373,8 @@ export default function AdminNeighborhoodsPage() {
         <ConfirmOverlay
           icon={Trash2}
           title={`Delete "${pendingDelete.name}"?`}
-          description="This permanently removes the neighborhood. Residents matched to it will need to be re-verified against another neighborhood."
-          confirmLabel={deleting ? "Deleting..." : "Delete neighborhood"}
+          description="This permanently removes the neighbourhood. Residents matched to it will need to be re-verified against another neighbourhood."
+          confirmLabel={deleting ? "Deleting..." : "Delete neighbourhood"}
           destructive
           onConfirm={handleDelete}
           onCancel={() => setPendingDelete(null)}

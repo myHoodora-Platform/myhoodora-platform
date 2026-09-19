@@ -61,7 +61,7 @@ export default function AdminOverviewPage() {
           accent="slate"
         />
         <StatTile
-          label="Neighborhoods"
+          label="Neighbourhoods"
           value={neighborhoodsLoading ? "…" : neighborhoods.length}
           icon={MapPin}
         />
@@ -98,7 +98,7 @@ export default function AdminOverviewPage() {
       <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-sm font-bold tracking-tight text-slate-900">
-            Neighborhoods
+            Neighbourhoods
           </h2>
           <span className="text-xs text-muted-foreground">Real data</span>
         </div>
@@ -123,7 +123,7 @@ export default function AdminOverviewPage() {
             </div>
             <p className="mt-3 text-xs text-muted-foreground">
               Showing {Math.min(9, neighborhoods.length)} of{" "}
-              {neighborhoods.length} seeded neighborhoods.
+              {neighborhoods.length} seeded neighbourhoods.
             </p>
           </>
         )}

@@ -11,7 +11,7 @@
  * entry of their array. To try a different candidate, change the index:
  *
  *     export const HERO_IMAGE  = HERO_IMAGES[1];  // switch to the Mile 12 market
- *     export const TRUST_IMAGE = TRUST_IMAGES[2]; // switch to "neighbors on a bench"
+ *     export const TRUST_IMAGE = TRUST_IMAGES[2]; // switch to "neighbours on a bench"
  *
  * All candidates are already downloaded locally, so switching is instant and
  * keeps the site free of external image dependencies.
@@ -98,9 +98,9 @@ export const TRUST_IMAGES: SiteImage[] = [
       "https://commons.wikimedia.org/wiki/File:A_smiling_market_woman_at_the_Monday_Market_in_Kakuri,_Kaduna_02.jpg",
   },
   {
-    src: "/images/trust-neighbors.webp",
+    src: "/images/trust-neighbours.webp",
     alt: "Women in colorful clothes sitting together on a bench outdoors",
-    label: "Neighbors on a bench (current)",
+    label: "Neighbours on a bench (current)",
     credit: "Random Institute",
     creditUrl: "https://unsplash.com/@randominstitute",
   },

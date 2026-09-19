@@ -189,7 +189,7 @@ export default function OnboardingPage() {
           if (result.verificationStatus === "unverified") {
             unverified = true;
             setCoverageNotice(
-              "You're outside our current coverage area right now — you can still continue, but you won't see a neighborhood feed yet.",
+              "You're outside our current coverage area right now — you can still continue, but you won't see a neighbourhood feed yet.",
             );
           }
         } catch (verifyErr) {
@@ -284,7 +284,7 @@ export default function OnboardingPage() {
   const stepsList = [
     { title: "Your details", desc: "Name & Address" },
     { title: "Confirm location", desc: "Interactive Map" },
-    { title: "Verification", desc: "Neighborhood Check" },
+    { title: "Verification", desc: "Neighbourhood Check" },
   ];
 
   return (
@@ -394,7 +394,7 @@ export default function OnboardingPage() {
                   <div>
                     <div className="flex justify-between items-center mb-2 px-1">
                       <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                        Neighborhood Address
+                        Neighbourhood Address
                       </label>
                       <button
                         type="button"
@@ -410,7 +410,7 @@ export default function OnboardingPage() {
                     </div>
                     <Input
                       type="text"
-                      placeholder="123 Neighborhood St, City"
+                      placeholder="123 Neighbourhood St, City"
                       value={address}
                       onChange={(e) => {
                         setAddress(e.target.value);
@@ -437,7 +437,7 @@ export default function OnboardingPage() {
               <div className="space-y-6">
                 <div>
                   <h2 className="text-2xl font-bold mb-2 tracking-tight">
-                    Confirm your neighborhood
+                    Confirm your neighbourhood
                   </h2>
                   <p className="text-sm text-muted-foreground">
                     We detected you belong in the local community map section
@@ -495,7 +495,7 @@ export default function OnboardingPage() {
                   </h3>
                   <p className="text-sm text-muted-foreground">
                     Please stand by while we verify your address fits local
-                    neighborhood guidelines.
+                    neighbourhood guidelines.
                   </p>
                 </div>
 
@@ -560,7 +560,7 @@ export default function OnboardingPage() {
                           : "text-slate-400"
                       }
                     >
-                      Setting up neighborhood feed access...
+                      Setting up neighbourhood feed access...
                     </span>
                   </div>
                 </div>
