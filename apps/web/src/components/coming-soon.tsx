@@ -175,7 +175,7 @@ export function ComingSoonPage({ feature }: { feature: string }) {
                 Coming soon
               </Kicker>
 
-              <h1 className="mt-5 text-4xl font-extrabold tracking-tight sm:text-5xl">
+              <h1 className="mt-5 text-4xl font-bold tracking-tight sm:text-5xl">
                 {meta.title} is on its way
               </h1>
 
@@ -243,7 +243,7 @@ export function ComingSoonPage({ feature }: { feature: string }) {
                     </label>
                     <button
                       type="submit"
-                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3.5 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:bg-primary/90 active:scale-95"
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:bg-primary/90 active:scale-95"
                     >
                       Notify me
                     </button>

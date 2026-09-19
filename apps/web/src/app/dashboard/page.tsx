@@ -275,7 +275,7 @@ function PostCard({
             <AvatarFallback>{author.initials}</AvatarFallback>
           </Avatar>
           <div>
-            <h4 className="text-sm font-black text-slate-800">
+            <h4 className="text-sm font-bold text-slate-800">
               {author.displayName}
             </h4>
             <p className="text-[10px] text-muted-foreground">

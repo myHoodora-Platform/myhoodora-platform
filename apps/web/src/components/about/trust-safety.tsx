@@ -70,7 +70,7 @@ export function TrustSafetySection() {
               <div className="absolute -bottom-5 left-6 flex items-center gap-2.5 rounded-2xl border border-border bg-white px-4 py-3 shadow-lg">
                 <ShieldCheck className="size-5 shrink-0 text-brand-coral" />
                 <div>
-                  <p className="text-sm font-bold text-foreground">
+                  <p className="text-sm font-semibold text-foreground">
                     Address-verified
                   </p>
                   <p className="text-xs text-muted-foreground">

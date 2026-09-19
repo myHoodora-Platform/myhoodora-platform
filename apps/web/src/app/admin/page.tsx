@@ -69,14 +69,14 @@ export default function AdminOverviewPage() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-sm font-black tracking-tight text-slate-900">
+          <h2 className="mb-4 text-sm font-bold tracking-tight text-slate-900">
             Verification status
           </h2>
           <VerificationBreakdown users={users} />
         </div>
 
         <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-sm font-black tracking-tight text-slate-900">
+          <h2 className="mb-4 text-sm font-bold tracking-tight text-slate-900">
             Recent activity
           </h2>
           <ul className="space-y-3">
@@ -97,7 +97,7 @@ export default function AdminOverviewPage() {
 
       <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-sm font-black tracking-tight text-slate-900">
+          <h2 className="text-sm font-bold tracking-tight text-slate-900">
             Neighborhoods
           </h2>
           <span className="text-xs text-muted-foreground">Real data</span>

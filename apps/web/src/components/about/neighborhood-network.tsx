@@ -104,7 +104,7 @@ export function NeighborhoodNetwork() {
               </div>
               <span
                 className={cn(
-                  "rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider",
+                  "rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider",
                   feature.tint,
                 )}
               >
@@ -112,7 +112,7 @@ export function NeighborhoodNetwork() {
               </span>
             </div>
 
-            <h3 className="mt-5 text-lg font-bold text-foreground">
+            <h3 className="mt-5 text-lg font-semibold text-foreground">
               {feature.title}
             </h3>
             <p className="mt-2 leading-relaxed text-muted-foreground">

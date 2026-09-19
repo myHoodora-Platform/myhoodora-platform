@@ -40,7 +40,7 @@ export function AboutHero() {
           Why myHoodora exists
         </Kicker>
 
-        <h1 className="mt-6 text-4xl font-black leading-tight tracking-tight sm:text-5xl lg:text-6xl">
+        <h1 className="mt-6 text-4xl font-bold leading-tight tracking-tight sm:text-5xl lg:text-6xl">
           What if your whole{" "}
           <span className="text-brand-coral">street</span> looked out for you?
         </h1>

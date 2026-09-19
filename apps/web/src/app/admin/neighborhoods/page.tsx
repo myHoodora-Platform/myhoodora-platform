@@ -158,7 +158,7 @@ export default function AdminNeighborhoodsPage() {
     <div className="grid gap-6 lg:grid-cols-2">
       <div className="space-y-4 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
         <div>
-          <h2 className="text-sm font-black tracking-tight text-slate-900">
+          <h2 className="text-sm font-bold tracking-tight text-slate-900">
             Add neighborhood
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -312,7 +312,7 @@ export default function AdminNeighborhoodsPage() {
 
         <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-sm font-black tracking-tight text-slate-900">
+            <h2 className="text-sm font-bold tracking-tight text-slate-900">
               All neighborhoods
             </h2>
             <span className="text-xs text-muted-foreground">

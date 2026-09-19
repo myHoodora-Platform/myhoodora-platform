@@ -98,7 +98,7 @@ export default function CommunityEventsPage() {
                 <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                   {event.month}
                 </span>
-                <span className="text-xl font-black text-slate-800">
+                <span className="text-xl font-bold text-slate-800">
                   {event.date}
                 </span>
                 <span className="text-[10px] font-bold text-muted-foreground">
@@ -108,7 +108,7 @@ export default function CommunityEventsPage() {
 
               <div className="min-w-0 flex-1 space-y-2">
                 <div className="flex items-start justify-between gap-2">
-                  <h3 className="text-sm font-black text-slate-800">
+                  <h3 className="text-sm font-bold text-slate-800">
                     {event.title}
                   </h3>
                   <Badge className={CATEGORY_STYLES[event.category]}>

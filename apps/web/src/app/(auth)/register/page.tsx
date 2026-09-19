@@ -93,7 +93,7 @@ export default function RegisterPage() {
   return (
     <div className="space-y-6">
       <div className="text-center space-y-2">
-        <h1 className="text-3xl font-black tracking-tight text-foreground">
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">
           Sign up
         </h1>
         <p className="text-sm text-muted-foreground">
@@ -112,7 +112,7 @@ export default function RegisterPage() {
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div>
-          <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 px-1">
+          <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">
             Email Address
           </label>
           <Input
@@ -124,7 +124,7 @@ export default function RegisterPage() {
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 px-1">
+          <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">
             Password
           </label>
           <PasswordInput

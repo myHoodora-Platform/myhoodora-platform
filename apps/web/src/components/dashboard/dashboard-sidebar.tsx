@@ -71,7 +71,7 @@ export function DashboardSidebar({ onNavAction }: DashboardSidebarProps) {
         <div className="flex min-w-0 items-center gap-2 overflow-hidden">
           {isCollapsed ? <MascotMark size="sm" /> : <MascotWordmark size="sm" />}
           {!isCollapsed && (
-            <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-widest text-primary">
+            <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-primary">
               V0.1
             </span>
           )}

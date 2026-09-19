@@ -120,7 +120,7 @@ export function HeroSection() {
           transition={{ duration: 0.6, ease: "easeOut" }}
           className="space-y-6"
         >
-          <h1 className="text-5xl lg:text-7xl font-black tracking-tight leading-tight text-foreground">
+          <h1 className="text-5xl lg:text-7xl font-bold tracking-tight leading-tight text-foreground">
             Discover your <br />
             <span className="text-primary">neighborhood</span>
           </h1>
@@ -157,7 +157,7 @@ export function HeroSection() {
                   onClick={() => {
                     setShowEmailRegister(false);
                   }}
-                  className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline uppercase tracking-wider mb-2 outline-none"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline uppercase tracking-wider mb-2 outline-none"
                 >
                   <ArrowLeft className="size-4" />
                   Back
@@ -170,7 +170,7 @@ export function HeroSection() {
 
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 px-1">
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">
                     Email Address
                   </label>
                   <Input
@@ -182,7 +182,7 @@ export function HeroSection() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 px-1">
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">
                     Password
                   </label>
                   <PasswordInput

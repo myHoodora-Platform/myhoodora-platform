@@ -135,7 +135,7 @@ export default function SafetyWatchPage() {
                 </span>
               </div>
               <div>
-                <h3 className="text-sm font-black text-slate-800">
+                <h3 className="text-sm font-bold text-slate-800">
                   {alert.title}
                 </h3>
                 <p className="mt-1 text-sm leading-relaxed text-slate-600">

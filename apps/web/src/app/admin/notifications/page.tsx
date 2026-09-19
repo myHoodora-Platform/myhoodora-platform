@@ -96,7 +96,7 @@ export default function AdminNotificationsPage() {
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <div className="space-y-4 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-        <h2 className="text-sm font-black tracking-tight text-slate-900">
+        <h2 className="text-sm font-bold tracking-tight text-slate-900">
           Compose notification
         </h2>
 
@@ -208,7 +208,7 @@ export default function AdminNotificationsPage() {
 
       <div className="space-y-4">
         <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-          <h2 className="mb-3 text-sm font-black tracking-tight text-slate-900">
+          <h2 className="mb-3 text-sm font-bold tracking-tight text-slate-900">
             Live preview
           </h2>
           <p className="mb-3 text-xs text-muted-foreground">
@@ -231,7 +231,7 @@ export default function AdminNotificationsPage() {
         </div>
 
         <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-          <h2 className="mb-3 text-sm font-black tracking-tight text-slate-900">
+          <h2 className="mb-3 text-sm font-bold tracking-tight text-slate-900">
             Sent history
           </h2>
           <div className="space-y-3">

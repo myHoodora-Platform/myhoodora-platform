@@ -60,7 +60,7 @@ export function Footer() {
         </div>
 
         <div className="space-y-4">
-          <h4 className="text-white font-bold mb-4">Company</h4>
+          <h4 className="text-white font-semibold mb-4">Company</h4>
           <ul className="space-y-3">
             <li>
               <Link
@@ -98,7 +98,7 @@ export function Footer() {
         </div>
 
         <div className="space-y-4">
-          <h4 className="text-white font-bold mb-4">Platform</h4>
+          <h4 className="text-white font-semibold mb-4">Platform</h4>
           <ul className="space-y-3">
             <li>
               <Link
@@ -136,7 +136,7 @@ export function Footer() {
         </div>
 
         <div className="space-y-4">
-          <h4 className="text-white font-bold mb-4">Legal</h4>
+          <h4 className="text-white font-semibold mb-4">Legal</h4>
           <ul className="space-y-3">
             <li>
               <Link

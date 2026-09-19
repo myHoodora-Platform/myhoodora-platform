@@ -15,7 +15,7 @@ export function CTASection() {
         transition={{ duration: 0.5 }}
         className="mx-auto max-w-2xl text-center"
       >
-        <h2 className="text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl lg:text-5xl">
+        <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl lg:text-5xl">
           Connect with your neighbors
         </h2>
 
@@ -26,7 +26,7 @@ export function CTASection() {
 
         <div className="mt-9 flex flex-col items-center justify-center gap-4 sm:flex-row">
           <Link href="/register">
-            <Button size="lg" className="gap-2 px-8 font-bold">
+            <Button size="lg" className="gap-2 px-8">
               Join myHoodora
               <ArrowRight className="size-4" />
             </Button>

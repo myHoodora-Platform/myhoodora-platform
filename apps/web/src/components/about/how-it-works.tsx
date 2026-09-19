@@ -61,13 +61,13 @@ export function HowItWorksSection() {
               transition={{ duration: 0.5, delay: index * 0.1 }}
               className="relative flex flex-col items-center text-center"
             >
-              <div className="relative z-10 flex size-16 items-center justify-center rounded-full border-2 border-primary bg-white text-xl font-black text-primary">
+              <div className="relative z-10 flex size-16 items-center justify-center rounded-full border-2 border-primary bg-white text-xl font-bold text-primary">
                 {index + 1}
               </div>
               <div className="mt-6 flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                 <step.icon className="size-6" />
               </div>
-              <h3 className="mt-4 text-lg font-bold text-foreground">
+              <h3 className="mt-4 text-lg font-semibold text-foreground">
                 {step.title}
               </h3>
               <p className="mt-2 max-w-xs leading-relaxed text-muted-foreground">

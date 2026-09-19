@@ -369,7 +369,7 @@ export default function OnboardingPage() {
             {step === 1 && (
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-2xl font-black mb-2 tracking-tight">
+                  <h2 className="text-2xl font-bold mb-2 tracking-tight">
                     Tell us about yourself
                   </h2>
                   <p className="text-sm text-muted-foreground">
@@ -400,7 +400,7 @@ export default function OnboardingPage() {
                         type="button"
                         onClick={handleDetectLocation}
                         disabled={detecting}
-                        className="text-xs font-extrabold text-primary hover:underline flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                        className="text-xs font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer disabled:opacity-50"
                       >
                         <Navigation
                           className={`size-3 ${detecting ? "animate-pulse" : ""}`}
@@ -436,7 +436,7 @@ export default function OnboardingPage() {
             {step === 2 && (
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-2xl font-black mb-2 tracking-tight">
+                  <h2 className="text-2xl font-bold mb-2 tracking-tight">
                     Confirm your neighborhood
                   </h2>
                   <p className="text-sm text-muted-foreground">
@@ -490,7 +490,7 @@ export default function OnboardingPage() {
                 </div>
 
                 <div className="text-center space-y-2 max-w-sm">
-                  <h3 className="text-lg font-black">
+                  <h3 className="text-lg font-bold">
                     Verifying Address Authenticity
                   </h3>
                   <p className="text-sm text-muted-foreground">

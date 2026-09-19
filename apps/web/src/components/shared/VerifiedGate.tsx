@@ -23,7 +23,7 @@ export function VerifiedGate({ children }: { children: React.ReactNode }) {
         <ShieldAlert className="size-6" />
       </div>
       <div className="space-y-1">
-        <h2 className="text-lg font-black tracking-tight text-slate-900">
+        <h2 className="text-lg font-bold tracking-tight text-slate-900">
           Verification required
         </h2>
         <p className="max-w-sm text-sm text-muted-foreground">

@@ -299,7 +299,7 @@ export function CommunityFeedSection() {
           {/* Copy — above the phone on mobile, left column on desktop */}
           <div className="text-center lg:text-left">
             <Kicker>Community Feed</Kicker>
-            <h2 className="mt-4 text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl lg:text-4xl">
+            <h2 className="mt-4 text-2xl font-bold tracking-tight text-foreground sm:text-3xl lg:text-4xl">
               Your neighborhood at a glance
             </h2>
             <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-muted-foreground sm:text-base lg:mx-0">

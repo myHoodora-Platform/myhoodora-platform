@@ -78,7 +78,7 @@ export function AboutStory() {
                 <value.icon className="size-6" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-foreground">
+                <h3 className="text-base font-semibold text-foreground">
                   {value.title}
                 </h3>
                 <p className="mt-1.5 leading-relaxed text-muted-foreground">
@@ -100,7 +100,7 @@ export function AboutStory() {
             transition={{ duration: 0.5, delay: index * 0.1 }}
             className="text-center"
           >
-            <div className="text-4xl font-black tracking-tight text-primary sm:text-5xl">
+            <div className="text-4xl font-bold tracking-tight text-primary sm:text-5xl">
               {stat.value}
             </div>
             <p className="mt-2 text-sm text-muted-foreground">{stat.label}</p>

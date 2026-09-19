@@ -29,7 +29,7 @@ export function FeaturesSection() {
           <div className="size-20 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
             <ShieldCheck className="size-10" />
           </div>
-          <h3 className="text-xl font-bold mb-4">A secure environment</h3>
+          <h3 className="text-xl font-semibold mb-4">A secure environment</h3>
           <p className="text-muted-foreground leading-relaxed">
             Every member is verified with their home address, ensuring your
             digital neighborhood is as safe as your physical one.
@@ -45,7 +45,7 @@ export function FeaturesSection() {
           <div className="size-20 bg-brand-coral/10 text-brand-coral rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
             <BellRing className="size-10" />
           </div>
-          <h3 className="text-xl font-bold mb-4">
+          <h3 className="text-xl font-semibold mb-4">
             Stay informed with alerts
           </h3>
           <p className="text-muted-foreground leading-relaxed">
@@ -63,7 +63,7 @@ export function FeaturesSection() {
           <div className="size-20 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
             <Star className="size-10" />
           </div>
-          <h3 className="text-xl font-bold mb-4">Discover local favorites</h3>
+          <h3 className="text-xl font-semibold mb-4">Discover local favorites</h3>
           <p className="text-muted-foreground leading-relaxed">
             Find the best plumber, reliable babysitters, or hidden gems in
             your area recommended by neighbors you can trust.

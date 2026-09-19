@@ -21,7 +21,7 @@ export function LegalPage({ title, updatedAt, intro, children }: LegalPageProps)
       <main className="flex-1">
         <Section className="py-16 lg:py-20">
           <div className="mx-auto max-w-3xl">
-            <h1 className="text-3xl font-black tracking-tight text-foreground sm:text-4xl">
+            <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
               {title}
             </h1>
             <p className="mt-3 text-sm text-muted-foreground">

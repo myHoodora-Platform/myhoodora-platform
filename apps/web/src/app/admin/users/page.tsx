@@ -255,7 +255,7 @@ function AdminUsersPageContent() {
                 </AvatarFallback>
               </Avatar>
               <div className="min-w-0">
-                <p className="truncate text-base font-black text-slate-900">
+                <p className="truncate text-base font-bold text-slate-900">
                   {selectedUser.displayName}
                 </p>
                 <p className="truncate text-sm text-muted-foreground">

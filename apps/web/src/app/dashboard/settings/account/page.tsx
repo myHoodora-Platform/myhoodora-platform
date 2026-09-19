@@ -55,7 +55,7 @@ export default function AccountSettingsPage() {
       </Breadcrumb>
 
       <div className="space-y-4 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-black tracking-tight">Account details</h2>
+        <h2 className="text-lg font-bold tracking-tight">Account details</h2>
 
         <div className="space-y-1.5">
           <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">

@@ -162,7 +162,7 @@ export default function MarketplacePage() {
                 <ShoppingBag className="size-8 text-white/70" />
               </div>
               <div className="space-y-1 p-3">
-                <p className="text-sm font-black text-slate-800">
+                <p className="text-sm font-bold text-slate-800">
                   {listing.price}
                 </p>
                 <p className="truncate text-xs font-semibold text-slate-600">
