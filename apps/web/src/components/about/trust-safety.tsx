@@ -16,7 +16,7 @@ const POINTS = [
 
 export function TrustSafetySection() {
   return (
-    <Section className="py-20 lg:py-24">
+    <Section className="py-16 lg:py-24">
       <AnimatedSection
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}

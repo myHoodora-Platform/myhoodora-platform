@@ -40,7 +40,7 @@ const STATS = [
 
 export function AboutStory() {
   return (
-    <Section className="py-20 lg:py-24">
+    <Section className="py-16 lg:py-24">
       <div className="grid items-center gap-12 lg:grid-cols-2">
         <AnimatedSection
           initial={{ opacity: 0, x: -20 }}

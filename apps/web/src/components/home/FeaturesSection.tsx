@@ -6,7 +6,7 @@ import { ShieldCheck, BellRing, Star } from "lucide-react";
 
 export function FeaturesSection() {
   return (
-    <Section className="bg-muted/30 py-24">
+    <Section className="bg-muted/30 py-16 lg:py-24">
       <AnimatedSection
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
@@ -24,10 +24,10 @@ export function FeaturesSection() {
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
-          className="flex flex-col items-center text-center group p-8 rounded-2xl hover:bg-primary/5 transition-all"
+          className="flex flex-col items-center text-center group p-6 sm:p-8 rounded-2xl hover:bg-primary/5 transition-all"
         >
-          <div className="size-20 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-            <ShieldCheck className="size-10" />
+          <div className="size-14 sm:size-20 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+            <ShieldCheck className="size-7 sm:size-10" />
           </div>
           <h3 className="text-xl font-semibold mb-4">A secure environment</h3>
           <p className="text-muted-foreground leading-relaxed">
@@ -40,10 +40,10 @@ export function FeaturesSection() {
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
-          className="flex flex-col items-center text-center group p-8 rounded-2xl hover:bg-primary/5 transition-all"
+          className="flex flex-col items-center text-center group p-6 sm:p-8 rounded-2xl hover:bg-primary/5 transition-all"
         >
-          <div className="size-20 bg-brand-coral/10 text-brand-coral rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-            <BellRing className="size-10" />
+          <div className="size-14 sm:size-20 bg-brand-coral/10 text-brand-coral rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+            <BellRing className="size-7 sm:size-10" />
           </div>
           <h3 className="text-xl font-semibold mb-4">
             Stay informed with alerts
@@ -58,10 +58,10 @@ export function FeaturesSection() {
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.3 }}
-          className="flex flex-col items-center text-center group p-8 rounded-2xl hover:bg-primary/5 transition-all"
+          className="flex flex-col items-center text-center group p-6 sm:p-8 rounded-2xl hover:bg-primary/5 transition-all"
         >
-          <div className="size-20 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-            <Star className="size-10" />
+          <div className="size-14 sm:size-20 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+            <Star className="size-7 sm:size-10" />
           </div>
           <h3 className="text-xl font-semibold mb-4">Discover local favorites</h3>
           <p className="text-muted-foreground leading-relaxed">

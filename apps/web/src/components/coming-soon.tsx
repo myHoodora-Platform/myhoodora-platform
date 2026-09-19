@@ -152,7 +152,7 @@ export function ComingSoonPage({ feature }: { feature: string }) {
     <div className="flex min-h-screen flex-col font-sans text-foreground bg-background">
       <Header />
       <main className="flex-1">
-        <Section className="py-20 sm:py-28">
+        <Section className="py-16 lg:py-24">
           <div className="mx-auto max-w-2xl text-center">
             <Link
               href="/"
