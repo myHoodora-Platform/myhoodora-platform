@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
-import { useRequireOnboarded } from "@/hooks/use-require-onboarded";
+import { VerifiedGate } from "@/components/shared/VerifiedGate";
 import { FeaturePreviewHeader } from "@/components/dashboard/feature-preview-header";
 import { Button } from "@myhoodora/ui/button";
 import { Badge } from "@myhoodora/ui/badge";
@@ -71,7 +71,6 @@ const mockEvents: CommunityEvent[] = [
 ];
 
 export default function CommunityEventsPage() {
-  useRequireOnboarded();
   const { runGatedAction } = useAuth();
 
   const handleRsvp = () => {
@@ -81,54 +80,60 @@ export default function CommunityEventsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <FeaturePreviewHeader
-        icon={Calendar}
-        title="Community Events"
-        description="Upcoming meetups, cleanups, and get-togethers happening around your neighborhood."
-      />
+    <VerifiedGate>
+      <div className="space-y-6">
+        <FeaturePreviewHeader
+          icon={Calendar}
+          title="Community Events"
+          description="Upcoming meetups, cleanups, and get-togethers happening around your neighborhood."
+        />
 
-      <div className="space-y-4">
-        {mockEvents.map((event, idx) => (
-          <article
-            key={idx}
-            className="flex gap-4 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm"
-          >
-            <div className="flex h-fit w-16 shrink-0 flex-col items-center rounded-xl border border-slate-100 bg-slate-50 py-2.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                {event.month}
-              </span>
-              <span className="text-xl font-black text-slate-800">{event.date}</span>
-              <span className="text-[10px] font-bold text-muted-foreground">
-                {event.day}
-              </span>
-            </div>
-
-            <div className="min-w-0 flex-1 space-y-2">
-              <div className="flex items-start justify-between gap-2">
-                <h3 className="text-sm font-black text-slate-800">{event.title}</h3>
-                <Badge className={CATEGORY_STYLES[event.category]}>
-                  {event.category}
-                </Badge>
-              </div>
-              <p className="text-xs text-muted-foreground">{event.time}</p>
-              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <MapPin className="size-3.5 shrink-0" />
-                {event.location}
-              </p>
-              <div className="flex items-center justify-between pt-1">
-                <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
-                  <Users className="size-3.5" />
-                  {event.attendeeCount} attending
+        <div className="space-y-4">
+          {mockEvents.map((event, idx) => (
+            <article
+              key={idx}
+              className="flex gap-4 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm"
+            >
+              <div className="flex h-fit w-16 shrink-0 flex-col items-center rounded-xl border border-slate-100 bg-slate-50 py-2.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  {event.month}
                 </span>
-                <Button size="sm" variant="outline" onClick={handleRsvp}>
-                  RSVP
-                </Button>
+                <span className="text-xl font-black text-slate-800">
+                  {event.date}
+                </span>
+                <span className="text-[10px] font-bold text-muted-foreground">
+                  {event.day}
+                </span>
               </div>
-            </div>
-          </article>
-        ))}
+
+              <div className="min-w-0 flex-1 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <h3 className="text-sm font-black text-slate-800">
+                    {event.title}
+                  </h3>
+                  <Badge className={CATEGORY_STYLES[event.category]}>
+                    {event.category}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">{event.time}</p>
+                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <MapPin className="size-3.5 shrink-0" />
+                  {event.location}
+                </p>
+                <div className="flex items-center justify-between pt-1">
+                  <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+                    <Users className="size-3.5" />
+                    {event.attendeeCount} attending
+                  </span>
+                  <Button size="sm" variant="outline" onClick={handleRsvp}>
+                    RSVP
+                  </Button>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
       </div>
-    </div>
+    </VerifiedGate>
   );
 }

@@ -27,7 +27,8 @@ function navItemClassName(isActive: boolean, isCollapsed: boolean): string {
     "group relative flex w-full items-center rounded-lg text-[13px] font-semibold text-slate-600 transition-colors duration-150 outline-none select-none",
     "hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-ring/40",
     isCollapsed ? "justify-center px-0 py-2.5" : "gap-2.5 px-3 py-2",
-    isActive && "bg-primary/10 text-primary hover:bg-primary/10 hover:text-primary",
+    isActive &&
+      "bg-primary/10 text-primary hover:bg-primary/10 hover:text-primary",
   );
 }
 
@@ -40,14 +41,21 @@ export function DashboardSidebar({ onNavAction }: DashboardSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, profile, runGatedAction, logout } = useAuth();
-  const { state } = useSidebar();
+  const { state, isMobile, setOpenMobile } = useSidebar();
   const isCollapsed = state === "collapsed";
+
+  // On mobile the sidebar is an overlay drawer — any navigation or action
+  // taken from it should dismiss it, same as tapping the backdrop does.
+  const closeMobileSidebar = () => {
+    if (isMobile) setOpenMobile(false);
+  };
 
   const userInitial = (profile?.displayName || user?.email || "?")
     .charAt(0)
     .toUpperCase();
 
   const handleLogout = async () => {
+    closeMobileSidebar();
     try {
       await logout();
       router.push("/login");
@@ -93,6 +101,7 @@ export function DashboardSidebar({ onNavAction }: DashboardSidebarProps) {
                           title={label}
                           aria-current={isActive ? "page" : undefined}
                           className={className}
+                          onClick={closeMobileSidebar}
                         >
                           {isActive && (
                             <span
@@ -101,7 +110,9 @@ export function DashboardSidebar({ onNavAction }: DashboardSidebarProps) {
                             />
                           )}
                           <item.icon className="size-[18px] shrink-0" />
-                          {!isCollapsed && <span className="truncate">{item.title}</span>}
+                          {!isCollapsed && (
+                            <span className="truncate">{item.title}</span>
+                          )}
                         </Link>
                       </SidebarMenuItem>
                     );
@@ -113,14 +124,18 @@ export function DashboardSidebar({ onNavAction }: DashboardSidebarProps) {
                         type="button"
                         title={label}
                         className={className}
-                        onClick={() =>
+                        onClick={() => {
+                          closeMobileSidebar();
                           runGatedAction(() => {
-                            if (item.successText) onNavAction?.(item.successText);
-                          })
-                        }
+                            if (item.successText)
+                              onNavAction?.(item.successText);
+                          });
+                        }}
                       >
                         <item.icon className="size-[18px] shrink-0" />
-                        {!isCollapsed && <span className="truncate">{item.title}</span>}
+                        {!isCollapsed && (
+                          <span className="truncate">{item.title}</span>
+                        )}
                       </button>
                     </SidebarMenuItem>
                   );
@@ -138,6 +153,7 @@ export function DashboardSidebar({ onNavAction }: DashboardSidebarProps) {
             href="/dashboard/settings"
             title="Profile & settings"
             className="group flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/60 p-2.5 transition-colors hover:border-primary/20 hover:bg-primary/5"
+            onClick={closeMobileSidebar}
           >
             <Avatar className="size-9 shrink-0">
               <AvatarFallback className="text-sm">{userInitial}</AvatarFallback>
@@ -155,7 +171,12 @@ export function DashboardSidebar({ onNavAction }: DashboardSidebarProps) {
             <ChevronRight className="size-4 shrink-0 text-slate-300 transition-colors group-hover:text-primary" />
           </Link>
         ) : (
-          <Link href="/dashboard/settings" title="Profile & settings" className="flex justify-center">
+          <Link
+            href="/dashboard/settings"
+            title="Profile & settings"
+            className="flex justify-center"
+            onClick={closeMobileSidebar}
+          >
             <Avatar className="size-9">
               <AvatarFallback className="text-sm">{userInitial}</AvatarFallback>
             </Avatar>
