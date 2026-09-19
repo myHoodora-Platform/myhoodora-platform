@@ -1,7 +1,8 @@
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { AboutHero } from "./about-hero";
-import { AboutStory } from "./about-story";
+import { VisionMissionSection } from "./vision-mission";
+import { HoodValuesSection } from "./hood-values";
 import { NeighborhoodNetwork } from "./neighborhood-network";
 import { HowItWorksSection } from "./how-it-works";
 import { TrustSafetySection } from "./trust-safety";
@@ -11,8 +12,8 @@ import { TrustSafetySection } from "./trust-safety";
  * `/how-it-works`. The two routes share this one composition so the content
  * stays in sync.
  *
- * Flow: hook (hero) → mission & values → the neighborhood network → how it
- * works → trust & safety.
+ * Flow: hook (hero) → vision & mission → HOOD values → the neighborhood
+ * network → how it works → trust & safety.
  */
 export function AboutPage() {
   return (
@@ -20,7 +21,8 @@ export function AboutPage() {
       <Header />
       <main className="flex-1">
         <AboutHero />
-        <AboutStory />
+        <VisionMissionSection />
+        <HoodValuesSection />
         <NeighborhoodNetwork />
         <HowItWorksSection />
         <TrustSafetySection />
