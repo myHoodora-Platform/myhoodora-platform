@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { Section } from "@myhoodora/ui/section";
+import { Kicker } from "@myhoodora/ui/kicker";
 import {
   ArrowLeft,
   BadgeCheck,
@@ -170,10 +171,9 @@ export function ComingSoonPage({ feature }: { feature: string }) {
                 <Icon className="size-8" />
               </div>
 
-              <span className="mt-8 inline-flex items-center gap-2 rounded-full bg-primary/10 px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider text-primary">
-                <BellRing className="size-3.5" />
+              <Kicker className="mt-8" icon={BellRing}>
                 Coming soon
-              </span>
+              </Kicker>
 
               <h1 className="mt-5 text-4xl font-extrabold tracking-tight sm:text-5xl">
                 {meta.title} is on its way

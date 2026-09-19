@@ -8,6 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Input } from "@myhoodora/ui/input";
 import { PasswordInput } from "@myhoodora/ui/password-input";
 import { Button } from "@myhoodora/ui/button";
+import { Divider } from "@myhoodora/ui/divider";
 import { loginSchema, type LoginInput } from "@/lib/validation/auth";
 import {
   signInUser,
@@ -130,13 +131,7 @@ export default function LoginPage() {
         </Button>
       </form>
 
-      <div className="flex items-center gap-4 py-1">
-        <div className="h-px flex-1 bg-border"></div>
-        <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
-          or
-        </span>
-        <div className="h-px flex-1 bg-border"></div>
-      </div>
+      <Divider label="or" className="py-1" />
 
       <SocialAuthButtons
         onGoogleClick={handleGoogleSignIn}

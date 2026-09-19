@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { Button } from "@myhoodora/ui/button";
+import { Kicker } from "@myhoodora/ui/kicker";
 import { SmartImage } from "@myhoodora/ui/image";
 import { MascotMark } from "@myhoodora/ui/logo";
 import { ArrowRight, BellRing } from "lucide-react";
@@ -32,10 +33,12 @@ export function AboutHero() {
           className="mx-auto drop-shadow-[0_4px_24px_rgba(0,0,0,0.4)] mb-6"
         />
 
-        <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider text-white backdrop-blur-sm">
-          <BellRing className="size-3.5" />
+        <Kicker
+          icon={BellRing}
+          className="border border-white/20 bg-white/10 text-white backdrop-blur-sm"
+        >
           Why myHoodora exists
-        </span>
+        </Kicker>
 
         <h1 className="mt-6 text-4xl font-black leading-tight tracking-tight sm:text-5xl lg:text-6xl">
           What if your whole{" "}

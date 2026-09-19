@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ComponentType } from "react";
 import { motion, AnimatePresence, useScroll } from "framer-motion";
+import { Kicker } from "@myhoodora/ui/kicker";
 import {
   BatteryFull,
   BellRing,
@@ -297,9 +298,7 @@ export function CommunityFeedSection() {
         <div className="mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-6 px-4 sm:px-6 lg:grid-cols-2 lg:gap-12 lg:px-12">
           {/* Copy — above the phone on mobile, left column on desktop */}
           <div className="text-center lg:text-left">
-            <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider text-primary">
-              Community Feed
-            </span>
+            <Kicker>Community Feed</Kicker>
             <h2 className="mt-4 text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl lg:text-4xl">
               Your neighborhood at a glance
             </h2>

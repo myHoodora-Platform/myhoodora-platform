@@ -8,6 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { MapPin, ArrowLeft } from "lucide-react";
 import { Button } from "@myhoodora/ui/button";
+import { Divider } from "@myhoodora/ui/divider";
 import { Input } from "@myhoodora/ui/input";
 import { SmartImage } from "@myhoodora/ui/image";
 import { MascotMark } from "@myhoodora/ui/logo";
@@ -252,13 +253,7 @@ export function HeroSection() {
                   appleLoading={appleLoading}
                 />
 
-                <div className="flex items-center gap-4 py-2">
-                  <div className="h-px flex-1 bg-border"></div>
-                  <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                    or
-                  </span>
-                  <div className="h-px flex-1 bg-border"></div>
-                </div>
+                <Divider label="or" className="py-2" />
 
                 <Button
                   className="w-full"
