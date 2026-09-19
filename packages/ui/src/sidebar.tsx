@@ -314,7 +314,7 @@ export const SidebarGroupLabel = forwardRef<
       ref={ref}
       data-sidebar="group-label"
       className={cn(
-        "px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 select-none",
+        "px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 select-none",
         className,
       )}
       {...props}
@@ -378,7 +378,7 @@ export const SidebarMenuButton = forwardRef<
       data-sidebar="menu-button"
       data-active={isActive}
       className={cn(
-        "flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-primary transition-all duration-200 outline-none select-none text-left relative",
+        "flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:text-primary transition-all duration-200 outline-none select-none text-left relative",
         isActive && "bg-primary/5 text-primary hover:bg-primary/5",
         isCollapsed ? "justify-center px-0 py-3" : "justify-start",
         className,

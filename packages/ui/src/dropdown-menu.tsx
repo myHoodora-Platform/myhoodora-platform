@@ -58,7 +58,7 @@ function DropdownMenuLabel({
   return (
     <DropdownMenuPrimitive.Label
       className={cn(
-        "px-2.5 py-1.5 text-xs font-bold tracking-wide text-muted-foreground uppercase",
+        "px-2.5 py-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase",
         className,
       )}
       {...props}

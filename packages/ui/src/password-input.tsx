@@ -19,7 +19,7 @@ export const PasswordInput = React.forwardRef<
           ref={ref}
           type={showPassword ? "text" : "password"}
           className={cn(
-            "w-full rounded-xl border-2 border-transparent bg-white pl-4 pr-12 py-4 text-foreground shadow-xl outline-none transition-all focus:border-primary focus:ring-0",
+            "w-full rounded-xl border-2 border-transparent bg-white pl-4 pr-12 py-3 text-foreground shadow-sm outline-none transition-all focus:border-primary focus:ring-0",
             error ? "border-destructive focus:border-destructive" : "",
             className,
           )}

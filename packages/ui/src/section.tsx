@@ -49,14 +49,14 @@ export function SectionHeading({
       {kicker && (
         <span
           className={cn(
-            "inline-flex items-center gap-2 rounded-full bg-primary/10 px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider text-primary",
+            "inline-flex items-center gap-2 rounded-full bg-primary/10 px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wide text-primary",
             kickerClassName,
           )}
         >
           {kicker}
         </span>
       )}
-      <h2 className="text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">
+      <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
         {title}
       </h2>
       {description && (
