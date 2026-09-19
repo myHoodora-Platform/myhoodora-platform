@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogoFull } from "@myhoodora/ui/logo";
+import { MascotWordmark } from "@myhoodora/ui/logo";
 import { Button } from "@myhoodora/ui/button";
 import { cn } from "@myhoodora/ui/utils";
 import { Menu, X } from "lucide-react";
@@ -66,7 +66,7 @@ export function Header() {
     <header className="sticky top-0 z-50 border-b border-primary/10 bg-background/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         <Link href="/" aria-label="myHoodora home">
-          <LogoFull size="md" />
+          <MascotWordmark size="md" />
         </Link>
 
         {authCta ? (

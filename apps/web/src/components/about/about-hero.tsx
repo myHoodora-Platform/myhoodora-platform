@@ -4,6 +4,7 @@ import Link from "next/link";
 import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { Button } from "@myhoodora/ui/button";
 import { SmartImage } from "@myhoodora/ui/image";
+import { MascotMark } from "@myhoodora/ui/logo";
 import { ArrowRight, BellRing } from "lucide-react";
 import { ABOUT_AERIAL } from "@/lib/site-images";
 
@@ -25,6 +26,12 @@ export function AboutHero() {
         transition={{ duration: 0.6, ease: "easeOut" }}
         className="relative z-10 mx-auto w-full max-w-3xl px-6 py-24 text-center text-white lg:py-32"
       >
+        <MascotMark
+          tone="reversed"
+          size="xl"
+          className="mx-auto drop-shadow-[0_4px_24px_rgba(0,0,0,0.4)] mb-6"
+        />
+
         <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider text-white backdrop-blur-sm">
           <BellRing className="size-3.5" />
           Why myHoodora exists

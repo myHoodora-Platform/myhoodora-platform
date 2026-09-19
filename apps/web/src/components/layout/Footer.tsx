@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { LogoFull } from "@myhoodora/ui/logo";
+import { MascotWordmark } from "@myhoodora/ui/logo";
 
 export function Footer() {
   return (
     <footer className="bg-slate-950 text-slate-400 py-16 px-6 lg:px-20 border-t border-slate-900">
       <div className="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-12 text-sm">
         <div className="col-span-2 space-y-6">
-          <LogoFull size="sm" variant="transparent" />
+          <MascotWordmark size="md" tone="reversed" />
           <p className="max-w-xs leading-relaxed text-slate-400">
             Connecting neighbors across the globe to build better places to
             live, work, and thrive.

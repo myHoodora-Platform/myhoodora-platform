@@ -10,6 +10,7 @@ import { MapPin, ArrowLeft } from "lucide-react";
 import { Button } from "@myhoodora/ui/button";
 import { Input } from "@myhoodora/ui/input";
 import { SmartImage } from "@myhoodora/ui/image";
+import { MascotMark } from "@myhoodora/ui/logo";
 import { PasswordInput } from "@myhoodora/ui/password-input";
 import { registerSchema, type RegisterInput } from "@/lib/validation/auth";
 import {
@@ -234,6 +235,7 @@ export function HeroSection() {
           ) : (
             <div className="space-y-6">
               <div>
+                <MascotMark size="lg" className="mb-4" />
                 <h3 className="text-2xl font-bold mb-2">
                   Welcome to myHoodora
                 </h3>
