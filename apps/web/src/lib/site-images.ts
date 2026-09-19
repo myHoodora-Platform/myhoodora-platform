@@ -27,6 +27,15 @@ export interface SiteImage {
   credit: string;
   /** Link to the photographer / source page. */
   creditUrl: string;
+  /** object-position focal point for object-cover crops (defaults to center). */
+  position?: string;
+  /** Device-specific framing for narrow (mobile) screens. */
+  mobile?: {
+    /** Tailwind aspect-ratio utility for the mobile container, e.g. "16/10". */
+    aspectRatio?: string;
+    /** Focal-point override for the mobile crop. */
+    position?: string;
+  };
 }
 
 /** Landing-page hero background. Order = preference. */
@@ -37,6 +46,8 @@ export const HERO_IMAGES: SiteImage[] = [
     label: "Busy Lagos street",
     credit: "Opeyemi Adisa",
     creditUrl: "https://unsplash.com/@niceyem",
+    position: "50% 45%",
+    mobile: { aspectRatio: "16/10", position: "50% 45%" },
   },
   {
     src: "/images/hero-market.webp",
