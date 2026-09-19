@@ -47,7 +47,7 @@ export const HERO_IMAGES: SiteImage[] = [
     credit: "Opeyemi Adisa",
     creditUrl: "https://unsplash.com/@niceyem",
     position: "50% 45%",
-    mobile: { aspectRatio: "16/10", position: "50% 45%" },
+    mobile: { aspectRatio: "16/9", position: "50% 45%" },
   },
   {
     src: "/images/hero-market.webp",

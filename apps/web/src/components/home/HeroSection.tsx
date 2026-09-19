@@ -16,8 +16,8 @@ function HeroCopy() {
         <span className="text-primary">neighborhood</span>
       </h1>
       <p className="text-base text-muted-foreground max-w-lg leading-relaxed sm:text-lg lg:text-xl">
-        Join your local community to connect with neighbors, stay informed
-        with real-time alerts, and build a safer, friendlier place to live.
+        Connect with neighbors, get real-time alerts, and build a safer,
+        friendlier place to live.
       </p>
     </>
   );
@@ -25,7 +25,7 @@ function HeroCopy() {
 
 export function HeroSection() {
   const objectPosition = HERO_IMAGE.mobile?.position ?? HERO_IMAGE.position;
-  const mobileAspect = (HERO_IMAGE.mobile?.aspectRatio ?? "16/10").replace(
+  const mobileAspect = (HERO_IMAGE.mobile?.aspectRatio ?? "16/9").replace(
     "/",
     " / ",
   );
