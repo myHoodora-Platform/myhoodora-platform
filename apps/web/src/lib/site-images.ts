@@ -11,7 +11,7 @@
  * entry of their array. To try a different candidate, change the index:
  *
  *     export const HERO_IMAGE  = HERO_IMAGES[1];  // switch to the Mile 12 market
- *     export const TRUST_IMAGE = TRUST_IMAGES[2]; // switch to "neighbors on a bench"
+ *     export const TRUST_IMAGE = TRUST_IMAGES[2]; // switch to "neighbours on a bench"
  *
  * All candidates are already downloaded locally, so switching is instant and
  * keeps the site free of external image dependencies.
@@ -27,6 +27,15 @@ export interface SiteImage {
   credit: string;
   /** Link to the photographer / source page. */
   creditUrl: string;
+  /** object-position focal point for object-cover crops (defaults to center). */
+  position?: string;
+  /** Device-specific framing for narrow (mobile) screens. */
+  mobile?: {
+    /** Tailwind aspect-ratio utility for the mobile container, e.g. "16/10". */
+    aspectRatio?: string;
+    /** Focal-point override for the mobile crop. */
+    position?: string;
+  };
 }
 
 /** Landing-page hero background. Order = preference. */
@@ -37,6 +46,8 @@ export const HERO_IMAGES: SiteImage[] = [
     label: "Busy Lagos street",
     credit: "Opeyemi Adisa",
     creditUrl: "https://unsplash.com/@niceyem",
+    position: "50% 45%",
+    mobile: { aspectRatio: "16/9", position: "50% 45%" },
   },
   {
     src: "/images/hero-market.webp",
@@ -89,7 +100,7 @@ export const TRUST_IMAGES: SiteImage[] = [
   {
     src: "/images/trust-neighbors.webp",
     alt: "Women in colorful clothes sitting together on a bench outdoors",
-    label: "Neighbors on a bench (current)",
+    label: "Neighbours on a bench (current)",
     credit: "Random Institute",
     creditUrl: "https://unsplash.com/@randominstitute",
   },

@@ -43,7 +43,7 @@ export function OnboardingGatingModal() {
           </div>
 
           <div className="space-y-2">
-            <h3 className="text-xl font-black tracking-tight text-slate-800">
+            <h3 className="text-xl font-bold tracking-tight text-slate-800">
               Complete Onboarding
             </h3>
             <p className="text-sm text-muted-foreground px-2">
@@ -56,7 +56,7 @@ export function OnboardingGatingModal() {
         {/* Action Buttons */}
         <div className="mt-6 flex flex-col gap-2">
           <Button className="w-full" onClick={handleGoToOnboarding}>
-            Verify neighborhood location
+            Verify neighbourhood location
           </Button>
           <Button
             variant="ghost"

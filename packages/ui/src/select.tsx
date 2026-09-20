@@ -23,7 +23,7 @@ function SelectTrigger({
   return (
     <SelectPrimitive.Trigger
       className={cn(
-        "flex w-full items-center justify-between gap-2 rounded-xl border-2 border-transparent bg-white px-4 py-4 text-sm text-foreground shadow-xl outline-none transition-all data-[placeholder]:text-muted-foreground focus:border-primary disabled:cursor-not-allowed disabled:opacity-50",
+        "flex w-full items-center justify-between gap-2 rounded-xl border-2 border-transparent bg-white px-4 py-3 text-sm text-foreground shadow-sm outline-none transition-all data-[placeholder]:text-muted-foreground focus:border-primary disabled:cursor-not-allowed disabled:opacity-50",
         className,
       )}
       {...props}
@@ -97,7 +97,7 @@ function SelectLabel({
   return (
     <SelectPrimitive.Label
       className={cn(
-        "px-2.5 py-1.5 text-xs font-bold tracking-wide text-muted-foreground uppercase",
+        "px-2.5 py-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase",
         className,
       )}
       {...props}

@@ -34,7 +34,7 @@ export function ProfileHero() {
           </AvatarFallback>
         </Avatar>
         <div>
-          <h1 className="text-lg font-black">
+          <h1 className="text-lg font-bold">
             {profile?.displayName || "Your Profile"}
           </h1>
           <p className="text-xs text-white/80">{user?.email}</p>

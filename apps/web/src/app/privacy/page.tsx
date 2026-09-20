@@ -13,7 +13,7 @@ export default function Page() {
     <LegalPage
       title="Privacy Policy"
       updatedAt="August 2026"
-      intro="This Privacy Policy explains how myHoodora collects, uses, and protects your information. We are built for neighborhoods — and we take your privacy, especially your location, seriously."
+      intro="This Privacy Policy explains how myHoodora collects, uses, and protects your information. We are built for neighbourhoods — and we take your privacy, especially your location, seriously."
     >
       <PrivacyPolicyContent />
     </LegalPage>

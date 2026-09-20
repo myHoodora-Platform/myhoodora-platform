@@ -61,7 +61,7 @@ const mockAlerts: WatchAlert[] = [
     category: "Crime",
     title: "Attempted break-in reported nearby",
     description:
-      "A neighbor two streets over reported an attempted break-in overnight. No one was hurt. Please ensure gates and doors are locked.",
+      "A neighbour two streets over reported an attempted break-in overnight. No one was hurt. Please ensure gates and doors are locked.",
     author: "Ngozi F.",
     verified: true,
     time: "Yesterday",
@@ -83,7 +83,7 @@ export default function SafetyWatchPage() {
         <FeaturePreviewHeader
           icon={Shield}
           title="Safety Watch Group"
-          description="Real-time safety alerts and neighborhood watch updates, shared by verified neighbors near you."
+          description="Real-time safety alerts and neighbourhood watch updates, shared by verified neighbours near you."
         />
 
         <div className="flex items-center justify-between rounded-2xl border border-slate-100 bg-white p-4 shadow-sm sm:p-5">
@@ -104,7 +104,7 @@ export default function SafetyWatchPage() {
               ))}
             </div>
             <p className="text-sm font-semibold text-slate-700">
-              128 verified neighbors in this group
+              128 verified neighbours in this group
             </p>
           </div>
           <Button size="sm" onClick={handleJoin}>
@@ -135,7 +135,7 @@ export default function SafetyWatchPage() {
                 </span>
               </div>
               <div>
-                <h3 className="text-sm font-black text-slate-800">
+                <h3 className="text-sm font-bold text-slate-800">
                   {alert.title}
                 </h3>
                 <p className="mt-1 text-sm leading-relaxed text-slate-600">
@@ -145,7 +145,7 @@ export default function SafetyWatchPage() {
               <p className="text-xs font-semibold text-slate-500">
                 Posted by {alert.author}
                 {alert.verified && (
-                  <span className="ml-1 text-primary">· verified neighbor</span>
+                  <span className="ml-1 text-primary">· verified neighbour</span>
                 )}
               </p>
             </article>

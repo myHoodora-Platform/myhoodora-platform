@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { Section } from "@myhoodora/ui/section";
+import { Kicker } from "@myhoodora/ui/kicker";
 import {
   ArrowLeft,
   BadgeCheck,
@@ -37,7 +38,7 @@ const FEATURES: Record<string, FeatureMeta> = {
   careers: {
     title: "Careers",
     description:
-      "We're assembling the team that will connect every neighborhood in Nigeria. Roles in engineering, community, and design are on the way.",
+      "We're assembling the team that will connect every neighbourhood in Nigeria. Roles in engineering, community, and design are on the way.",
     icon: Briefcase,
   },
   press: {
@@ -53,15 +54,15 @@ const FEATURES: Record<string, FeatureMeta> = {
     icon: MessageCircle,
   },
   verification: {
-    title: "Neighbor Verification",
+    title: "Neighbour Verification",
     description:
-      "A step-by-step guide to our address-verification flow is being written — learn how we keep every hood full of real neighbors.",
+      "A step-by-step guide to our address-verification flow is being written — learn how we keep every hood full of real neighbours.",
     icon: BadgeCheck,
   },
   "safety-center": {
-    title: "Safety Center",
+    title: "Safety Centre",
     description:
-      "Tools, resources, and emergency guidance to keep your neighborhood safe are coming together here.",
+      "Tools, resources, and emergency guidance to keep your neighbourhood safe are coming together here.",
     icon: ShieldCheck,
   },
   "business-pages": {
@@ -73,7 +74,7 @@ const FEATURES: Record<string, FeatureMeta> = {
   api: {
     title: "Developer API",
     description:
-      "A public API and developer portal are on the roadmap so you can build on top of your neighborhood graph.",
+      "A public API and developer portal are on the roadmap so you can build on top of your neighbourhood graph.",
     icon: Code2,
   },
   marketplace: {
@@ -85,7 +86,7 @@ const FEATURES: Record<string, FeatureMeta> = {
   "for-business": {
     title: "For Business",
     description:
-      "Tools to help local businesses reach the neighbors around them — coming soon.",
+      "Tools to help local businesses reach the neighbours around them — coming soon.",
     icon: Building2,
   },
 };
@@ -151,7 +152,7 @@ export function ComingSoonPage({ feature }: { feature: string }) {
     <div className="flex min-h-screen flex-col font-sans text-foreground bg-background">
       <Header />
       <main className="flex-1">
-        <Section className="py-20 sm:py-28">
+        <Section className="py-16 lg:py-24">
           <div className="mx-auto max-w-2xl text-center">
             <Link
               href="/"
@@ -170,12 +171,11 @@ export function ComingSoonPage({ feature }: { feature: string }) {
                 <Icon className="size-8" />
               </div>
 
-              <span className="mt-8 inline-flex items-center gap-2 rounded-full bg-primary/10 px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider text-primary">
-                <BellRing className="size-3.5" />
+              <Kicker className="mt-8" icon={BellRing}>
                 Coming soon
-              </span>
+              </Kicker>
 
-              <h1 className="mt-5 text-4xl font-extrabold tracking-tight sm:text-5xl">
+              <h1 className="mt-5 text-4xl font-bold tracking-tight sm:text-5xl">
                 {meta.title} is on its way
               </h1>
 
@@ -243,7 +243,7 @@ export function ComingSoonPage({ feature }: { feature: string }) {
                     </label>
                     <button
                       type="submit"
-                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3.5 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:bg-primary/90 active:scale-95"
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:bg-primary/90 active:scale-95"
                     >
                       Notify me
                     </button>
@@ -258,7 +258,7 @@ export function ComingSoonPage({ feature }: { feature: string }) {
               transition={{ delay: 0.3 }}
               className="mt-10 text-xs text-muted-foreground/70"
             >
-              myHoodora — connecting neighbors, one hood at a time.
+              myHoodora — Your neighbourhood, connected
             </motion.p>
           </div>
         </Section>

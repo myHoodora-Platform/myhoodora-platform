@@ -4,7 +4,7 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@myhoodora/ui/utils";
-import { LogoMark, LogoFull } from "@myhoodora/ui/logo";
+import { MascotMark, MascotWordmark } from "@myhoodora/ui/logo";
 import {
   Sidebar,
   SidebarHeader,
@@ -69,9 +69,9 @@ export function DashboardSidebar({ onNavAction }: DashboardSidebarProps) {
       {/* Brand */}
       <SidebarHeader className="h-16 flex-row items-center justify-between px-4 py-0">
         <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-          {isCollapsed ? <LogoMark size="sm" /> : <LogoFull size="sm" />}
+          {isCollapsed ? <MascotMark size="sm" /> : <MascotWordmark size="sm" />}
           {!isCollapsed && (
-            <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-widest text-primary">
+            <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-primary">
               V0.1
             </span>
           )}

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@myhoodora/ui/button";
 import { Input } from "@myhoodora/ui/input";
-import { LogoFull } from "@myhoodora/ui/logo";
+import { MascotWordmark } from "@myhoodora/ui/logo";
 import {
   MapPin,
   Navigation,
@@ -189,7 +189,7 @@ export default function OnboardingPage() {
           if (result.verificationStatus === "unverified") {
             unverified = true;
             setCoverageNotice(
-              "You're outside our current coverage area right now — you can still continue, but you won't see a neighborhood feed yet.",
+              "You're outside our current coverage area right now — you can still continue, but you won't see a neighbourhood feed yet.",
             );
           }
         } catch (verifyErr) {
@@ -284,14 +284,14 @@ export default function OnboardingPage() {
   const stepsList = [
     { title: "Your details", desc: "Name & Address" },
     { title: "Confirm location", desc: "Interactive Map" },
-    { title: "Verification", desc: "Neighborhood Check" },
+    { title: "Verification", desc: "Neighbourhood Check" },
   ];
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-foreground font-sans">
       {/* Top Header */}
       <header className="w-full px-6 py-4 flex items-center justify-between border-b border-slate-100 bg-white">
-        <LogoFull size="md" />
+        <MascotWordmark size="md" />
         <button
           onClick={handleSkip}
           className="text-xs font-bold text-muted-foreground uppercase tracking-widest hover:text-primary transition-colors"
@@ -369,7 +369,7 @@ export default function OnboardingPage() {
             {step === 1 && (
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-2xl font-black mb-2 tracking-tight">
+                  <h2 className="text-2xl font-bold mb-2 tracking-tight">
                     Tell us about yourself
                   </h2>
                   <p className="text-sm text-muted-foreground">
@@ -394,13 +394,13 @@ export default function OnboardingPage() {
                   <div>
                     <div className="flex justify-between items-center mb-2 px-1">
                       <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                        Neighborhood Address
+                        Neighbourhood Address
                       </label>
                       <button
                         type="button"
                         onClick={handleDetectLocation}
                         disabled={detecting}
-                        className="text-xs font-extrabold text-primary hover:underline flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                        className="text-xs font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer disabled:opacity-50"
                       >
                         <Navigation
                           className={`size-3 ${detecting ? "animate-pulse" : ""}`}
@@ -410,7 +410,7 @@ export default function OnboardingPage() {
                     </div>
                     <Input
                       type="text"
-                      placeholder="123 Neighborhood St, City"
+                      placeholder="123 Neighbourhood St, City"
                       value={address}
                       onChange={(e) => {
                         setAddress(e.target.value);
@@ -436,8 +436,8 @@ export default function OnboardingPage() {
             {step === 2 && (
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-2xl font-black mb-2 tracking-tight">
-                    Confirm your neighborhood
+                  <h2 className="text-2xl font-bold mb-2 tracking-tight">
+                    Confirm your neighbourhood
                   </h2>
                   <p className="text-sm text-muted-foreground">
                     We detected you belong in the local community map section
@@ -490,12 +490,12 @@ export default function OnboardingPage() {
                 </div>
 
                 <div className="text-center space-y-2 max-w-sm">
-                  <h3 className="text-lg font-black">
+                  <h3 className="text-lg font-bold">
                     Verifying Address Authenticity
                   </h3>
                   <p className="text-sm text-muted-foreground">
                     Please stand by while we verify your address fits local
-                    neighborhood guidelines.
+                    neighbourhood guidelines.
                   </p>
                 </div>
 
@@ -560,7 +560,7 @@ export default function OnboardingPage() {
                           : "text-slate-400"
                       }
                     >
-                      Setting up neighborhood feed access...
+                      Setting up neighbourhood feed access...
                     </span>
                   </div>
                 </div>

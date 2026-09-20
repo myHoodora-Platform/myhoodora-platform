@@ -104,7 +104,7 @@ function AdminUsersPageContent() {
 
   const handleVerify = () => {
     if (!selectedUser || !verifyNeighborhoodId) {
-      toast.error("Choose a neighborhood first.");
+      toast.error("Choose a neighbourhood first.");
       return;
     }
     verifyUser(selectedUser.uid, verifyNeighborhoodId);
@@ -114,7 +114,7 @@ function AdminUsersPageContent() {
 
   const handleBulkVerifyConfirmed = () => {
     if (!bulkNeighborhoodId) {
-      toast.error("Choose a neighborhood first.");
+      toast.error("Choose a neighbourhood first.");
       return;
     }
     bulkVerify(Array.from(selectedUids), bulkNeighborhoodId);
@@ -166,7 +166,7 @@ function AdminUsersPageContent() {
           <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-primary/5 p-3">
             <Select value={bulkNeighborhoodId} onValueChange={setBulkNeighborhoodId}>
               <SelectTrigger className="h-auto w-48 py-2 text-xs shadow-none">
-                <SelectValue placeholder="Neighborhood..." />
+                <SelectValue placeholder="Neighbourhood..." />
               </SelectTrigger>
               <SelectContent>
                 {neighborhoods.map((n) => (
@@ -255,7 +255,7 @@ function AdminUsersPageContent() {
                 </AvatarFallback>
               </Avatar>
               <div className="min-w-0">
-                <p className="truncate text-base font-black text-slate-900">
+                <p className="truncate text-base font-bold text-slate-900">
                   {selectedUser.displayName}
                 </p>
                 <p className="truncate text-sm text-muted-foreground">
@@ -276,7 +276,7 @@ function AdminUsersPageContent() {
             <div className="space-y-2 text-sm text-slate-600">
               <p className="flex items-center gap-2">
                 <MapPin className="size-4 shrink-0 text-slate-400" />
-                {selectedUser.neighborhoodName ?? "No neighborhood assigned"}
+                {selectedUser.neighborhoodName ?? "No neighbourhood assigned"}
               </p>
               <p className="flex items-center gap-2">
                 <CalendarDays className="size-4 shrink-0 text-slate-400" />
@@ -298,8 +298,8 @@ function AdminUsersPageContent() {
                       <SelectValue
                         placeholder={
                           neighborhoodsLoading
-                            ? "Loading neighborhoods..."
-                            : "Choose a neighborhood"
+                            ? "Loading neighbourhoods..."
+                            : "Choose a neighbourhood"
                         }
                       />
                     </SelectTrigger>
@@ -394,7 +394,7 @@ function AdminUsersPageContent() {
         <ConfirmOverlay
           icon={ShieldCheck}
           title={`Verify ${selectedUids.size} users?`}
-          description="They will all be marked verified with the neighborhood you selected."
+          description="They will all be marked verified with the neighbourhood you selected."
           confirmLabel="Verify selected"
           onConfirm={handleBulkVerifyConfirmed}
           onCancel={() => setConfirm(null)}

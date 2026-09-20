@@ -31,7 +31,7 @@ export const DASHBOARD_NAV: DashboardNavSection[] = [
     label: "Overview",
     items: [
       {
-        title: "Neighborhood Feed",
+        title: "Neighbourhood Feed",
         href: "/dashboard",
         icon: MessageSquare,
       },

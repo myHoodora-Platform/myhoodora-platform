@@ -51,7 +51,7 @@ export function ConfirmOverlay({
             <Icon className="size-6" />
           </div>
           <div className="space-y-2">
-            <h3 className="text-xl font-black tracking-tight text-slate-800">
+            <h3 className="text-xl font-bold tracking-tight text-slate-800">
               {title}
             </h3>
             <p className="px-2 text-sm text-muted-foreground">

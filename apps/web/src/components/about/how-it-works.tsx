@@ -16,13 +16,13 @@ const STEPS: Step[] = [
     icon: MapPin,
     title: "Verify your address",
     description:
-      "Join with your real address to unlock your actual neighborhood — no anonymous accounts, just verified neighbors you can trust.",
+      "Join with your real address to unlock your actual neighbourhood — no anonymous accounts, just verified neighbours you can trust.",
   },
   {
     icon: MessageSquare,
-    title: "Connect with neighbors",
+    title: "Connect with neighbours",
     description:
-      "Share updates, ask for recommendations, and join conversations on your neighborhood feed and safety watch groups.",
+      "Share updates, ask for recommendations, and join conversations on your neighbourhood feed and safety watch groups.",
   },
   {
     icon: Users,
@@ -34,7 +34,7 @@ const STEPS: Step[] = [
 
 export function HowItWorksSection() {
   return (
-    <Section id="how-it-works" className="py-20 lg:py-24">
+    <Section id="how-it-works" className="py-16 lg:py-24">
       <AnimatedSection
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
@@ -44,7 +44,7 @@ export function HowItWorksSection() {
         <SectionHeading
           kicker="How it works"
           title="From your address to your community in three steps"
-          description="Getting started is simple — and every step is designed to keep your neighborhood real, local, and safe."
+          description="Getting started is simple — and every step is designed to keep your neighbourhood real, local, and safe."
         />
       </AnimatedSection>
 
@@ -61,13 +61,13 @@ export function HowItWorksSection() {
               transition={{ duration: 0.5, delay: index * 0.1 }}
               className="relative flex flex-col items-center text-center"
             >
-              <div className="relative z-10 flex size-16 items-center justify-center rounded-full border-2 border-primary bg-white text-xl font-black text-primary">
+              <div className="relative z-10 flex size-16 items-center justify-center rounded-full border-2 border-primary bg-white text-xl font-bold text-primary">
                 {index + 1}
               </div>
               <div className="mt-6 flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                 <step.icon className="size-6" />
               </div>
-              <h3 className="mt-4 text-lg font-bold text-foreground">
+              <h3 className="mt-4 text-lg font-semibold text-foreground">
                 {step.title}
               </h3>
               <p className="mt-2 max-w-xs leading-relaxed text-muted-foreground">

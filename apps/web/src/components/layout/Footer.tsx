@@ -1,15 +1,14 @@
 import Link from "next/link";
-import { LogoFull } from "@myhoodora/ui/logo";
+import { MascotWordmark } from "@myhoodora/ui/logo";
 
 export function Footer() {
   return (
-    <footer className="bg-slate-950 text-slate-400 py-16 px-6 lg:px-20 border-t border-slate-900">
+    <footer className="bg-slate-950 text-slate-400 py-16 px-4 sm:px-6 lg:px-8 border-t border-slate-900">
       <div className="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-12 text-sm">
         <div className="col-span-2 space-y-6">
-          <LogoFull size="sm" variant="transparent" />
+          <MascotWordmark size="md" tone="reversed" />
           <p className="max-w-xs leading-relaxed text-slate-400">
-            Connecting neighbors across the globe to build better places to
-            live, work, and thrive.
+            Connecting neighbours across the globe to build better places to live, work, and thrive.
           </p>
           <div className="flex gap-3">
             <Link
@@ -60,7 +59,7 @@ export function Footer() {
         </div>
 
         <div className="space-y-4">
-          <h4 className="text-white font-bold mb-4">Company</h4>
+          <h4 className="text-white font-semibold mb-4">Company</h4>
           <ul className="space-y-3">
             <li>
               <Link
@@ -98,14 +97,14 @@ export function Footer() {
         </div>
 
         <div className="space-y-4">
-          <h4 className="text-white font-bold mb-4">Platform</h4>
+          <h4 className="text-white font-semibold mb-4">Platform</h4>
           <ul className="space-y-3">
             <li>
               <Link
                 className="hover:text-primary transition-colors"
                 href="/coming-soon/verification"
               >
-                Neighbor Verification
+                Neighbour Verification
               </Link>
             </li>
             <li>
@@ -113,7 +112,7 @@ export function Footer() {
                 className="hover:text-primary transition-colors"
                 href="/coming-soon/safety-center"
               >
-                Safety Center
+                Safety Centre
               </Link>
             </li>
             <li>
@@ -136,7 +135,7 @@ export function Footer() {
         </div>
 
         <div className="space-y-4">
-          <h4 className="text-white font-bold mb-4">Legal</h4>
+          <h4 className="text-white font-semibold mb-4">Legal</h4>
           <ul className="space-y-3">
             <li>
               <Link

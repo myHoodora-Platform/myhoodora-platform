@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Outfit, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
@@ -14,6 +14,10 @@ const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
 });
 
+export const viewport: Viewport = {
+  themeColor: "#147c73",
+};
+
 export const metadata: Metadata = {
   title: "myHoodora",
   description:
@@ -21,6 +25,7 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
       { url: "/favicon/favicon-16x16.png", sizes: "16x16", type: "image/png" },
       { url: "/favicon/favicon-32x32.png", sizes: "32x32", type: "image/png" },
       { url: "/favicon/favicon-48x48.png", sizes: "48x48", type: "image/png" },
@@ -30,6 +35,31 @@ export const metadata: Metadata = {
     ],
   },
   manifest: "/manifest.json",
+
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: "https://www.myhoodora.com",
+    siteName: "myHoodora",
+    title: "myHoodora — Your neighbourhood, connected",
+    description:
+      "myHoodora connects neighbours to share updates, stay informed, and support local businesses in their community.",
+    images: [
+      {
+        url: "/og/og-teal.png",
+        width: 1200,
+        height: 630,
+        alt: "myHoodora — Your neighbourhood, connected",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "myHoodora — Your neighbourhood, connected",
+    description:
+      "myHoodora connects neighbours to share updates, stay informed, and support local businesses in their community.",
+    images: ["/og/og-teal.png"],
+  },
 };
 
 export default function RootLayout({

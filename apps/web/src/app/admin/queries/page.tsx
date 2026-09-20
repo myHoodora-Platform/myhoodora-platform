@@ -178,7 +178,7 @@ export default function AdminQueriesPage() {
           return (
             <div key={col.status} className="space-y-3">
               <div className="flex items-center justify-between px-1">
-                <h2 className="text-sm font-black text-slate-800">
+                <h2 className="text-sm font-bold text-slate-800">
                   {col.label}
                 </h2>
                 <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-500">

@@ -21,7 +21,7 @@ const sizeClasses: Record<ButtonSize, string> = {
 };
 
 const baseClasses =
-  "inline-flex items-center justify-center gap-2 font-bold transition-all border-0 active:scale-95 disabled:pointer-events-none disabled:opacity-50";
+  "inline-flex items-center justify-center gap-2 font-semibold transition-all border-0 active:scale-95 disabled:pointer-events-none disabled:opacity-50";
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;

@@ -20,7 +20,7 @@ const TEMPLATES = [
   {
     label: "Verification approved",
     title: "You're verified!",
-    body: "Your address has been verified. Welcome to your neighborhood feed.",
+    body: "Your address has been verified. Welcome to your neighbourhood feed.",
   },
   {
     label: "Maintenance notice",
@@ -62,7 +62,7 @@ export default function AdminNotificationsPage() {
     if (audience === "neighborhood")
       return (
         neighborhoods.find((n) => n._id === targetNeighborhoodId)?.name ??
-        "Select a neighborhood"
+        "Select a neighbourhood"
       );
     return "";
   }, [audience, targetUid, targetNeighborhoodId, users, neighborhoods]);
@@ -77,7 +77,7 @@ export default function AdminNotificationsPage() {
       return;
     }
     if (audience === "neighborhood" && !targetNeighborhoodId) {
-      toast.error("Choose a neighborhood to notify.");
+      toast.error("Choose a neighbourhood to notify.");
       return;
     }
     sendNotification({
@@ -96,7 +96,7 @@ export default function AdminNotificationsPage() {
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <div className="space-y-4 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-        <h2 className="text-sm font-black tracking-tight text-slate-900">
+        <h2 className="text-sm font-bold tracking-tight text-slate-900">
           Compose notification
         </h2>
 
@@ -152,7 +152,7 @@ export default function AdminNotificationsPage() {
             <SelectContent>
               <SelectItem value="all">All users</SelectItem>
               <SelectItem value="user">Specific user</SelectItem>
-              <SelectItem value="neighborhood">Neighborhood</SelectItem>
+              <SelectItem value="neighborhood">Neighbourhood</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -178,7 +178,7 @@ export default function AdminNotificationsPage() {
             onValueChange={setTargetNeighborhoodId}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Choose a neighborhood" />
+              <SelectValue placeholder="Choose a neighbourhood" />
             </SelectTrigger>
             <SelectContent>
               {neighborhoods.map((n) => (
@@ -208,7 +208,7 @@ export default function AdminNotificationsPage() {
 
       <div className="space-y-4">
         <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-          <h2 className="mb-3 text-sm font-black tracking-tight text-slate-900">
+          <h2 className="mb-3 text-sm font-bold tracking-tight text-slate-900">
             Live preview
           </h2>
           <p className="mb-3 text-xs text-muted-foreground">
@@ -231,7 +231,7 @@ export default function AdminNotificationsPage() {
         </div>
 
         <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-          <h2 className="mb-3 text-sm font-black tracking-tight text-slate-900">
+          <h2 className="mb-3 text-sm font-bold tracking-tight text-slate-900">
             Sent history
           </h2>
           <div className="space-y-3">

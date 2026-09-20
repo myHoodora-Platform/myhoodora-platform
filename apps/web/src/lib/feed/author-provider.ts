@@ -39,7 +39,7 @@ export function resolveAuthor(
   }
 
   return {
-    displayName: "Neighbor",
+    displayName: "Neighbour",
     initials: "N",
     isSelf: false,
   };

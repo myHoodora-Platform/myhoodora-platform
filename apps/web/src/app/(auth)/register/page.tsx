@@ -8,6 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Input } from "@myhoodora/ui/input";
 import { PasswordInput } from "@myhoodora/ui/password-input";
 import { Button } from "@myhoodora/ui/button";
+import { Divider } from "@myhoodora/ui/divider";
 import { registerSchema, type RegisterInput } from "@/lib/validation/auth";
 import {
   signUpUser,
@@ -92,11 +93,11 @@ export default function RegisterPage() {
   return (
     <div className="space-y-6">
       <div className="text-center space-y-2">
-        <h1 className="text-3xl font-black tracking-tight text-foreground">
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">
           Sign up
         </h1>
         <p className="text-sm text-muted-foreground">
-          Join your local community to connect with neighbors.
+          Join your local community to connect with neighbours.
         </p>
       </div>
 
@@ -107,17 +108,11 @@ export default function RegisterPage() {
         appleLoading={appleLoading}
       />
 
-      <div className="flex items-center gap-4 py-1">
-        <div className="h-px flex-1 bg-border"></div>
-        <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
-          or
-        </span>
-        <div className="h-px flex-1 bg-border"></div>
-      </div>
+      <Divider label="or" className="py-1" />
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div>
-          <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 px-1">
+          <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">
             Email Address
           </label>
           <Input
@@ -129,7 +124,7 @@ export default function RegisterPage() {
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 px-1">
+          <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">
             Password
           </label>
           <PasswordInput

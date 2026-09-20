@@ -9,14 +9,14 @@ import { CheckCircle2, ShieldCheck, ArrowRight } from "lucide-react";
 import { TRUST_IMAGE } from "@/lib/site-images";
 
 const POINTS = [
-  "Your exact address is never shown publicly — only your neighborhood.",
+  "Your exact address is never shown publicly — only your neighbourhood.",
   "You choose what you share, and with whom.",
-  "Every neighbor is address-verified, so you're talking to real people — not anonymous accounts.",
+  "Every neighbour is address-verified, so you're talking to real people — not anonymous accounts.",
 ];
 
 export function TrustSafetySection() {
   return (
-    <Section className="py-20 lg:py-24">
+    <Section className="py-16 lg:py-24">
       <AnimatedSection
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
@@ -30,7 +30,7 @@ export function TrustSafetySection() {
               kicker="Trust & safety"
               kickerClassName="bg-brand-coral/10 text-brand-coral"
               title="Your address stays yours — always"
-              description="We understand how much your privacy matters. In Nigeria, your home is your safe place, and where you live is nobody's business but yours and your neighbors'. That's why we never post your exact address or share it with strangers."
+              description="We understand how much your privacy matters. In Nigeria, your home is your safe place, and where you live is nobody's business but yours and your neighbours'. That's why we never post your exact address or share it with strangers."
             />
             <ul className="mt-8 space-y-4">
               {POINTS.map((point) => (
@@ -70,11 +70,11 @@ export function TrustSafetySection() {
               <div className="absolute -bottom-5 left-6 flex items-center gap-2.5 rounded-2xl border border-border bg-white px-4 py-3 shadow-lg">
                 <ShieldCheck className="size-5 shrink-0 text-brand-coral" />
                 <div>
-                  <p className="text-sm font-bold text-foreground">
+                  <p className="text-sm font-semibold text-foreground">
                     Address-verified
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Real neighbors, real trust
+                    Real neighbours, real trust
                   </p>
                 </div>
               </div>

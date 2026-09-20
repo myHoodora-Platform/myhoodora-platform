@@ -60,11 +60,11 @@ export function HeaderActions({
       >
         <div
           className={cn(
-            "flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-3 py-1.5 text-xs font-bold",
+            "flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-3 py-1.5 text-xs font-semibold",
             isStack && "w-full justify-center",
           )}
         >
-          <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-black text-primary-foreground">
+          <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
             {initial}
           </div>
           <span className="max-w-[140px] truncate">{name}</span>

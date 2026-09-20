@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96" role="img" aria-labelledby="t">
+<title id="t">myHoodora favicon 48px</title>
+<path id="badge-disc" fill="#147C73" d="M96 48C96 74.51 74.51 96 48 96C21.49 96 0 74.51 0 48C0 21.49 21.49 0 48 0C74.51 0 96 21.49 96 48Z"/>
+<path id="house" fill="#F2F2F2" d="M48 19 79 48H69V79H50.007C53.51 77.931 56.1 74.128 56.1 69.6C56.1 64.243 52.474 59.9 48 59.9C43.526 59.9 39.9 64.243 39.9 69.6C39.9 74.128 42.49 77.931 45.993 79H27V48H17Z"/>
+<path id="coral-dot" fill="#FF6B5B" d="M82 27C82 30.866 78.866 34 75 34C71.134 34 68 30.866 68 27C68 23.134 71.134 20 75 20C78.866 20 82 23.134 82 27Z"/>
+</svg>

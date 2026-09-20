@@ -27,7 +27,7 @@ export const ADMIN_NAV: AdminNavSection[] = [
     label: "Management",
     items: [
       { title: "Users", href: "/admin/users", icon: Users },
-      { title: "Neighborhoods", href: "/admin/neighborhoods", icon: MapPin },
+      { title: "Neighbourhoods", href: "/admin/neighborhoods", icon: MapPin },
       { title: "Queries", href: "/admin/queries", icon: MessageSquareWarning },
       { title: "Notifications", href: "/admin/notifications", icon: Bell },
     ],

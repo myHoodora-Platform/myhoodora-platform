@@ -25,9 +25,9 @@ const FEATURES: Feature[] = [
   {
     tag: "News",
     icon: MessageSquare,
-    title: "Neighborhood Feed",
+    title: "Neighbourhood Feed",
     description:
-      "Know the stories shaping your street — from a new shop opening to the school team's big win, see what your neighbors are talking about.",
+      "Know the stories shaping your street — from a new shop opening to the school team's big win, see what your neighbours are talking about.",
     tint: "bg-primary/10 text-primary",
     featured: true,
   },
@@ -42,9 +42,9 @@ const FEATURES: Feature[] = [
   {
     tag: "Ask",
     icon: HelpCircle,
-    title: "Ask Your Neighbors",
+    title: "Ask Your Neighbours",
     description:
-      "Discover the hidden gems your neighbors love — the best schools, plumbers, and weekend spots.",
+      "Discover the hidden gems your neighbours love — the best schools, plumbers, and weekend spots.",
     tint: "bg-amber-500/10 text-amber-600",
   },
   {
@@ -52,7 +52,7 @@ const FEATURES: Feature[] = [
     icon: ShoppingBag,
     title: "Marketplace Listings",
     description:
-      "Find neighborhood treasures — declutter, sell your old bike, or pick up something free from a neighbor.",
+      "Find neighbourhood treasures — declutter, sell your old bike, or pick up something free from a neighbour.",
     tint: "bg-sky-500/10 text-sky-600",
   },
   {
@@ -67,7 +67,7 @@ const FEATURES: Feature[] = [
 
 export function NeighborhoodNetwork() {
   return (
-    <Section className="bg-muted/30 py-20 lg:py-24">
+    <Section className="bg-muted/30 py-16 lg:py-24">
       <AnimatedSection
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
@@ -75,8 +75,8 @@ export function NeighborhoodNetwork() {
         className="mb-14"
       >
         <SectionHeading
-          kicker="Your essential neighborhood network"
-          title="The place for what's happening in your neighborhood"
+          kicker="Your essential neighbourhood network"
+          title="The place for what's happening in your neighbourhood"
           description="Trusted, timely, useful information that helps you stay in the know — and share what you know. Here's how:"
         />
       </AnimatedSection>
@@ -89,7 +89,7 @@ export function NeighborhoodNetwork() {
             whileInView={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: index * 0.08 }}
             className={cn(
-              "group relative rounded-3xl border border-border bg-white p-7 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-lg",
+              "group relative rounded-3xl border border-border bg-white p-5 sm:p-7 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-lg",
               feature.featured && "md:col-span-2",
             )}
           >
@@ -104,7 +104,7 @@ export function NeighborhoodNetwork() {
               </div>
               <span
                 className={cn(
-                  "rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider",
+                  "rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider",
                   feature.tint,
                 )}
               >
@@ -112,7 +112,7 @@ export function NeighborhoodNetwork() {
               </span>
             </div>
 
-            <h3 className="mt-5 text-lg font-bold text-foreground">
+            <h3 className="mt-5 text-lg font-semibold text-foreground">
               {feature.title}
             </h3>
             <p className="mt-2 leading-relaxed text-muted-foreground">

@@ -2,7 +2,7 @@ import React from "react";
 import { cn } from "./utils";
 
 const baseClasses =
-  "w-full rounded-xl border-2 border-transparent bg-white px-4 py-4 text-foreground shadow-xl outline-none transition-all focus:border-primary focus:ring-0";
+  "w-full rounded-xl border-2 border-transparent bg-white px-4 py-3 text-foreground shadow-sm outline-none transition-all focus:border-primary focus:ring-0";
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   className?: string;

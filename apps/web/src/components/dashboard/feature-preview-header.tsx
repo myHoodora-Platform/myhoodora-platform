@@ -17,7 +17,7 @@ export function FeaturePreviewHeader({
         <Icon className="size-6" />
       </div>
       <div>
-        <h2 className="text-lg font-black tracking-tight text-slate-900">
+        <h2 className="text-lg font-bold tracking-tight text-slate-900">
           {title}
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">{description}</p>

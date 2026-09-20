@@ -120,7 +120,7 @@ export default function MarketplacePage() {
         <FeaturePreviewHeader
           icon={ShoppingBag}
           title="Marketplace Listings"
-          description="Buy, sell, and give away items with neighbors close to you."
+          description="Buy, sell, and give away items with neighbours close to you."
         />
 
         <div className="flex items-center justify-between gap-4">
@@ -162,7 +162,7 @@ export default function MarketplacePage() {
                 <ShoppingBag className="size-8 text-white/70" />
               </div>
               <div className="space-y-1 p-3">
-                <p className="text-sm font-black text-slate-800">
+                <p className="text-sm font-bold text-slate-800">
                   {listing.price}
                 </p>
                 <p className="truncate text-xs font-semibold text-slate-600">

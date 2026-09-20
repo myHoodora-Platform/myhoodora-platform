@@ -57,7 +57,7 @@ export default function ForgotPasswordPage() {
           <ArrowLeft className="size-4" />
           Back to Log in
         </Link>
-        <h1 className="text-3xl font-black tracking-tight text-foreground">
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">
           Reset password
         </h1>
         <p className="text-sm text-muted-foreground">

@@ -2,10 +2,11 @@
 @source "../../../../packages/ui/src/**/*.tsx";
 
 :root {
-  /* Brand Palette */
+  /* Brand palette — source of truth: brand/myhoodora_brand_system/08_Guidelines/myhoodora_palette.css */
   --brand-teal: #147c73;
-  --brand-coral: #ff6b5a;
+  --brand-coral: #ff6b5b;
   --brand-gray: #f2f2f2;
+  --brand-ink: #1b2b29;
 
   --background: #ffffff;
   --foreground: #171717;
@@ -49,6 +50,7 @@
   --color-brand-teal: var(--brand-teal);
   --color-brand-coral: var(--brand-coral);
   --color-brand-gray: var(--brand-gray);
+  --color-brand-ink: var(--brand-ink);
   --font-sans: var(--font-outfit);
   --font-mono: var(--font-jetbrains-mono);
   --font-heading: var(--font-outfit);

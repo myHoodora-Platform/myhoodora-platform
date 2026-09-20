@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ComponentType } from "react";
 import { motion, AnimatePresence, useScroll } from "framer-motion";
+import { Kicker } from "@myhoodora/ui/kicker";
 import {
   BatteryFull,
   BellRing,
@@ -61,11 +62,11 @@ const NOTIFICATIONS: PushNotification[] = [
     time: "5m",
   },
   {
-    id: "neighbor",
+    id: "neighbour",
     icon: UserPlus,
     iconBg: "bg-brand-coral/10",
     iconColor: "text-brand-coral",
-    title: "New neighbor joined",
+    title: "New neighbour joined",
     message: "Amaka just verified her address and joined Oakwood.",
     time: "8m",
   },
@@ -160,7 +161,7 @@ const POSTS: FeedPost[] = [
     initials: "AY",
     time: "2 days ago",
     tag: "Welcome",
-    text: "Welcome to the hood, new neighbors on 4th Street!",
+    text: "Welcome to the hood, new neighbours on 4th Street!",
     likes: 19,
     comments: 4,
   },
@@ -297,11 +298,9 @@ export function CommunityFeedSection() {
         <div className="mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-6 px-4 sm:px-6 lg:grid-cols-2 lg:gap-12 lg:px-12">
           {/* Copy — above the phone on mobile, left column on desktop */}
           <div className="text-center lg:text-left">
-            <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider text-primary">
-              Community Feed
-            </span>
-            <h2 className="mt-4 text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl lg:text-4xl">
-              Your neighborhood at a glance
+            <Kicker>Community Feed</Kicker>
+            <h2 className="mt-4 text-2xl font-bold tracking-tight text-foreground sm:text-3xl lg:text-4xl">
+              Your neighbourhood at a glance
             </h2>
             <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-muted-foreground sm:text-base lg:mx-0">
               Real-time updates from the people on your street —
@@ -310,7 +309,7 @@ export function CommunityFeedSection() {
             <ul className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-muted-foreground sm:text-sm lg:justify-start">
               <li className="flex items-center gap-2">
                 <CheckCircle className="size-4 shrink-0 text-primary" />
-                Verified neighbors
+                Verified neighbours
               </li>
               <li className="flex items-center gap-2">
                 <CheckCircle className="size-4 shrink-0 text-primary" />
@@ -361,7 +360,7 @@ export function CommunityFeedSection() {
                         </div>
                         <div>
                           <p className="text-sm font-bold text-foreground">
-                            Oakwood Neighborhood
+                            Oakwood Neighbourhood
                           </p>
                           <p className="flex items-center gap-1 text-[10px] text-muted-foreground">
                             <span className="size-1.5 rounded-full bg-green-500" />

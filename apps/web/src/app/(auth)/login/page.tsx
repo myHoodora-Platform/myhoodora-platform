@@ -8,6 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Input } from "@myhoodora/ui/input";
 import { PasswordInput } from "@myhoodora/ui/password-input";
 import { Button } from "@myhoodora/ui/button";
+import { Divider } from "@myhoodora/ui/divider";
 import { loginSchema, type LoginInput } from "@/lib/validation/auth";
 import {
   signInUser,
@@ -85,7 +86,7 @@ export default function LoginPage() {
   return (
     <div className="space-y-6">
       <div className="text-center space-y-2">
-        <h1 className="text-3xl font-black tracking-tight text-foreground">
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">
           Log in
         </h1>
         <p className="text-sm text-muted-foreground">
@@ -95,7 +96,7 @@ export default function LoginPage() {
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div>
-          <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 px-1">
+          <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">
             Email Address
           </label>
           <Input
@@ -108,12 +109,12 @@ export default function LoginPage() {
 
         <div>
           <div className="flex justify-between items-center mb-2 px-1">
-            <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider">
+            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Password
             </label>
             <Link
               href="/forgot-password"
-              className="text-xs font-bold text-primary hover:underline transition-all"
+              className="text-xs font-semibold text-primary hover:underline transition-all"
             >
               Forgot my password
             </Link>
@@ -130,13 +131,7 @@ export default function LoginPage() {
         </Button>
       </form>
 
-      <div className="flex items-center gap-4 py-1">
-        <div className="h-px flex-1 bg-border"></div>
-        <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
-          or
-        </span>
-        <div className="h-px flex-1 bg-border"></div>
-      </div>
+      <Divider label="or" className="py-1" />
 
       <SocialAuthButtons
         onGoogleClick={handleGoogleSignIn}

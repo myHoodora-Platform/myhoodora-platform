@@ -92,7 +92,7 @@ function ResetPasswordForm() {
     return (
       <div className="space-y-6">
         <div className="space-y-2">
-          <h1 className="text-3xl font-black tracking-tight text-foreground">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">
             Reset failed
           </h1>
           <p className="text-sm text-red-600 font-medium">
@@ -143,7 +143,7 @@ function ResetPasswordForm() {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <h1 className="text-3xl font-black tracking-tight text-foreground">
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">
           Set new password
         </h1>
         <p className="text-sm text-muted-foreground">

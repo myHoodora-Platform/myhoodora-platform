@@ -6,7 +6,7 @@ import { ShieldAlert } from "lucide-react";
 
 /**
  * Blocks its children behind address verification. Safety Watch, Community
- * Events, and Marketplace are neighbor-only spaces, so — unlike the feed's
+ * Events, and Marketplace are neighbour-only spaces, so — unlike the feed's
  * soft nag via useRequireOnboarded — access is fully withheld (not just the
  * post/RSVP/list actions) until verificationStatus is "verified".
  */
@@ -23,16 +23,16 @@ export function VerifiedGate({ children }: { children: React.ReactNode }) {
         <ShieldAlert className="size-6" />
       </div>
       <div className="space-y-1">
-        <h2 className="text-lg font-black tracking-tight text-slate-900">
+        <h2 className="text-lg font-bold tracking-tight text-slate-900">
           Verification required
         </h2>
         <p className="max-w-sm text-sm text-muted-foreground">
-          This part of myHoodora is only open to verified neighbors. Confirm
+          This part of myHoodora is only open to verified neighbours. Confirm
           your address to unlock it.
         </p>
       </div>
       <Button onClick={() => setIsGatingModalOpen(true)}>
-        Verify neighborhood location
+        Verify neighbourhood location
       </Button>
     </div>
   );
