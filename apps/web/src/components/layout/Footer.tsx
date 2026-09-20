@@ -8,7 +8,7 @@ export function Footer() {
         <div className="col-span-2 space-y-6">
           <MascotWordmark size="md" tone="reversed" />
           <p className="max-w-xs leading-relaxed text-slate-400">
-            Hometown, Previous Hood.
+            Connecting neighbours across the globe to build better places to live, work, and thrive.
           </p>
           <div className="flex gap-3">
             <Link

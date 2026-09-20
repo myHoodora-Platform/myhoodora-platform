@@ -258,7 +258,7 @@ export function ComingSoonPage({ feature }: { feature: string }) {
               transition={{ delay: 0.3 }}
               className="mt-10 text-xs text-muted-foreground/70"
             >
-              myHoodora — Hometown, Previous Hood.
+              myHoodora — Your neighbourhood, connected
             </motion.p>
           </div>
         </Section>
