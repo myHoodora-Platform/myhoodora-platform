@@ -98,7 +98,7 @@ export const TRUST_IMAGES: SiteImage[] = [
       "https://commons.wikimedia.org/wiki/File:A_smiling_market_woman_at_the_Monday_Market_in_Kakuri,_Kaduna_02.jpg",
   },
   {
-    src: "/images/trust-neighbours.webp",
+    src: "/images/trust-neighbors.webp",
     alt: "Women in colorful clothes sitting together on a bench outdoors",
     label: "Neighbours on a bench (current)",
     credit: "Random Institute",
