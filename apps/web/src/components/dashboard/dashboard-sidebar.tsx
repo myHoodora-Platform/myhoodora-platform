@@ -24,7 +24,7 @@ import { DASHBOARD_NAV, isNavItemActive } from "./navigation";
 
 function navItemClassName(isActive: boolean, isCollapsed: boolean): string {
   return cn(
-    "group relative flex w-full items-center rounded-lg text-[13px] font-semibold text-slate-600 transition-colors duration-150 outline-none select-none",
+    "group relative flex w-full items-center rounded-lg text-[13px] font-medium text-slate-600 transition-colors duration-150 outline-none select-none",
     "hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-ring/40",
     isCollapsed ? "justify-center px-0 py-2.5" : "gap-2.5 px-3 py-2",
     isActive &&
@@ -71,7 +71,7 @@ export function DashboardSidebar({ onNavAction }: DashboardSidebarProps) {
         <div className="flex min-w-0 items-center gap-2 overflow-hidden">
           {isCollapsed ? <MascotMark size="sm" /> : <MascotWordmark size="sm" />}
           {!isCollapsed && (
-            <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-primary">
+            <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-primary">
               V0.1
             </span>
           )}

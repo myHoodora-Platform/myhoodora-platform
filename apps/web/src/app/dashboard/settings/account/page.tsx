@@ -58,7 +58,7 @@ export default function AccountSettingsPage() {
         <h2 className="text-lg font-bold tracking-tight">Account details</h2>
 
         <div className="space-y-1.5">
-          <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
+          <label className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Full name
           </label>
           <Input
@@ -69,7 +69,7 @@ export default function AccountSettingsPage() {
         </div>
 
         <div className="space-y-1.5">
-          <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
+          <label className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Email
           </label>
           <Input value={user?.email ?? ""} disabled />

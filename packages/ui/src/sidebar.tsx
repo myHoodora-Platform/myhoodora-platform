@@ -314,7 +314,7 @@ export const SidebarGroupLabel = forwardRef<
       ref={ref}
       data-sidebar="group-label"
       className={cn(
-        "px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 select-none",
+        "px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400 select-none",
         className,
       )}
       {...props}

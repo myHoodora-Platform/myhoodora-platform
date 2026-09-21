@@ -89,7 +89,7 @@ export function NeighborhoodNetwork() {
             whileInView={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: index * 0.08 }}
             className={cn(
-              "group relative rounded-3xl border border-border bg-white p-5 sm:p-7 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-lg",
+              "group relative rounded-2xl border border-border bg-white p-5 sm:p-7 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-lg",
               feature.featured && "md:col-span-2",
             )}
           >
@@ -104,7 +104,7 @@ export function NeighborhoodNetwork() {
               </div>
               <span
                 className={cn(
-                  "rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider",
+                  "rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide",
                   feature.tint,
                 )}
               >

@@ -241,7 +241,7 @@ export default function OnboardingPage() {
 
         {/* Main Content Skeleton */}
         <main className="flex-1 flex items-center justify-center p-6">
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-xl overflow-hidden max-w-4xl w-full grid md:grid-cols-[280px_1fr] min-h-[500px]">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-lg overflow-hidden max-w-4xl w-full grid md:grid-cols-[280px_1fr] min-h-[500px]">
             {/* Left Panel Step Progress Skeleton */}
             <div className="bg-slate-50/50 p-8 border-r border-slate-100 space-y-8 hidden md:block">
               {[1, 2, 3].map((s) => (
@@ -294,7 +294,7 @@ export default function OnboardingPage() {
         <MascotWordmark size="md" />
         <button
           onClick={handleSkip}
-          className="text-xs font-bold text-muted-foreground uppercase tracking-widest hover:text-primary transition-colors"
+          className="text-xs font-semibold text-muted-foreground uppercase tracking-widest hover:text-primary transition-colors"
         >
           Skip onboarding
         </button>
@@ -380,7 +380,7 @@ export default function OnboardingPage() {
 
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 px-1">
+                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-1">
                       Your Full Name
                     </label>
                     <Input
@@ -393,7 +393,7 @@ export default function OnboardingPage() {
 
                   <div>
                     <div className="flex justify-between items-center mb-2 px-1">
-                      <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                      <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                         Neighbourhood Address
                       </label>
                       <button

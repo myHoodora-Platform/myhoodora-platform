@@ -287,7 +287,7 @@ function AdminUsersPageContent() {
             <div className="space-y-3 border-t border-slate-100 pt-4">
               {selectedUser.verificationStatus !== "verified" && (
                 <div className="space-y-2">
-                  <label className="block text-xs font-bold tracking-wider text-muted-foreground uppercase">
+                  <label className="block text-xs font-semibold tracking-wide text-muted-foreground uppercase">
                     Manually verify
                   </label>
                   <Select

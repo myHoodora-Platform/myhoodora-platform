@@ -169,7 +169,7 @@ export default function AdminNeighborhoodsPage() {
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold tracking-wider text-muted-foreground uppercase">
+            <label className="block text-xs font-semibold tracking-wide text-muted-foreground uppercase">
               Name
             </label>
             <Input
@@ -179,7 +179,7 @@ export default function AdminNeighborhoodsPage() {
             />
           </div>
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold tracking-wider text-muted-foreground uppercase">
+            <label className="block text-xs font-semibold tracking-wide text-muted-foreground uppercase">
               Radius (meters)
             </label>
             <Input
@@ -190,7 +190,7 @@ export default function AdminNeighborhoodsPage() {
             />
           </div>
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold tracking-wider text-muted-foreground uppercase">
+            <label className="block text-xs font-semibold tracking-wide text-muted-foreground uppercase">
               City
             </label>
             <Input
@@ -200,7 +200,7 @@ export default function AdminNeighborhoodsPage() {
             />
           </div>
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold tracking-wider text-muted-foreground uppercase">
+            <label className="block text-xs font-semibold tracking-wide text-muted-foreground uppercase">
               Country
             </label>
             <Input
@@ -212,7 +212,7 @@ export default function AdminNeighborhoodsPage() {
         </div>
 
         <div className="space-y-1.5">
-          <label className="block text-xs font-bold tracking-wider text-muted-foreground uppercase">
+          <label className="block text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             Description (optional)
           </label>
           <Textarea
@@ -225,7 +225,7 @@ export default function AdminNeighborhoodsPage() {
 
         <div className="space-y-2 rounded-xl bg-slate-50 p-3">
           <div className="flex items-center justify-between">
-            <label className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
+            <label className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
               Coordinates (optional)
             </label>
             <button

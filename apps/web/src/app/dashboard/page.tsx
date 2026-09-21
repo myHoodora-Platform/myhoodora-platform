@@ -506,7 +506,7 @@ function PostComposer() {
           {type === "event" && (
             <div className="grid gap-3 rounded-xl bg-slate-50 p-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold tracking-wider text-muted-foreground uppercase">
+                <label className="block text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
                   Date &amp; time (optional)
                 </label>
                 <input
@@ -517,7 +517,7 @@ function PostComposer() {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold tracking-wider text-muted-foreground uppercase">
+                <label className="block text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
                   Location (optional)
                 </label>
                 <input

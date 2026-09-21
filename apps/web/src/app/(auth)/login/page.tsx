@@ -96,7 +96,7 @@ export default function LoginPage() {
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div>
-          <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">
+          <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-1">
             Email Address
           </label>
           <Input
@@ -109,7 +109,7 @@ export default function LoginPage() {
 
         <div>
           <div className="flex justify-between items-center mb-2 px-1">
-            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide">
               Password
             </label>
             <Link

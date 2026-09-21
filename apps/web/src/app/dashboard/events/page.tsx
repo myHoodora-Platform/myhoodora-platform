@@ -95,7 +95,7 @@ export default function CommunityEventsPage() {
               className="flex gap-4 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm"
             >
               <div className="flex h-fit w-16 shrink-0 flex-col items-center rounded-xl border border-slate-100 bg-slate-50 py-2.5">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                   {event.month}
                 </span>
                 <span className="text-xl font-bold text-slate-800">

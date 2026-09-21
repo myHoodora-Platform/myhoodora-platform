@@ -117,7 +117,7 @@ export default function AdminNotificationsPage() {
         </div>
 
         <div className="space-y-1.5">
-          <label className="block text-xs font-bold tracking-wider text-muted-foreground uppercase">
+          <label className="block text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             Title
           </label>
           <Input
@@ -128,7 +128,7 @@ export default function AdminNotificationsPage() {
         </div>
 
         <div className="space-y-1.5">
-          <label className="block text-xs font-bold tracking-wider text-muted-foreground uppercase">
+          <label className="block text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             Message
           </label>
           <Textarea
@@ -139,7 +139,7 @@ export default function AdminNotificationsPage() {
         </div>
 
         <div className="space-y-1.5">
-          <label className="block text-xs font-bold tracking-wider text-muted-foreground uppercase">
+          <label className="block text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             Audience
           </label>
           <Select
