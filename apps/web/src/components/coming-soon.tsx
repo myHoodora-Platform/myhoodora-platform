@@ -199,7 +199,7 @@ export function ComingSoonPage({ feature }: { feature: string }) {
                     <div className="font-mono text-2xl font-bold tabular-nums sm:text-3xl">
                       {pad(unit.value)}
                     </div>
-                    <div className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <div className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                       {unit.label}
                     </div>
                   </div>

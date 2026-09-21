@@ -29,6 +29,15 @@
 }
 
 @theme inline {
+  /* Semantic type weights (Outfit): h1 / h2 = 700, h3 / buttons / labels = 600, body = 400. */
+  --font-weight-display: 700;
+  --font-weight-heading: 700;
+  --font-weight-subhead: 600;
+  --font-weight-strong: 600;
+  --font-weight-body: 400;
+  /* Section vertical rhythm: py-16 lg:py-24 */
+  --section-y: 4rem;
+  --section-y-lg: 6rem;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);

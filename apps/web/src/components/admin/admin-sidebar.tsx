@@ -58,7 +58,7 @@ export function AdminSidebar() {
         <div className="flex min-w-0 items-center gap-2 overflow-hidden">
           {isCollapsed ? <MascotMark size="sm" /> : <MascotWordmark size="sm" />}
           {!isCollapsed && (
-            <span className="rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] font-bold tracking-widest text-white uppercase">
+            <span className="rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-widest text-white uppercase">
               Admin
             </span>
           )}

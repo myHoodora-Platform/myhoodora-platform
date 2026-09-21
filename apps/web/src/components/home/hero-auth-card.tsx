@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { Button } from "@myhoodora/ui/button";
 import { Divider } from "@myhoodora/ui/divider";
 import { Input } from "@myhoodora/ui/input";
-import { MascotMark } from "@myhoodora/ui/logo";
+import { MascotLockup } from "@myhoodora/ui/logo";
 import { PasswordInput } from "@myhoodora/ui/password-input";
 import { cn } from "@myhoodora/ui/utils";
 import { SocialAuthButtons } from "@/components/shared/social-auth-buttons";
@@ -101,7 +101,7 @@ export function HeroAuthCard({ className }: HeroAuthCardProps) {
   return (
     <div
       className={cn(
-        "w-full rounded-3xl border border-border bg-white/95 p-8 shadow-lg backdrop-blur-sm",
+        "w-full rounded-2xl border border-border bg-white/95 p-8 shadow-lg backdrop-blur-sm",
         className,
       )}
     >
@@ -110,7 +110,7 @@ export function HeroAuthCard({ className }: HeroAuthCardProps) {
           <div className="space-y-2">
             <button
               onClick={() => setShowEmailRegister(false)}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline uppercase tracking-wider mb-2 outline-none"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline uppercase tracking-wide mb-2 outline-none"
             >
               <ArrowLeft className="size-4" />
               Back
@@ -123,7 +123,7 @@ export function HeroAuthCard({ className }: HeroAuthCardProps) {
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-1">
                 Email Address
               </label>
               <Input
@@ -135,7 +135,7 @@ export function HeroAuthCard({ className }: HeroAuthCardProps) {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-1">
                 Password
               </label>
               <PasswordInput
@@ -185,7 +185,7 @@ export function HeroAuthCard({ className }: HeroAuthCardProps) {
       ) : (
         <div className="space-y-6">
           <div>
-            <MascotMark size="lg" className="mb-4" />
+            <MascotLockup size="sm" className="mb-4" />
             <h3 className="text-2xl font-semibold mb-2">Welcome to myHoodora</h3>
             <p className="text-muted-foreground text-sm">
               Choose how you&apos;d like to join your community.

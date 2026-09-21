@@ -112,7 +112,7 @@ export default function RegisterPage() {
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div>
-          <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">
+          <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-1">
             Email Address
           </label>
           <Input
@@ -124,7 +124,7 @@ export default function RegisterPage() {
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">
+          <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-1">
             Password
           </label>
           <PasswordInput

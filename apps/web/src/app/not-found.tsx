@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { Home, Compass } from "lucide-react";
+import { Home } from "lucide-react";
 import { Button } from "@myhoodora/ui/button";
+import { MascotLockup } from "@myhoodora/ui/logo";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { BackButton } from "@/components/shared/BackButton";
@@ -11,9 +12,7 @@ export default function NotFound() {
       <Header />
       <main className="flex-1 flex flex-col items-center justify-center px-6 py-16 text-center space-y-8">
         <div className="space-y-6 flex flex-col items-center max-w-lg mx-auto">
-          <div className="size-24 bg-primary/10 text-primary rounded-full flex items-center justify-center mb-4">
-            <Compass className="size-12" />
-          </div>
+          <MascotLockup size="lg" className="mb-4" />
 
           <h1 className="text-7xl lg:text-9xl font-bold text-foreground tracking-tight drop-shadow-sm">
             404

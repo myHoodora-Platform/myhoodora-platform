@@ -12,6 +12,7 @@ const RATIO = {
   wordmark: 399.2 / 134.6,
   mascotHouse: 394.006 / 235.503,
   mascotWordmark: 1381 / 593.967,
+  mascotLockup: 1316 / 1253,
 } as const;
 
 const LOCKUP_HEIGHT: Record<LogoPresetSize, number> = {
@@ -43,6 +44,7 @@ export type LogoMarkProps = BaseLogoProps;
 export type WordmarkProps = BaseLogoProps;
 export type MascotMarkProps = BaseLogoProps;
 export type MascotWordmarkProps = BaseLogoProps;
+export type MascotLockupProps = Omit<BaseLogoProps, "tone">;
 
 function resolveHeight(size: LogoPresetSize | number, presets: Record<LogoPresetSize, number>) {
   return typeof size === "number" ? size : presets[size];
@@ -167,6 +169,43 @@ export function MascotWordmark({
       height={resolveHeight(size, LOCKUP_HEIGHT)}
       ratio={RATIO.mascotWordmark}
       alt={alt}
+      {...props}
+    />
+  );
+}
+
+const LOCKUP_WIDTHS = [320, 640, 1024] as const;
+
+const MASCOT_LOCKUP_HEIGHT: Record<LogoPresetSize, number> = {
+  sm: 72,
+  md: 96,
+  lg: 144,
+  xl: 208,
+};
+
+/**
+ * Full mascot illustration with wordmark. Too detailed to read below ~72px tall, so keep it out of
+ * compact bars (use MascotWordmark there). The sticker border makes it safe on light and dark backgrounds.
+ */
+export function MascotLockup({
+  size = "md",
+  alt = "myHoodora",
+  className,
+  ...props
+}: MascotLockupProps) {
+  const height = resolveHeight(size, MASCOT_LOCKUP_HEIGHT);
+  const width = Math.round(height * RATIO.mascotLockup);
+
+  return (
+    <img
+      src="/logo/mascot-lockup-640.webp"
+      srcSet={LOCKUP_WIDTHS.map((w) => `/logo/mascot-lockup-${w}.webp ${w}w`).join(", ")}
+      sizes={`${width}px`}
+      alt={alt}
+      width={width}
+      height={height}
+      style={{ height: `${height}px`, width: "auto" }}
+      className={cn("inline-block object-contain shrink-0", className)}
       {...props}
     />
   );

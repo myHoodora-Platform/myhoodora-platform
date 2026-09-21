@@ -52,7 +52,7 @@ export default function ForgotPasswordPage() {
       <div className="space-y-2">
         <Link
           href="/login"
-          className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline uppercase tracking-wider mb-2"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline uppercase tracking-wide mb-2"
         >
           <ArrowLeft className="size-4" />
           Back to Log in
@@ -93,7 +93,7 @@ export default function ForgotPasswordPage() {
       ) : (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 px-1">
+            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-1">
               Email Address
             </label>
             <Input

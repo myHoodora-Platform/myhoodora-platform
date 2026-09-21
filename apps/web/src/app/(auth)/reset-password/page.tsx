@@ -154,7 +154,7 @@ function ResetPasswordForm() {
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div>
-          <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 px-1">
+          <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-1">
             New Password
           </label>
           <PasswordInput

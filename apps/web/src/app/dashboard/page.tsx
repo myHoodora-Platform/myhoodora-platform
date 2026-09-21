@@ -17,6 +17,7 @@ import {
 import { timeAgo } from "@/lib/time";
 import type { Post, PostType } from "@/lib/firebase/posts";
 import { ConfirmOverlay } from "@/components/shared/confirm-overlay";
+import { EmojiPickerButton } from "@/components/shared/emoji-picker-button";
 import { ImageWithFallback } from "@/components/shared/image-with-fallback";
 import { Button } from "@myhoodora/ui/button";
 import { Textarea } from "@myhoodora/ui/textarea";
@@ -367,6 +368,7 @@ function PostComposer() {
   const { user, runGatedAction } = useAuth();
   const { createPost } = useFeed();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [expanded, setExpanded] = useState(false);
   const [content, setContent] = useState("");
@@ -388,6 +390,19 @@ function PostComposer() {
     setImageUrlInput("");
     setImagePreviewUrl(null);
     setExpanded(false);
+  };
+
+  // Insert at the caret (replacing any selection) and put the caret back after the emoji.
+  const insertEmoji = (emoji: string) => {
+    const el = textareaRef.current;
+    const start = el?.selectionStart ?? content.length;
+    const end = el?.selectionEnd ?? content.length;
+    setContent(content.slice(0, start) + emoji + content.slice(end));
+    const caret = start + emoji.length;
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(caret, caret);
+    });
   };
 
   const handleTypeSelect = (next: PostType) => {
@@ -473,6 +488,7 @@ function PostComposer() {
       ) : (
         <>
           <Textarea
+            ref={textareaRef}
             autoFocus
             value={content}
             onChange={(e) => setContent(e.target.value)}
@@ -506,7 +522,7 @@ function PostComposer() {
           {type === "event" && (
             <div className="grid gap-3 rounded-xl bg-slate-50 p-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold tracking-wider text-muted-foreground uppercase">
+                <label className="block text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
                   Date &amp; time (optional)
                 </label>
                 <input
@@ -517,7 +533,7 @@ function PostComposer() {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold tracking-wider text-muted-foreground uppercase">
+                <label className="block text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
                   Location (optional)
                 </label>
                 <input
@@ -599,14 +615,17 @@ function PostComposer() {
             </div>
           )}
 
-          <div className="flex items-center justify-end gap-2">
-            <Button variant="ghost" onClick={reset}>
-              Cancel
-            </Button>
-            <Button onClick={handleSubmit} disabled={submitting}>
-              {submitting && <Loader2 className="size-4 animate-spin" />}
-              Post
-            </Button>
+          <div className="flex items-center justify-between gap-2">
+            <EmojiPickerButton onSelect={insertEmoji} disabled={submitting} />
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" onClick={reset}>
+                Cancel
+              </Button>
+              <Button onClick={handleSubmit} disabled={submitting}>
+                {submitting && <Loader2 className="size-4 animate-spin" />}
+                Post
+              </Button>
+            </div>
           </div>
         </>
       )}

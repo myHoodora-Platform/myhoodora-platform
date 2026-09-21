@@ -11,7 +11,7 @@ const variantClasses: Record<ButtonVariant, string> = {
     "bg-brand-coral text-white hover:bg-brand-coral/90 shadow-lg shadow-brand-coral/30",
   outline: "bg-background border border-border text-foreground hover:bg-muted",
   ghost: "text-foreground hover:bg-primary/5",
-  secondary: "bg-background text-primary hover:bg-slate-100 shadow-xl",
+  secondary: "bg-background text-primary hover:bg-slate-100 shadow-lg",
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
