@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createRemoteJWKSet, jwtVerify } from "jose";
+import { safeNextPath } from "@/lib/safe-redirect";
 
 const JWKS = createRemoteJWKSet(
   new URL(
@@ -44,13 +45,18 @@ export async function proxy(request: NextRequest) {
   // Intercepting Redirects
   if (isProtectedRoute && !isValidSession) {
     const redirectUrl = new URL("/login", request.url);
+    // Remember the deep link (e.g. /dashboard?post=abc) so login can return to it.
+    const wanted = pathname + request.nextUrl.search;
+    if (wanted !== "/dashboard") redirectUrl.searchParams.set("next", wanted);
     const response = NextResponse.redirect(redirectUrl);
     response.headers.set("Cache-Control", "no-store, must-revalidate");
     return response;
   }
 
   if (isGuestOnlyRoute && isValidSession) {
-    const response = NextResponse.redirect(new URL("/dashboard", request.url));
+    const response = NextResponse.redirect(
+      new URL(safeNextPath(request.nextUrl.searchParams.get("next")), request.url),
+    );
     response.headers.set("Cache-Control", "no-store, must-revalidate");
     return response;
   }

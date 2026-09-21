@@ -13,6 +13,7 @@ import { Input } from "@myhoodora/ui/input";
 import { MascotLockup } from "@myhoodora/ui/logo";
 import { PasswordInput } from "@myhoodora/ui/password-input";
 import { cn } from "@myhoodora/ui/utils";
+import { ComingSoonLink } from "@/components/shared/coming-soon-link";
 import { SocialAuthButtons } from "@/components/shared/social-auth-buttons";
 import {
   signUpUser,
@@ -154,12 +155,9 @@ export function HeroAuthCard({ className }: HeroAuthCardProps) {
                 />
                 <span className="text-xs text-muted-foreground leading-normal">
                   I agree to myHoodora&apos;s{" "}
-                  <Link
-                    href="/terms"
-                    className="underline hover:text-primary transition-all font-semibold"
-                  >
+                  <ComingSoonLink feature="Terms of Service" className="underline hover:text-primary transition-all font-semibold">
                     Terms of Service
-                  </Link>{" "}
+                  </ComingSoonLink>{" "}
                   and{" "}
                   <Link
                     href="/privacy"
@@ -209,12 +207,9 @@ export function HeroAuthCard({ className }: HeroAuthCardProps) {
 
           <p className="mt-6 text-center text-xs text-muted-foreground leading-relaxed">
             By signing up, you agree to our{" "}
-            <Link
-              className="underline hover:text-primary transition-colors"
-              href="/terms"
-            >
+            <ComingSoonLink feature="Terms of Service" className="underline hover:text-primary transition-colors">
               Terms of Service
-            </Link>{" "}
+            </ComingSoonLink>{" "}
             and{" "}
             <Link
               className="underline hover:text-primary transition-colors"

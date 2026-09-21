@@ -1,4 +1,5 @@
 import type { LucideIcon } from "lucide-react";
+import { Badge } from "@myhoodora/ui/badge";
 
 interface FeaturePreviewHeaderProps {
   icon: LucideIcon;
@@ -17,10 +18,16 @@ export function FeaturePreviewHeader({
         <Icon className="size-6" />
       </div>
       <div>
-        <h2 className="text-lg font-bold tracking-tight text-slate-900">
-          {title}
-        </h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-lg font-bold tracking-tight text-slate-900">
+            {title}
+          </h2>
+          <Badge variant="secondary">Preview</Badge>
+        </div>
         <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+        <p className="mt-2 text-xs text-muted-foreground">
+          This page shows sample content while we build it. Buttons here don&apos;t save anything yet.
+        </p>
       </div>
     </div>
   );

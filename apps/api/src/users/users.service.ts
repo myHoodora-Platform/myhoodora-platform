@@ -33,9 +33,14 @@ export class UsersService {
       location?: { lat?: number; lng?: number; address?: string };
     },
   ): Promise<UserDocument> {
+    // Pick fields explicitly: the controller body is an inline type, so Nest's
+    // ValidationPipe whitelist can't strip extras. Spreading it would let a user
+    // send { role: "admin" } (or verificationStatus) and promote themselves.
+    const { displayName, location } = payload;
     const updates: Partial<User> = {
       isOnboarded: true,
-      ...payload,
+      ...(displayName !== undefined && { displayName }),
+      ...(location !== undefined && { location }),
     };
     return this.update(uid, updates);
   }

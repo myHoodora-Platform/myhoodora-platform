@@ -16,6 +16,7 @@ import {
   signInWithApple,
 } from "@/lib/firebase/auth";
 import { getAuthErrorMessage } from "@/lib/firebase/errors";
+import { ComingSoonLink } from "@/components/shared/coming-soon-link";
 import { SocialAuthButtons } from "@/components/shared/social-auth-buttons";
 import { toast } from "sonner";
 
@@ -143,12 +144,9 @@ export default function RegisterPage() {
             />
             <span className="text-xs text-muted-foreground leading-normal">
               I agree to myHoodora&apos;s{" "}
-              <Link
-                href="/terms"
-                className="underline hover:text-primary transition-all font-semibold"
-              >
+              <ComingSoonLink feature="Terms of Service" className="underline hover:text-primary transition-all font-semibold">
                 Terms of Service
-              </Link>{" "}
+              </ComingSoonLink>{" "}
               and{" "}
               <Link
                 href="/privacy"

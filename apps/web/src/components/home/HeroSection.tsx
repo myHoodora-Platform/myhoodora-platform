@@ -3,6 +3,7 @@
 import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { MapPin } from "lucide-react";
 import { Button } from "@myhoodora/ui/button";
+import { showComingSoon } from "@/lib/coming-soon";
 import { Input } from "@myhoodora/ui/input";
 import { SmartImage } from "@myhoodora/ui/image";
 import { HERO_IMAGE } from "@/lib/site-images";
@@ -63,7 +64,13 @@ export function HeroSection() {
             className="space-y-6"
           >
             <HeroCopy />
-            <div className="flex flex-col gap-4 max-w-md pt-4 sm:flex-row">
+            <form
+              className="flex flex-col gap-4 max-w-md pt-4 sm:flex-row"
+              onSubmit={(e) => {
+                e.preventDefault();
+                showComingSoon("Finding your hood by address");
+              }}
+            >
               <div className="relative flex-1 group">
                 <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors size-5" />
                 <Input
@@ -72,10 +79,10 @@ export function HeroSection() {
                   type="text"
                 />
               </div>
-              <Button size="lg" className="whitespace-nowrap">
+              <Button type="submit" size="lg" className="whitespace-nowrap">
                 Find my hood
               </Button>
-            </div>
+            </form>
           </AnimatedSection>
 
           <AnimatedSection
