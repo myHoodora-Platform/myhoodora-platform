@@ -1,4 +1,5 @@
 import React from "react";
+import { MascotLockup } from "@myhoodora/ui/logo";
 import { Header } from "@/components/layout/Header";
 
 export default function AuthLayout({
@@ -11,6 +12,7 @@ export default function AuthLayout({
       <Header />
       <main className="flex-1 flex items-center justify-center px-4 py-12 md:py-16">
         <div className="w-full max-w-md bg-white/95 backdrop-blur-sm p-8 rounded-3xl shadow-2xl border border-border/80">
+          <MascotLockup size="sm" className="block mx-auto mb-6" />
           {children}
         </div>
       </main>
