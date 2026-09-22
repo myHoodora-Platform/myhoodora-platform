@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
+import { showComingSoon } from "@/lib/coming-soon";
 import { VerifiedGate } from "@/components/shared/VerifiedGate";
 import { FeaturePreviewHeader } from "@/components/dashboard/feature-preview-header";
 import { Button } from "@myhoodora/ui/button";
@@ -73,7 +74,7 @@ export default function SafetyWatchPage() {
 
   const handleJoin = () => {
     runGatedAction(() => {
-      // No backend for this feature yet — demo action only.
+      showComingSoon("Joining the watch group");
     });
   };
 

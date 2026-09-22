@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { MascotLockup } from "@myhoodora/ui/logo";
+import { ComingSoonLink } from "@/components/shared/coming-soon-link";
 
 export function Footer() {
   return (
@@ -146,20 +147,14 @@ export function Footer() {
               </Link>
             </li>
             <li>
-              <Link
-                className="hover:text-primary transition-colors"
-                href="/terms"
-              >
+              <ComingSoonLink feature="Terms of Service" className="hover:text-primary transition-colors">
                 Terms of Service
-              </Link>
+              </ComingSoonLink>
             </li>
             <li>
-              <Link
-                className="hover:text-primary transition-colors"
-                href="/cookie-settings"
-              >
+              <ComingSoonLink feature="Cookie settings" className="hover:text-primary transition-colors">
                 Cookie Settings
-              </Link>
+              </ComingSoonLink>
             </li>
             <li>
               <Link
@@ -176,12 +171,12 @@ export function Footer() {
       <div className="max-w-7xl mx-auto mt-20 pt-8 border-t border-slate-900 text-xs flex flex-col md:flex-row justify-between gap-4">
         <p>© {new Date().getFullYear()} myHoodora Inc. All rights reserved.</p>
         <div className="flex gap-6">
-          <Link className="hover:text-white transition-colors" href="#">
+          <ComingSoonLink feature="Language options" className="hover:text-white transition-colors">
             English (US)
-          </Link>
-          <Link className="hover:text-white transition-colors" href="#">
+          </ComingSoonLink>
+          <ComingSoonLink feature="Cookie preferences" className="hover:text-white transition-colors">
             Cookie Preferences
-          </Link>
+          </ComingSoonLink>
         </div>
       </div>
     </footer>

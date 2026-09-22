@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@myhoodora/ui/button";
+import { showComingSoon } from "@/lib/coming-soon";
 
 /**
  * Google/Apple sign-in isn't finished and tested yet (OAuth provider setup,
@@ -27,10 +28,8 @@ export function SocialAuthButtons({
       <Button
         variant="outline"
         className="w-full gap-3"
-        onClick={onGoogleClick}
+        onClick={SOCIAL_AUTH_ENABLED ? onGoogleClick : () => showComingSoon("Google sign-in")}
         loading={googleLoading}
-        disabled={!SOCIAL_AUTH_ENABLED}
-        title={SOCIAL_AUTH_ENABLED ? undefined : "Coming soon"}
       >
         <svg className="size-5" viewBox="0 0 24 24">
           <path
@@ -56,10 +55,8 @@ export function SocialAuthButtons({
       <Button
         variant="outline"
         className="w-full gap-3"
-        onClick={onAppleClick}
+        onClick={SOCIAL_AUTH_ENABLED ? onAppleClick : () => showComingSoon("Apple sign-in")}
         loading={appleLoading}
-        disabled={!SOCIAL_AUTH_ENABLED}
-        title={SOCIAL_AUTH_ENABLED ? undefined : "Coming soon"}
       >
         <svg className="size-5 fill-current" viewBox="0 0 24 24">
           <path d="M17.05 20.28c-.96 0-2.04-.6-3.23-.6-1.16 0-2.22.56-3.12.56-1.44 0-4.39-2.86-4.39-7.07 0-4.23 2.72-6.44 5.33-6.44 1.38 0 2.51.88 3.51.88 1 0 2.44-.94 3.97-.94 1.83 0 3.32.96 4.14 2.21-3.66 1.54-3.08 6.42.54 7.9-1.07 2.76-2.3 3.5-3.15 3.5zm-1.63-14.71c-.81 1.01-2.12 1.67-3.26 1.58-.16-1.18.42-2.49 1.29-3.41.9-.96 2.25-1.55 3.25-1.55.19 1.25-.47 2.37-1.28 3.38z" />

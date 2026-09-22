@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@myhoodora/ui/button";
 import { Input } from "@myhoodora/ui/input";
+import { Avatar, AvatarFallback } from "@myhoodora/ui/avatar";
+import { showComingSoon } from "@/lib/coming-soon";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -18,6 +20,7 @@ export default function AccountSettingsPage() {
   const { user, profile, updateProfile } = useAuth();
   const [displayName, setDisplayName] = useState(profile?.displayName ?? "");
   const [saving, setSaving] = useState(false);
+  const initial = (profile?.displayName || user?.email || "?").charAt(0).toUpperCase();
 
   const handleSave = async () => {
     if (!displayName.trim()) {
@@ -57,6 +60,22 @@ export default function AccountSettingsPage() {
       <div className="space-y-4 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-bold tracking-tight">Account details</h2>
 
+        <div className="flex items-center gap-4">
+          <Avatar className="size-16">
+            <AvatarFallback className="bg-primary/10 text-xl text-primary">
+              {initial}
+            </AvatarFallback>
+          </Avatar>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => showComingSoon("Profile photos")}
+          >
+            Change photo
+          </Button>
+        </div>
+
         <div className="space-y-1.5">
           <label className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Full name
@@ -73,6 +92,24 @@ export default function AccountSettingsPage() {
             Email
           </label>
           <Input value={user?.email ?? ""} disabled />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Address
+          </label>
+          <div className="flex items-center gap-2">
+            <Input value={profile?.location?.address ?? "Not set"} disabled />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              onClick={() => showComingSoon("Changing your address")}
+            >
+              Change
+            </Button>
+          </div>
         </div>
 
         <Button onClick={handleSave} loading={saving}>

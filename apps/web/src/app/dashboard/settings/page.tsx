@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { showComingSoon } from "@/lib/coming-soon";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -80,11 +81,13 @@ export default function SettingsPage() {
         <SettingsListRow
           icon={Bell}
           label="Notifications"
+          onClick={() => showComingSoon("Notification settings")}
           trailing={<Badge variant="secondary">Coming soon</Badge>}
         />
         <SettingsListRow
           icon={MessageSquareHeart}
           label="Feedback"
+          onClick={() => showComingSoon("Feedback")}
           trailing={<Badge variant="secondary">Coming soon</Badge>}
         />
       </div>

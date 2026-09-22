@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { showComingSoon } from "@/lib/coming-soon";
 import { VerifiedGate } from "@/components/shared/VerifiedGate";
 import { FeaturePreviewHeader } from "@/components/dashboard/feature-preview-header";
 import { Button } from "@myhoodora/ui/button";
@@ -105,7 +106,7 @@ export default function MarketplacePage() {
 
   const handleListItem = () => {
     runGatedAction(() => {
-      // No backend for this feature yet — demo action only.
+      showComingSoon("Listing items");
     });
   };
 

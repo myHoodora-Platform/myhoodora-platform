@@ -58,9 +58,14 @@ export async function signUpUser(
 }
 
 export async function resetUserPassword(email: string): Promise<void> {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  // Use the domain the person is actually on, so a missing or wrong
+  // NEXT_PUBLIC_APP_URL on a deploy can't put a localhost link in the email.
+  // Firebase only accepts domains listed under Authentication > Settings >
+  // Authorized domains. Returning to /login works with Firebase's default hosted
+  // reset page; if the template's action URL is customised to /reset-password,
+  // that page receives the oobCode itself and this value isn't used for it.
   const actionCodeSettings = {
-    url: `${appUrl}/reset-password`,
+    url: `${window.location.origin}/login`,
     handleCodeInApp: true,
   };
   await sendPasswordResetEmail(auth, email, actionCodeSettings);

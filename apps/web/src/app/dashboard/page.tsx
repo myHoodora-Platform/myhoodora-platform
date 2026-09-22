@@ -15,6 +15,7 @@ import {
   formatEventDate,
 } from "@/lib/feed/event-meta";
 import { timeAgo } from "@/lib/time";
+import { showComingSoon } from "@/lib/coming-soon";
 import type { Post, PostType } from "@/lib/firebase/posts";
 import { ConfirmOverlay } from "@/components/shared/confirm-overlay";
 import { EmojiPickerButton } from "@/components/shared/emoji-picker-button";
@@ -333,9 +334,9 @@ function PostCard({
       <div className="flex items-center gap-6 border-t border-slate-100 pt-3 text-slate-400">
         <ReactionButton post={post} />
         <button
-          disabled
-          title="Comments are coming soon"
-          className="flex cursor-not-allowed items-center gap-1.5 text-xs opacity-40"
+          type="button"
+          onClick={() => showComingSoon("Comments")}
+          className="flex items-center gap-1.5 text-xs transition-colors hover:text-slate-600"
         >
           <MessageSquare className="size-4" />
           Comment

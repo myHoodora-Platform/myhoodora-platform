@@ -9,6 +9,7 @@ import { Input } from "@myhoodora/ui/input";
 import { PasswordInput } from "@myhoodora/ui/password-input";
 import { Button } from "@myhoodora/ui/button";
 import { Divider } from "@myhoodora/ui/divider";
+import { safeNextPath } from "@/lib/safe-redirect";
 import { loginSchema, type LoginInput } from "@/lib/validation/auth";
 import {
   signInUser,
@@ -18,6 +19,10 @@ import {
 import { getAuthErrorMessage } from "@/lib/firebase/errors";
 import { SocialAuthButtons } from "@/components/shared/social-auth-buttons";
 import { toast } from "sonner";
+
+// Read at click time (not via useSearchParams) so this page stays statically rendered.
+const nextPath = () =>
+  safeNextPath(new URLSearchParams(window.location.search).get("next"));
 
 export default function LoginPage() {
   const router = useRouter();
@@ -35,7 +40,7 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginInput) => {
     try {
       await signInUser(data.email, data.password);
-      router.push("/dashboard");
+      router.push(nextPath());
     } catch (err: unknown) {
       const { code, message, silent } = getAuthErrorMessage(err);
       if (process.env.NODE_ENV === "development" && code) {
@@ -51,7 +56,7 @@ export default function LoginPage() {
     setGoogleLoading(true);
     try {
       await signInWithGoogle();
-      router.push("/dashboard");
+      router.push(nextPath());
     } catch (err: unknown) {
       const { code, message, silent } = getAuthErrorMessage(err);
       if (process.env.NODE_ENV === "development" && code) {
@@ -69,7 +74,7 @@ export default function LoginPage() {
     setAppleLoading(true);
     try {
       await signInWithApple();
-      router.push("/dashboard");
+      router.push(nextPath());
     } catch (err: unknown) {
       const { code, message, silent } = getAuthErrorMessage(err);
       if (process.env.NODE_ENV === "development" && code) {
