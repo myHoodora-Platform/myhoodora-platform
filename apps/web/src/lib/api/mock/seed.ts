@@ -8,6 +8,8 @@ import type {
   Comment,
   Conversation,
   Group,
+  GroupJoinRequest,
+  GroupMember,
   GroupPost,
   Listing,
   Message,
@@ -113,15 +115,43 @@ export function seedListings(): Listing[] {
   ];
 }
 
-export function seedGroups(): Group[] {
-  const base = { neighborhoodId: MOCK_NEIGHBORHOOD._id, createdAt: hoursAgo(24 * 200) };
+export type StoredGroup = Omit<Group, "membership" | "isAdmin">;
+
+export function seedGroups(): StoredGroup[] {
+  const base = { neighborhoodId: MOCK_NEIGHBORHOOD._id, createdAt: hoursAgo(24 * 200), official: false, boundary: "neighbourhood" as const };
   return [
-    { ...base, _id: "mg_watch", name: "Lekki Phase 1 Safety Watch", description: "Real-time security updates from verified residents and estate security. Report anything suspicious here first.", privacy: "private", category: "safety", memberCount: 128, membership: "none" },
-    { ...base, _id: "mg_road12", name: "Road 12 Residents", description: "Everything happening on Road 12: dues, repairs, power, meet-ups.", privacy: "private", category: "estate", memberCount: 46, membership: "none" },
-    { ...base, _id: "mg_parents", name: "Lekki Parents Network", description: "School runs, lesson teachers, kids' activities and swaps.", privacy: "open", category: "parents", memberCount: 212, membership: "none" },
-    { ...base, _id: "mg_football", name: "Saturday 5-a-side", description: "Casual football every Saturday 7am. All levels.", privacy: "open", category: "hobbies", memberCount: 19, membership: "none" },
-    { ...base, _id: "mg_business", name: "Lekki Small Businesses", description: "Home bakers, tailors, caterers and more — promote your services to neighbours.", privacy: "open", category: "business", memberCount: 87, membership: "none" },
+    { ...base, _id: "mg_watch", name: "Lekki Phase 1 Safety Watch", description: "Real-time security updates from verified residents and estate security. Report anything suspicious here first.", privacy: "private", category: "safety", memberCount: 128, createdBy: "org_estate", official: true },
+    { ...base, _id: "mg_road12", name: "Road 12 Residents", description: "Everything happening on Road 12: dues, repairs, power, meet-ups.", privacy: "private", category: "estate", memberCount: 46, createdBy: "nb_tunde" },
+    { ...base, _id: "mg_parents", name: "Lekki Parents Network", description: "School runs, lesson teachers, kids' activities and swaps.", privacy: "open", category: "parents", memberCount: 212, createdBy: "nb_adaeze", boundary: "nearby" },
+    { ...base, _id: "mg_football", name: "Saturday 5-a-side", description: "Casual football every Saturday 7am. All levels.", privacy: "open", category: "hobbies", memberCount: 19, createdBy: "nb_emeka" },
+    { ...base, _id: "mg_business", name: "Lekki Small Businesses", description: "Home bakers, tailors, caterers and more. Promote your services to neighbours.", privacy: "open", category: "business", memberCount: 87, createdBy: "nb_adaeze", boundary: "city" },
   ];
+}
+
+/**
+ * Known members per group (the rest of memberCount are neighbours not in the
+ * preview data). The viewer co-runs Road 12 Residents so the admin tools —
+ * requests, members, editing — can be previewed.
+ */
+export function seedGroupMembers(viewerUid: string): Record<string, GroupMember[]> {
+  const m = (uid: string, role: GroupMember["role"] = "member", h = 24 * 100): GroupMember => ({ uid, role, joinedAt: hoursAgo(h) });
+  return {
+    mg_watch: [m("org_estate", "admin", 24 * 200), m("nb_tunde"), m("nb_ngozi")],
+    mg_road12: [m("nb_tunde", "admin", 24 * 200), m(viewerUid, "admin", 24 * 30), m("nb_adaeze"), m("nb_emeka")],
+    mg_parents: [m("nb_adaeze", "admin", 24 * 200), m("nb_chidinma")],
+    mg_football: [m("nb_emeka", "admin", 24 * 200), m("nb_ibrahim")],
+    mg_business: [m("nb_adaeze", "admin", 24 * 200), m("nb_funke")],
+  };
+}
+
+/** Neighbours waiting for approval to join Road 12 Residents. */
+export function seedGroupRequests(): Record<string, GroupJoinRequest[]> {
+  return {
+    mg_road12: [
+      { uid: "nb_funke", requestedAt: hoursAgo(3) },
+      { uid: "nb_ibrahim", requestedAt: hoursAgo(20) },
+    ],
+  };
 }
 
 export function seedGroupPosts(): GroupPost[] {
@@ -129,6 +159,7 @@ export function seedGroupPosts(): GroupPost[] {
     { _id: "mgp_1", groupId: "mg_watch", authorUid: "nb_tunde", content: "New guard rotation starts Monday. Night shift will now patrol Roads 10–14 every hour.", createdAt: hoursAgo(5) },
     { _id: "mgp_2", groupId: "mg_watch", authorUid: "nb_ngozi", content: "Gate 2 barrier is stuck open again — reported to management.", createdAt: hoursAgo(15) },
     { _id: "mgp_3", groupId: "mg_parents", authorUid: "nb_adaeze", content: "Does anyone know a good maths lesson teacher for JSS2?", createdAt: hoursAgo(8) },
+    { _id: "mgp_6", groupId: "mg_road12", authorUid: "nb_tunde", content: "Reminder: Q4 street dues (₦15,000) are due by the 15th. Pay at the secretariat or to the account in the pinned message.", createdAt: hoursAgo(26) },
     { _id: "mgp_4", groupId: "mg_football", authorUid: "nb_emeka", content: "Game on this Saturday — pitch is booked 7–9am.", createdAt: hoursAgo(20) },
     { _id: "mgp_5", groupId: "mg_business", authorUid: "nb_adaeze", content: "Taking orders for small chops trays this weekend! DM me.", createdAt: hoursAgo(30) },
   ];

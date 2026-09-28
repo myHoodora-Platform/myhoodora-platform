@@ -174,17 +174,51 @@ export type CreateListingInput = Omit<
 
 // ── Groups (planned) ────────────────────────────────────────────────────────
 
+export type GroupCategory = "safety" | "estate" | "parents" | "hobbies" | "business" | "other";
+export type GroupPrivacy = "open" | "private";
+/** Who can find the group in their Groups list (Nextdoor "boundary"). */
+export type GroupBoundary = "neighbourhood" | "nearby" | "city";
+
 export interface Group {
   _id: string;
   name: string;
   description: string;
-  privacy: "open" | "private";
-  category: "safety" | "estate" | "parents" | "hobbies" | "business" | "other";
+  privacy: GroupPrivacy;
+  category: GroupCategory;
+  boundary: GroupBoundary;
+  coverPhoto?: string;
   memberCount: number;
   neighborhoodId: string;
+  createdBy: string;
+  /** Run by an estate / residents' association account. */
+  official: boolean;
   /** Viewer-relative. */
   membership: "member" | "requested" | "none";
+  /** Viewer-relative: can manage the group. */
+  isAdmin: boolean;
   createdAt: string;
+}
+
+export interface CreateGroupInput {
+  name: string;
+  description: string;
+  category: GroupCategory;
+  privacy: GroupPrivacy;
+  boundary: GroupBoundary;
+  coverPhoto?: string;
+}
+
+export type UpdateGroupInput = Partial<CreateGroupInput>;
+
+export interface GroupMember {
+  uid: string;
+  role: "admin" | "member";
+  joinedAt: string;
+}
+
+export interface GroupJoinRequest {
+  uid: string;
+  requestedAt: string;
 }
 
 export interface GroupPost {

@@ -8,7 +8,7 @@
 import { ApiError, FRIENDLY_MESSAGES } from "../client";
 
 // Bump when seed data changes shape so preview browsers re-seed cleanly.
-const SEED_VERSION = 3;
+const SEED_VERSION = 4;
 const PREFIX = `mh-mock:v${SEED_VERSION}:`;
 const memory = new Map<string, string>();
 
