@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Flag, Link2, MoreHorizontal, Trash2 } from "lucide-react";
+import { CheckCircle2, Flag, Link2, MoreHorizontal, Trash2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,9 +12,13 @@ import {
 } from "@myhoodora/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { ReportDialog } from "@/components/shared/report-dialog";
+import { useAuth } from "@/context/AuthContext";
+import { isActiveAlert } from "@/features/alerts/lifecycle";
+import { resolveAlert } from "@/lib/api/alerts";
 import { ROUTES } from "@/lib/routes";
 import { errorMessage } from "@/lib/api/client";
 import type { Post } from "@/lib/api/types";
+import { useFeed } from "../feed-context";
 import { copyLink } from "../share";
 
 interface PostMenuProps {
@@ -30,6 +34,19 @@ export function PostMenu({ post, isOwn, onDelete, redirectAfterDelete }: PostMen
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [reporting, setReporting] = useState(false);
+  const { user } = useAuth();
+  const { upsertPost } = useFeed();
+
+  const markResolved = async () => {
+    if (!user) return;
+    try {
+      const resolvedAt = await resolveAlert(user, post._id);
+      upsertPost({ ...post, resolvedAt });
+      toast.success("Marked as resolved. Thanks for the update!");
+    } catch (err) {
+      toast.error(errorMessage(err, "Couldn't update the alert."));
+    }
+  };
 
   const handleDelete = async () => {
     setDeleting(true);
@@ -62,6 +79,12 @@ export function PostMenu({ post, isOwn, onDelete, redirectAfterDelete }: PostMen
             <Link2 className="size-4" />
             Copy link
           </DropdownMenuItem>
+          {isOwn && isActiveAlert(post) && (
+            <DropdownMenuItem onSelect={() => void markResolved()}>
+              <CheckCircle2 className="size-4" />
+              Mark as resolved
+            </DropdownMenuItem>
+          )}
           {isOwn ? (
             <DropdownMenuItem
               onSelect={() => setConfirming(true)}

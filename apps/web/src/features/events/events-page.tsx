@@ -114,7 +114,7 @@ export function EventsPage() {
       {loading ? (
         <FeedSkeleton count={2} />
       ) : error ? (
-        <ErrorState title="Couldn't load events" message={error} onRetry={() => void refetch()} />
+        <ErrorState title="Couldn't load events" message={error.message} onRetry={() => void refetch()} />
       ) : list.length === 0 ? (
         <EmptyState
           icon={CalendarDays}

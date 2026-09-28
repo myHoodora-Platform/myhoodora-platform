@@ -5,6 +5,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { Flag, MessageCircle, SendHorizontal, Trash2 } from "lucide-react";
 import { cn } from "@myhoodora/ui/utils";
+import { EmojiPickerButton, insertAtCaret } from "@/components/shared/emoji-picker-button";
 import { ReportDialog } from "@/components/shared/report-dialog";
 import { PreviewNotice } from "@/components/shared/states";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -17,6 +18,7 @@ import { ROUTES } from "@/lib/routes";
 import { timeAgo } from "@/lib/time";
 import type { Comment } from "@/lib/api/types";
 import { needsKindnessReminder } from "@/features/feed/kindness";
+import { useBlocked } from "@/hooks/use-blocked";
 
 interface CommentsSectionProps {
   postId: string;
@@ -26,6 +28,7 @@ interface CommentsSectionProps {
 export function CommentsSection({ postId, onCountChange }: CommentsSectionProps) {
   const { user, runGatedAction } = useAuth();
   const viewer = useViewer();
+  const blocked = useBlocked();
   const [comments, setComments] = useState<Comment[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -103,7 +106,7 @@ export function CommentsSection({ postId, onCountChange }: CommentsSectionProps)
         <p className="text-sm text-muted-foreground">No comments yet. Start the conversation.</p>
       ) : (
         <ul className="space-y-4">
-          {comments.map((c) => {
+          {comments.filter((c) => !blocked.has(c.authorUid)).map((c) => {
             const author = resolveAuthor(c.authorUid, viewer);
             const isOwn = c.authorUid === user?.uid;
             return (
@@ -142,7 +145,7 @@ export function CommentsSection({ postId, onCountChange }: CommentsSectionProps)
           e.preventDefault();
           send();
         }}
-        className="flex items-end gap-3 border-t border-border pt-4"
+        className="flex items-end gap-2 border-t border-border pt-4 sm:gap-3"
       >
         {me && <UserAvatar person={me} size="sm" />}
         <div className="min-w-0 flex-1 space-y-2">
@@ -174,6 +177,7 @@ export function CommentsSection({ postId, onCountChange }: CommentsSectionProps)
             </p>
           )}
         </div>
+        <EmojiPickerButton onSelect={(emoji) => setDraft((d) => insertAtCaret(inputRef.current, d, emoji))} />
         <button
           type="submit"
           disabled={!draft.trim() || sending}

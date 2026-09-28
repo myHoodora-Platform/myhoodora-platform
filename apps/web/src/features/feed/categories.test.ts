@@ -20,6 +20,7 @@ function post(meta: PostMeta, hoursAgo = 0): Post {
     meta,
     commentCount: 0,
     myReaction: null,
+    resolvedAt: null,
   };
 }
 

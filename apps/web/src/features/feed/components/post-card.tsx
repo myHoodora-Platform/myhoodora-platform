@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { BadgeCheck, CalendarDays, HandHeart, MapPin, MessageCircle, Share2 } from "lucide-react";
+import { BadgeCheck, CalendarDays, CheckCircle2, HandHeart, MapPin, MessageCircle, Share2 } from "lucide-react";
 import { cn } from "@myhoodora/ui/utils";
 import { ImageWithFallback } from "@/components/shared/image-with-fallback";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -13,8 +13,10 @@ import { formatEventDate, formatNaira, pluralize } from "@/lib/format";
 import { ROUTES } from "@/lib/routes";
 import { timeAgo } from "@/lib/time";
 import type { Post, ReactionType } from "@/lib/api/types";
-import { alertCategoryDef, categoryDef, isUrgentAlert, reactionDef } from "../categories";
+import { alertStatus } from "@/features/alerts/lifecycle";
+import { alertCategoryDef, categoryDef, reactionDef } from "../categories";
 import { shareLink } from "../share";
+import { PollCard } from "./poll-card";
 import { PostMenu } from "./post-menu";
 import { ReactionButton } from "./reaction-button";
 
@@ -35,7 +37,9 @@ export function PostCard({ post, onReact, onDelete, variant = "feed" }: PostCard
   const isOwn = !!user && post.authorUid === user.uid;
   const { meta } = post;
   const isAlert = meta.category === "alert";
-  const urgent = isUrgentAlert(post);
+  const status = isAlert ? alertStatus(post) : null;
+  const urgent = status === "urgent";
+  const over = status === "resolved" || status === "ended";
   const alertDef = isAlert ? alertCategoryDef(meta.alertCategory) : null;
   const category = categoryDef(meta.category);
 
@@ -52,10 +56,21 @@ export function PostCard({ post, onReact, onDelete, variant = "feed" }: PostCard
       )}
     >
       {alertDef && (
-        <div className={cn("flex items-center gap-2 px-4 py-2 text-xs font-bold sm:px-5", alertDef.tone)}>
+        <div
+          className={cn(
+            "flex items-center gap-2 px-4 py-2 text-xs font-bold sm:px-5",
+            over ? "bg-muted text-muted-foreground" : alertDef.tone,
+          )}
+        >
           <alertDef.icon className="size-4" aria-hidden />
           {alertDef.label}
           {urgent && <span className="ml-auto rounded-full bg-destructive px-2 py-0.5 text-[11px] text-white">Urgent</span>}
+          {status === "resolved" && (
+            <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-success-soft px-2 py-0.5 text-[11px] text-success">
+              <CheckCircle2 className="size-3" aria-hidden /> Resolved {post.resolvedAt && timeAgo(post.resolvedAt)}
+            </span>
+          )}
+          {status === "ended" && <span className="ml-auto text-[11px] font-semibold">Ended</span>}
         </div>
       )}
 
@@ -119,8 +134,13 @@ export function PostCard({ post, onReact, onDelete, variant = "feed" }: PostCard
           <p className="text-lg font-bold text-foreground">{formatNaira(meta.priceNaira)}</p>
         )}
 
-        {/* Body */}
-        <div className="text-[15px] leading-relaxed whitespace-pre-wrap text-foreground/90">
+        {/* Body (for polls, the question) */}
+        <div
+          className={cn(
+            "text-[15px] leading-relaxed whitespace-pre-wrap text-foreground/90",
+            meta.category === "poll" && "font-semibold text-foreground",
+          )}
+        >
           {expanded || !isLong ? post.message : `${post.message.slice(0, CLAMP_CHARS).trimEnd()}… `}
           {!expanded && isLong && (
             <button
@@ -132,6 +152,8 @@ export function PostCard({ post, onReact, onDelete, variant = "feed" }: PostCard
             </button>
           )}
         </div>
+
+        {meta.category === "poll" && <PollCard post={post} />}
       </div>
 
       {post.mediaUrls[0] && (

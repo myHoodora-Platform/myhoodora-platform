@@ -5,23 +5,39 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import { useAuth } from "@/context/AuthContext";
 import * as postsApi from "@/lib/api/posts";
-import { errorMessage } from "@/lib/api/client";
+import { errorKind, errorMessage, type ApiErrorKind } from "@/lib/api/client";
 import type { CreatePostInput, Post, ReactionType } from "@/lib/api/types";
+import { readFeedCache, writeFeedCache } from "./feed-cache";
 
 const PAGE_SIZE = 10;
+/** Returning to the tab after this long quietly refreshes the feed. */
+const REFRESH_ON_FOCUS_AFTER_MS = 2 * 60 * 1000;
+
+export interface FeedProblem {
+  message: string;
+  kind: ApiErrorKind | null;
+}
 
 interface FeedContextValue {
   posts: Post[];
+  /** First load with nothing to show yet. */
   loading: boolean;
+  /** Background refresh while (cached) posts are on screen. */
+  refreshing: boolean;
   loadingMore: boolean;
-  /** Set when the first page fails — distinct from an empty neighbourhood. */
-  error: string | null;
+  /** First load failed and there's nothing cached — show a full error state. */
+  error: FeedProblem | null;
+  /** A refresh failed but older posts are still shown — show an inline notice. */
+  stale: (FeedProblem & { since: string | null }) | null;
+  loadMoreError: FeedProblem | null;
   hasMore: boolean;
+  lastUpdated: string | null;
   loadMore: () => Promise<void>;
   refetch: () => Promise<void>;
   createPost: (input: CreatePostInput) => Promise<Post>;
@@ -40,13 +56,23 @@ function mergePage(existing: Post[], page: Post[]): Post[] {
   return [...existing, ...page.filter((p) => !seen.has(p._id))];
 }
 
+function problemFrom(err: unknown, fallback: string): FeedProblem {
+  return { message: errorMessage(err, fallback), kind: errorKind(err) };
+}
+
 export function FeedProvider({ children }: { children: ReactNode }) {
   const { user, profile } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<FeedProblem | null>(null);
+  const [stale, setStale] = useState<FeedContextValue["stale"]>(null);
+  const [loadMoreError, setLoadMoreError] = useState<FeedProblem | null>(null);
   const [hasMore, setHasMore] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const postsRef = useRef<Post[]>([]);
+  postsRef.current = posts;
 
   // The one call site that supplies a neighborhoodId to the feed — always
   // the signed-in user's own profile, never a prop or query param, so a
@@ -58,27 +84,75 @@ export function FeedProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return;
     }
-    setLoading(true);
+    // Show the last good feed straight away, then refresh behind it.
+    let shown = postsRef.current;
+    let cachedAt: string | null = lastUpdated;
+    if (shown.length === 0) {
+      const cache = readFeedCache(user.uid, neighborhoodId);
+      if (cache) {
+        shown = cache.posts;
+        cachedAt = cache.savedAt;
+        setPosts(cache.posts);
+        setLastUpdated(cache.savedAt);
+      }
+    }
+    setLoading(shown.length === 0);
+    setRefreshing(shown.length > 0);
     setError(null);
     try {
       const page = await postsApi.listFeed(user, neighborhoodId, { limit: PAGE_SIZE, skip: 0 });
       setPosts(page);
       setHasMore(page.length === PAGE_SIZE);
+      setStale(null);
+      setLoadMoreError(null);
+      const now = new Date().toISOString();
+      setLastUpdated(now);
+      writeFeedCache(user.uid, neighborhoodId, page);
     } catch (err) {
       console.error("Failed to fetch neighbourhood feed:", err);
-      setError(errorMessage(err, "Couldn't load your neighbourhood feed."));
+      const problem = problemFrom(err, "Couldn't load your neighbourhood feed.");
+      if (shown.length > 0) setStale({ ...problem, since: cachedAt });
+      else setError(problem);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
+  }, [user, neighborhoodId, lastUpdated]);
+
+  const refetchRef = useRef(refetch);
+  refetchRef.current = refetch;
+  const lastUpdatedRef = useRef(lastUpdated);
+  lastUpdatedRef.current = lastUpdated;
+
+  // Initial load (and when the user/neighbourhood changes).
+  useEffect(() => {
+    postsRef.current = [];
+    setPosts([]);
+    setLastUpdated(null);
+    void refetchRef.current();
   }, [user, neighborhoodId]);
 
+  // Recover automatically when the connection comes back, and refresh when
+  // returning to the tab after a while (like most social apps).
   useEffect(() => {
-    void refetch();
-  }, [refetch]);
+    const onOnline = () => void refetchRef.current();
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      const age = lastUpdatedRef.current ? Date.now() - new Date(lastUpdatedRef.current).getTime() : Infinity;
+      if (age > REFRESH_ON_FOCUS_AFTER_MS) void refetchRef.current();
+    };
+    window.addEventListener("online", onOnline);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
 
   const loadMore = async () => {
     if (!user || !neighborhoodId || loadingMore) return;
     setLoadingMore(true);
+    setLoadMoreError(null);
     try {
       const page = await postsApi.listFeed(user, neighborhoodId, {
         limit: PAGE_SIZE,
@@ -86,6 +160,8 @@ export function FeedProvider({ children }: { children: ReactNode }) {
       });
       setPosts((prev) => mergePage(prev, page));
       setHasMore(page.length === PAGE_SIZE);
+    } catch (err) {
+      setLoadMoreError(problemFrom(err, "Couldn't load more posts."));
     } finally {
       setLoadingMore(false);
     }
@@ -145,9 +221,13 @@ export function FeedProvider({ children }: { children: ReactNode }) {
       value={{
         posts,
         loading,
+        refreshing,
         loadingMore,
         error,
+        stale,
+        loadMoreError,
         hasMore,
+        lastUpdated,
         loadMore,
         refetch,
         createPost,

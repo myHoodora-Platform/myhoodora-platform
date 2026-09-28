@@ -3,7 +3,17 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { BadgeCheck, MessageCircle, Pencil, UserX } from "lucide-react";
+import { Ban, BadgeCheck, Flag, MessageCircle, MoreHorizontal, Pencil, UserX } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@myhoodora/ui/dropdown-menu";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { ReportDialog } from "@/components/shared/report-dialog";
+import { useBlocked } from "@/hooks/use-blocked";
+import { blockUser, unblockUser } from "@/lib/api/settings";
 import { Button } from "@myhoodora/ui/button";
 import { Skeleton } from "@myhoodora/ui/skeleton";
 import { EmptyState } from "@/components/shared/states";
@@ -26,6 +36,9 @@ export function ProfilePage({ uid }: { uid: string }) {
   const { posts, react, deletePost } = useFeed();
   const [person, setPerson] = useState<PublicProfile | null | undefined>(undefined);
   const [messaging, setMessaging] = useState(false);
+  const [confirmBlock, setConfirmBlock] = useState(false);
+  const [reporting, setReporting] = useState(false);
+  const blocked = useBlocked();
   const isMe = uid === user?.uid;
 
   useEffect(() => {
@@ -54,6 +67,23 @@ export function ProfilePage({ uid }: { uid: string }) {
 
   const shown: PublicProfile = isMe ? { ...person, displayName: viewer.profile?.displayName ?? person.displayName } : person;
   const theirPosts = posts.filter((p) => p.authorUid === uid);
+  const isBlocked = blocked.has(uid);
+
+  const toggleBlock = async () => {
+    if (!user) return;
+    try {
+      if (isBlocked) {
+        await unblockUser(user, uid);
+        toast.success(`${shown.displayName} is unblocked.`);
+      } else {
+        await blockUser(user, uid);
+        toast.success(`You blocked ${shown.displayName}.`);
+      }
+      setConfirmBlock(false);
+    } catch (err) {
+      toast.error(errorMessage(err, "Couldn't update block."));
+    }
+  };
 
   const message = () =>
     runGatedAction(async () => {
@@ -80,9 +110,34 @@ export function ProfilePage({ uid }: { uid: string }) {
                 <Pencil className="size-4" /> Edit profile
               </Button>
             ) : (
-              <Button size="sm" onClick={message} loading={messaging}>
-                <MessageCircle className="size-4" /> Message
-              </Button>
+              <div className="flex items-center gap-2">
+                {!isBlocked && (
+                  <Button size="sm" onClick={message} loading={messaging}>
+                    <MessageCircle className="size-4" /> Message
+                  </Button>
+                )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button type="button" aria-label="More options" className="flex size-10 items-center justify-center rounded-full border border-border hover:bg-muted">
+                      <MoreHorizontal className="size-5" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="min-w-52">
+                    {isBlocked ? (
+                      <DropdownMenuItem onSelect={() => void toggleBlock()}>
+                        <Ban className="size-4" /> Unblock
+                      </DropdownMenuItem>
+                    ) : (
+                      <DropdownMenuItem onSelect={() => setConfirmBlock(true)} className="text-destructive focus:bg-destructive/10 focus:text-destructive">
+                        <Ban className="size-4" /> Block {shown.displayName.split(" ")[0]}
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem onSelect={() => setReporting(true)}>
+                      <Flag className="size-4" /> Report
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             )}
           </div>
           <div>
@@ -104,7 +159,11 @@ export function ProfilePage({ uid }: { uid: string }) {
         <h2 id="profile-posts" className="text-base font-bold">
           {isMe ? "Your posts" : `Posts by ${shown.displayName.split(" ")[0]}`}
         </h2>
-        {theirPosts.length === 0 ? (
+        {isBlocked ? (
+          <p className="rounded-2xl border border-dashed border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground">
+            You blocked {shown.displayName}. Their posts are hidden from you.
+          </p>
+        ) : theirPosts.length === 0 ? (
           <p className="rounded-2xl border border-dashed border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground">
             No recent posts.
           </p>
@@ -112,6 +171,17 @@ export function ProfilePage({ uid }: { uid: string }) {
           theirPosts.map((p) => <PostCard key={p._id} post={p} onReact={react} onDelete={deletePost} />)
         )}
       </section>
+
+      <ConfirmDialog
+        open={confirmBlock}
+        onOpenChange={setConfirmBlock}
+        title={`Block ${shown.displayName}?`}
+        description="They won't be able to message you or see your posts, and you won't see theirs. They won't be told. You can unblock any time in Settings → Privacy."
+        confirmLabel="Block"
+        destructive
+        onConfirm={() => void toggleBlock()}
+      />
+      <ReportDialog open={reporting} onOpenChange={setReporting} target={{ targetType: "user", targetId: uid }} />
     </div>
   );
 }

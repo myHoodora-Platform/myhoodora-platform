@@ -1,31 +1,41 @@
 "use client";
 
-import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useRef, useState } from "react";
+import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { ArrowLeft, HeartHandshake } from "lucide-react";
+import { AlertCircle, ArrowLeft, HeartHandshake, Plus, WifiOff, X } from "lucide-react";
 import { Button } from "@myhoodora/ui/button";
 import { cn } from "@myhoodora/ui/utils";
-import { EmojiPickerButton } from "@/components/shared/emoji-picker-button";
+import { EmojiPickerButton, insertAtCaret } from "@/components/shared/emoji-picker-button";
 import { Field, fieldAria, fieldInputClass } from "@/components/shared/field";
 import { ImagePicker } from "@/components/shared/image-picker";
+import { useOnlineStatus } from "@/hooks/use-online-status";
 import { errorMessage } from "@/lib/api/client";
 import type { AlertCategory, Post, PostCategory } from "@/lib/api/types";
 import { ALERT_CATEGORIES, POST_CATEGORIES, categoryDef } from "../categories";
 import { needsKindnessReminder } from "../kindness";
 import { useFeed } from "../feed-context";
 
+const MAX_POLL_OPTIONS = 4;
+const POLL_DURATIONS = [
+  { days: 1, label: "1 day" },
+  { days: 3, label: "3 days" },
+  { days: 7, label: "1 week" },
+] as const;
+
 const schema = z
   .object({
-    category: z.enum(["general", "recommendation", "alert", "event", "for_sale", "lost_found", "thanks"]),
+    category: z.enum(["general", "recommendation", "alert", "event", "for_sale", "lost_found", "thanks", "poll"]),
     message: z.string().trim().min(1, "Write something to share.").max(3000, "Keep it under 3,000 characters."),
     alertCategory: z.string().optional(),
     urgent: z.boolean().optional(),
     eventDate: z.string().optional(),
     eventLocation: z.string().trim().optional(),
     thankedName: z.string().trim().optional(),
+    pollOptions: z.array(z.object({ text: z.string().trim().max(60, "Keep options under 60 characters.") })),
+    pollDays: z.number(),
   })
   .superRefine((v, ctx) => {
     if (v.category === "alert" && !v.alertCategory) {
@@ -41,6 +51,14 @@ const schema = z
     if (v.category === "thanks" && !v.thankedName) {
       ctx.addIssue({ code: "custom", path: ["thankedName"], message: "Who are you thanking?" });
     }
+    if (v.category === "poll") {
+      const filled = v.pollOptions.map((o) => o.text.trim()).filter(Boolean);
+      if (filled.length < 2) {
+        ctx.addIssue({ code: "custom", path: ["pollOptions"], message: "Add at least 2 options." });
+      } else if (new Set(filled.map((t) => t.toLowerCase())).size !== filled.length) {
+        ctx.addIssue({ code: "custom", path: ["pollOptions"], message: "Each option must be different." });
+      }
+    }
   });
 
 type FormValues = z.infer<typeof schema>;
@@ -53,6 +71,7 @@ const PLACEHOLDERS: Record<PostCategory, string> = {
   for_sale: "",
   lost_found: "What was lost or found, and where?",
   thanks: "What did they do that made a difference?",
+  poll: "Ask a question, e.g. Should we hire a second night guard for Road 12?",
 };
 
 interface PostComposerProps {
@@ -65,18 +84,29 @@ interface PostComposerProps {
 
 export function PostComposer({ initialCategory, onDone, onCancel, onSell }: PostComposerProps) {
   const { createPost } = useFeed();
+  const online = useOnlineStatus();
   const [step, setStep] = useState<"pick" | "write">(initialCategory ? "write" : "pick");
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const [kindnessShown, setKindnessShown] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const messageEl = useRef<HTMLTextAreaElement | null>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { category: initialCategory ?? "general", message: "", urgent: false },
+    defaultValues: {
+      category: initialCategory ?? "general",
+      message: "",
+      urgent: false,
+      pollOptions: [{ text: "" }, { text: "" }],
+      pollDays: 3,
+    },
   });
-  const { register, handleSubmit, watch, setValue, formState } = form;
+  const { register, handleSubmit, watch, setValue, getValues, control, formState } = form;
   const { errors, isSubmitting } = formState;
+  const pollOptions = useFieldArray({ control, name: "pollOptions" });
   const category = watch("category");
   const alertCategory = watch("alertCategory");
+  const pollDays = watch("pollDays");
   const def = categoryDef(category);
 
   const pick = (id: PostCategory) => {
@@ -86,11 +116,16 @@ export function PostComposer({ initialCategory, onDone, onCancel, onSell }: Post
   };
 
   const submit = async (values: FormValues) => {
+    setSubmitError(null);
     if (!kindnessShown && needsKindnessReminder(values.message)) {
       setKindnessShown(true);
       return;
     }
     try {
+      const options = values.pollOptions
+        .map((o) => o.text.trim())
+        .filter(Boolean)
+        .map((text, i) => ({ id: `o${i + 1}`, text }));
       const post = await createPost({
         message: values.message,
         mediaUrl: mediaUrl ?? undefined,
@@ -101,12 +136,23 @@ export function PostComposer({ initialCategory, onDone, onCancel, onSell }: Post
           eventDate: values.category === "event" ? values.eventDate : undefined,
           eventLocation: values.category === "event" ? values.eventLocation : undefined,
           thankedName: values.category === "thanks" ? values.thankedName : undefined,
+          poll:
+            values.category === "poll"
+              ? { options, closesAt: new Date(Date.now() + values.pollDays * 86_400_000).toISOString() }
+              : undefined,
         },
       });
-      toast.success(values.category === "alert" ? "Alert sent to your neighbours." : "Posted to your neighbourhood.");
+      toast.success(
+        values.category === "alert"
+          ? "Alert sent to your neighbours."
+          : values.category === "poll"
+            ? "Poll posted."
+            : "Posted to your neighbourhood.",
+      );
       onDone(post);
     } catch (err) {
-      toast.error(errorMessage(err, "Couldn't post. Please try again."));
+      // Stay open with the draft intact; say why it failed right here.
+      setSubmitError(errorMessage(err, "Couldn't post. Your draft is still here, so try again."));
     }
   };
 
@@ -134,6 +180,10 @@ export function PostComposer({ initialCategory, onDone, onCancel, onSell }: Post
   }
 
   const messageReg = register("message");
+  const pollError =
+    (errors.pollOptions as { message?: string } | undefined)?.message ??
+    (errors.pollOptions as { root?: { message?: string } } | undefined)?.root?.message ??
+    errors.pollOptions?.find?.((o) => o?.text)?.text?.message;
 
   return (
     <form onSubmit={handleSubmit(submit)} className="space-y-4" noValidate>
@@ -185,20 +235,75 @@ export function PostComposer({ initialCategory, onDone, onCancel, onSell }: Post
         </Field>
       )}
 
-      <Field label="Your post" htmlFor="message" error={errors.message?.message}>
+      <Field label={category === "poll" ? "Your question" : "Your post"} htmlFor="message" error={errors.message?.message}>
         <textarea
           {...messageReg}
           {...fieldAria("message", errors.message?.message)}
-          rows={5}
+          ref={(el) => {
+            messageReg.ref(el);
+            messageEl.current = el;
+          }}
+          rows={category === "poll" ? 2 : 5}
           autoFocus
           placeholder={PLACEHOLDERS[category]}
-          className={cn(fieldInputClass, "min-h-32 resize-y")}
+          className={cn(fieldInputClass, category === "poll" ? "min-h-20" : "min-h-32", "resize-y")}
           onChange={(e) => {
             void messageReg.onChange(e);
             setKindnessShown(false);
           }}
         />
       </Field>
+
+      {category === "poll" && (
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-semibold">Options</legend>
+          {pollOptions.fields.map((field, i) => (
+            <div key={field.id} className="flex items-center gap-2">
+              <input
+                {...register(`pollOptions.${i}.text`)}
+                aria-label={`Option ${i + 1}`}
+                placeholder={`Option ${i + 1}${i >= 2 ? " (optional)" : ""}`}
+                maxLength={60}
+                className={fieldInputClass}
+              />
+              {pollOptions.fields.length > 2 && (
+                <button
+                  type="button"
+                  onClick={() => pollOptions.remove(i)}
+                  aria-label={`Remove option ${i + 1}`}
+                  className="flex size-10 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"
+                >
+                  <X className="size-4" />
+                </button>
+              )}
+            </div>
+          ))}
+          {pollOptions.fields.length < MAX_POLL_OPTIONS && (
+            <Button variant="ghost" size="sm" onClick={() => pollOptions.append({ text: "" })}>
+              <Plus className="size-4" /> Add option
+            </Button>
+          )}
+          {pollError && <p className="text-xs font-semibold text-destructive">{pollError}</p>}
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <span className="text-sm font-semibold">Poll closes in</span>
+            {POLL_DURATIONS.map((d) => (
+              <button
+                key={d.days}
+                type="button"
+                aria-pressed={pollDays === d.days}
+                onClick={() => setValue("pollDays", d.days)}
+                className={cn(
+                  "h-9 rounded-full border px-3 text-sm font-semibold",
+                  pollDays === d.days ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-muted",
+                )}
+              >
+                {d.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">Votes are anonymous. Neighbours see results after they vote.</p>
+        </fieldset>
+      )}
 
       {category === "event" && (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -233,7 +338,7 @@ export function PostComposer({ initialCategory, onDone, onCancel, onSell }: Post
         </label>
       )}
 
-      <ImagePicker value={mediaUrl} onChange={setMediaUrl} disabled={isSubmitting} />
+      {category !== "poll" && <ImagePicker value={mediaUrl} onChange={setMediaUrl} disabled={isSubmitting} />}
 
       {kindnessShown && (
         <div role="alert" className="flex gap-3 rounded-xl bg-warning-soft p-3 text-sm text-warning">
@@ -247,17 +352,49 @@ export function PostComposer({ initialCategory, onDone, onCancel, onSell }: Post
         </div>
       )}
 
+      {(submitError || !online) && (
+        <div role="alert" className="flex gap-3 rounded-xl bg-danger-soft p-3 text-sm">
+          {online ? (
+            <AlertCircle className="mt-0.5 size-5 shrink-0 text-destructive" aria-hidden />
+          ) : (
+            <WifiOff className="mt-0.5 size-5 shrink-0 text-destructive" aria-hidden />
+          )}
+          <p className="text-foreground/85">
+            {online ? (
+              <>
+                <span className="font-bold">Not posted.</span> {submitError} Your draft is kept here.
+              </>
+            ) : (
+              <>
+                <span className="font-bold">You&apos;re offline.</span>{" "}
+                Your draft is kept here. Post it once you&apos;re back online.
+              </>
+            )}
+          </p>
+        </div>
+      )}
+
       <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
         <EmojiPickerButton
           disabled={isSubmitting}
-          onSelect={(emoji) => setValue("message", `${form.getValues("message")}${emoji}`)}
+          onSelect={(emoji) =>
+            setValue("message", insertAtCaret(messageEl.current, getValues("message"), emoji), { shouldDirty: true })
+          }
         />
         <div className="flex gap-2">
           <Button variant="ghost" onClick={onCancel} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button type="submit" loading={isSubmitting}>
-            {kindnessShown ? "Post anyway" : category === "alert" ? "Send alert" : "Post"}
+          <Button type="submit" loading={isSubmitting} disabled={!online}>
+            {kindnessShown
+              ? "Post anyway"
+              : category === "alert"
+                ? "Send alert"
+                : category === "poll"
+                  ? "Post poll"
+                  : submitError
+                    ? "Try again"
+                    : "Post"}
           </Button>
         </div>
       </div>
