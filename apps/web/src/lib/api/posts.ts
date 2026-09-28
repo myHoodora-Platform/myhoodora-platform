@@ -1,6 +1,7 @@
 import type { User } from "firebase/auth";
-import { apiFetch } from "./client";
+import { apiFetch, withRetry } from "./client";
 import { isLive } from "./config";
+import { alertResolutions } from "./alerts";
 import { commentCount } from "./comments";
 import { decodePostContent, encodePostContent, postTypeFor } from "./post-meta";
 import { latency, load, mockId, save, update } from "./mock/store";
@@ -24,6 +25,7 @@ export function hydratePost(doc: ApiPost, viewerUid: string): Post {
     meta,
     commentCount: commentCount(doc._id),
     myReaction: liked ? (myReactions(viewerUid)[doc._id] ?? "like") : null,
+    resolvedAt: meta.category === "alert" ? (alertResolutions()[doc._id] ?? null) : null,
   };
 }
 
@@ -46,7 +48,8 @@ export async function listFeed(
   let docs: ApiPost[];
   if (isLive("posts.list")) {
     const params = new URLSearchParams({ limit: String(limit), skip: String(skip) });
-    docs = await apiFetch<ApiPost[]>(user, `/posts/neighborhood/${neighborhoodId}?${params}`);
+    // Reads retry once on transient failures (flaky mobile data is common).
+    docs = await withRetry(() => apiFetch<ApiPost[]>(user, `/posts/neighborhood/${neighborhoodId}?${params}`));
   } else {
     await latency();
     docs = sortNewestFirst(mockPosts()).slice(skip, skip + limit);

@@ -17,6 +17,20 @@ const ALERT_LABELS: Record<string, string> = {
   other: "Alert",
 };
 
+const ALERT_PLURALS: Record<string, string> = {
+  security: "security alerts",
+  power: "power updates",
+  water: "water updates",
+  flooding: "flooding alerts",
+  traffic: "traffic updates",
+  fire: "fire alerts",
+  scam: "scam warnings",
+  other: "alerts",
+};
+
+/** Alerts of the same type this close together are one notification. */
+const BUNDLE_WINDOW_MS = 30 * 60 * 1000;
+
 interface ReadState {
   readIds: string[];
   /** Everything created before this is read ("Mark all as read"). */
@@ -48,18 +62,45 @@ export async function listNotifications(
 
   const items: Omit<AppNotification, "read">[] = [];
 
-  for (const post of sources.posts) {
-    if (post.meta.category === "alert" && post.authorUid !== user.uid) {
-      items.push({
-        _id: `n_alert_${post._id}`,
-        type: "alert",
-        actorUid: post.authorUid,
-        title: ALERT_LABELS[post.meta.alertCategory ?? "other"] ?? "Alert",
-        body: post.message,
-        href: ROUTES.post(post._id),
-        createdAt: post.createdAt,
-      });
-    }
+  // Bundle alert storms: same type within 30 minutes → one notification
+  // ("3 power alerts") instead of one per post.
+  const alerts = sources.posts
+    .filter((p) => p.meta.category === "alert" && p.authorUid !== user.uid)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const bundles: Post[][] = [];
+  for (const post of alerts) {
+    const category = post.meta.alertCategory ?? "other";
+    const bundle = bundles.find(
+      (b) =>
+        (b[0]!.meta.alertCategory ?? "other") === category &&
+        new Date(b[b.length - 1]!.createdAt).getTime() - new Date(post.createdAt).getTime() <= BUNDLE_WINDOW_MS,
+    );
+    if (bundle) bundle.push(post);
+    else bundles.push([post]);
+  }
+  for (const bundle of bundles) {
+    const latest = bundle[0]!;
+    const category = latest.meta.alertCategory ?? "other";
+    items.push(
+      bundle.length === 1
+        ? {
+            _id: `n_alert_${latest._id}`,
+            type: "alert",
+            actorUid: latest.authorUid,
+            title: ALERT_LABELS[category] ?? "Alert",
+            body: latest.message,
+            href: ROUTES.post(latest._id),
+            createdAt: latest.createdAt,
+          }
+        : {
+            _id: `n_alerts_${category}_${latest._id}`,
+            type: "alert",
+            title: `${bundle.length} ${ALERT_PLURALS[category] ?? "alerts"}`,
+            body: latest.message,
+            href: `${ROUTES.alerts}?type=${category}`,
+            createdAt: latest.createdAt,
+          },
+    );
   }
 
   const myPostIds = new Set(sources.posts.filter((p) => p.authorUid === user.uid).map((p) => p._id));

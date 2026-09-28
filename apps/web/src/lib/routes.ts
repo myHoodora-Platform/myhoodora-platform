@@ -22,7 +22,11 @@ export const ROUTES = {
   conversation: (id: string) => `/inbox/${id}`,
   profile: (uid: string) => `/profile/${uid}`,
   settings: "/settings",
+  settingsProfile: "/settings/profile",
   settingsAccount: "/settings/account",
+  settingsNeighbourhood: "/settings/neighbourhood",
+  settingsNotifications: "/settings/notifications",
+  settingsPrivacy: "/settings/privacy",
   help: "/help",
   guidelines: "/guidelines",
 

@@ -63,15 +63,33 @@ export function seedPosts(): ApiPost[] {
   return [
     post("mp_power", "org_estate", "alert", "Scheduled outage: Eko DisCo will be working on the Admiralty Way feeder from 9am to 4pm today. Please plan your generator fuel accordingly.", { category: "alert", alertCategory: "power" }, hoursAgo(1), { likes: ["nb_tunde", "nb_ngozi", "nb_funke"] }),
     post("mp_security", "nb_tunde", "alert", "Two young men on a motorbike were seen checking car doors on Road 14 around 2am. Estate security has been informed. Please don't leave valuables in your cars and keep gates locked.", { category: "alert", alertCategory: "security", urgent: true }, hoursAgo(0.6), { likes: ["nb_adaeze", "nb_emeka", "nb_ibrahim", "nb_chidinma"] }),
+    post("mp_fire", "nb_emeka", "alert", "Smoke coming from the generator house behind the Road 9 plaza. Fire service has been called. Please keep away.", { category: "alert", alertCategory: "fire", urgent: true }, hoursAgo(0.3), { likes: ["nb_tunde"] }),
+    post("mp_power2", "nb_ngozi", "alert", "Light just went off on Road 5 too. Is this the scheduled outage?", { category: "alert", alertCategory: "power" }, hoursAgo(0.7)),
+    post("mp_power3", "nb_ibrahim", "alert", "Same here on Road 7. The transformer made a loud bang before it went off.", { category: "alert", alertCategory: "power" }, hoursAgo(0.5)),
+    post("mp_traffic", "nb_funke", "alert", "Heavy go-slow on Admiralty Way by the roundabout. A trailer broke down across two lanes.", { category: "alert", alertCategory: "traffic" }, hoursAgo(5)),
+    post("mp_water", "nb_chidinma", "alert", "No water supply on Road 12 since this morning. Anyone else?", { category: "alert", alertCategory: "water" }, hoursAgo(8)),
     post("mp_reco", "nb_chidinma", "text", "Can anyone recommend a reliable electrician around here? My inverter keeps tripping whenever the fridge comes on. 🙏", { category: "recommendation" }, hoursAgo(3), { likes: ["nb_adaeze"] }),
     post("mp_event", "nb_adaeze", "event", "Monthly estate sanitation + Road 12 clean-up. Gloves and bags provided. Kids welcome — there'll be zobo and puff-puff after!", { category: "event", eventDate: daysFromNow(4, 8), eventLocation: "Road 12 park, by the water tank" }, hoursAgo(20), { likes: ["nb_tunde", "nb_funke"], mediaUrls: ["/images/hero-street.webp"] }),
     post("mp_flood", "nb_emeka", "alert", "Heads up: the drainage by Freedom Way junction is blocked again and water is already ankle-deep after this morning's rain. Avoid if you're driving a low car.", { category: "alert", alertCategory: "flooding" }, hoursAgo(6), { likes: ["nb_ngozi"] }),
     post("mp_lost", "nb_funke", "text", "Found: a set of car keys (Toyota) with a small Arsenal keyholder near the Mega Chicken on Admiralty. I've dropped them with the gate security at Road 5.", { category: "lost_found" }, hoursAgo(9)),
     post("mp_thanks", "nb_ngozi", "text", "Big thank you to Mallam Sani, our Road 3 security man, who helped push my car to the mechanic in the rain yesterday. People like him make this estate home ❤️", { category: "thanks", thankedName: "Mallam Sani (Road 3 security)" }, hoursAgo(26), { likes: ["nb_adaeze", "nb_tunde", "nb_emeka", "nb_chidinma", "nb_ibrahim"] }),
     post("mp_sale", "nb_ibrahim", "image", "Selling my 2.5KVA inverter + 2 batteries, 18 months old, works perfectly. Moving to a flat with solar. Pick up on Road 7.", { category: "for_sale", priceNaira: 380000 }, hoursAgo(30)),
+    post("mp_poll", "nb_tunde", "text", "Road 12 residents: should we contribute for a bigger transformer? Eko DisCo quoted ₦2.4m to be shared across the street.", { category: "poll", poll: { options: [{ id: "yes", text: "Yes, let's contribute" }, { id: "no", text: "No, push DisCo to pay" }, { id: "info", text: "I need more information" }], closesAt: daysFromNow(3, 18) } }, hoursAgo(12), { likes: ["nb_ngozi", "nb_emeka"] }),
     post("mp_general", "nb_emeka", "text", "Anyone up for 5-a-side football on Saturday mornings? We're a group of 8 and need a few more. All levels welcome.", { category: "general" }, hoursAgo(50), { likes: ["nb_ibrahim"] }),
     post("mp_scam", "org_estate", "alert", "Scam warning: someone is calling residents pretending to be from the LPRA and asking for 'security levy' transfers. The association never collects dues by phone. Only pay at the secretariat.", { category: "alert", alertCategory: "scam" }, hoursAgo(72), { likes: ["nb_tunde", "nb_ngozi", "nb_adaeze"] }),
   ];
+}
+
+/** The water alert was marked resolved by its author. */
+export function seedAlertResolutions(): Record<string, string> {
+  return { mp_water: hoursAgo(2) };
+}
+
+/** Votes already cast on the seeded poll (anonymous — only counts are ever shown). */
+export function seedPollVotes(): Record<string, Record<string, string>> {
+  return {
+    mp_poll: { nb_ngozi: "yes", nb_emeka: "yes", nb_adaeze: "info", nb_funke: "no", nb_ibrahim: "yes", org_estate: "info" },
+  };
 }
 
 export function seedComments(): Comment[] {

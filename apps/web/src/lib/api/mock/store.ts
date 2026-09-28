@@ -5,7 +5,11 @@
  * previews. Falls back to memory where storage is unavailable.
  */
 
-const PREFIX = "mh-mock:";
+import { ApiError, FRIENDLY_MESSAGES } from "../client";
+
+// Bump when seed data changes shape so preview browsers re-seed cleanly.
+const SEED_VERSION = 3;
+const PREFIX = `mh-mock:v${SEED_VERSION}:`;
 const memory = new Map<string, string>();
 
 function read(key: string): string | null {
@@ -25,7 +29,8 @@ function write(key: string, value: string) {
 }
 
 export function load<T>(key: string, seed: () => T): T {
-  const raw = typeof window === "undefined" ? null : read(key);
+  // read() falls back to memory when storage is blocked (private mode, tests).
+  const raw = read(key);
   if (raw) {
     try {
       return JSON.parse(raw) as T;
@@ -52,9 +57,16 @@ export function update<T>(key: string, seed: () => T, fn: (current: T) => T): T 
   return next;
 }
 
-/** Simulated network latency so loading states are exercised in previews. */
-export function latency(ms = 250): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+/**
+ * Simulated network latency so loading states are exercised in previews.
+ * Fails like the real client when the device is offline, so offline UX can
+ * be tested in mock mode too.
+ */
+export async function latency(ms = 250): Promise<void> {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    throw new ApiError(FRIENDLY_MESSAGES.offline, 0, "offline");
+  }
+  await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export function mockId(prefix: string): string {

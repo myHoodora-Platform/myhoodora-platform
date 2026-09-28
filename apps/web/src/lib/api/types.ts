@@ -17,7 +17,8 @@ export type PostCategory =
   | "alert"
   | "event"
   | "lost_found"
-  | "thanks";
+  | "thanks"
+  | "poll";
 
 export type AlertCategory =
   | "security"
@@ -65,6 +66,30 @@ export interface PostMeta {
   thankedName?: string;
   /** Sell or give away posts. */
   priceNaira?: number | null;
+  /** Poll posts: the question is the post message. */
+  poll?: PollDefinition;
+}
+
+// ── Polls (planned votes endpoint) ──────────────────────────────────────────
+
+export interface PollOption {
+  id: string;
+  text: string;
+}
+
+export interface PollDefinition {
+  /** 2–4 options, like Nextdoor/Twitter polls. */
+  options: PollOption[];
+  closesAt: string; // ISO
+}
+
+/** Votes are anonymous: only counts and the viewer's own choice are returned. */
+export interface PollResults {
+  postId: string;
+  counts: Record<string, number>;
+  total: number;
+  myVote: string | null;
+  closed: boolean;
 }
 
 /** A post as the UI consumes it: API document + decoded meta + clean message. */
@@ -75,6 +100,8 @@ export interface Post extends ApiPost {
   commentCount: number;
   /** planned: the viewer's own reaction type (API only stores likes today). */
   myReaction: ReactionType | null;
+  /** planned: when an alert was marked resolved (alerts only). */
+  resolvedAt: string | null;
 }
 
 export interface CreatePostInput {
@@ -239,7 +266,7 @@ export type ReportReason =
   | "other";
 
 export interface ReportInput {
-  targetType: "post" | "comment" | "listing" | "message";
+  targetType: "post" | "comment" | "listing" | "message" | "user";
   targetId: string;
   reason: ReportReason;
   details?: string;

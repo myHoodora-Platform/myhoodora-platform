@@ -21,6 +21,8 @@ export const ENDPOINTS = {
   "posts.delete": "live",
   "posts.get": "planned",
   "posts.reaction": "planned",
+  "polls": "planned",
+  "alerts": "planned",
   "comments": "planned",
   "users.publicProfile": "planned",
   "listings": "planned",
@@ -29,6 +31,8 @@ export const ENDPOINTS = {
   "chat": "planned",
   "notifications": "planned",
   "reports": "planned",
+  "settings": "planned",
+  "feedback": "planned",
 } as const satisfies Record<string, "live" | "planned">;
 
 export type EndpointKey = keyof typeof ENDPOINTS;

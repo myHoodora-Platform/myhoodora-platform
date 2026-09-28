@@ -3,6 +3,7 @@ import { apiFetch } from "./client";
 import { isLive } from "./config";
 import { latency } from "./mock/store";
 import { MOCK_NEIGHBOURS } from "./mock/seed";
+import { myProfileExtras } from "./settings";
 import type { PublicProfile } from "./types";
 
 export interface Viewer {
@@ -24,10 +25,12 @@ export function initialsFrom(name: string): string {
  */
 export function resolveAuthor(uid: string, viewer: Viewer): PublicProfile {
   if (viewer.user && uid === viewer.user.uid) {
+    const extras = myProfileExtras(uid);
     return {
       uid,
       displayName: viewer.profile?.displayName || viewer.user.email || "You",
-      photoURL: viewer.user.photoURL ?? undefined,
+      photoURL: extras.photoURL ?? viewer.user.photoURL ?? undefined,
+      bio: extras.bio,
       neighborhoodName: viewer.profile?.neighborhoodName,
       verified: true,
     };
