@@ -33,6 +33,7 @@ export const ENDPOINTS = {
   "reports": "planned",
   "settings": "planned",
   "feedback": "planned",
+  "business": "planned",
 } as const satisfies Record<string, "live" | "planned">;
 
 export type EndpointKey = keyof typeof ENDPOINTS;
