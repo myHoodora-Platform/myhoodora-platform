@@ -5,7 +5,7 @@ import { Button } from "@myhoodora/ui/button";
 import { ShieldAlert } from "lucide-react";
 
 export function VerificationBanner() {
-  const { profile } = useAuth();
+  const { profile, setIsGatingModalOpen } = useAuth();
 
   if (!profile || profile.verificationStatus === "verified") return null;
 
@@ -20,20 +20,24 @@ export function VerificationBanner() {
             </p>
             <p className="text-xs text-amber-800/80">
               We couldn&apos;t confirm your address yet, so some neighbourhood
-              features are limited. Having trouble? Our support team can help.
+              features are limited.
             </p>
           </div>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="shrink-0"
-          onClick={() => {
-            window.location.href = "mailto:hello@myhoodora.com";
-          }}
-        >
-          Contact Support
-        </Button>
+        <div className="flex shrink-0 gap-2">
+          <Button size="sm" onClick={() => setIsGatingModalOpen(true)}>
+            Verify location
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              window.location.href = "mailto:hello@myhoodora.com";
+            }}
+          >
+            Contact Support
+          </Button>
+        </div>
       </div>
     </div>
   );

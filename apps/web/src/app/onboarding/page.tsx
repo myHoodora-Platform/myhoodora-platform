@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@myhoodora/ui/button";
@@ -16,6 +16,51 @@ import {
 import { Skeleton } from "@myhoodora/ui/skeleton";
 import { LocationMap } from "@/components/onboarding/location-map";
 
+const ONBOARDING_DRAFT_KEY = "myhoodora:onboarding-draft";
+
+// How long to hold checklist step 1 ("Checking address coordinates") visible
+// before moving to step 2. That check is really just "do we have coordinates
+// to send?" — true the instant runVerification runs — so without a small
+// floor it would flip to done in the same frame as step 2, and both would
+// visually tick together. Step 2 onward has no floor: each is held open for
+// exactly as long as its real network call takes.
+const LOCAL_CHECK_MIN_MS = 300;
+
+interface OnboardingDraft {
+  name: string;
+  address: string;
+  coords: { lat: number; lng: number } | null;
+}
+
+// Skipping onboarding shouldn't mean retyping everything later — these just
+// keep the step-1 fields around locally (no backend write, no isOnboarded
+// change) so the form is pre-filled next time someone lands back here, e.g.
+// via the "finish onboarding" prompt on a gated action.
+function readOnboardingDraft(): OnboardingDraft | null {
+  try {
+    const raw = localStorage.getItem(ONBOARDING_DRAFT_KEY);
+    return raw ? (JSON.parse(raw) as OnboardingDraft) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveOnboardingDraft(draft: OnboardingDraft) {
+  try {
+    localStorage.setItem(ONBOARDING_DRAFT_KEY, JSON.stringify(draft));
+  } catch {
+    // Private browsing / full storage — losing the draft isn't fatal.
+  }
+}
+
+function clearOnboardingDraft() {
+  try {
+    localStorage.removeItem(ONBOARDING_DRAFT_KEY);
+  } catch {
+    // Nothing to do if storage is unavailable.
+  }
+}
+
 export default function OnboardingPage() {
   const router = useRouter();
   const { user, profile, completeOnboarding, verifyLocation, loading } =
@@ -30,18 +75,48 @@ export default function OnboardingPage() {
   const [geocoding, setGeocoding] = useState(false);
   const [verifyingStatus, setVerifyingStatus] = useState(0);
   const [onboardingError, setOnboardingError] = useState<string | null>(null);
-  const [coverageNotice, setCoverageNotice] = useState<string | null>(null);
+  const [verificationOutcome, setVerificationOutcome] = useState<
+    "pending" | "success" | "unverified" | "error"
+  >("pending");
 
-  // Initialize name from Firebase user profile
+  // Restore a saved draft (from an earlier "Skip onboarding"), then fall back
+  // to whatever's already on the account (a previous onboarding attempt —
+  // someone retrying verification shouldn't have to retype their address),
+  // then finally the Firebase display name.
   useEffect(() => {
-    if (user?.displayName && !name) {
+    if (name) return;
+    const draft = readOnboardingDraft();
+    if (draft?.name) {
+      setName(draft.name);
+      if (draft.address) setAddress(draft.address);
+      if (draft.coords) setCoords(draft.coords);
+    } else if (profile?.displayName || profile?.location?.address) {
+      setName(profile.displayName || user?.displayName || "");
+      if (profile.location?.address) setAddress(profile.location.address);
+      if (
+        typeof profile.location?.lat === "number" &&
+        typeof profile.location?.lng === "number"
+      ) {
+        setCoords({ lat: profile.location.lat, lng: profile.location.lng });
+      }
+    } else if (user?.displayName) {
       setName(user.displayName);
     }
-  }, [user, name]);
+  }, [user, profile, name]);
 
-  // If already onboarded on mount and not loading, redirect to dashboard
+  // Redirect away only if the person is fully done (onboarded *and*
+  // verified) when they first land here, and only check this once. It must
+  // not re-run on every `profile` change: completeOnboarding flips
+  // isOnboarded to true the moment step 3 saves, and if this kept reacting
+  // to that, it would immediately bounce everyone to the dashboard before
+  // they ever saw the outside-coverage/error screen below — and it would
+  // make "Verify location" from the dashboard unusable, since arriving back
+  // here with isOnboarded already true would bounce them straight back out.
+  const didCheckInitialOnboardedRef = useRef(false);
   useEffect(() => {
-    if (!loading && profile?.isOnboarded) {
+    if (didCheckInitialOnboardedRef.current || loading) return;
+    didCheckInitialOnboardedRef.current = true;
+    if (profile?.isOnboarded && profile?.verificationStatus === "verified") {
       router.push("/dashboard");
     }
   }, [loading, profile, router]);
@@ -167,68 +242,113 @@ export default function OnboardingPage() {
   };
 
   const handleSkip = () => {
+    // No backend call here on purpose: completeOnboarding marks the account
+    // isOnboarded, and we haven't verified a location for this person yet.
+    // Just keep what they typed locally so it's still there if they come
+    // back to finish onboarding later (e.g. via a "finish onboarding" prompt).
+    if (name.trim() || address.trim()) {
+      saveOnboardingDraft({ name, address, coords });
+    }
     router.push("/dashboard");
   };
 
-  // Step 3: Mock Verification Sequencer & Backend Completion
+  // Attempts real verification, then always saves the onboarding profile
+  // (isOnboarded should flip regardless of coverage outcome). Runs once when
+  // step 3 mounts, and again on "Try again". verifyingStatus is driven by
+  // these real milestones (not a fixed timer), so the checklist below stays
+  // in sync with how long the calls actually take instead of finishing
+  // early and then appearing to hang.
+  const runVerification = useCallback(async () => {
+    setVerifyingStatus(1); // step 1: coordinates present — a real, instant local check
+    await new Promise((resolve) => setTimeout(resolve, LOCAL_CHECK_MIN_MS));
+
+    setVerifyingStatus(2); // step 2: the real location check starts now
+    let outcome: "success" | "unverified" | "error" = "success";
+    try {
+      const result = await verifyLocation({
+        lat: coords?.lat || 0,
+        lng: coords?.lng || 0,
+      });
+      if (result.verificationStatus === "unverified") {
+        outcome = "unverified";
+      }
+    } catch (verifyErr) {
+      // A failed *check* (network blip, backend hiccup) is not the same as
+      // "outside coverage" — surface it distinctly instead of silently
+      // treating it as success, which used to send people straight to the
+      // dashboard with no idea verification never actually ran.
+      console.error("Location verification failed", verifyErr);
+      outcome = "error";
+    }
+    setVerifyingStatus(3); // step 2 settled (either way) — step 3, the profile save, starts now
+
+    try {
+      await completeOnboarding({
+        displayName: name,
+        location: {
+          address,
+          lat: coords?.lat || 0,
+          lng: coords?.lng || 0,
+        },
+      });
+    } catch (err) {
+      console.error("Onboarding backend completion failed", err);
+      setOnboardingError(
+        "Verification could not be saved to backend. Please retry.",
+      );
+      setStep(1);
+      return;
+    }
+    setVerifyingStatus(4); // step 3 settled
+
+    clearOnboardingDraft();
+    setVerificationOutcome(outcome);
+    if (outcome === "success") {
+      // Hold the fully-checked state for a beat so it's not gone-in-a-flash, then route
+      setTimeout(() => {
+        router.push("/dashboard");
+      }, 900);
+    }
+    // "unverified" and "error" stop here and wait for the user to choose
+    // what to do next — see the buttons rendered for each state below.
+  }, [coords, name, address, verifyLocation, completeOnboarding, router]);
+
+  // runVerification's identity changes on every AuthProvider re-render
+  // (verifyLocation/completeOnboarding/router aren't stable references
+  // there), and calling it triggers exactly such a re-render (it calls
+  // refreshProfile). If the effect below depended on runVerification
+  // directly, that would re-arm it every time, which re-runs
+  // runVerification, which re-renders AuthProvider, forever — an infinite
+  // loop hammering the backend. A ref breaks that: the effect only depends
+  // on `step`, and always calls whatever the latest runVerification is.
+  const runVerificationRef = useRef(runVerification);
+  useEffect(() => {
+    runVerificationRef.current = runVerification;
+  }, [runVerification]);
+
+  // Step 3: kick off the real check as soon as this step is shown. The
+  // checklist below renders straight off verifyingStatus/verificationOutcome,
+  // so it reflects actual progress instead of a canned delay.
   useEffect(() => {
     if (step !== 3) return;
+    setVerificationOutcome("pending");
+    setVerifyingStatus(0);
+    void runVerificationRef.current();
+  }, [step]);
 
-    const timer1 = setTimeout(() => setVerifyingStatus(1), 1200);
-    const timer2 = setTimeout(() => setVerifyingStatus(2), 2400);
-    const timer3 = setTimeout(() => setVerifyingStatus(3), 3600);
+  const handleRetryVerification = () => {
+    setVerificationOutcome("pending");
+    void runVerification();
+  };
 
-    const finalize = async () => {
-      try {
-        let unverified = false;
-        try {
-          const result = await verifyLocation({
-            lat: coords?.lat || 0,
-            lng: coords?.lng || 0,
-          });
-          if (result.verificationStatus === "unverified") {
-            unverified = true;
-            setCoverageNotice(
-              "You're outside our current coverage area right now — you can still continue, but you won't see a neighbourhood feed yet.",
-            );
-          }
-        } catch (verifyErr) {
-          console.error("Location verification failed", verifyErr);
-        }
+  const handleEditAddress = () => {
+    setVerificationOutcome("pending");
+    setStep(1);
+  };
 
-        await completeOnboarding({
-          displayName: name,
-          location: {
-            address,
-            lat: coords?.lat || 0,
-            lng: coords?.lng || 0,
-          },
-        });
-        // Wait another moment for the success state, then route
-        setTimeout(
-          () => {
-            router.push("/dashboard");
-          },
-          unverified ? 2600 : 1200,
-        );
-      } catch (err) {
-        console.error("Onboarding backend completion failed", err);
-        setOnboardingError(
-          "Verification could not be saved to backend. Please retry.",
-        );
-        setStep(1);
-      }
-    };
-
-    const timer4 = setTimeout(finalize, 4800);
-
-    return () => {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
-      clearTimeout(timer3);
-      clearTimeout(timer4);
-    };
-  }, [step, name, address, coords, completeOnboarding, verifyLocation, router]);
+  const handleContinueToDashboard = () => {
+    router.push("/dashboard");
+  };
 
   if (loading) {
     return (
@@ -287,6 +407,28 @@ export default function OnboardingPage() {
     { title: "Verification", desc: "Neighbourhood Check" },
   ];
 
+  // Checklist item state, derived from the real verifyingStatus milestones
+  // set inside runVerification — not a timer, so these track the actual
+  // calls in flight rather than finishing before the work is done. Each item
+  // gets its own active/done window (1→2, 2→3, 3→4) instead of sharing one,
+  // so they visibly complete one after another rather than all at once.
+  const coordsCheckActive = verifyingStatus === 1;
+  const coordsCheckDone = verifyingStatus >= 2;
+
+  const locationCheckActive = verifyingStatus === 2;
+  const locationCheckDone = verifyingStatus >= 3 && verificationOutcome !== "error";
+  const locationCheckFailed = verifyingStatus >= 3 && verificationOutcome === "error";
+
+  const profileSaveActive = verifyingStatus === 3;
+  const profileSaveDone = verifyingStatus >= 4;
+
+  function checklistItemClasses(active: boolean, done: boolean, failed: boolean) {
+    if (failed) return "bg-destructive text-white";
+    if (done) return "bg-primary text-white";
+    if (active) return "bg-primary/20 text-primary animate-pulse";
+    return "bg-slate-200 text-slate-500";
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-foreground font-sans">
       {/* Top Header */}
@@ -306,13 +448,18 @@ export default function OnboardingPage() {
           <div className="flex items-center justify-between mb-12 relative w-full px-4">
             {/* Background Line */}
             <div className="absolute top-4 left-10 right-10 h-0.5 bg-slate-100 -z-0"></div>
-            {/* Active Progress Line */}
-            <div
-              className="absolute top-4 left-10 h-0.5 bg-primary transition-all duration-300 -z-0"
-              style={{
-                width: `${step === 1 ? "0%" : step === 2 ? "50%" : "100%"}`,
-              }}
-            ></div>
+            {/* Active Progress Line — nested inside a left-10/right-10 track that
+                matches the background line's bounds, so "100%" width lands exactly
+                on the last node instead of the full-width row it used to size
+                against (which overshot past step 3, worst on narrow screens). */}
+            <div className="absolute top-4 left-10 right-10 h-0.5 -z-0 overflow-hidden">
+              <div
+                className="h-full bg-primary transition-all duration-300"
+                style={{
+                  width: `${step === 1 ? "0%" : step === 2 ? "50%" : "100%"}`,
+                }}
+              ></div>
+            </div>
 
             {stepsList.map((item, idx) => {
               const currentStep = idx + 1;
@@ -449,8 +596,12 @@ export default function OnboardingPage() {
                 <div className="relative h-48 w-full bg-slate-100 rounded-xl overflow-hidden border border-slate-200">
                   {coords && <LocationMap lat={coords.lat} lng={coords.lng} />}
 
-                  {/* Coordinate Metadata Tag */}
-                  <div className="absolute z-[1000] bottom-3 left-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-lg border border-slate-200 text-[10px] font-bold text-slate-600 shadow-sm flex items-center gap-1.5 pointer-events-none">
+                  {/* Coordinate Metadata Tag — top-left, not bottom: MapLibre's
+                      required attribution control lives bottom-left, and on a
+                      narrow phone width there isn't room for both a badge and
+                      the attribution text on the same row without them
+                      colliding (the zoom control already owns top-right). */}
+                  <div className="absolute z-[1000] top-3 left-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-lg border border-slate-200 text-[10px] font-bold text-slate-600 shadow-sm flex items-center gap-1.5 pointer-events-none">
                     <Navigation className="size-3 text-primary" />
                     GPS Connected
                   </div>
@@ -464,15 +615,18 @@ export default function OnboardingPage() {
                   </div>
                 </div>
 
-                <div className="flex gap-4">
+                {/* Stacked full-width on mobile so "Verify Details" + icon never
+                    wraps to two lines in a half-width button; side-by-side from
+                    sm: up, matching the pattern used on the 404 page. */}
+                <div className="flex flex-col sm:flex-row gap-4">
                   <Button
                     variant="outline"
-                    className="flex-1"
+                    className="w-full sm:flex-1"
                     onClick={() => setStep(1)}
                   >
                     Back
                   </Button>
-                  <Button className="flex-1" onClick={handleNextStep}>
+                  <Button className="w-full sm:flex-1" onClick={handleNextStep}>
                     Verify Details
                     <ArrowRight className="size-4" />
                   </Button>
@@ -485,35 +639,54 @@ export default function OnboardingPage() {
               <div className="flex flex-col items-center justify-center py-10 space-y-6">
                 <div className="relative size-16 flex items-center justify-center">
                   <div className="absolute inset-0 rounded-full border-4 border-slate-100"></div>
-                  <div className="absolute inset-0 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
-                  <ShieldCheck className="size-6 text-primary" />
+                  <div
+                    className={`absolute inset-0 rounded-full border-4 border-t-transparent ${
+                      verificationOutcome === "error"
+                        ? "border-destructive"
+                        : verificationOutcome === "unverified"
+                          ? "border-amber-400"
+                          : "border-primary"
+                    } ${verificationOutcome === "pending" ? "animate-spin" : ""}`}
+                  ></div>
+                  <ShieldCheck
+                    className={`size-6 ${
+                      verificationOutcome === "error"
+                        ? "text-destructive"
+                        : verificationOutcome === "unverified"
+                          ? "text-amber-500"
+                          : "text-primary"
+                    }`}
+                  />
                 </div>
 
                 <div className="text-center space-y-2 max-w-sm">
                   <h3 className="text-lg font-bold">
-                    Verifying Address Authenticity
+                    {verificationOutcome === "unverified"
+                      ? "You're outside our coverage area"
+                      : verificationOutcome === "error"
+                        ? "Couldn't verify your location"
+                        : "Verifying Address Authenticity"}
                   </h3>
                   <p className="text-sm text-muted-foreground">
-                    Please stand by while we verify your address fits local
-                    neighbourhood guidelines.
+                    {verificationOutcome === "unverified"
+                      ? "Your details are saved. You can still continue — you just won't see a neighbourhood feed yet."
+                      : verificationOutcome === "error"
+                        ? "Your details are already saved — this is just the location check. You can try again or continue anyway."
+                        : "Please stand by while we verify your address fits local neighbourhood guidelines."}
                   </p>
                 </div>
 
-                {/* Sub-steps of verification */}
+                {/* Sub-steps of verification — reflect real progress, not a timer */}
                 <div className="w-full max-w-xs space-y-3 bg-slate-50 p-5 rounded-xl border border-slate-100">
                   <div className="flex items-center gap-3 text-xs">
                     <div
-                      className={`size-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                        verifyingStatus >= 0
-                          ? "bg-primary text-white"
-                          : "bg-slate-200 text-slate-500"
-                      }`}
+                      className={`size-4 rounded-full flex items-center justify-center text-[10px] font-bold ${checklistItemClasses(coordsCheckActive, coordsCheckDone, false)}`}
                     >
-                      {verifyingStatus > 0 ? "✓" : "1"}
+                      {coordsCheckDone ? "✓" : "1"}
                     </div>
                     <span
                       className={
-                        verifyingStatus >= 0
+                        coordsCheckActive || coordsCheckDone
                           ? "font-bold text-slate-800"
                           : "text-slate-400"
                       }
@@ -524,17 +697,13 @@ export default function OnboardingPage() {
 
                   <div className="flex items-center gap-3 text-xs">
                     <div
-                      className={`size-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                        verifyingStatus >= 1
-                          ? "bg-primary text-white"
-                          : "bg-slate-200 text-slate-500"
-                      }`}
+                      className={`size-4 rounded-full flex items-center justify-center text-[10px] font-bold ${checklistItemClasses(locationCheckActive, locationCheckDone, locationCheckFailed)}`}
                     >
-                      {verifyingStatus > 1 ? "✓" : "2"}
+                      {locationCheckFailed ? "!" : locationCheckDone ? "✓" : "2"}
                     </div>
                     <span
                       className={
-                        verifyingStatus >= 1
+                        locationCheckActive || locationCheckDone || locationCheckFailed
                           ? "font-bold text-slate-800"
                           : "text-slate-400"
                       }
@@ -545,17 +714,13 @@ export default function OnboardingPage() {
 
                   <div className="flex items-center gap-3 text-xs">
                     <div
-                      className={`size-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                        verifyingStatus >= 2
-                          ? "bg-primary text-white"
-                          : "bg-slate-200 text-slate-500"
-                      }`}
+                      className={`size-4 rounded-full flex items-center justify-center text-[10px] font-bold ${checklistItemClasses(profileSaveActive, profileSaveDone, false)}`}
                     >
-                      {verifyingStatus > 2 ? "✓" : "3"}
+                      {profileSaveDone ? "✓" : "3"}
                     </div>
                     <span
                       className={
-                        verifyingStatus >= 2
+                        profileSaveActive || profileSaveDone
                           ? "font-bold text-slate-800"
                           : "text-slate-400"
                       }
@@ -565,10 +730,53 @@ export default function OnboardingPage() {
                   </div>
                 </div>
 
-                {coverageNotice && (
-                  <div className="w-full max-w-xs p-3 bg-amber-50 text-amber-800 text-xs font-semibold rounded-xl flex items-center gap-2">
-                    <MapPin className="size-4 shrink-0" />
-                    <span>{coverageNotice}</span>
+                {verificationOutcome === "unverified" && (
+                  <div className="flex w-full max-w-xs gap-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={handleEditAddress}
+                    >
+                      Edit address
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="flex-1"
+                      onClick={handleContinueToDashboard}
+                    >
+                      Continue
+                    </Button>
+                  </div>
+                )}
+
+                {verificationOutcome === "error" && (
+                  <div className="w-full max-w-xs space-y-2">
+                    <div className="flex gap-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        onClick={handleEditAddress}
+                      >
+                        Edit address
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        onClick={handleRetryVerification}
+                      >
+                        Try again
+                      </Button>
+                    </div>
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      onClick={handleContinueToDashboard}
+                    >
+                      Continue anyway
+                    </Button>
                   </div>
                 )}
               </div>

@@ -26,6 +26,11 @@ export function LocationMap({ lat, lng }: LocationMapProps) {
       style: STYLE_URL,
       center: [lng, lat],
       zoom: 15,
+      // Compact attribution (a small "i" toggle) instead of the full open text
+      // bar — required credit stays, but on this short 192px-tall container it
+      // no longer spans the full width and collides with the "GPS Connected"
+      // badge, which was worst on narrow phone screens.
+      attributionControl: { compact: true },
     });
 
     map.addControl(new NavigationControl({ showCompass: false }));
