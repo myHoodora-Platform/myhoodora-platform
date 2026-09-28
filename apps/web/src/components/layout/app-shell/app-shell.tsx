@@ -9,6 +9,7 @@ import { useAuth } from "@/context/AuthContext";
 import { OnboardingGatingModal } from "@/components/shared/OnboardingGatingModal";
 import { OfflineBanner } from "@/components/shared/connection-states";
 import { ComposerProvider } from "@/features/feed/composer-context";
+import { hasSkippedOnboarding } from "@/features/onboarding/draft";
 import { ROUTES } from "@/lib/routes";
 import { AppHeader } from "./app-header";
 import { AppSkeleton } from "./app-skeleton";
@@ -22,7 +23,7 @@ const LOADING_TIMEOUT_MS = 8000;
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, loading, refreshProfile } = useAuth();
+  const { user, profile, loading, refreshProfile } = useAuth();
   const [loadingTooLong, setLoadingTooLong] = useState(false);
   // Full-height screens (chat) size themselves with --banners-h, since the
   // urgent/verification banners come and go. A ref callback (not an effect)
@@ -45,6 +46,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [user, loading, router, pathname]);
 
+  // Nextdoor-style: finish onboarding before the app, unless they chose
+  // "Skip for now" (limited access; the feed and gates nudge them back).
+  const needsOnboarding = !!user && !!profile && !profile.isOnboarded && !hasSkippedOnboarding(user.uid);
+  useEffect(() => {
+    if (!loading && needsOnboarding) router.replace(ROUTES.onboarding);
+  }, [loading, needsOnboarding, router]);
+
   useEffect(() => {
     if (!loading) {
       setLoadingTooLong(false);
@@ -54,8 +62,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => clearTimeout(timer);
   }, [loading]);
 
-  if (loading || !user) {
-    if (loadingTooLong) {
+  if (loading || !user || needsOnboarding) {
+    if (loadingTooLong && !needsOnboarding) {
       return (
         <div className="flex min-h-screen w-full items-center justify-center bg-canvas p-6">
           <div className="w-full max-w-sm space-y-3 rounded-2xl border border-border bg-card p-6 text-center">

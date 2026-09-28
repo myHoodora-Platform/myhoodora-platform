@@ -2,22 +2,19 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/context/AuthContext";
-import { Button } from "@myhoodora/ui/button";
-import { Input } from "@myhoodora/ui/input";
-import { MascotWordmark } from "@myhoodora/ui/logo";
-import {
-  MapPin,
-  Navigation,
-  ArrowRight,
-  ShieldCheck,
-  Check,
-} from "lucide-react";
 import { Skeleton } from "@myhoodora/ui/skeleton";
-import { LocationMap } from "@/components/onboarding/location-map";
+import { useAuth } from "@/context/AuthContext";
+import { useNeighbourhood } from "@/hooks/use-neighbourhood";
 import { DEFAULT_APP_ROUTE } from "@/lib/routes";
-
-const ONBOARDING_DRAFT_KEY = "myhoodora:onboarding-draft";
+import {
+  clearOnboardingDraft,
+  clearOnboardingSkipped,
+  markOnboardingSkipped,
+  readOnboardingDraft,
+  saveOnboardingDraft,
+} from "@/features/onboarding/draft";
+import { OnboardingShell } from "@/features/onboarding/onboarding-shell";
+import { ConfirmStep, DetailsStep, VerifyStep } from "@/features/onboarding/steps";
 
 // How long to hold checklist step 1 ("Checking address coordinates") visible
 // before moving to step 2. That check is really just "do we have coordinates
@@ -27,45 +24,11 @@ const ONBOARDING_DRAFT_KEY = "myhoodora:onboarding-draft";
 // exactly as long as its real network call takes.
 const LOCAL_CHECK_MIN_MS = 300;
 
-interface OnboardingDraft {
-  name: string;
-  address: string;
-  coords: { lat: number; lng: number } | null;
-}
-
-// Skipping onboarding shouldn't mean retyping everything later — these just
-// keep the step-1 fields around locally (no backend write, no isOnboarded
-// change) so the form is pre-filled next time someone lands back here, e.g.
-// via the "finish onboarding" prompt on a gated action.
-function readOnboardingDraft(): OnboardingDraft | null {
-  try {
-    const raw = localStorage.getItem(ONBOARDING_DRAFT_KEY);
-    return raw ? (JSON.parse(raw) as OnboardingDraft) : null;
-  } catch {
-    return null;
-  }
-}
-
-function saveOnboardingDraft(draft: OnboardingDraft) {
-  try {
-    localStorage.setItem(ONBOARDING_DRAFT_KEY, JSON.stringify(draft));
-  } catch {
-    // Private browsing / full storage — losing the draft isn't fatal.
-  }
-}
-
-function clearOnboardingDraft() {
-  try {
-    localStorage.removeItem(ONBOARDING_DRAFT_KEY);
-  } catch {
-    // Nothing to do if storage is unavailable.
-  }
-}
-
 export default function OnboardingPage() {
   const router = useRouter();
   const { user, profile, completeOnboarding, verifyLocation, loading } =
     useAuth();
+  const neighbourhood = useNeighbourhood();
   const [step, setStep] = useState(1);
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
@@ -210,7 +173,7 @@ export default function OnboardingPage() {
       }
       if (!address.trim()) {
         setOnboardingError(
-          "Please enter your address or detect your location.",
+          "Add your home address, or use your current location.",
         );
         return;
       }
@@ -228,7 +191,7 @@ export default function OnboardingPage() {
         } catch (err) {
           console.error("Geocoding failed", err);
           setOnboardingError(
-            "We couldn't locate that address. Please check it, or use \"Use current location\" instead.",
+            "We couldn't find that address. Add your area and city (e.g. “Admiralty Way, Lekki Phase 1, Lagos”), or use your current location.",
           );
           setGeocoding(false);
           return;
@@ -250,6 +213,9 @@ export default function OnboardingPage() {
     if (name.trim() || address.trim()) {
       saveOnboardingDraft({ name, address, coords });
     }
+    // Limited access until they verify: the app stops redirecting here, the
+    // feed shows a "finish joining" card and neighbour-only areas stay locked.
+    if (user) markOnboardingSkipped(user.uid);
     router.push(DEFAULT_APP_ROUTE);
   };
 
@@ -295,7 +261,7 @@ export default function OnboardingPage() {
     } catch (err) {
       console.error("Onboarding backend completion failed", err);
       setOnboardingError(
-        "Verification could not be saved to backend. Please retry.",
+        "We couldn't save your details. Check your connection and try again.",
       );
       setStep(1);
       return;
@@ -303,12 +269,13 @@ export default function OnboardingPage() {
     setVerifyingStatus(4); // step 3 settled
 
     clearOnboardingDraft();
+    clearOnboardingSkipped();
     setVerificationOutcome(outcome);
     if (outcome === "success") {
-      // Hold the fully-checked state for a beat so it's not gone-in-a-flash, then route
+      // Hold the "Welcome to <neighbourhood>" screen long enough to read, then route.
       setTimeout(() => {
         router.push(DEFAULT_APP_ROUTE);
-      }, 900);
+      }, 3000);
     }
     // "unverified" and "error" stop here and wait for the user to choose
     // what to do next — see the buttons rendered for each state below.
@@ -353,438 +320,50 @@ export default function OnboardingPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col bg-slate-50 text-foreground font-sans">
-        {/* Top Header Skeleton */}
-        <header className="w-full px-6 py-4 flex items-center justify-between border-b border-slate-100 bg-white">
-          <Skeleton className="h-8 w-28" />
-          <Skeleton className="h-6 w-12" />
-        </header>
-
-        {/* Main Content Skeleton */}
-        <main className="flex-1 flex items-center justify-center p-6">
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-lg overflow-hidden max-w-4xl w-full grid md:grid-cols-[280px_1fr] min-h-[500px]">
-            {/* Left Panel Step Progress Skeleton */}
-            <div className="bg-slate-50/50 p-8 border-r border-slate-100 space-y-8 hidden md:block">
-              {[1, 2, 3].map((s) => (
-                <div key={s} className="flex gap-4 items-start animate-pulse">
-                  <Skeleton className="size-8 rounded-full shrink-0" />
-                  <div className="space-y-2 flex-1">
-                    <Skeleton className="h-4 w-20" />
-                    <Skeleton className="h-3 w-28" />
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Right Panel Content Skeleton */}
-            <div className="p-8 md:p-12 flex flex-col justify-between">
-              <div className="space-y-6">
-                <div className="space-y-2">
-                  <Skeleton className="h-8 w-48" />
-                  <Skeleton className="h-4 w-72" />
-                </div>
-                <div className="space-y-4 pt-4">
-                  <div className="space-y-2">
-                    <Skeleton className="h-4 w-24" />
-                    <Skeleton className="h-10 w-full" />
-                  </div>
-                  <div className="space-y-2">
-                    <Skeleton className="h-4 w-24" />
-                    <Skeleton className="h-10 w-full" />
-                  </div>
-                </div>
-              </div>
-              <Skeleton className="h-10 w-full mt-8" />
-            </div>
-          </div>
-        </main>
-      </div>
+      <OnboardingShell step={1}>
+        <div className="space-y-4" aria-busy aria-label="Loading">
+          <Skeleton className="h-9 w-3/4" />
+          <Skeleton className="h-5 w-full" />
+          <Skeleton className="h-72 w-full rounded-2xl" />
+          <Skeleton className="h-12 w-full rounded-xl" />
+        </div>
+      </OnboardingShell>
     );
   }
 
-  const stepsList = [
-    { title: "Your details", desc: "Name & Address" },
-    { title: "Confirm location", desc: "Interactive Map" },
-    { title: "Verification", desc: "Neighbourhood Check" },
-  ];
-
-  // Checklist item state, derived from the real verifyingStatus milestones
-  // set inside runVerification — not a timer, so these track the actual
-  // calls in flight rather than finishing before the work is done. Each item
-  // gets its own active/done window (1→2, 2→3, 3→4) instead of sharing one,
-  // so they visibly complete one after another rather than all at once.
-  const coordsCheckActive = verifyingStatus === 1;
-  const coordsCheckDone = verifyingStatus >= 2;
-
-  const locationCheckActive = verifyingStatus === 2;
-  const locationCheckDone = verifyingStatus >= 3 && verificationOutcome !== "error";
-  const locationCheckFailed = verifyingStatus >= 3 && verificationOutcome === "error";
-
-  const profileSaveActive = verifyingStatus === 3;
-  const profileSaveDone = verifyingStatus >= 4;
-
-  function checklistItemClasses(active: boolean, done: boolean, failed: boolean) {
-    if (failed) return "bg-destructive text-white";
-    if (done) return "bg-primary text-white";
-    if (active) return "bg-primary/20 text-primary animate-pulse";
-    return "bg-slate-200 text-slate-500";
-  }
-
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 text-foreground font-sans">
-      {/* Top Header */}
-      <header className="w-full px-6 py-4 flex items-center justify-between border-b border-slate-100 bg-white">
-        <MascotWordmark size="md" />
-        <button
-          onClick={handleSkip}
-          className="text-xs font-semibold text-muted-foreground uppercase tracking-widest hover:text-primary transition-colors"
-        >
-          Skip onboarding
-        </button>
-      </header>
-
-      <main className="flex-1 flex flex-col items-center justify-center p-6 md:p-12">
-        <div className="max-w-2xl w-full bg-white rounded-2xl shadow-sm border border-slate-100 p-8 md:p-12">
-          {/* Stepper Progress Bar */}
-          <div className="flex items-center justify-between mb-12 relative w-full px-4">
-            {/* Background Line */}
-            <div className="absolute top-4 left-10 right-10 h-0.5 bg-slate-100 -z-0"></div>
-            {/* Active Progress Line — nested inside a left-10/right-10 track that
-                matches the background line's bounds, so "100%" width lands exactly
-                on the last node instead of the full-width row it used to size
-                against (which overshot past step 3, worst on narrow screens). */}
-            <div className="absolute top-4 left-10 right-10 h-0.5 -z-0 overflow-hidden">
-              <div
-                className="h-full bg-primary transition-all duration-300"
-                style={{
-                  width: `${step === 1 ? "0%" : step === 2 ? "50%" : "100%"}`,
-                }}
-              ></div>
-            </div>
-
-            {stepsList.map((item, idx) => {
-              const currentStep = idx + 1;
-              const isCompleted = step > currentStep;
-              const isActive = step === currentStep;
-
-              return (
-                <div
-                  key={idx}
-                  className="flex flex-col items-center relative z-10 text-center flex-1"
-                >
-                  {/* Step Node Icon/Bubble */}
-                  <div
-                    className={`size-9 rounded-full flex items-center justify-center border-2 transition-all duration-300 ${
-                      isCompleted
-                        ? "bg-primary border-primary text-white"
-                        : isActive
-                          ? "bg-white border-primary text-primary shadow-lg shadow-primary/10 ring-4 ring-primary/10"
-                          : "bg-white border-slate-200 text-slate-400"
-                    }`}
-                  >
-                    {isCompleted ? (
-                      <Check className="size-4" />
-                    ) : (
-                      <span className="text-xs font-bold">{currentStep}</span>
-                    )}
-                  </div>
-                  {/* Step Info */}
-                  <span
-                    className={`text-xs font-bold mt-3 block ${
-                      isActive ? "text-foreground" : "text-muted-foreground"
-                    }`}
-                  >
-                    {item.title}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground/60 hidden sm:block">
-                    {item.desc}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Stepper Body Forms */}
-          <div className="min-h-[250px]">
-            {onboardingError && (
-              <div className="mb-6 p-4 bg-destructive/10 text-destructive text-sm font-semibold rounded-xl flex items-center gap-2">
-                <MapPin className="size-5 shrink-0 stroke-destructive" />
-                <span>{onboardingError}</span>
-              </div>
-            )}
-
-            {/* STEP 1: Name and Location Form */}
-            {step === 1 && (
-              <div className="space-y-6">
-                <div>
-                  <h2 className="text-2xl font-bold mb-2 tracking-tight">
-                    Tell us about yourself
-                  </h2>
-                  <p className="text-sm text-muted-foreground">
-                    Enter your name and address to find your local neighbourhood
-                    community.
-                  </p>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-1">
-                      Your Full Name
-                    </label>
-                    <Input
-                      type="text"
-                      placeholder="Jane Doe"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                    />
-                  </div>
-
-                  <div>
-                    <div className="flex justify-between items-center mb-2 px-1">
-                      <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                        Neighbourhood Address
-                      </label>
-                      <button
-                        type="button"
-                        onClick={handleDetectLocation}
-                        disabled={detecting}
-                        className="text-xs font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                      >
-                        <Navigation
-                          className={`size-3 ${detecting ? "animate-pulse" : ""}`}
-                        />
-                        {detecting ? "Detecting..." : "Use current location"}
-                      </button>
-                    </div>
-                    <Input
-                      type="text"
-                      placeholder="123 Neighbourhood St, City"
-                      value={address}
-                      onChange={(e) => {
-                        setAddress(e.target.value);
-                        // Manual edits invalidate any previously detected coordinates.
-                        setCoords(null);
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <Button
-                  className="w-full mt-4"
-                  onClick={handleNextStep}
-                  disabled={geocoding}
-                >
-                  {geocoding ? "Locating address..." : "Continue"}
-                  <ArrowRight className="size-4" />
-                </Button>
-              </div>
-            )}
-
-            {/* STEP 2: Mock map preview */}
-            {step === 2 && (
-              <div className="space-y-6">
-                <div>
-                  <h2 className="text-2xl font-bold mb-2 tracking-tight">
-                    Confirm your neighbourhood
-                  </h2>
-                  <p className="text-sm text-muted-foreground">
-                    We detected you belong in the local community map section
-                    below.
-                  </p>
-                </div>
-
-                {/* Real map, centered on the detected/geocoded coordinates */}
-                <div className="relative h-48 w-full bg-slate-100 rounded-xl overflow-hidden border border-slate-200">
-                  {coords && <LocationMap lat={coords.lat} lng={coords.lng} />}
-
-                  {/* Coordinate Metadata Tag — top-left, not bottom: MapLibre's
-                      required attribution control lives bottom-left, and on a
-                      narrow phone width there isn't room for both a badge and
-                      the attribution text on the same row without them
-                      colliding (the zoom control already owns top-right). */}
-                  <div className="absolute z-[1000] top-3 left-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-lg border border-slate-200 text-[10px] font-bold text-slate-600 shadow-sm flex items-center gap-1.5 pointer-events-none">
-                    <Navigation className="size-3 text-primary" />
-                    GPS Connected
-                  </div>
-                </div>
-
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex items-start gap-3">
-                  <MapPin className="size-5 text-primary shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="text-sm font-bold">Detected Address</h4>
-                    <p className="text-xs text-muted-foreground">{address}</p>
-                  </div>
-                </div>
-
-                {/* Stacked full-width on mobile so "Verify Details" + icon never
-                    wraps to two lines in a half-width button; side-by-side from
-                    sm: up, matching the pattern used on the 404 page. */}
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <Button
-                    variant="outline"
-                    className="w-full sm:flex-1"
-                    onClick={() => setStep(1)}
-                  >
-                    Back
-                  </Button>
-                  <Button className="w-full sm:flex-1" onClick={handleNextStep}>
-                    Verify Details
-                    <ArrowRight className="size-4" />
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* STEP 3: Verification Mocking Loader */}
-            {step === 3 && (
-              <div className="flex flex-col items-center justify-center py-10 space-y-6">
-                <div className="relative size-16 flex items-center justify-center">
-                  <div className="absolute inset-0 rounded-full border-4 border-slate-100"></div>
-                  <div
-                    className={`absolute inset-0 rounded-full border-4 border-t-transparent ${
-                      verificationOutcome === "error"
-                        ? "border-destructive"
-                        : verificationOutcome === "unverified"
-                          ? "border-amber-400"
-                          : "border-primary"
-                    } ${verificationOutcome === "pending" ? "animate-spin" : ""}`}
-                  ></div>
-                  <ShieldCheck
-                    className={`size-6 ${
-                      verificationOutcome === "error"
-                        ? "text-destructive"
-                        : verificationOutcome === "unverified"
-                          ? "text-amber-500"
-                          : "text-primary"
-                    }`}
-                  />
-                </div>
-
-                <div className="text-center space-y-2 max-w-sm">
-                  <h3 className="text-lg font-bold">
-                    {verificationOutcome === "unverified"
-                      ? "You're outside our coverage area"
-                      : verificationOutcome === "error"
-                        ? "Couldn't verify your location"
-                        : "Verifying Address Authenticity"}
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    {verificationOutcome === "unverified"
-                      ? "Your details are saved. You can still continue — you just won't see a neighbourhood feed yet."
-                      : verificationOutcome === "error"
-                        ? "Your details are already saved — this is just the location check. You can try again or continue anyway."
-                        : "Please stand by while we verify your address fits local neighbourhood guidelines."}
-                  </p>
-                </div>
-
-                {/* Sub-steps of verification — reflect real progress, not a timer */}
-                <div className="w-full max-w-xs space-y-3 bg-slate-50 p-5 rounded-xl border border-slate-100">
-                  <div className="flex items-center gap-3 text-xs">
-                    <div
-                      className={`size-4 rounded-full flex items-center justify-center text-[10px] font-bold ${checklistItemClasses(coordsCheckActive, coordsCheckDone, false)}`}
-                    >
-                      {coordsCheckDone ? "✓" : "1"}
-                    </div>
-                    <span
-                      className={
-                        coordsCheckActive || coordsCheckDone
-                          ? "font-bold text-slate-800"
-                          : "text-slate-400"
-                      }
-                    >
-                      Checking address coordinates...
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-3 text-xs">
-                    <div
-                      className={`size-4 rounded-full flex items-center justify-center text-[10px] font-bold ${checklistItemClasses(locationCheckActive, locationCheckDone, locationCheckFailed)}`}
-                    >
-                      {locationCheckFailed ? "!" : locationCheckDone ? "✓" : "2"}
-                    </div>
-                    <span
-                      className={
-                        locationCheckActive || locationCheckDone || locationCheckFailed
-                          ? "font-bold text-slate-800"
-                          : "text-slate-400"
-                      }
-                    >
-                      Checking active sector boundary...
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-3 text-xs">
-                    <div
-                      className={`size-4 rounded-full flex items-center justify-center text-[10px] font-bold ${checklistItemClasses(profileSaveActive, profileSaveDone, false)}`}
-                    >
-                      {profileSaveDone ? "✓" : "3"}
-                    </div>
-                    <span
-                      className={
-                        profileSaveActive || profileSaveDone
-                          ? "font-bold text-slate-800"
-                          : "text-slate-400"
-                      }
-                    >
-                      Setting up neighbourhood feed access...
-                    </span>
-                  </div>
-                </div>
-
-                {verificationOutcome === "unverified" && (
-                  <div className="flex w-full max-w-xs gap-3">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1"
-                      onClick={handleEditAddress}
-                    >
-                      Edit address
-                    </Button>
-                    <Button
-                      size="sm"
-                      className="flex-1"
-                      onClick={handleContinueToDashboard}
-                    >
-                      Continue
-                    </Button>
-                  </div>
-                )}
-
-                {verificationOutcome === "error" && (
-                  <div className="w-full max-w-xs space-y-2">
-                    <div className="flex gap-3">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                        onClick={handleEditAddress}
-                      >
-                        Edit address
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                        onClick={handleRetryVerification}
-                      >
-                        Try again
-                      </Button>
-                    </div>
-                    <Button
-                      size="sm"
-                      className="w-full"
-                      onClick={handleContinueToDashboard}
-                    >
-                      Continue anyway
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      </main>
-    </div>
+    <OnboardingShell step={step} onSkip={step < 3 ? handleSkip : undefined}>
+      {step === 1 && (
+        <DetailsStep
+          name={name}
+          address={address}
+          hasCoords={!!coords}
+          detecting={detecting}
+          geocoding={geocoding}
+          error={onboardingError}
+          onName={setName}
+          onAddress={(value) => {
+            setAddress(value);
+            // Manual edits invalidate any previously detected coordinates.
+            setCoords(null);
+          }}
+          onDetect={handleDetectLocation}
+          onNext={() => void handleNextStep()}
+        />
+      )}
+      {step === 2 && (
+        <ConfirmStep address={address} coords={coords} onBack={() => setStep(1)} onNext={() => void handleNextStep()} />
+      )}
+      {step === 3 && (
+        <VerifyStep
+          status={verifyingStatus}
+          outcome={verificationOutcome}
+          neighbourhoodName={neighbourhood?.name ?? null}
+          onRetry={handleRetryVerification}
+          onEditAddress={handleEditAddress}
+          onContinue={handleContinueToDashboard}
+        />
+      )}
+    </OnboardingShell>
   );
 }

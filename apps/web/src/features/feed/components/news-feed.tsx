@@ -7,7 +7,9 @@ import { Button } from "@myhoodora/ui/button";
 import { EmptyState } from "@/components/shared/states";
 import { InlineRetry, ProblemState, StaleNotice } from "@/components/shared/connection-states";
 import { FilterChips } from "@/components/shared/filter-chips";
+import { useAuth } from "@/context/AuthContext";
 import { ActiveAlertsCard } from "@/features/alerts/active-alerts-card";
+import { FinishJoiningCard } from "@/features/onboarding/finish-joining-card";
 import { isActiveAlert } from "@/features/alerts/lifecycle";
 import { useBlocked } from "@/hooks/use-blocked";
 import { ROUTES } from "@/lib/routes";
@@ -65,6 +67,10 @@ export function NewsFeed() {
   }, [loading, error, loadingMore, loadMoreError, hasMore, visible.length, loadMore]);
 
   const empty = EMPTY_COPY[filter];
+  const { profile } = useAuth();
+
+  // Skipped onboarding: no neighbourhood yet, so nothing to show.
+  if (profile && !profile.neighborhoodId) return <FinishJoiningCard />;
 
   return (
     <div className="space-y-4">
