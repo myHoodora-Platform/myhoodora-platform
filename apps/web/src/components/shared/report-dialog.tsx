@@ -62,7 +62,7 @@ export function ReportDialog({ open, onOpenChange, target }: ReportDialogProps) 
     <Dialog open={open} onOpenChange={(o) => (o ? onOpenChange(o) : close())}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Report this {target.targetType}</DialogTitle>
+          <DialogTitle>Report this {target.targetType === "user" ? "neighbour" : target.targetType}</DialogTitle>
           <DialogDescription>
             Reports are private. The person won&apos;t know who reported them.
           </DialogDescription>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { MessageCircle, Search } from "lucide-react";
-import { MascotMark, MascotWordmark } from "@myhoodora/ui/logo";
+import { MascotWordmark } from "@myhoodora/ui/logo";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@myhoodora/ui/tooltip";
 import { NotificationBell } from "@/features/notifications/notification-bell";
 import { useUnreadMessages } from "@/features/chat/use-unread-messages";
@@ -17,12 +17,7 @@ export function AppHeader() {
     <header className="sticky top-0 z-40 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/85">
       <div className="mx-auto flex h-16 max-w-[1280px] items-center gap-3 px-4 lg:h-[72px] lg:px-6">
         <Link href={ROUTES.newsFeed} aria-label="myHoodora home" className="flex shrink-0 items-center lg:w-[232px]">
-          <span className="sm:hidden">
-            <MascotMark size="sm" />
-          </span>
-          <span className="hidden sm:inline">
-            <MascotWordmark size="sm" />
-          </span>
+          <MascotWordmark size="sm" />
         </Link>
 
         {/* Search — planned (GET /search). Shown so the layout is final; disabled until the endpoint exists. */}

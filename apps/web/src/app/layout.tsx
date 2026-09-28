@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Outfit, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
-import { Toaster } from "sonner";
+import { AppToaster } from "@/components/shared/app-toaster";
 
 const outfit = Outfit({
   variable: "--font-outfit",
@@ -74,7 +74,7 @@ export default function RootLayout({
       >
         <AuthProvider>
           {children}
-          <Toaster position="top-right" richColors />
+          <AppToaster />
         </AuthProvider>
       </body>
     </html>

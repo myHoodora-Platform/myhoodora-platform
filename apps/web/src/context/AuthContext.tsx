@@ -17,6 +17,7 @@ import {
   revokeBackendSession,
   logoutUser,
 } from "@/lib/firebase/auth";
+import { clearFeedCaches } from "@/features/feed/feed-cache";
 
 interface UserProfile {
   isOnboarded: boolean;
@@ -178,6 +179,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     await logoutUser();
+    // Don't leave this neighbourhood's cached posts on a shared device.
+    clearFeedCaches();
     // Explicitly await the cookie clear rather than relying on the
     // onIdTokenChanged listener's side effect above, which races with any
     // navigation the caller does right after this resolves.

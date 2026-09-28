@@ -48,7 +48,14 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL(legacyTarget, request.url), 308);
   }
 
-  // Public pages never need the (network-backed) JWT check.
+  // Signed-in neighbours skip the marketing landing page and go to their feed.
+  if (pathname === "/") {
+    if (!(await hasValidSession(request))) return NextResponse.next();
+    return noStoreRedirect(new URL(DEFAULT_APP_ROUTE, request.url));
+  }
+
+  // Other public pages (about, privacy, guidelines…) stay readable when
+  // signed in and never need the (network-backed) JWT check.
   if (isPublicPath(pathname)) return NextResponse.next();
 
   const isValidSession = await hasValidSession(request);

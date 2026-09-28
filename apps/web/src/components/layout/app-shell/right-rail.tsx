@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import { BadgeCheck, CalendarDays, ChevronRight, ShieldAlert } from "lucide-react";
 import { cn } from "@myhoodora/ui/utils";
 import { useAuth } from "@/context/AuthContext";
+import { isActiveAlert } from "@/features/alerts/lifecycle";
 import { useFeed } from "@/features/feed/feed-context";
 import { useNeighbourhood } from "@/hooks/use-neighbourhood";
 import { dateBadge } from "@/lib/format";
@@ -15,9 +16,7 @@ function NeighbourhoodCard() {
   const hood = useNeighbourhood();
   const { posts } = useFeed();
   const verified = profile?.verificationStatus === "verified";
-  const recentAlerts = posts.filter(
-    (p) => p.meta.category === "alert" && Date.now() - new Date(p.createdAt).getTime() < 86_400_000,
-  ).length;
+  const activeAlerts = posts.filter((p) => isActiveAlert(p)).length;
 
   return (
     <section aria-label="Your neighbourhood" className="overflow-hidden rounded-2xl border border-border bg-card">
@@ -45,8 +44,8 @@ function NeighbourhoodCard() {
         className="flex items-center justify-between border-t border-border px-4 py-3 text-[15px] font-semibold hover:bg-muted"
       >
         <span className="flex items-center gap-2">
-          <ShieldAlert className={cn("size-4", recentAlerts ? "text-destructive" : "text-muted-foreground")} aria-hidden />
-          {recentAlerts ? `${recentAlerts} alert${recentAlerts > 1 ? "s" : ""} today` : "See all alerts"}
+          <ShieldAlert className={cn("size-4", activeAlerts ? "text-destructive" : "text-muted-foreground")} aria-hidden />
+          {activeAlerts ? `${activeAlerts} active alert${activeAlerts > 1 ? "s" : ""}` : "No active alerts"}
         </span>
         <ChevronRight className="size-4" aria-hidden />
       </Link>

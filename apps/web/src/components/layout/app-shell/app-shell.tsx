@@ -7,6 +7,7 @@ import { Button } from "@myhoodora/ui/button";
 import { TooltipProvider } from "@myhoodora/ui/tooltip";
 import { useAuth } from "@/context/AuthContext";
 import { OnboardingGatingModal } from "@/components/shared/OnboardingGatingModal";
+import { OfflineBanner } from "@/components/shared/connection-states";
 import { ComposerProvider } from "@/features/feed/composer-context";
 import { ROUTES } from "@/lib/routes";
 import { AppHeader } from "./app-header";
@@ -90,6 +91,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </a>
           <AppHeader />
           <div ref={bannersRef}>
+            <OfflineBanner />
             <UrgentAlertBanner />
             <VerificationBanner />
           </div>
