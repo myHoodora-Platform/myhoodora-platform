@@ -1,0 +1,86 @@
+/**
+ * Single source of truth for app URLs. Structure mirrors Nextdoor's flat,
+ * noun-based routes (/news_feed, /p/{id}, /for_sale_and_free, /g/{id}) —
+ * see docs/nextdoor-research.md.
+ */
+export const ROUTES = {
+  home: "/",
+  login: "/login",
+  register: "/register",
+  onboarding: "/onboarding",
+
+  newsFeed: "/news-feed",
+  post: (id: string) => `/p/${id}`,
+  forSale: "/for-sale",
+  listing: (id: string) => `/for-sale/${id}`,
+  alerts: "/alerts",
+  events: "/events",
+  groups: "/groups",
+  group: (id: string) => `/g/${id}`,
+  notifications: "/notifications",
+  inbox: "/inbox",
+  conversation: (id: string) => `/inbox/${id}`,
+  profile: (uid: string) => `/profile/${uid}`,
+  settings: "/settings",
+  settingsAccount: "/settings/account",
+  help: "/help",
+  guidelines: "/guidelines",
+
+  admin: "/admin",
+} as const;
+
+/** Where a signed-in user lands by default (after login, from the logo, etc.). */
+export const DEFAULT_APP_ROUTE = ROUTES.newsFeed;
+
+/**
+ * Pages anyone can open without signing in. Everything not listed here (and
+ * not a guest-only auth page) is protected by src/proxy.ts — default-deny, so
+ * a newly added app route can't accidentally ship publicly.
+ */
+export const PUBLIC_PATHS = [
+  "/",
+  "/about",
+  "/how-it-works",
+  "/guidelines",
+  "/privacy",
+  "/reset-password",
+] as const;
+export const PUBLIC_PREFIXES = ["/coming-soon"] as const;
+
+/** Auth pages a signed-in user is bounced away from. */
+export const GUEST_ONLY_PATHS = ["/login", "/register", "/forgot-password"] as const;
+
+export function isPublicPath(pathname: string): boolean {
+  return (
+    (PUBLIC_PATHS as readonly string[]).includes(pathname) ||
+    PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))
+  );
+}
+
+export function isGuestOnlyPath(pathname: string): boolean {
+  return (GUEST_ONLY_PATHS as readonly string[]).includes(pathname);
+}
+
+/**
+ * Old /dashboard URLs → new routes, so links people already shared keep
+ * working. `/dashboard?post=<id>` is handled separately (→ /p/<id>).
+ */
+export const LEGACY_REDIRECTS: Record<string, string> = {
+  "/dashboard": ROUTES.newsFeed,
+  "/dashboard/safety-watch": ROUTES.alerts,
+  "/dashboard/marketplace": ROUTES.forSale,
+  "/dashboard/events": ROUTES.events,
+  "/dashboard/settings": ROUTES.settings,
+  "/dashboard/settings/account": ROUTES.settingsAccount,
+};
+
+export function legacyRedirectFor(
+  pathname: string,
+  searchParams: URLSearchParams,
+): string | null {
+  if (pathname === "/dashboard") {
+    const postId = searchParams.get("post");
+    if (postId) return ROUTES.post(postId);
+  }
+  return LEGACY_REDIRECTS[pathname] ?? null;
+}
