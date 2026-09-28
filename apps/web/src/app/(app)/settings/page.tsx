@@ -23,6 +23,7 @@ import {
   LogOut,
 } from "lucide-react";
 import { fetchNeighborhood } from "@/lib/firebase/auth";
+import { ROUTES } from "@/lib/routes";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -41,18 +42,18 @@ export default function SettingsPage() {
   const handleLogout = async () => {
     try {
       await logout();
-      router.push("/login");
+      router.push(ROUTES.login);
     } catch (err) {
       console.error("Failed to log out:", err);
     }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-3xl space-y-6">
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
-            <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
+            <BreadcrumbLink href={ROUTES.newsFeed}>Home</BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
@@ -68,7 +69,7 @@ export default function SettingsPage() {
           icon={UserIcon}
           label="Account"
           description="Name and profile details"
-          href="/dashboard/settings/account"
+          href={ROUTES.settingsAccount}
         />
         <SettingsListRow
           icon={MapPin}

@@ -7,6 +7,7 @@ import { Button } from "@myhoodora/ui/button";
 import { Input } from "@myhoodora/ui/input";
 import { Avatar, AvatarFallback } from "@myhoodora/ui/avatar";
 import { showComingSoon } from "@/lib/coming-soon";
+import { ROUTES } from "@/lib/routes";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -40,15 +41,15 @@ export default function AccountSettingsPage() {
   };
 
   return (
-    <div className="max-w-xl space-y-6">
+    <div className="mx-auto max-w-xl space-y-6">
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
-            <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
+            <BreadcrumbLink href={ROUTES.newsFeed}>Home</BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
-            <BreadcrumbLink href="/dashboard/settings">Settings</BreadcrumbLink>
+            <BreadcrumbLink href={ROUTES.settings}>Settings</BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
