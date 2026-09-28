@@ -1,21 +1,22 @@
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
-import { HeroSection } from "@/components/home/HeroSection";
-import { FeaturesSection } from "@/components/home/FeaturesSection";
-import { CommunityFeedSection } from "@/components/home/CommunityFeedSection";
-import { CTASection } from "@/components/home/CTASection";
 import { RedirectIfSignedIn } from "@/components/shared/redirect-if-signed-in";
+import { BusinessTeaser, Faq, Features, FinalCta, Hero, PhoneShowcase, SafetyTeaser, Steps } from "@/components/marketing/landing";
 
 export default function Home() {
   return (
-    <div className="min-h-screen flex flex-col font-sans text-foreground bg-background">
+    <div className="flex min-h-screen flex-col bg-background font-sans text-foreground">
       <RedirectIfSignedIn />
       <Header />
       <main className="flex-1">
-        <HeroSection />
-        <FeaturesSection />
-        <CommunityFeedSection />
-        <CTASection />
+        <Hero />
+        <PhoneShowcase />
+        <Features />
+        <Steps />
+        <SafetyTeaser />
+        <BusinessTeaser />
+        <Faq />
+        <FinalCta />
       </main>
       <Footer />
     </div>

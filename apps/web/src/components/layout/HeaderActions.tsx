@@ -77,7 +77,7 @@ export function HeaderActions({
             className={cn("gap-2 font-semibold", isStack && "w-full")}
           >
             <LayoutDashboard className="size-4" />
-            <span>Dashboard</span>
+            <span>Open myHoodora</span>
           </Button>
         </Link>
       </div>

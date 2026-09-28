@@ -15,6 +15,7 @@ import {
   signInUser,
   signInWithGoogle,
   signInWithApple,
+  routeAfterSignIn,
 } from "@/lib/firebase/auth";
 import { getAuthErrorMessage } from "@/lib/firebase/errors";
 import { SocialAuthButtons } from "@/components/shared/social-auth-buttons";
@@ -39,8 +40,8 @@ export default function LoginPage() {
 
   const onSubmit = async (data: LoginInput) => {
     try {
-      await signInUser(data.email, data.password);
-      router.push(nextPath());
+      const user = await signInUser(data.email, data.password);
+      router.push(await routeAfterSignIn(user, nextPath()));
     } catch (err: unknown) {
       const { code, message, silent } = getAuthErrorMessage(err);
       if (process.env.NODE_ENV === "development" && code) {
@@ -55,8 +56,8 @@ export default function LoginPage() {
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
     try {
-      await signInWithGoogle();
-      router.push(nextPath());
+      const user = await signInWithGoogle();
+      router.push(await routeAfterSignIn(user, nextPath()));
     } catch (err: unknown) {
       const { code, message, silent } = getAuthErrorMessage(err);
       if (process.env.NODE_ENV === "development" && code) {
@@ -73,8 +74,8 @@ export default function LoginPage() {
   const handleAppleSignIn = async () => {
     setAppleLoading(true);
     try {
-      await signInWithApple();
-      router.push(nextPath());
+      const user = await signInWithApple();
+      router.push(await routeAfterSignIn(user, nextPath()));
     } catch (err: unknown) {
       const { code, message, silent } = getAuthErrorMessage(err);
       if (process.env.NODE_ENV === "development" && code) {

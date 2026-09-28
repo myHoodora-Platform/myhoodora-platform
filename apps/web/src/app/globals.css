@@ -128,3 +128,15 @@ h6,
     transform: translateY(0);
   }
 }
+
+/* Marketing phone mockup: the feed drifts slowly like someone browsing. */
+@keyframes phone-feed-scroll {
+  0%,
+  12% {
+    transform: translateY(0);
+  }
+  88%,
+  100% {
+    transform: translateY(-560px);
+  }
+}

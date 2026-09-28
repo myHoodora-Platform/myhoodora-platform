@@ -1,15 +1,52 @@
 import Link from "next/link";
 import { MascotLockup } from "@myhoodora/ui/logo";
-import { ComingSoonLink } from "@/components/shared/coming-soon-link";
+
+const COLUMNS: { title: string; links: { label: string; href: string; soon?: boolean }[] }[] = [
+  {
+    title: "myHoodora",
+    links: [
+      { label: "How it works", href: "/how-it-works" },
+      { label: "Safety & trust", href: "/safety" },
+      { label: "Marketplace", href: "/coming-soon/marketplace", soon: true },
+      { label: "Join free", href: "/register" },
+      { label: "Log in", href: "/login" },
+    ],
+  },
+  {
+    title: "Business",
+    links: [
+      { label: "For business", href: "/business" },
+      { label: "For estates", href: "/business#estates" },
+      { label: "Create a Business Page", href: "/business/get-started" },
+    ],
+  },
+  {
+    title: "Company",
+    links: [
+      { label: "About us", href: "/about" },
+      { label: "Careers", href: "/coming-soon/careers" },
+      { label: "Press", href: "/coming-soon/press" },
+      { label: "Contact", href: "mailto:hello@myhoodora.com" },
+    ],
+  },
+  {
+    title: "Legal",
+    links: [
+      { label: "Privacy policy", href: "/privacy" },
+      { label: "Terms of use", href: "/terms" },
+      { label: "Community guidelines", href: "/guidelines" },
+    ],
+  },
+];
 
 export function Footer() {
   return (
-    <footer className="bg-slate-950 text-slate-400 py-16 px-4 sm:px-6 lg:px-8 border-t border-slate-900">
-      <div className="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-12 text-sm">
-        <div className="col-span-2 space-y-6">
+    <footer className="border-t border-slate-900 bg-slate-950 px-4 py-16 text-slate-400 sm:px-6 lg:px-8">
+      <div className="mx-auto grid max-w-6xl grid-cols-2 gap-10 text-sm md:grid-cols-3 lg:grid-cols-6">
+        <div className="col-span-2 space-y-6 md:col-span-3 lg:col-span-2">
           <MascotLockup size="md" />
-          <p className="max-w-xs leading-relaxed text-slate-400">
-            Connecting neighbours across the globe to build better places to live, work, and thrive.
+          <p className="max-w-xs leading-relaxed">
+            Stronger hoods, where neighbours are connected, informed and always growing.
           </p>
           <div className="flex gap-3">
             <Link
@@ -58,126 +95,29 @@ export function Footer() {
             </Link>
           </div>
         </div>
-
-        <div className="space-y-4">
-          <h4 className="text-white font-semibold mb-4">Company</h4>
-          <ul className="space-y-3">
-            <li>
-              <Link
-                className="hover:text-primary transition-colors"
-                href="/about"
-              >
-                About Us
-              </Link>
-            </li>
-            <li>
-              <Link
-                className="hover:text-primary transition-colors"
-                href="/coming-soon/careers"
-              >
-                Careers
-              </Link>
-            </li>
-            <li>
-              <Link
-                className="hover:text-primary transition-colors"
-                href="/coming-soon/press"
-              >
-                Press
-              </Link>
-            </li>
-            <li>
-              <Link
-                className="hover:text-primary transition-colors"
-                href="/coming-soon/contact"
-              >
-                Contact
-              </Link>
-            </li>
-          </ul>
-        </div>
-
-        <div className="space-y-4">
-          <h4 className="text-white font-semibold mb-4">Platform</h4>
-          <ul className="space-y-3">
-            <li>
-              <Link
-                className="hover:text-primary transition-colors"
-                href="/coming-soon/verification"
-              >
-                Neighbour Verification
-              </Link>
-            </li>
-            <li>
-              <Link
-                className="hover:text-primary transition-colors"
-                href="/coming-soon/safety-center"
-              >
-                Safety Centre
-              </Link>
-            </li>
-            <li>
-              <Link
-                className="hover:text-primary transition-colors"
-                href="/coming-soon/business-pages"
-              >
-                Business Pages
-              </Link>
-            </li>
-            <li>
-              <Link
-                className="hover:text-primary transition-colors"
-                href="/coming-soon/api"
-              >
-                Developer API
-              </Link>
-            </li>
-          </ul>
-        </div>
-
-        <div className="space-y-4">
-          <h4 className="text-white font-semibold mb-4">Legal</h4>
-          <ul className="space-y-3">
-            <li>
-              <Link
-                className="hover:text-primary transition-colors"
-                href="/privacy"
-              >
-                Privacy Policy
-              </Link>
-            </li>
-            <li>
-              <ComingSoonLink feature="Terms of Service" className="hover:text-primary transition-colors">
-                Terms of Service
-              </ComingSoonLink>
-            </li>
-            <li>
-              <ComingSoonLink feature="Cookie settings" className="hover:text-primary transition-colors">
-                Cookie Settings
-              </ComingSoonLink>
-            </li>
-            <li>
-              <Link
-                className="hover:text-primary transition-colors"
-                href="/guidelines"
-              >
-                Guidelines
-              </Link>
-            </li>
-          </ul>
-        </div>
+        {COLUMNS.map((col) => (
+          <nav key={col.title} aria-label={col.title} className="space-y-4">
+            <h2 className="font-semibold text-white">{col.title}</h2>
+            <ul className="space-y-3">
+              {col.links.map((l) => (
+                <li key={l.label}>
+                  <Link href={l.href} className="inline-flex items-center gap-2 transition-colors hover:text-white">
+                    {l.label}
+                    {l.soon && (
+                      <span className="rounded-full bg-brand-coral/20 px-1.5 py-0.5 text-[10px] leading-none font-bold tracking-wide text-brand-coral uppercase">
+                        Soon
+                      </span>
+                    )}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        ))}
       </div>
-
-      <div className="max-w-7xl mx-auto mt-20 pt-8 border-t border-slate-900 text-xs flex flex-col md:flex-row justify-between gap-4">
-        <p>© {new Date().getFullYear()} myHoodora Inc. All rights reserved.</p>
-        <div className="flex gap-6">
-          <ComingSoonLink feature="Language options" className="hover:text-white transition-colors">
-            English (US)
-          </ComingSoonLink>
-          <ComingSoonLink feature="Cookie preferences" className="hover:text-white transition-colors">
-            Cookie Preferences
-          </ComingSoonLink>
-        </div>
+      <div className="mx-auto mt-12 flex max-w-6xl flex-col gap-2 border-t border-slate-800 pt-8 text-xs sm:flex-row sm:justify-between">
+        <p>© {new Date().getFullYear()} myHoodora. All rights reserved.</p>
+        <p>Made in Nigeria 🇳🇬 for neighbours everywhere.</p>
       </div>
     </footer>
   );

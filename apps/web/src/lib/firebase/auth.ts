@@ -12,19 +12,21 @@ import { auth } from "./config";
 import { API_BASE_URL, USE_MOCKS } from "@/lib/api/config";
 import { load, save } from "@/lib/api/mock/store";
 import { MOCK_NEIGHBORHOOD } from "@/lib/api/mock/seed";
+import { hasSkippedOnboarding } from "@/features/onboarding/draft";
 
 // ── Mock mode (NEXT_PUBLIC_USE_MOCKS=true) ──────────────────────────────────
 // Firebase sign-in stays real; everything our API would return is served
 // from the in-browser store so the app runs with no backend/DB.
+// A brand-new account starts exactly like the real API's: not onboarded, not
+// verified and in no neighbourhood, so sign-up always goes through
+// /onboarding. verifyLocationApi / completeOnboardingApi fill the rest in.
 function mockProfile(user: User) {
-  return load(`profile:${user.uid}`, () => ({
+  return load<Record<string, unknown>>(`profile:${user.uid}`, () => ({
     uid: user.uid,
     email: user.email,
     displayName: user.displayName ?? user.email?.split("@")[0] ?? "Neighbour",
-    isOnboarded: true,
-    verificationStatus: "verified",
-    neighborhoodId: MOCK_NEIGHBORHOOD._id,
-    location: { lat: 6.4478, lng: 3.4746, address: "Admiralty Way, Lekki Phase 1, Lagos" },
+    isOnboarded: false,
+    verificationStatus: "unverified",
     role: "member",
   }));
 }
@@ -56,6 +58,21 @@ export async function syncUserProfile(user: User): Promise<unknown> {
   }
 
   return response.json();
+}
+
+/**
+ * Where to send someone right after they sign in: straight to onboarding
+ * until they've finished it (Nextdoor-style), unless they already chose
+ * "Skip for now" for limited access.
+ */
+export async function routeAfterSignIn(user: User, fallback: string): Promise<string> {
+  try {
+    const profile = (await syncUserProfile(user)) as { isOnboarded?: boolean } | null;
+    if (profile && !profile.isOnboarded && !hasSkippedOnboarding(user.uid)) return "/onboarding";
+  } catch {
+    // Profile unavailable: carry on; the app shell re-checks once it loads.
+  }
+  return fallback;
 }
 
 export async function signInUser(

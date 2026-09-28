@@ -130,6 +130,16 @@ export const ABOUT_AERIAL: SiteImage = {
     "https://commons.wikimedia.org/wiki/File:Aerial_view_of_Lagos_Island.jpg",
 };
 
+/**
+ * About page banner. Uses an Unsplash photo (no attribution required) —
+ * the site shows no photo credits, so CC BY-SA images like ABOUT_AERIAL
+ * must not be displayed.
+ */
+export const ABOUT_IMAGE: SiteImage = HERO_IMAGES[2]!;
+
+/** For Business hero and teaser: Lagos skyline (Unsplash, no attribution required). */
+export const BUSINESS_IMAGE: SiteImage = HERO_IMAGES[3]!;
+
 /** Safe indexed access so the active image is always typed as defined. */
 function at<T>(list: T[], index: number): T {
   const item = list[index] ?? list[0];

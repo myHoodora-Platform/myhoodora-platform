@@ -47,11 +47,13 @@ export const PUBLIC_PATHS = [
   "/",
   "/about",
   "/how-it-works",
+  "/safety",
   "/guidelines",
   "/privacy",
+  "/terms",
   "/reset-password",
 ] as const;
-export const PUBLIC_PREFIXES = ["/coming-soon"] as const;
+export const PUBLIC_PREFIXES = ["/coming-soon", "/business"] as const;
 
 /** Auth pages a signed-in user is bounced away from. */
 export const GUEST_ONLY_PATHS = ["/login", "/register", "/forgot-password"] as const;
