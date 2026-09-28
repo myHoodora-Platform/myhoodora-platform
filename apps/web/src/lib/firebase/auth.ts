@@ -9,15 +9,38 @@ import {
   type User,
 } from "firebase/auth";
 import { auth } from "./config";
+import { API_BASE_URL, USE_MOCKS } from "@/lib/api/config";
+import { load, save } from "@/lib/api/mock/store";
+import { MOCK_NEIGHBORHOOD } from "@/lib/api/mock/seed";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
+// ── Mock mode (NEXT_PUBLIC_USE_MOCKS=true) ──────────────────────────────────
+// Firebase sign-in stays real; everything our API would return is served
+// from the in-browser store so the app runs with no backend/DB.
+function mockProfile(user: User) {
+  return load(`profile:${user.uid}`, () => ({
+    uid: user.uid,
+    email: user.email,
+    displayName: user.displayName ?? user.email?.split("@")[0] ?? "Neighbour",
+    isOnboarded: true,
+    verificationStatus: "verified",
+    neighborhoodId: MOCK_NEIGHBORHOOD._id,
+    location: { lat: 6.4478, lng: 3.4746, address: "Admiralty Way, Lekki Phase 1, Lagos" },
+    role: "member",
+  }));
+}
+
+function updateMockProfile(user: User, patch: Record<string, unknown>) {
+  const next = { ...mockProfile(user), ...patch };
+  save(`profile:${user.uid}`, next);
+  return next;
+}
 
 /**
  * Syncs the Firebase user profile to the NestJS backend DB.
  * Automatically called on successful sign-in/registration.
  */
 export async function syncUserProfile(user: User): Promise<unknown> {
+  if (USE_MOCKS) return mockProfile(user);
   const token = await user.getIdToken();
   const response = await fetch(`${API_BASE_URL}/users/me`, {
     method: "GET",
@@ -90,6 +113,7 @@ export async function logoutUser(): Promise<void> {
 }
 
 export async function fetchUserProfile(user: User): Promise<unknown> {
+  if (USE_MOCKS) return mockProfile(user);
   const token = await user.getIdToken();
   const response = await fetch(`${API_BASE_URL}/users/me`, {
     method: "GET",
@@ -116,6 +140,10 @@ export async function verifyLocationApi(
   distanceMeters?: number;
   reason?: string;
 }> {
+  if (USE_MOCKS) {
+    updateMockProfile(user, { verificationStatus: "verified", neighborhoodId: MOCK_NEIGHBORHOOD._id, location: coords });
+    return { verificationStatus: "verified", neighborhoodId: MOCK_NEIGHBORHOOD._id, distanceMeters: 120 };
+  }
   const token = await user.getIdToken();
   const response = await fetch(`${API_BASE_URL}/users/me/verify-location`, {
     method: "POST",
@@ -138,6 +166,7 @@ export async function updateProfileApi(
   user: User,
   payload: { displayName?: string; neighborhoodId?: string },
 ): Promise<unknown> {
+  if (USE_MOCKS) return updateMockProfile(user, payload);
   const token = await user.getIdToken();
   const response = await fetch(`${API_BASE_URL}/users/me`, {
     method: "PATCH",
@@ -159,6 +188,7 @@ export async function updateProfileApi(
 // Revokes the user's Firebase refresh tokens server-side. Must be called
 // with a still-valid bearer token, before signOut() discards it.
 export async function revokeBackendSession(user: User): Promise<void> {
+  if (USE_MOCKS) return;
   const token = await user.getIdToken();
   const response = await fetch(`${API_BASE_URL}/auth/logout`, {
     method: "POST",
@@ -203,6 +233,7 @@ export async function fetchNeighborhood(
   user: User,
   neighborhoodId: string,
 ): Promise<NeighborhoodSummary | null> {
+  if (USE_MOCKS) return neighborhoodId === MOCK_NEIGHBORHOOD._id ? MOCK_NEIGHBORHOOD : null;
   const token = await user.getIdToken();
   const response = await fetch(`${API_BASE_URL}/neighborhoods/${neighborhoodId}`, {
     method: "GET",
@@ -308,6 +339,7 @@ export async function completeOnboardingApi(
     location?: { lat?: number; lng?: number; address?: string };
   },
 ): Promise<unknown> {
+  if (USE_MOCKS) return updateMockProfile(user, { ...payload, isOnboarded: true });
   const token = await user.getIdToken();
   const response = await fetch(`${API_BASE_URL}/users/me/onboarding`, {
     method: "PATCH",

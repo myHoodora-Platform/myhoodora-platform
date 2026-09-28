@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Skeleton } from "@myhoodora/ui/skeleton";
 import { LocationMap } from "@/components/onboarding/location-map";
+import { DEFAULT_APP_ROUTE } from "@/lib/routes";
 
 const ONBOARDING_DRAFT_KEY = "myhoodora:onboarding-draft";
 
@@ -117,7 +118,7 @@ export default function OnboardingPage() {
     if (didCheckInitialOnboardedRef.current || loading) return;
     didCheckInitialOnboardedRef.current = true;
     if (profile?.isOnboarded && profile?.verificationStatus === "verified") {
-      router.push("/dashboard");
+      router.push(DEFAULT_APP_ROUTE);
     }
   }, [loading, profile, router]);
 
@@ -249,7 +250,7 @@ export default function OnboardingPage() {
     if (name.trim() || address.trim()) {
       saveOnboardingDraft({ name, address, coords });
     }
-    router.push("/dashboard");
+    router.push(DEFAULT_APP_ROUTE);
   };
 
   // Attempts real verification, then always saves the onboarding profile
@@ -306,7 +307,7 @@ export default function OnboardingPage() {
     if (outcome === "success") {
       // Hold the fully-checked state for a beat so it's not gone-in-a-flash, then route
       setTimeout(() => {
-        router.push("/dashboard");
+        router.push(DEFAULT_APP_ROUTE);
       }, 900);
     }
     // "unverified" and "error" stop here and wait for the user to choose
@@ -347,7 +348,7 @@ export default function OnboardingPage() {
   };
 
   const handleContinueToDashboard = () => {
-    router.push("/dashboard");
+    router.push(DEFAULT_APP_ROUTE);
   };
 
   if (loading) {

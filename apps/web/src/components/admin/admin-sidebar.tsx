@@ -21,6 +21,7 @@ import {
 } from "@myhoodora/ui/sidebar";
 import { LogOut, ArrowLeftRight } from "lucide-react";
 import { ADMIN_NAV, isNavItemActive } from "./admin-navigation";
+import { DEFAULT_APP_ROUTE } from "@/lib/routes";
 
 function navItemClassName(isActive: boolean, isCollapsed: boolean): string {
   return cn(
@@ -112,8 +113,8 @@ export function AdminSidebar() {
       <SidebarFooter className="gap-2.5 border-slate-800">
         {!isCollapsed ? (
           <Link
-            href="/dashboard"
-            title="Back to dashboard"
+            href={DEFAULT_APP_ROUTE}
+            title="Back to myHoodora"
             className="group flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-800/60 p-2.5 transition-colors hover:border-primary/40 hover:bg-slate-800"
           >
             <Avatar className="size-9 shrink-0">
@@ -126,15 +127,15 @@ export function AdminSidebar() {
                 {profile?.displayName || user?.email}
               </p>
               <p className="truncate text-[11px] text-slate-400">
-                Back to dashboard
+                Back to myHoodora
               </p>
             </div>
             <ArrowLeftRight className="size-4 shrink-0 text-slate-500 transition-colors group-hover:text-primary" />
           </Link>
         ) : (
           <Link
-            href="/dashboard"
-            title="Back to dashboard"
+            href={DEFAULT_APP_ROUTE}
+            title="Back to myHoodora"
             className="flex justify-center"
           >
             <Avatar className="size-9">

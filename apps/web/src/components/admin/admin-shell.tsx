@@ -3,10 +3,11 @@
 import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton";
+import { AppSkeleton } from "@/components/layout/app-shell/app-skeleton";
 import { AdminSidebar } from "./admin-sidebar";
 import { AdminHeader } from "./admin-header";
 import { getActiveNavItem } from "./admin-navigation";
+import { DEFAULT_APP_ROUTE } from "@/lib/routes";
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -22,12 +23,12 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!loading && user && profile && !isAdmin) {
-      router.push("/dashboard");
+      router.push(DEFAULT_APP_ROUTE);
     }
   }, [loading, user, profile, isAdmin, router]);
 
   if (loading || !user || !isAdmin) {
-    return <DashboardSkeleton />;
+    return <AppSkeleton />;
   }
 
   const title = getActiveNavItem(pathname)?.title ?? "Admin";

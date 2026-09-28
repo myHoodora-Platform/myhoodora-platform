@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { safeNextPath } from "@/lib/safe-redirect";
+import {
+  DEFAULT_APP_ROUTE,
+  isGuestOnlyPath,
+  isPublicPath,
+  legacyRedirectFor,
+} from "@/lib/routes";
 
 const JWKS = createRemoteJWKSet(
   new URL(
@@ -12,58 +18,60 @@ const JWKS = createRemoteJWKSet(
 const PROJECT_ID =
   process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "myhoodora-e9ba5";
 
-export async function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+async function hasValidSession(request: NextRequest): Promise<boolean> {
   const sessionCookie = request.cookies.get("__session")?.value;
+  if (!sessionCookie) return false;
+  try {
+    await jwtVerify(sessionCookie, JWKS, {
+      issuer: `https://securetoken.google.com/${PROJECT_ID}`,
+      audience: PROJECT_ID,
+    });
+    return true;
+  } catch (err) {
+    console.warn("Session verification failed inside proxy interceptor:", err);
+    return false;
+  }
+}
 
-  const isProtectedRoute =
-    pathname.startsWith("/dashboard") ||
-    pathname.startsWith("/admin") ||
-    pathname === "/onboarding";
-  const isGuestOnlyRoute =
-    pathname === "/login" ||
-    pathname === "/register" ||
-    pathname === "/forgot-password";
+function noStoreRedirect(url: URL): NextResponse {
+  const response = NextResponse.redirect(url);
+  response.headers.set("Cache-Control", "no-store, must-revalidate");
+  return response;
+}
 
-  let isValidSession = false;
+export async function proxy(request: NextRequest) {
+  const { pathname, searchParams } = request.nextUrl;
 
-  if (sessionCookie) {
-    try {
-      await jwtVerify(sessionCookie, JWKS, {
-        issuer: `https://securetoken.google.com/${PROJECT_ID}`,
-        audience: PROJECT_ID,
-      });
-      isValidSession = true;
-    } catch (err) {
-      console.warn(
-        "Session verification failed inside proxy interceptor:",
-        err,
-      );
-    }
+  // Old /dashboard links (including shared `/dashboard?post=<id>`) keep working.
+  const legacyTarget = legacyRedirectFor(pathname, searchParams);
+  if (legacyTarget) {
+    return NextResponse.redirect(new URL(legacyTarget, request.url), 308);
   }
 
-  // Intercepting Redirects
-  if (isProtectedRoute && !isValidSession) {
-    const redirectUrl = new URL("/login", request.url);
-    // Remember the deep link (e.g. /dashboard?post=abc) so login can return to it.
-    const wanted = pathname + request.nextUrl.search;
-    if (wanted !== "/dashboard") redirectUrl.searchParams.set("next", wanted);
-    const response = NextResponse.redirect(redirectUrl);
-    response.headers.set("Cache-Control", "no-store, must-revalidate");
-    return response;
-  }
+  // Public pages never need the (network-backed) JWT check.
+  if (isPublicPath(pathname)) return NextResponse.next();
 
-  if (isGuestOnlyRoute && isValidSession) {
-    const response = NextResponse.redirect(
-      new URL(safeNextPath(request.nextUrl.searchParams.get("next")), request.url),
+  const isValidSession = await hasValidSession(request);
+
+  if (isGuestOnlyPath(pathname)) {
+    if (!isValidSession) return NextResponse.next();
+    return noStoreRedirect(
+      new URL(safeNextPath(searchParams.get("next")), request.url),
     );
-    response.headers.set("Cache-Control", "no-store, must-revalidate");
-    return response;
+  }
+
+  // Default-deny: everything else is part of the signed-in app.
+  if (!isValidSession) {
+    const redirectUrl = new URL("/login", request.url);
+    // Remember the deep link (e.g. /p/abc) so login can return to it.
+    const wanted = pathname + request.nextUrl.search;
+    if (wanted !== DEFAULT_APP_ROUTE) redirectUrl.searchParams.set("next", wanted);
+    return noStoreRedirect(redirectUrl);
   }
 
   // Note: normal pass-through responses intentionally allow the browser's
   // back-forward cache (no no-store here) — disabling bfcache for every
-  // dashboard navigation made "back" force a full cold reload every time.
+  // app navigation made "back" force a full cold reload every time.
   // The stale-page-after-logout case this used to guard against is instead
   // handled client-side: AuthProvider listens for `pageshow` with
   // `event.persisted` and re-validates the session when a page is restored
@@ -72,12 +80,7 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    "/dashboard/:path*",
-    "/admin/:path*",
-    "/onboarding",
-    "/login",
-    "/register",
-    "/forgot-password",
-  ],
+  // Everything except Next internals, route handlers and static files
+  // (anything with a file extension, e.g. /icon.png, /images/x.webp).
+  matcher: ["/((?!api/|_next/|.*\\.[\\w]+$).*)"],
 };

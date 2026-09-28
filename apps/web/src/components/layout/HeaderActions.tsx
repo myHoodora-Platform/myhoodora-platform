@@ -6,6 +6,7 @@ import { Button } from "@myhoodora/ui/button";
 import { Skeleton } from "@myhoodora/ui/skeleton";
 import { cn } from "@myhoodora/ui/utils";
 import { LayoutDashboard } from "lucide-react";
+import { DEFAULT_APP_ROUTE } from "@/lib/routes";
 
 interface HeaderActionsProps {
   className?: string;
@@ -70,7 +71,7 @@ export function HeaderActions({
           <span className="max-w-[140px] truncate">{name}</span>
         </div>
 
-        <Link href="/dashboard" className={isStack ? "w-full" : undefined}>
+        <Link href={DEFAULT_APP_ROUTE} className={isStack ? "w-full" : undefined}>
           <Button
             size="sm"
             className={cn("gap-2 font-semibold", isStack && "w-full")}
