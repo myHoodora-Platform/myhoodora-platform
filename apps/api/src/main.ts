@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
@@ -6,13 +7,17 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { initializeFirebase } from './config/firebase.config';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // rawBody: webhook signatures (Resend/Svix) must be verified on the exact bytes received.
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
   const config = app.get(ConfigService);
   const logger = new Logger('Bootstrap');
 
   // ── Firebase Admin ────────────────────────────────────────────────────────
   initializeFirebase(config);
   logger.log('Firebase Admin SDK initialised');
+
+  // Behind a hosting proxy, use the client IP for rate limits.
+  if (config.get<string>('nodeEnv') === 'production') app.set('trust proxy', 1);
 
   // ── Global pipes ──────────────────────────────────────────────────────────
   app.useGlobalPipes(
@@ -56,10 +61,15 @@ async function bootstrap() {
     .addTag('users', 'User profile management')
     .addTag('posts', 'Neighbourhood posts & feed')
     .addTag('neighborhoods', 'Neighbourhood discovery & geo-search')
+    .addTag('comments', 'Comments')
+    .addTag('notifications', 'In-app notifications')
+    .addTag('reports', 'Reporting content & people')
+    .addTag('admin', 'Staff operations (contract §13)')
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api/docs', app, document, {
+  // API docs are for development; not exposed in production.
+  if (config.get<string>('nodeEnv') !== 'production') SwaggerModule.setup('api/docs', app, document, {
     swaggerOptions: {
       persistAuthorization: true, // keeps the token across page refreshes
       tagsSorter: 'alpha',
@@ -67,7 +77,6 @@ async function bootstrap() {
     },
   });
   const port = config.get<number>('port') ?? 3000;
-  logger.log(`Swagger docs available at http://localhost:${port}/api/docs`);
 
   // ── Listen ────────────────────────────────────────────────────────────────
     await app.listen(port);

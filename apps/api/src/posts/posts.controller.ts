@@ -1,116 +1,99 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Delete,
-  Body,
-  Param,
-  Query,
-  HttpCode,
-  HttpStatus,
-  Patch,
-} from "@nestjs/common";
-import {
-  ApiTags,
-  ApiBearerAuth,
-  ApiOperation,
-  ApiResponse,
-  ApiQuery,
-  ApiParam,
-  ApiBody,
-} from "@nestjs/swagger";
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Put, Query } from "@nestjs/common";
+import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { Throttle } from "@nestjs/throttler";
+import { CurrentViewer, type Viewer } from "../shared/auth/viewer";
+import { Can } from "../shared/authz/can.decorator";
+import { ParseObjectIdPipe } from "../shared/http/pagination";
+import { CreatePostDto, FeedQuery, ReactionDto, ResolveAlertDto, RsvpDto, VoteDto } from "./dto/posts.dto";
+import { EngagementService } from "./engagement.service";
 import { PostsService } from "./posts.service";
-import { CurrentUser } from "../common/decorators/current-user.decorator";
-import type { DecodedIdToken } from "firebase-admin/auth";
-import { Update } from "./schemas/post.schema";
 
 @ApiTags("posts")
 @ApiBearerAuth("firebase-jwt")
 @Controller("posts")
 export class PostsController {
-  constructor(private readonly postsService: PostsService) {}
+  constructor(
+    private readonly posts: PostsService,
+    private readonly engagement: EngagementService,
+  ) {}
 
   @Post()
-  @ApiOperation({ summary: "Create a post" })
-  @ApiBody({
-    schema: {
-      type: "object",
-      required: ["neighborhoodId", "content"],
-      properties: {
-        neighborhoodId: { type: "string", example: "64e3f1a2b5c9d00012345678" },
-        content: {
-          type: "string",
-          example: "Anyone know a good plumber nearby?",
-        },
-        type: {
-          type: "string",
-          enum: ["text", "image", "event", "alert"],
-          default: "text",
-        },
-        mediaUrls: { type: "array", items: { type: "string" } },
-      },
-    },
-  })
-  @ApiResponse({ status: 201, description: "Post created." })
-  create(
-    @CurrentUser() user: DecodedIdToken,
-    @Body()
-    body: {
-      neighborhoodId: string;
-      content: string;
-      type?: string;
-      mediaUrls?: string[];
-    },
-  ) {
-    return this.postsService.create(user.uid, body as Partial<Update>);
+  @Can("content.create")
+  @Throttle({ medium: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({ summary: "Create a post in the caller's own Hood" })
+  create(@CurrentViewer() viewer: Viewer, @Body() body: CreatePostDto) {
+    return this.posts.create(viewer, body);
   }
 
   @Get("neighborhood/:id")
-  @ApiOperation({
-    summary: "Get neighbourhood feed",
-    description: "Returns paginated posts for a neighbourhood, newest first.",
-  })
-  @ApiParam({ name: "id", description: "Neighbourhood MongoDB ObjectId" })
-  @ApiQuery({ name: "limit", required: false, type: Number, example: 20 })
-  @ApiQuery({ name: "skip", required: false, type: Number, example: 0 })
-  @ApiResponse({ status: 200, description: "List of posts." })
-  findByNeighborhood(
-    @Param("id") id: string,
-    @Query("limit") limit?: string,
-    @Query("skip") skip?: string,
-  ) {
-    return this.postsService.findByNeighborhood(
-      id,
-      limit ? parseInt(limit) : 20,
-      skip ? parseInt(skip) : 0,
-    );
+  @ApiOperation({ summary: "Feed for the caller's Hood (?limit&before|skip&category&since)" })
+  feed(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Query() q: FeedQuery) {
+    return this.posts.feed(viewer, id, q);
   }
 
-  @Patch(":id/like")
-  @ApiOperation({
-    summary: "Toggle like",
-    description:
-      "Adds or removes the current user's UID from the post likes array.",
-  })
-  @ApiParam({ name: "id", description: "Post MongoDB ObjectId" })
-  @ApiResponse({
-    status: 200,
-    description: "Updated post with new likes array.",
-  })
-  toggleLike(@Param("id") id: string, @CurrentUser() user: DecodedIdToken) {
-    return this.postsService.toggleLike(id, user.uid);
+  @Get(":id")
+  get(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string) {
+    return this.posts.get(viewer, id);
   }
 
   @Delete(":id")
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({
-    summary: "Delete own post",
-    description: "Soft-deletes the post. Only the author can delete.",
-  })
-  @ApiParam({ name: "id", description: "Post MongoDB ObjectId" })
-  @ApiResponse({ status: 204, description: "Post deleted." })
-  @ApiResponse({ status: 401, description: "Unauthorized." })
-  delete(@Param("id") id: string, @CurrentUser() user: DecodedIdToken) {
-    return this.postsService.delete(id, user.uid);
+  async delete(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string) {
+    await this.posts.delete(viewer, id);
+  }
+
+  @Patch(":id/like")
+  @Can("content.react")
+  toggleLike(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string) {
+    return this.engagement.toggleLike(viewer, id);
+  }
+
+  @Put(":id/reaction")
+  @Can("content.react")
+  react(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Body() body: ReactionDto) {
+    return this.engagement.react(viewer, id, body.type);
+  }
+
+  @Delete(":id/reaction")
+  @Can("content.react")
+  unreact(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string) {
+    return this.engagement.unreact(viewer, id);
+  }
+
+  @Get(":id/poll")
+  poll(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string) {
+    return this.engagement.pollResults(viewer, id);
+  }
+
+  @Put(":id/poll/vote")
+  @Can("content.react")
+  vote(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Body() body: VoteDto) {
+    return this.engagement.vote(viewer, id, body.optionId);
+  }
+
+  @Delete(":id/poll/vote")
+  @Can("content.react")
+  unvote(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string) {
+    return this.engagement.unvote(viewer, id);
+  }
+
+  @Patch(":id/alert")
+  resolveAlert(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Body() body: ResolveAlertDto) {
+    return this.posts.resolveAlert(viewer, id, body.resolved);
+  }
+
+  @Get(":id/rsvp")
+  rsvp(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string) {
+    return this.engagement.rsvpSummary(viewer, id);
+  }
+
+  @Put(":id/rsvp")
+  setRsvp(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Body() body: RsvpDto) {
+    return this.engagement.rsvp(viewer, id, body.status);
+  }
+
+  @Delete(":id/rsvp")
+  cancelRsvp(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string) {
+    return this.engagement.cancelRsvp(viewer, id);
   }
 }

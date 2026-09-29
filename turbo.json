@@ -14,26 +14,51 @@
     "FIREBASE_PRIVATE_KEY",
     "JWT_SECRET",
     "JWT_EXPIRES_IN",
-    "GEOCODE_MAPS_CO_API_KEY"
+    "GEOCODE_MAPS_CO_API_KEY",
+    "FIREBASE_PROJECT_ID",
+    "CORS_ORIGIN",
+    "APP_URL",
+    "RESEND_API_KEY",
+    "RESEND_WEBHOOK_SECRET",
+    "MAIL_FROM",
+    "MAIL_REPLY_TO",
+    "TEST_MONGO_URI"
   ],
   "ui": "tui",
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": [".next/**", "dist/**", "!.next/cache/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        ".env*"
+      ],
+      "outputs": [
+        ".next/**",
+        "dist/**",
+        "!.next/cache/**"
+      ]
     },
     "lint": {
-      "dependsOn": ["^lint"]
+      "dependsOn": [
+        "^lint"
+      ]
     },
     "check-types": {
-      "dependsOn": ["^check-types"]
+      "dependsOn": [
+        "^check-types"
+      ]
     },
     "test": {
-      "dependsOn": ["^test"]
+      "dependsOn": [
+        "^test"
+      ]
     },
     "dev": {
-      "env": ["PORT"],
+      "env": [
+        "PORT"
+      ],
       "cache": false,
       "persistent": true
     }

@@ -1,135 +1,81 @@
-import { Controller, Get, Patch, Post, Body, HttpCode } from "@nestjs/common";
-import {
-  ApiTags,
-  ApiBearerAuth,
-  ApiOperation,
-  ApiResponse,
-  ApiBody,
-} from "@nestjs/swagger";
-import { UsersService } from "./users.service";
-import { CurrentUser } from "../common/decorators/current-user.decorator";
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post } from "@nestjs/common";
+import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { Throttle } from "@nestjs/throttler";
 import type { DecodedIdToken } from "firebase-admin/auth";
+import { CurrentUser } from "../shared/auth/current-user.decorator";
+import { AllowSuspended, CurrentViewer, type Viewer } from "../shared/auth/viewer";
+import { BlockDto, DeactivateDto, OnboardingDto, PreferencesDto, UpdateMeDto, VerifyLocationDto } from "./dto/users.dto";
+import { UsersService } from "./users.service";
 
 @ApiTags("users")
 @ApiBearerAuth("firebase-jwt")
 @Controller("users")
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(private readonly users: UsersService) {}
 
+  /** Creates the account on first call (welcome email once), returns it on every sign-in. */
   @Get("me")
-  @ApiOperation({
-    summary: "Get current user",
-    description:
-      "Returns the authenticated user's profile. Auto-creates the document on first call.",
-  })
-  @ApiResponse({ status: 200, description: "User profile returned." })
-  @ApiResponse({
-    status: 401,
-    description: "Missing or invalid Firebase token.",
-  })
-  async getMe(@CurrentUser() user: DecodedIdToken) {
-    return this.usersService.findOrCreate(user.uid, {
-      email: user.email,
-      displayName: user.name,
-      photoURL: user.picture,
-      provider: user.firebase.sign_in_provider,
-    });
+  @AllowSuspended()
+  @ApiOperation({ summary: "Get (or create on first sign-in) the current user" })
+  getMe(@CurrentUser() token: DecodedIdToken) {
+    return this.users.getOrCreateMe(token);
+  }
+
+  @Patch("me")
+  @ApiOperation({ summary: "Update display name, bio or photo (Hood changes go through verification)" })
+  updateMe(@CurrentViewer() viewer: Viewer, @Body() body: UpdateMeDto) {
+    return this.users.updateMe(viewer.uid, body);
   }
 
   @Patch("me/onboarding")
-  @ApiOperation({
-    summary: "Complete onboarding",
-    description:
-      "Updates displayName and location details, marking user as onboarded.",
-  })
-  @ApiBody({
-    schema: {
-      type: "object",
-      properties: {
-        displayName: { type: "string", example: "Jane Hoodora" },
-        location: {
-          type: "object",
-          properties: {
-            lat: { type: "number", example: 37.7749 },
-            lng: { type: "number", example: -122.4194 },
-            address: { type: "string", example: "123 Neighborhood Way" },
-          },
-        },
-      },
-    },
-  })
-  @ApiResponse({
-    status: 200,
-    description: "User marked as onboarded and profile updated.",
-  })
-  @ApiResponse({
-    status: 401,
-    description: "Missing or invalid Firebase token.",
-  })
-  async completeOnboarding(
-    @CurrentUser() user: DecodedIdToken,
-    @Body()
-    body: {
-      displayName?: string;
-      location?: { lat?: number; lng?: number; address?: string };
-    },
-  ) {
-    return this.usersService.completeOnboarding(user.uid, body);
+  completeOnboarding(@CurrentViewer() viewer: Viewer, @Body() body: OnboardingDto) {
+    return this.users.completeOnboarding(viewer.uid, body);
   }
 
   @Post("me/verify-location")
   @HttpCode(200)
-  @ApiOperation({
-    summary: "Verify current user's location",
-    description:
-      "Checks the given coordinates against neighborhood boundaries and assigns the nearest neighborhood whose own radius covers the point. Leaves the user unverified with an 'outside_coverage' reason if none match.",
-  })
-  @ApiBody({
-    schema: {
-      type: "object",
-      required: ["lng", "lat"],
-      properties: {
-        lng: { type: "number", example: 37.7749 },
-        lat: { type: "number", example: -122.4194 },
-      },
-    },
-  })
-  @ApiResponse({ status: 200, description: "Verification result returned." })
-  @ApiResponse({ status: 400, description: "Invalid or missing coordinates." })
-  @ApiResponse({
-    status: 401,
-    description: "Missing or invalid Firebase token.",
-  })
-  async verifyLocation(
-    @CurrentUser() user: DecodedIdToken,
-    @Body() body: { lng: number; lat: number },
-  ) {
-    return this.usersService.verifyLocation(user.uid, body);
+  @Throttle({ medium: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({ summary: "Match the caller's coordinates to a Hood" })
+  verifyLocation(@CurrentViewer() viewer: Viewer, @Body() body: VerifyLocationDto) {
+    return this.users.verifyLocation(viewer, body);
   }
 
-  @Patch("me")
-  @ApiOperation({
-    summary: "Update current user",
-    description: "Update display name or neighborhood.",
-  })
-  @ApiBody({
-    schema: {
-      type: "object",
-      properties: {
-        displayName: { type: "string", example: "Jane Hoodora" },
-        neighborhoodId: { type: "string", example: "64e3f1a2b5c9d00012345678" },
-      },
-    },
-  })
-  @ApiResponse({ status: 200, description: "User profile updated." })
-  @ApiResponse({
-    status: 401,
-    description: "Missing or invalid Firebase token.",
-  })
-  async updateMe(
-    @CurrentUser() user: DecodedIdToken,
-    @Body() body: { displayName?: string; neighborhoodId?: string },
-  ) {
-    return this.usersService.update(user.uid, body);
+  @Get("me/preferences")
+  getPreferences(@CurrentViewer() viewer: Viewer) {
+    return this.users.getPreferences(viewer.uid);
+  }
+
+  @Patch("me/preferences")
+  updatePreferences(@CurrentViewer() viewer: Viewer, @Body() body: PreferencesDto) {
+    return this.users.updatePreferences(viewer.uid, body);
+  }
+
+  @Get("me/blocks")
+  listBlocks(@CurrentViewer() viewer: Viewer) {
+    return this.users.listBlocks(viewer.uid);
+  }
+
+  @Post("me/blocks")
+  @HttpCode(204)
+  async block(@CurrentViewer() viewer: Viewer, @Body() body: BlockDto) {
+    await this.users.block(viewer.uid, body.uid);
+  }
+
+  @Delete("me/blocks/:uid")
+  @HttpCode(204)
+  async unblock(@CurrentViewer() viewer: Viewer, @Param("uid") uid: string) {
+    await this.users.unblock(viewer.uid, uid);
+  }
+
+  @Post("me/deactivate")
+  @AllowSuspended()
+  @HttpCode(204)
+  async deactivate(@CurrentViewer() viewer: Viewer, @Body() body: DeactivateDto) {
+    await this.users.deactivate(viewer.uid, body);
+  }
+
+  @Get(":uid/public")
+  publicProfile(@CurrentViewer() viewer: Viewer, @Param("uid") uid: string) {
+    return this.users.publicProfile(viewer, uid);
   }
 }

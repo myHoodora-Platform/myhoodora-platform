@@ -1,98 +1,114 @@
-# MyHoodora API
+# myHoodora API
 
-The backend API for the MyHoodora platform, built with [NestJS](https://nestjs.com/).
+The NestJS backend for myHoodora. It serves the REST API described in [`docs/api-contract.md`](../../docs/api-contract.md) and consumed by `apps/web`.
 
-## Purpose
+- **Stack:** NestJS 10, TypeScript, MongoDB Atlas via Mongoose 9, Firebase Admin (auth), Resend (email).
+- **Design notes and audit:** [`docs/backend/BACKEND_AUDIT_AND_TARGET.md`](../../docs/backend/BACKEND_AUDIT_AND_TARGET.md).
+- **Change log:** [`docs/backend/BACKEND_CHANGELOG.md`](../../docs/backend/BACKEND_CHANGELOG.md).
 
-This service provides the core business logic, data persistence, and communication layer for the MyHoodora community platform. It exposes a RESTful API consumed by the web application and other potential clients.
-
-## Tech Stack
-
-- **Framework**: NestJS
-- **Language**: TypeScript
-- **Database**: MongoDB (via Mongoose)
-- **Authentication**: Firebase Auth + JWT
-- **Validation**: class-validator, class-transformer
-
-## Setup & Local Development
-
-### Prerequisites
-
-Ensure you have followed the root setup instructions in the [main README](../../README.md).
-
-### Running Locally
-
-To run the API in development mode with hot-reload:
+## Run it
 
 ```bash
-pnpm dev
-```
-
-Or, from the root, targeting only the API:
-
-```bash
+cp .env.example .env          # then fill in MONGODB_URI + Firebase
 pnpm --filter @myhoodora/api dev
 ```
 
-### Environment Variables
+Swagger is served at `/api/docs` outside production.
 
-Create a `.env` file in this directory based on `.env.example`:
+| Command | What it does |
+| --- | --- |
+| `pnpm dev` / `pnpm build` / `pnpm start:prod` | Watch mode / compile to `dist/` (cleaned each build) / run the build |
+| `pnpm check-types` · `pnpm lint` | Type-check · ESLint |
+| `pnpm test` | Unit tests (`src/**/*.spec.ts`: authorization rules, post codec) |
+| `pnpm test:e2e` | Integration tests (`test/*.e2e-spec.ts`), described below |
+| `pnpm migrate:dry` · `pnpm migrate` | Show / apply pending data migrations (`src/database/migrations`) |
+| `pnpm seed:neighborhoods` | Seed the Lagos Hoods |
 
-```bash
-cp .env.example .env
+## Environment
+
+| Variable | Required | Notes |
+| --- | --- | --- |
+| `MONGODB_URI` | ✅ | Must be a replica set (Atlas is one); transactions depend on it |
+| `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` | ✅ in prod | Or `GOOGLE_APPLICATION_CREDENTIALS` / `serviceAccountKey.json` locally |
+| `PORT` | | Default `3000`. The web app expects `http://localhost:3001/api` unless `NEXT_PUBLIC_API_URL` says otherwise, so set `PORT=3001` locally |
+| `CORS_ORIGIN` | ✅ in prod | Comma-separated list of web origins |
+| `APP_URL` | ✅ in prod | Web app URL, used for links in emails |
+| `RESEND_API_KEY` | ✅ in prod | A **sending-only** key for `mail.myhoodora.com`. If empty, emails are logged (masked), not sent |
+| `RESEND_WEBHOOK_SECRET` | ✅ in prod | `whsec_…` from the Resend webhook. Without it the webhook returns 503 |
+| `MAIL_FROM` / `MAIL_REPLY_TO` | | Default `myHoodora <hello@mail.myhoodora.com>` |
+
+In production the app refuses to start if a required variable is missing (`validateEnv`). Secrets live only in the server environment. None of these may be given a `NEXT_PUBLIC_` prefix.
+
+## Architecture: a modular monolith
+
+```
+src/
+  shared/        auth (Firebase guard, AccountGuard, @CurrentViewer), authz (roles → capabilities, @Can),
+                 http (error filter, pagination, ObjectId pipe), db (withTransaction), logging (redaction)
+  users/         self-service (me, onboarding, verify-location, preferences, blocks, deactivate, public profile)
+                 + StaffUsersService (the only place account enforcement happens)
+  hoods/         neighbourhoods: geo lookup, overlap checks, archive instead of delete
+  posts/         feed, typed post fields, reactions, polls, RSVPs, alert lifecycle
+  comments/      comments (+ denormalised commentCount)
+  moderation/    reports → one case per item, claims, decisions; ModerationRegistry
+  notifications/ in-app notifications (+ email per the neighbour's preferences)
+  communications/ EmailProvider port → Resend adapter / log adapter, delivery log, Resend webhook
+  verification/  email verification tokens
+  audit/         append-only staff action history
+  platform/      platform settings (report reasons, alert windows)
+  admin/         /admin/* (contract §13): read models + staff actions over the modules above
+  inbound/       feedback (contact form in pass 2)
+  database/      migrations + runner, seed scripts
 ```
 
-| Variable              | Description               | Default |
-| :-------------------- | :------------------------ | :------ |
-| `PORT`                | Port for the API server   | `3333`  |
-| `MONGODB_URI`         | MongoDB connection string | -       |
-| `FIREBASE_PROJECT_ID` | Firebase Project ID       | -       |
+Rules the code follows:
 
-## Available Scripts
+- **Every request passes four global guards in order.** Rate limit, then Firebase token, then `AccountGuard` (loads the neighbour and blocks suspended accounts unless the route has `@AllowSuspended()`), then `CapabilityGuard` (`@Can("…")`).
+- **Authorization uses capabilities, not role checks.** `capabilitiesOf(user)` in `shared/authz/roles.ts` combines role *and* account state. For example, a restricted admin still can't post, and a suspended one has no capabilities at all. Services receive a `Viewer` and never trust ids from the body.
+- **Scope comes from the Viewer.** A neighbour's Hood comes from their profile, never from the client. Out-of-Hood content returns 404.
+- **Multi-document writes use transactions** (`withTransaction`). Never run parallel operations inside one, and let errors (including duplicate keys) propagate so Mongo can abort cleanly.
+- **Moderation doesn't import content modules.** Posts and comments register `load`/`setRemoved` with `ModerationRegistry`. New content types (listings, groups, messages) plug in the same way.
+- **Side effects happen after commit.** Emails and notifications are sent once the transaction succeeds, and `sendEmail` never throws into the caller.
+- **Errors use one shape:** `{ statusCode, message }` (contract §0). Unknown errors are logged server-side and returned as a generic 500.
 
-| Command            | Description                                |
-| :----------------- | :----------------------------------------- |
-| `pnpm build`       | Transpile TypeScript to JavaScript (dist/) |
-| `pnpm dev`         | Start the server in watch mode             |
-| `pnpm start`       | Start the compiled production server       |
-| `pnpm lint`        | Run ESLint checks                          |
-| `pnpm check-types` | Run TypeScript type-checking               |
+## Email
 
-## Project Structure
+- `CommunicationsService.sendEmail()` is the only entry point. Every send has an idempotency key (our unique index plus Resend's `Idempotency-Key`) and is recorded in the `communications` collection.
+- Resend webhooks (`POST /api/webhooks/resend`) are verified with the Standard Webhooks/Svix scheme on the **raw** body (`webhook-signature.ts`, node crypto; the `svix` package is ESM-only). They're applied idempotently per `svix-id`, and a status never moves backwards.
+- **Setup:**
+  1. Verify `mail.myhoodora.com` in Resend (SPF, DKIM and DMARC DNS records).
+  2. Create a sending-only API key for that domain.
+  3. Add a webhook to `https://<api-host>/api/webhooks/resend` for the `email.*` events.
+  4. Put the key and signing secret in the server environment.
 
-- `src/`: Source code
-  - `main.ts`: Application entry point
-  - `app.module.ts`: Root module
-  - `modules/`: Feature-specific modules (Auth, User, Community, etc.)
-  - `common/`: Shared decorators, filters, guards, and interceptors
-- `test/`: End-to-end tests
+## Tests
 
-## TODO / Backend Follow-ups
+`pnpm test:e2e` boots the real `AppModule` against `mongodb-memory-server` (a replica set, so transactions run). Only Firebase is stubbed: `test/helpers/firebase-mock.ts` turns tokens like `t:<uid>:<v|u>:<provider>` into users.
 
-Frontend work has surfaced real gaps the backend doesn't cover yet. Tracked here rather than faked in the UI:
+| Suite | Covers |
+| --- | --- |
+| `security` | Audit findings F1–F4, suspended/restricted/unverified gates, ownership, admin capabilities, owner rules |
+| `communications` | Welcome sent once, confirm / reuse / expiry, resend limit, webhook signature, replay, idempotency, status ordering |
+| `moderation-engagement` | Report → case → claim → decision → feed/audit/notifications; reactions (incl. concurrent), polls (410), comments, blocks, urgent-alert limit |
+| `admin-contract` | Every live `/admin/*` response has the fields the web's TypeScript types require (parsed from `apps/web`) |
+| `migrations` | Dry run writes nothing; legacy data is migrated once; re-runs are no-ops |
 
-- **Admin management endpoints.** The admin panel (`apps/web/src/app/admin`) currently runs on `apps/web/src/lib/admin/mock-data.ts` for everything except neighborhoods. Needed to go real:
-  - Users list/verify/restrict (admin-scoped `GET /users`, a way to set `verificationStatus`/`role`, a restrict/ban flag).
-  - Support queries inbox (a `Queries`/tickets module: create by users, list/respond/resolve by admins).
-  - Notifications send + history (a `Notifications` module: send-to-audience, list sent history).
-- **Comments module.** No schema or endpoints exist for commenting on a post. Needed before any comment UI can be built for real (not a local mock — a comment only makes sense if every neighbor can see it): a `Comment` schema (`postId`, `authorUid`, `content`, timestamps) + `POST/GET/DELETE` endpoints, mirroring the Posts module's own shape.
-- **Typed reactions.** `Post.likes` is a plain `string[]` of uids — a toggle, not a reaction type. The frontend's Facebook-style reaction picker can only persist "did this uid react," not *which* emoji (👍/❤️/😂/😮/😢/😡) they picked for anyone but themselves (remembered client-side only, per device). To show everyone's actual reaction type, `likes: string[]` needs to become something like `reactions: { uid: string; type: "like" | "love" | "haha" | "wow" | "sad" | "angry" }[]`, and `PATCH /posts/:id/like` needs to accept a `type` in its body.
-- **Public user lookup by uid.** No endpoint resolves another user's uid to a display name/avatar (`GET /users/me` only returns the caller's own profile). The feed shows a generic "Neighbor" label for every post author but the viewer themself, and admin's user search is mock data, because of this gap. A `GET /users/:uid` (public-safe fields only: displayName, photo) or a batch `POST /users/batch` would unblock both.
-- **Firebase Storage security rules** need to allow an authenticated user to write under `posts/{uid}/...` for the feed's real image-upload path (`apps/web/src/lib/feed/media-provider.ts`) to work — this is a Firebase Console/CLI config step, not application code. Suggested rule:
-  ```
-  rules_version = '2';
-  service firebase.storage {
-    match /b/{bucket}/o {
-      match /posts/{uid}/{fileName} {
-        allow read: if true;
-        allow write: if request.auth != null && request.auth.uid == uid
-          && request.resource.size < 8 * 1024 * 1024
-          && request.resource.contentType.matches('image/.*');
-      }
-    }
-  }
-  ```
+## Deploying
 
----
+1. Set the environment above. Keep Swagger off (automatic in production) and set `trust proxy` (automatic).
+2. `pnpm --filter @myhoodora/api build`.
+3. Run `pnpm migrate:dry`, read the output, then `pnpm migrate`. Migrations are idempotent and recorded in the `migrations` collection.
+4. Start with `node dist/main.js`. Indexes aren't auto-built in production; create them once with `Model.syncIndexes()` or in Atlas.
 
-For broader project information, architecture, and contribution guidelines, please refer to the [Root README](../../README.md).
+## Firebase Storage rules
+
+The feed's image upload writes to `posts/{uid}/…`. Suggested rule:
+
+```
+match /posts/{uid}/{fileName} {
+  allow read: if true;
+  allow write: if request.auth != null && request.auth.uid == uid
+    && request.resource.size < 8 * 1024 * 1024
+    && request.resource.contentType.matches('image/.*');
+}
+```
