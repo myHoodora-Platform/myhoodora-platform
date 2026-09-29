@@ -37,6 +37,20 @@ export const ENDPOINTS = {
   "ai.pilot": "planned",
   "contact": "planned",
   "careers": "planned",
+  // Admin operations platform (contract §13)
+  "admin.session": "planned",
+  "admin.overview": "planned",
+  "admin.moderation": "planned",
+  "admin.neighbours": "planned",
+  "admin.verification": "planned",
+  "admin.hoods": "planned",
+  "admin.content": "planned",
+  "admin.businesses": "planned",
+  "admin.inbox": "planned",
+  "admin.broadcasts": "planned",
+  "admin.insights": "planned",
+  "admin.team": "planned",
+  "admin.settings": "planned",
 } as const satisfies Record<string, "live" | "planned">;
 
 export type EndpointKey = keyof typeof ENDPOINTS;

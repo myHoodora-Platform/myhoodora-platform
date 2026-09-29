@@ -1,6 +1,7 @@
 import type { User } from "firebase/auth";
 import { ApiError, apiFetch } from "./client";
 import { isLive } from "./config";
+import { isRemoved } from "./mock/moderation-state";
 import { latency, load, mockId, save } from "./mock/store";
 import {
   seedGroupMembers,
@@ -78,6 +79,8 @@ export async function listGroups(user: User, neighborhoodId: string): Promise<Gr
   if (isLive("groups")) return apiFetch<Group[]>(user, `/groups?neighborhoodId=${neighborhoodId}`);
   await latency();
   return groupsStore()
+    // Archived by staff in the admin → hidden from the Groups directory.
+    .filter((g) => !isRemoved("group", g._id))
     .map((g) => viewerRelative(g, user.uid))
     .sort((a, b) => Number(b.official) - Number(a.official) || b.memberCount - a.memberCount);
 }

@@ -1,6 +1,7 @@
 import type { User } from "firebase/auth";
 import { apiFetch } from "./client";
 import { isLive } from "./config";
+import { isRemoved } from "./mock/moderation-state";
 import { latency, load, mockId, save } from "./mock/store";
 import { seedListings } from "./mock/seed";
 import type { CreateListingInput, Listing, ListingCategory } from "./types";
@@ -29,6 +30,7 @@ export async function listListings(
   }
   await latency();
   return all()
+    .filter((l) => !isRemoved("listing", l._id))
     .filter((l) => l.status !== "sold" || l.sellerUid === user.uid)
     .filter((l) => !filters.category || l.category === filters.category)
     .filter((l) => !filters.freeOnly || l.priceNaira === null)
@@ -40,7 +42,7 @@ export async function listListings(
 export async function getListing(user: User, id: string): Promise<Listing | null> {
   if (isLive("listings")) return apiFetch<Listing>(user, `/listings/${id}`);
   await latency();
-  return all().find((l) => l._id === id) ?? null;
+  return all().find((l) => l._id === id && !isRemoved("listing", l._id)) ?? null;
 }
 
 /** planned: POST /listings */

@@ -4,6 +4,7 @@ import { isLive } from "./config";
 import { alertResolutions } from "./alerts";
 import { commentCount } from "./comments";
 import { decodePostContent, encodePostContent, postTypeFor } from "./post-meta";
+import { isRemoved } from "./mock/moderation-state";
 import { latency, load, mockId, save, update } from "./mock/store";
 import { seedPosts } from "./mock/seed";
 import type { ApiPost, CreatePostInput, Post, ReactionType } from "./types";
@@ -52,7 +53,8 @@ export async function listFeed(
     docs = await withRetry(() => apiFetch<ApiPost[]>(user, `/posts/neighborhood/${neighborhoodId}?${params}`));
   } else {
     await latency();
-    docs = sortNewestFirst(mockPosts()).slice(skip, skip + limit);
+    // Moderators can remove posts from the admin; removed posts leave the feed.
+    docs = sortNewestFirst(mockPosts().filter((p) => !isRemoved("post", p._id))).slice(skip, skip + limit);
   }
   return docs.map((d) => hydratePost(d, user.uid));
 }
@@ -72,7 +74,7 @@ export async function getPost(
   }
   if (!isLive("posts.list")) {
     await latency();
-    const doc = mockPosts().find((p) => p._id === postId);
+    const doc = mockPosts().find((p) => p._id === postId && !isRemoved("post", p._id));
     return doc ? hydratePost(doc, user.uid) : null;
   }
   const PAGE = 50;
