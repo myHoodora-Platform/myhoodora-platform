@@ -142,9 +142,9 @@ export default function AboutPage() {
             <Link href="/register" className="inline-flex h-12 items-center gap-2 rounded-full bg-primary px-7 font-bold text-primary-foreground hover:bg-primary/90">
               Join myHoodora <ArrowRight className="size-4" aria-hidden />
             </Link>
-            <a href="mailto:hello@myhoodora.com" className="inline-flex h-12 items-center rounded-full border border-border px-6 font-semibold hover:bg-muted">
-              hello@myhoodora.com
-            </a>
+            <Link href="/contact" className="inline-flex h-12 items-center rounded-full border border-border px-6 font-semibold hover:bg-muted">
+              Contact us
+            </Link>
           </div>
         </div>
       </section>

@@ -19,7 +19,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { SmartImage } from "@myhoodora/ui/image";
-import { BUSINESS_IMAGE, HERO_IMAGE } from "@/lib/site-images";
+import { HERO_IMAGE, MARKET_IMAGE } from "@/lib/site-images";
 import { SignupCard } from "./signup-card";
 import { IPhoneMockup } from "./iphone-mockup";
 import { PhoneAppScreen } from "./phone-app-screen";
@@ -152,38 +152,38 @@ export function PhoneShowcase() {
 const FEATURES: { icon: LucideIcon; title: string; body: string; tone: string }[] = [
   {
     icon: AlertTriangle,
-    title: "Alerts that matter",
-    body: "Security, power, flooding and traffic updates from neighbours, grouped so you're informed without being overwhelmed. Urgent alerts reach everyone at once.",
+    title: "Alerts you can trust",
+    body: "Security, power, flooding and traffic updates from verified neighbours. Urgent alerts reach everyone at once; the rest stay neatly grouped.",
     tone: "bg-danger-soft text-destructive",
   },
   {
     icon: ThumbsUp,
-    title: "Trusted recommendations",
-    body: "Find a reliable electrician, tailor, mechanic or lesson teacher, recommended by people who actually live near you.",
+    title: "Neighbour recommendations",
+    body: "Find a reliable electrician, tailor, mechanic or lesson teacher, vouched for by people on your street.",
     tone: "bg-primary/10 text-primary",
   },
   {
     icon: ShoppingBag,
     title: "For Sale & Free",
-    body: "Buy, sell and give things away within your neighbourhood. Prices in naira, meet at the estate gate.",
+    body: "Sell, swap or give away things nearby. Prices in naira, pick-up at the estate gate.",
     tone: "bg-warning-soft text-warning",
   },
   {
     icon: CalendarDays,
-    title: "Events",
-    body: "Sanitation days, residents' meetings, owambes and Saturday 5-a-side, with RSVPs so organisers know who's coming.",
+    title: "Events near you",
+    body: "Sanitation days, residents' meetings, owambes and Saturday 5-a-side. RSVP and see who else is going.",
     tone: "bg-info-soft text-info",
   },
   {
     icon: Users,
     title: "Groups & polls",
-    body: "Your street, your estate, parents, safety watch. Create groups and run polls to decide things together.",
+    body: "Join your street, estate, parents' or safety-watch group, and run polls to decide things together.",
     tone: "bg-primary/10 text-primary",
   },
   {
     icon: MessageCircle,
     title: "Private messages",
-    body: "Chat with neighbours and sellers without swapping phone numbers until you're ready.",
+    body: "Chat safely with neighbours and sellers, without sharing your phone number until you're ready.",
     tone: "bg-secondary text-foreground",
   },
 ];
@@ -194,9 +194,9 @@ export function Features() {
       <div className={container}>
         <div className="mx-auto max-w-2xl space-y-3 text-center">
           <Eyebrow>Everything in one place</Eyebrow>
-          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">No more scrolling through ten WhatsApp groups</h2>
+          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Everything on your street, in one app</h2>
           <p className="text-lg text-muted-foreground">
-            The things neighbours in Nigeria need every day, organised and easy to find.
+            Alerts, trusted artisans, buying and selling, events and more, organised so you find what matters in seconds.
           </p>
         </div>
         <ul className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -296,44 +296,47 @@ export function SafetyTeaser() {
 
 export function BusinessTeaser() {
   return (
-    <section className="px-4 py-4 sm:px-6 lg:px-8">
-      <div className="relative mx-auto max-w-6xl overflow-hidden rounded-3xl text-white">
-        <SmartImage fill className="-z-10 object-cover" alt="" src={BUSINESS_IMAGE.src} />
-        <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-r from-[#0b1716]/95 via-[#0b1716]/80 to-[#0b1716]/40" />
-        <div className="grid gap-8 p-8 sm:p-12 lg:grid-cols-[1.3fr_1fr] lg:items-center">
-          <div className="space-y-4">
-            <p className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-bold tracking-wide uppercase">
-              <Building2 className="size-3.5" aria-hidden /> For business
-            </p>
-            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Your next customers live around the corner</h2>
-            <p className="text-lg text-white/85">
-              Artisans, shops, caterers, salons, schools and estate managers: reach verified residents near you with a free
-              Business Page, and let neighbours&apos; recommendations do the rest.
-            </p>
-            <Link
-              href="/business"
-              className="inline-flex h-12 items-center gap-2 rounded-full bg-white px-6 font-bold text-primary transition-colors hover:bg-white/90"
-            >
-              Explore myHoodora for business <ArrowRight className="size-4" aria-hidden />
-            </Link>
-          </div>
-          <ul className="space-y-3">
-            {[
-              [BadgeCheck, "Free Business Page"],
-              [MessageCircle, "Free posts to nearby neighbours"],
-              [ThumbsUp, "Recommendations you can't buy, only earn"],
-              [Building2, "Official pages for estates & associations"],
-            ].map(([Icon, label]) => {
-              const I = Icon as LucideIcon;
-              return (
-                <li key={label as string} className="flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-3 font-semibold backdrop-blur">
-                  <I className="size-5 shrink-0" aria-hidden />
-                  {label as string}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
+    // Full-bleed Lagos market photo, fixed behind the copy on large screens —
+    // the same treatment as the closing CTA on /business.
+    <section
+      className="relative isolate mt-10 overflow-hidden bg-cover bg-center text-white lg:mt-16 lg:bg-fixed"
+      style={{ backgroundImage: `url(${MARKET_IMAGE.src})` }}
+      role="img"
+      aria-label={MARKET_IMAGE.alt}
+    >
+      <div aria-hidden className="absolute inset-0 -z-10 bg-[#0b1716]/70" />
+      <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-b from-[#0b1716]/40 via-transparent to-[#0b1716]/60" />
+      <div className="mx-auto max-w-4xl space-y-6 px-4 py-24 text-center sm:px-6 lg:py-32">
+        <p className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-bold tracking-wide uppercase backdrop-blur">
+          <Building2 className="size-3.5" aria-hidden /> For business
+        </p>
+        <h2 className="text-3xl font-bold tracking-tight sm:text-5xl">Your next customers live around the corner</h2>
+        <p className="mx-auto max-w-2xl text-lg text-white/85">
+          Artisans, shops, caterers, salons, schools and estate managers: reach verified residents near you with a free
+          Business Page, and let neighbours&apos; recommendations do the rest.
+        </p>
+        <ul className="flex flex-wrap justify-center gap-2 sm:gap-3">
+          {[
+            [BadgeCheck, "Free Business Page"],
+            [MessageCircle, "Free posts to nearby neighbours"],
+            [ThumbsUp, "Recommendations you can't buy"],
+            [Building2, "Official estate pages"],
+          ].map(([Icon, label]) => {
+            const I = Icon as LucideIcon;
+            return (
+              <li key={label as string} className="flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-semibold backdrop-blur">
+                <I className="size-4 shrink-0" aria-hidden />
+                {label as string}
+              </li>
+            );
+          })}
+        </ul>
+        <Link
+          href="/business"
+          className="inline-flex h-12 items-center gap-2 rounded-full bg-white px-7 font-bold text-primary shadow-lg transition-colors hover:bg-white/90"
+        >
+          Explore myHoodora for business <ArrowRight className="size-4" aria-hidden />
+        </Link>
       </div>
     </section>
   );

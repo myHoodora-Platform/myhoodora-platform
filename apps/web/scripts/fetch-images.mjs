@@ -63,6 +63,35 @@ const MANIFEST = {
       "https://commons.wikimedia.org/wiki/File:A_Busy_Market_in_Mile_12,_Lagos-_Nigeria.jpg",
   },
 
+  // Landing "For business" band: busy Lagos market street from above
+  "market-street": {
+    url: "https://images.unsplash.com/photo-1785094166389-fb5485d11cd3?q=90&w=2400&auto=format&fit=crop",
+    credit: "Fahd Aminu",
+    creditUrl: "https://unsplash.com/photos/bustling-city-street-scene-with-numerous-vehicles-and-market-activity-RgDIV-QJTI8",
+    width: 2400,
+    quality: 80,
+    // Portrait original: keep a landscape band around the umbrellas + danfos.
+    extract: { left: 0, top: 850, width: 2400, height: 1600 },
+  },
+
+  // Contact hero background: friends laughing together outdoors
+  "contact-people": {
+    url: "https://images.unsplash.com/photo-1755705153160-67b29c7718ee?q=90&w=2400&auto=format&fit=crop",
+    credit: "Ufoma Ojo",
+    creditUrl: "https://unsplash.com/photos/FYq7zbi7iRE",
+    width: 2400,
+    quality: 82,
+  },
+
+  // Careers hero: two colleagues working together in a co-working space
+  "careers-team": {
+    url: "https://images.unsplash.com/photo-1531482615713-2afd69097998?q=90&w=1800&auto=format&fit=crop",
+    credit: "Unsplash",
+    creditUrl: "https://unsplash.com/photos/IgUR1iX0mqM",
+    width: 1800,
+    quality: 84,
+  },
+
   // Trust & safety candidates
   "trust-hands": {
     url: "https://images.unsplash.com/photo-1524414621493-7dec026782c3?q=80&w=1200&auto=format&fit=crop",
@@ -124,11 +153,12 @@ async function main() {
     const input = await fetchBuffer(entry.url);
     totalBefore += input.length;
 
-    const output = await sharp(input)
+    let pipeline = sharp(input)
       .rotate() // honor EXIF orientation
-      .resize({ width: entry.width ?? 1920, withoutEnlargement: true })
-      .webp({ quality: entry.quality ?? 80 })
-      .toBuffer();
+      .resize({ width: entry.width ?? 1920, withoutEnlargement: true });
+    // Optional crop (in resized pixels), e.g. a landscape band from a portrait photo.
+    if (entry.extract) pipeline = sharp(await pipeline.toBuffer()).extract(entry.extract);
+    const output = await pipeline.webp({ quality: entry.quality ?? 80 }).toBuffer();
     totalAfter += output.length;
 
     const outPath = path.join(OUT_DIR, `${name}.webp`);

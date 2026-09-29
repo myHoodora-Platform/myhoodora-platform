@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { ArrowUpRight, BookOpen, Building2, Compass, Heart, ShieldCheck, type LucideIcon } from "lucide-react";
+import { ArrowUpRight, BookOpen, Building2, Compass, Heart, ShieldCheck, Sparkles, type LucideIcon } from "lucide-react";
 import { cn } from "@myhoodora/ui/utils";
 
-export type ExploreKey = "about" | "how-it-works" | "safety" | "business" | "guidelines";
+export type ExploreKey = "about" | "how-it-works" | "safety" | "business" | "guidelines" | "ai";
 
 interface ExploreItem {
   href: string;
@@ -57,6 +57,16 @@ const ITEMS: Record<ExploreKey, ExploreItem> = {
     tone: "bg-primary/10",
     iconTone: "bg-primary text-primary-foreground",
     preview: ["Free Business Page", "Neighbour recommendations", "Estate pages"],
+  },
+  ai: {
+    href: "/ai",
+    eyebrow: "New · myHoodora AI",
+    title: "Turn lectures into songs, games and videos",
+    body: "For schools and lecturers: upload notes once, get three engaging ways to learn.",
+    icon: Sparkles,
+    tone: "bg-brand-coral/10",
+    iconTone: "bg-brand-coral text-white",
+    preview: ["🎵 Song", "🎮 Game", "🎬 Video"],
   },
   guidelines: {
     href: "/guidelines",

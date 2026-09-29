@@ -322,7 +322,7 @@ export default function BusinessPage() {
         </div>
       </section>
 
-      <ExploreMore items={["how-it-works", "safety", "about"]} title="New to myHoodora?" />
+      <ExploreMore items={["how-it-works", "safety", "ai"]} title="More from myHoodora" />
     </MarketingPage>
   );
 }

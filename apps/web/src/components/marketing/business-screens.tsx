@@ -25,7 +25,7 @@ import { IOSHomeIndicator, IOSStatusBar } from "./iphone-mockup";
  */
 
 
-function AppChrome({ children, title }: { children: React.ReactNode; title?: string }) {
+export function AppChrome({ children, title }: { children: React.ReactNode; title?: string }) {
   return (
     <div className="flex size-full flex-col bg-[#f4f5f4] font-sans text-[#14201e]">
       <div className="bg-white">

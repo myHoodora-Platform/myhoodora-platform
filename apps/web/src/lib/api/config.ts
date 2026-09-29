@@ -34,6 +34,9 @@ export const ENDPOINTS = {
   "settings": "planned",
   "feedback": "planned",
   "business": "planned",
+  "ai.pilot": "planned",
+  "contact": "planned",
+  "careers": "planned",
 } as const satisfies Record<string, "live" | "planned">;
 
 export type EndpointKey = keyof typeof ENDPOINTS;

@@ -28,6 +28,8 @@ describe("route access", () => {
     expect(isPublicPath("/")).toBe(true);
     expect(isPublicPath("/about")).toBe(true);
     expect(isPublicPath("/safety")).toBe(true);
+    expect(isPublicPath("/ai")).toBe(true);
+    for (const p of ["/careers", "/press", "/contact"]) expect(isPublicPath(p)).toBe(true);
     expect(isPublicPath("/business/get-started")).toBe(true);
     expect(isPublicPath("/coming-soon/careers")).toBe(true);
     expect(isPublicPath("/news-feed")).toBe(false);

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { MascotLockup } from "@myhoodora/ui/logo";
 
-const COLUMNS: { title: string; links: { label: string; href: string; soon?: boolean }[] }[] = [
+const COLUMNS: { title: string; links: { label: string; href: string; soon?: boolean; isNew?: boolean }[] }[] = [
   {
     title: "myHoodora",
     links: [
@@ -13,20 +13,21 @@ const COLUMNS: { title: string; links: { label: string; href: string; soon?: boo
     ],
   },
   {
-    title: "Business",
+    title: "Business & products",
     links: [
       { label: "For business", href: "/business" },
       { label: "For estates", href: "/business#estates" },
       { label: "Create a Business Page", href: "/business/get-started" },
+      { label: "myHoodora AI", href: "/ai", isNew: true },
     ],
   },
   {
     title: "Company",
     links: [
       { label: "About us", href: "/about" },
-      { label: "Careers", href: "/coming-soon/careers" },
-      { label: "Press", href: "/coming-soon/press" },
-      { label: "Contact", href: "mailto:hello@myhoodora.com" },
+      { label: "Careers", href: "/careers" },
+      { label: "Press", href: "/press" },
+      { label: "Contact", href: "/contact" },
     ],
   },
   {
@@ -103,6 +104,11 @@ export function Footer() {
                 <li key={l.label}>
                   <Link href={l.href} className="inline-flex items-center gap-2 transition-colors hover:text-white">
                     {l.label}
+                    {l.isNew && (
+                      <span className="rounded-full bg-primary/25 px-1.5 py-0.5 text-[10px] leading-none font-bold tracking-wide text-[#7fd6cb] uppercase">
+                        New
+                      </span>
+                    )}
                     {l.soon && (
                       <span className="rounded-full bg-brand-coral/20 px-1.5 py-0.5 text-[10px] leading-none font-bold tracking-wide text-brand-coral uppercase">
                         Soon
