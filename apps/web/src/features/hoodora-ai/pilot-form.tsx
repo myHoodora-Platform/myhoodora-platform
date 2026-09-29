@@ -12,9 +12,9 @@ import { errorMessage } from "@/lib/api/client";
 import { INSTITUTION_TYPES, submitAiPilotRequest, type InstitutionType } from "@/lib/api/hoodora-ai";
 
 const schema = z.object({
-  name: z.string().trim().min(2, "Enter your name."),
+  name: z.string().trim().min(2, "Enter your name.").max(80, "Use 80 characters or fewer."),
   email: z.string().trim().email("Enter a valid email address."),
-  institution: z.string().trim().min(2, "Enter your school or organisation."),
+  institution: z.string().trim().min(2, "Enter your school or organisation.").max(120),
   institutionType: z.string().min(1, "Choose what kind of organisation it is."),
   role: z.string().trim().max(80).optional(),
   subjects: z.string().trim().max(300).optional(),

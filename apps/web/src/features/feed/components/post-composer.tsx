@@ -16,6 +16,8 @@ import { errorMessage } from "@/lib/api/client";
 import type { AlertCategory, Post, PostCategory } from "@/lib/api/types";
 import { ALERT_CATEGORIES, POST_CATEGORIES, categoryDef } from "../categories";
 import { needsKindnessReminder } from "../kindness";
+import { reportKindness } from "@/lib/api/telemetry";
+import { useAuth } from "@/context/AuthContext";
 import { useFeed } from "../feed-context";
 
 const MAX_POLL_OPTIONS = 4;
@@ -84,6 +86,7 @@ interface PostComposerProps {
 
 export function PostComposer({ initialCategory, onDone, onCancel, onSell }: PostComposerProps) {
   const { createPost } = useFeed();
+  const { user } = useAuth();
   const online = useOnlineStatus();
   const [step, setStep] = useState<"pick" | "write">(initialCategory ? "write" : "pick");
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
@@ -119,8 +122,10 @@ export function PostComposer({ initialCategory, onDone, onCancel, onSell }: Post
     setSubmitError(null);
     if (!kindnessShown && needsKindnessReminder(values.message)) {
       setKindnessShown(true);
+      reportKindness(user, "shown");
       return;
     }
+    if (kindnessShown) reportKindness(user, needsKindnessReminder(values.message) ? "posted_anyway" : "edited");
     try {
       const options = values.pollOptions
         .map((o) => o.text.trim())

@@ -22,6 +22,7 @@ import type { HoodStatus } from "@/lib/api/admin/types";
 import { useAdminSession } from "../session";
 import { useAdminQuery } from "../use-admin-query";
 import { reportHref } from "../moderation/queue-page";
+import { HoodLeadsPanel } from "./hood-leads-panel";
 
 const HoodMap = dynamic(() => import("./hood-map").then((m) => m.HoodMap), { ssr: false, loading: () => <div className="h-56 animate-pulse bg-muted" /> });
 
@@ -210,6 +211,7 @@ export function HoodDetailPage({ id }: { id: string }) {
                 />
               </div>
             </Panel>
+            <HoodLeadsPanel hoodId={id} />
             <Panel title="History">
               <Timeline events={h.timeline} empty="No changes since this Hood went live." />
             </Panel>

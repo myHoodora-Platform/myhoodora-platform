@@ -19,6 +19,7 @@ import type {
   GroupPost,
   UpdateGroupInput,
 } from "./types";
+import { rememberAuthor } from "./users";
 
 /** Anti-spam: how many groups one neighbour may create per rolling 24h. */
 export const MAX_GROUPS_PER_DAY = 3;
@@ -74,7 +75,7 @@ function adjustCount(groupId: string, delta: number) {
 
 // ── Browse ──────────────────────────────────────────────────────────────────
 
-/** planned: GET /groups?neighborhoodId — viewer-relative membership/isAdmin. */
+/** live: GET /groups?neighborhoodId — viewer-relative membership/isAdmin. */
 export async function listGroups(user: User, neighborhoodId: string): Promise<Group[]> {
   if (isLive("groups")) return apiFetch<Group[]>(user, `/groups?neighborhoodId=${neighborhoodId}`);
   await latency();
@@ -85,9 +86,9 @@ export async function listGroups(user: User, neighborhoodId: string): Promise<Gr
     .sort((a, b) => Number(b.official) - Number(a.official) || b.memberCount - a.memberCount);
 }
 
-/** planned: GET /groups/:id */
-export async function getGroup(user: User, id: string): Promise<Group | null> {
-  if (isLive("groups")) return apiFetch<Group>(user, `/groups/${id}`);
+/** live: GET /groups/:id — an invite token lets invitees from outside the boundary see it. */
+export async function getGroup(user: User, id: string, inviteToken?: string): Promise<Group | null> {
+  if (isLive("groups")) return apiFetch<Group>(user, `/groups/${id}${inviteToken ? `?invite=${encodeURIComponent(inviteToken)}` : ""}`);
   await latency();
   const g = groupsStore().find((x) => x._id === id);
   return g ? viewerRelative(g, user.uid) : null;
@@ -96,7 +97,7 @@ export async function getGroup(user: User, id: string): Promise<Group | null> {
 // ── Create / edit / delete ──────────────────────────────────────────────────
 
 /**
- * planned: POST /groups → Group. Verified neighbours only; the creator
+ * live: POST /groups → Group. Verified neighbours only; the creator
  * becomes the first admin. 409 on a duplicate name in the neighbourhood,
  * 429 past MAX_GROUPS_PER_DAY.
  */
@@ -128,7 +129,7 @@ export async function createGroup(user: User, neighborhoodId: string, input: Cre
   return viewerRelative(group, user.uid);
 }
 
-/** planned: PATCH /groups/:id (admins) → Group */
+/** live: PATCH /groups/:id (admins) → Group */
 export async function updateGroup(user: User, id: string, input: UpdateGroupInput): Promise<Group> {
   if (isLive("groups")) return apiFetch<Group>(user, `/groups/${id}`, { method: "PATCH", json: input });
   await latency();
@@ -148,7 +149,7 @@ export function canDeleteGroup(groupId: string, adminUid: string): boolean {
   return !postsStore().some((p) => p.groupId === groupId && p.authorUid !== adminUid);
 }
 
-/** planned: DELETE /groups/:id (admins) — 409 if other members have posted. */
+/** live: DELETE /groups/:id (admins) — 409 if other members have posted. */
 export async function deleteGroup(user: User, id: string): Promise<void> {
   if (isLive("groups")) {
     await apiFetch<void>(user, `/groups/${id}`, { method: "DELETE" });
@@ -166,7 +167,7 @@ export async function deleteGroup(user: User, id: string): Promise<void> {
 // ── Joining ─────────────────────────────────────────────────────────────────
 
 /**
- * planned: POST /groups/:id/join { inviteToken? } → { membership }.
+ * live: POST /groups/:id/join { inviteToken? } → { membership }.
  * Open groups (or a valid invite) join instantly; private groups create a
  * request for the admins.
  */
@@ -197,7 +198,7 @@ export async function joinGroup(user: User, group: Group, inviteToken?: string):
 }
 
 /**
- * planned: DELETE /groups/:id/membership — leave, or cancel a request.
+ * live: DELETE /groups/:id/membership — leave, or cancel a request.
  * 409 for the last admin while other members remain (hand over first).
  */
 export async function leaveGroup(user: User, groupId: string): Promise<void> {
@@ -226,7 +227,7 @@ function inviteTokenFor(groupId: string): string {
 }
 
 /**
- * planned: POST /groups/:id/invite-link → { url } (members; admins only for
+ * live: POST /groups/:id/invite-link → { url } (members; admins only for
  * private groups). The token lets a private group be joined without a request.
  */
 export async function getInviteLink(user: User, groupId: string): Promise<string> {
@@ -238,7 +239,7 @@ export async function getInviteLink(user: User, groupId: string): Promise<string
   return `${window.location.origin}/g/${groupId}?invite=${inviteTokenFor(groupId)}`;
 }
 
-/** planned: POST /groups/:id/invites { uids } — notifies each invited neighbour. */
+/** live: POST /groups/:id/invites { uids } — notifies each invited neighbour. */
 export async function inviteNeighbours(user: User, groupId: string, uids: string[]): Promise<void> {
   if (isLive("groups")) {
     await apiFetch<void>(user, `/groups/${groupId}/invites`, { method: "POST", json: { uids } });
@@ -249,16 +250,18 @@ export async function inviteNeighbours(user: User, groupId: string, uids: string
   save("group-invites", { ...all, [groupId]: Array.from(new Set([...(all[groupId] ?? []), ...uids])) });
 }
 
-/** Neighbours already invited (preview). planned: part of GET /groups/:id/members?include=invited */
+/** Neighbours already invited (preview). live: part of GET /groups/:id/members?include=invited */
 export function invitedUids(groupId: string): string[] {
   if (typeof window === "undefined") return [];
   return invitesStore()[groupId] ?? [];
 }
 
-/** planned: GET /users/search?q&neighborhoodId (people you can invite). */
+/** live: GET /users/search?q&neighborhoodId (people you can invite). */
 export async function searchNeighbours(user: User, query: string) {
   if (isLive("groups")) {
-    return apiFetch<typeof MOCK_NEIGHBOURS>(user, `/users/search?q=${encodeURIComponent(query)}`);
+    const people = await apiFetch<typeof MOCK_NEIGHBOURS>(user, `/users/search?q=${encodeURIComponent(query)}`);
+    people.forEach(rememberAuthor);
+    return people;
   }
   await latency(120);
   const q = query.trim().toLowerCase();
@@ -267,7 +270,7 @@ export async function searchNeighbours(user: User, query: string) {
 
 // ── Admin: members & requests ───────────────────────────────────────────────
 
-/** planned: GET /groups/:id/members (members of private groups; anyone for open). */
+/** live: GET /groups/:id/members (members of private groups; anyone for open). */
 export async function listMembers(user: User, groupId: string): Promise<GroupMember[]> {
   if (isLive("groups")) return apiFetch<GroupMember[]>(user, `/groups/${groupId}/members`);
   await latency();
@@ -276,7 +279,7 @@ export async function listMembers(user: User, groupId: string): Promise<GroupMem
   );
 }
 
-/** planned: GET /groups/:id/requests (admins) */
+/** live: GET /groups/:id/requests (admins) */
 export async function listRequests(user: User, groupId: string): Promise<GroupJoinRequest[]> {
   if (isLive("groups")) return apiFetch<GroupJoinRequest[]>(user, `/groups/${groupId}/requests`);
   await latency();
@@ -284,7 +287,7 @@ export async function listRequests(user: User, groupId: string): Promise<GroupJo
   return requestsStore()[groupId] ?? [];
 }
 
-/** planned: POST /groups/:id/requests/:uid/approve (admins) */
+/** live: POST /groups/:id/requests/:uid/approve (admins) */
 export async function approveRequest(user: User, groupId: string, uid: string): Promise<void> {
   if (isLive("groups")) {
     await apiFetch<void>(user, `/groups/${groupId}/requests/${uid}/approve`, { method: "POST" });
@@ -299,7 +302,7 @@ export async function approveRequest(user: User, groupId: string, uid: string): 
   }
 }
 
-/** planned: POST /groups/:id/requests/:uid/decline (admins) — the neighbour isn't told why. */
+/** live: POST /groups/:id/requests/:uid/decline (admins) — the neighbour isn't told why. */
 export async function declineRequest(user: User, groupId: string, uid: string): Promise<void> {
   if (isLive("groups")) {
     await apiFetch<void>(user, `/groups/${groupId}/requests/${uid}/decline`, { method: "POST" });
@@ -310,7 +313,7 @@ export async function declineRequest(user: User, groupId: string, uid: string): 
   setRequests(groupId, (requestsStore()[groupId] ?? []).filter((r) => r.uid !== uid));
 }
 
-/** planned: DELETE /groups/:id/members/:uid { reason? } (admins) — the member is notified, with the reason. */
+/** live: DELETE /groups/:id/members/:uid { reason? } (admins) — the member is notified, with the reason. */
 export async function removeMember(user: User, groupId: string, uid: string, reason?: string): Promise<void> {
   if (isLive("groups")) {
     await apiFetch<void>(user, `/groups/${groupId}/members/${uid}`, { method: "DELETE", json: { reason } });
@@ -323,7 +326,7 @@ export async function removeMember(user: User, groupId: string, uid: string, rea
   adjustCount(groupId, -1);
 }
 
-/** planned: PATCH /groups/:id/members/:uid { role } (admins) */
+/** live: PATCH /groups/:id/members/:uid { role } (admins) */
 export async function setMemberRole(user: User, groupId: string, uid: string, role: GroupMember["role"]): Promise<void> {
   if (isLive("groups")) {
     await apiFetch<void>(user, `/groups/${groupId}/members/${uid}`, { method: "PATCH", json: { role } });
@@ -340,16 +343,20 @@ export async function setMemberRole(user: User, groupId: string, uid: string, ro
 
 // ── Group posts ─────────────────────────────────────────────────────────────
 
-/** planned: GET /groups/:id/posts (members only for private groups). */
+/** live: GET /groups/:id/posts (members only for private groups). */
 export async function listGroupPosts(user: User, groupId: string): Promise<GroupPost[]> {
-  if (isLive("groups")) return apiFetch<GroupPost[]>(user, `/groups/${groupId}/posts`);
+  if (isLive("groups")) {
+    const posts = await apiFetch<GroupPost[]>(user, `/groups/${groupId}/posts`);
+    posts.forEach((p) => rememberAuthor(p.author));
+    return posts;
+  }
   await latency();
   return postsStore()
     .filter((p) => p.groupId === groupId)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
-/** planned: POST /groups/:id/posts { content } (members only). */
+/** live: POST /groups/:id/posts { content } (members only). */
 export async function createGroupPost(user: User, groupId: string, content: string): Promise<GroupPost> {
   if (isLive("groups")) {
     return apiFetch<GroupPost>(user, `/groups/${groupId}/posts`, { method: "POST", json: { content } });
@@ -360,7 +367,7 @@ export async function createGroupPost(user: User, groupId: string, content: stri
   return post;
 }
 
-/** planned: DELETE /groups/:id/posts/:postId (author or group admin). */
+/** live: DELETE /groups/:id/posts/:postId (author or group admin). */
 export async function deleteGroupPost(user: User, groupId: string, postId: string): Promise<void> {
   if (isLive("groups")) {
     await apiFetch<void>(user, `/groups/${groupId}/posts/${postId}`, { method: "DELETE" });

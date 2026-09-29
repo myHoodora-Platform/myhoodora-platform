@@ -76,7 +76,14 @@ export type AuditAction =
   | "alert_end"
   | "alert_downgrade"
   | "inbox_reply"
-  | "claim";
+  | "claim"
+  | "settings_update"
+  | "lead_appoint"
+  | "lead_remove"
+  | "appeal_filed"
+  | "appeal_upheld"
+  | "appeal_overturned"
+  | "business_claim";
 
 export interface AuditEvent {
   id: string;
@@ -105,10 +112,14 @@ export interface AdminReport {
   status: ReportStatus;
   assignee?: { uid: string; displayName: string };
   resolution?: { action: ModerationAction; reason: string; note?: string; by: string; at: string };
+  /** "leads" while volunteer Hood Leads are voting on it (staff can still decide). */
+  route?: "staff" | "leads";
 }
 
 export interface ReportDetail extends AdminReport {
   content: ReportedContent;
+  /** Hood Lead votes so far (the split is only shown to staff). */
+  leadVotes?: { total: number; remove: number; maybe_remove: number; keep: number };
   author?: NeighbourSummary & { priorActions: AuditEvent[] };
   hood?: { id: string; name: string; city: string };
   reports: { reason: ReportReason; details?: string; reporter: { uid: string; displayName: string }; at: string }[];
@@ -351,6 +362,8 @@ export interface AdminOverview {
     businessApplications: number;
     unansweredInbox: number;
     liveUrgentAlerts: number;
+    /** Appeals waiting for a reviewer. */
+    openAppeals?: number;
   };
   pulse: { newNeighbours: Trend; posts: Trend; activeHoods: Trend; medianResolveHours: Trend };
   recentActions: AuditEvent[];
@@ -368,4 +381,29 @@ export interface SignupEntry {
   email: string;
   detail: string;
   at: string;
+}
+
+// ── Hood Leads & appeals ────────────────────────────────────────────────────
+
+export interface HoodLead {
+  uid: string;
+  displayName: string;
+  photoURL?: string;
+  since: string;
+}
+
+export type AppealStatus = "open" | "upheld" | "overturned";
+
+export interface AdminAppeal {
+  id: string;
+  caseId: string;
+  /** "author": about their own content/account · "reporter": we kept something they reported. */
+  party: "author" | "reporter";
+  by: { uid: string; displayName: string };
+  reason: string;
+  decision: { action: ModerationAction; reason: string; byUid: string; at: string };
+  target: { type: string; id: string; preview: string };
+  status: AppealStatus;
+  outcome?: { reason: string; by: string; at: string };
+  createdAt: string;
 }

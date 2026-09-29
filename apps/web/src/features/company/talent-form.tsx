@@ -12,15 +12,15 @@ import { errorMessage } from "@/lib/api/client";
 import { TALENT_TEAMS, joinTalentNetwork, type TalentTeam } from "@/lib/api/company";
 
 const schema = z.object({
-  name: z.string().trim().min(2, "Enter your name."),
+  name: z.string().trim().min(2, "Enter your name.").max(80, "Use 80 characters or fewer."),
   email: z.string().trim().email("Enter a valid email address."),
   team: z.string().min(1, "Choose the team you're most interested in."),
-  city: z.string().trim().min(2, "Enter your city."),
+  city: z.string().trim().min(2, "Enter your city.").max(60),
   link: z
     .string()
     .trim()
     .optional()
-    .refine((v) => !v || /^https?:\/\/\S+\.\S+/.test(v), "Paste a full link, starting with https://"),
+    .refine((v) => !v || /^https:\/\/\S+\.\S+/.test(v), "Paste a full link, starting with https://"),
   note: z.string().trim().max(500).optional(),
 });
 

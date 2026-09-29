@@ -72,6 +72,7 @@ export function NeighboursPage() {
             { value: "member", label: "Member" },
             { value: "moderator", label: "Moderator" },
             { value: "admin", label: "Admin" },
+            { value: "owner", label: "Owner" },
           ]}
         />
       </AdminToolbar>

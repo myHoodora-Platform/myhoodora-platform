@@ -4,6 +4,12 @@ import { isLive } from "./config";
 import { latency, load, mockId, save } from "./mock/store";
 import { seedConversations } from "./mock/seed";
 import type { Conversation, ConversationContext, Message } from "./types";
+import { rememberAuthor } from "./users";
+
+function withPeople<T extends Conversation | Conversation[]>(value: T): T {
+  (Array.isArray(value) ? value : [value]).forEach((c) => c.participants?.forEach(rememberAuthor));
+  return value;
+}
 
 interface ChatState {
   conversations: Conversation[];
@@ -13,28 +19,34 @@ interface ChatState {
 const key = (uid: string) => `chat:${uid}`;
 const state = (uid: string) => load<ChatState>(key(uid), () => seedConversations(uid));
 
-/** planned: GET /conversations — newest activity first, with unreadCount. */
+/** live: GET /conversations — newest activity first, with unreadCount. */
 export async function listConversations(user: User): Promise<Conversation[]> {
-  if (isLive("chat")) return apiFetch<Conversation[]>(user, "/conversations");
+  if (isLive("chat")) return withPeople(await apiFetch<Conversation[]>(user, "/conversations"));
   await latency();
   return [...state(user.uid).conversations].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
-/** Sync unread total for the header badge (preview). planned: GET /conversations/unread-count */
+/** live: GET /conversations/unread-count → { count } (header badge). */
+export async function fetchUnreadTotal(user: User): Promise<number> {
+  if (!isLive("chat")) return unreadTotal(user.uid);
+  return (await apiFetch<{ count: number }>(user, "/conversations/unread-count")).count;
+}
+
+/** Sync unread total for the header badge (preview only). */
 export function unreadTotal(uid: string): number {
   if (typeof window === "undefined" || isLive("chat")) return 0;
   return state(uid).conversations.reduce((n, c) => n + c.unreadCount, 0);
 }
 
-/** planned: GET /conversations/:id */
+/** live: GET /conversations/:id */
 export async function getConversation(user: User, id: string): Promise<Conversation | null> {
-  if (isLive("chat")) return apiFetch<Conversation>(user, `/conversations/${id}`);
+  if (isLive("chat")) return withPeople(await apiFetch<Conversation>(user, `/conversations/${id}`));
   await latency(120);
   return state(user.uid).conversations.find((c) => c._id === id) ?? null;
 }
 
 /**
- * planned: POST /conversations { recipientUid, context? } — returns the
+ * live: POST /conversations { recipientUid, context? } — returns the
  * existing thread if one already exists for this pair + context, so tapping
  * "Message seller" twice never creates duplicates.
  */
@@ -44,7 +56,7 @@ export async function startConversation(
   context?: ConversationContext,
 ): Promise<Conversation> {
   if (isLive("chat")) {
-    return apiFetch<Conversation>(user, "/conversations", { method: "POST", json: { recipientUid, context } });
+    return withPeople(await apiFetch<Conversation>(user, "/conversations", { method: "POST", json: { recipientUid, context } }));
   }
   await latency();
   const s = state(user.uid);
@@ -63,7 +75,7 @@ export async function startConversation(
   return convo;
 }
 
-/** planned: GET /conversations/:id/messages — oldest first. Also marks as read. */
+/** live: GET /conversations/:id/messages — oldest first. Also marks as read. */
 export async function listMessages(user: User, conversationId: string): Promise<Message[]> {
   if (isLive("chat")) return apiFetch<Message[]>(user, `/conversations/${conversationId}/messages`);
   await latency(150);
@@ -77,7 +89,7 @@ export async function listMessages(user: User, conversationId: string): Promise<
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
-/** planned: POST /conversations/:id/messages { body } */
+/** live: POST /conversations/:id/messages { body } */
 export async function sendMessage(user: User, conversationId: string, body: string): Promise<Message> {
   if (isLive("chat")) {
     return apiFetch<Message>(user, `/conversations/${conversationId}/messages`, { method: "POST", json: { body } });

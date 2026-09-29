@@ -46,8 +46,8 @@ export function GroupPage({ id }: { id: string }) {
   const canRead = group && (group.privacy === "open" || group.membership === "member");
 
   useEffect(() => {
-    if (user) void getGroup(user, id).then(setGroup).catch(() => setGroup(null));
-  }, [user, id]);
+    if (user) void getGroup(user, id, inviteToken ?? undefined).then(setGroup).catch(() => setGroup(null));
+  }, [user, id, inviteToken]);
 
   useEffect(() => {
     if (user && canRead) void listGroupPosts(user, id).then(setPosts);
@@ -77,7 +77,7 @@ export function GroupPage({ id }: { id: string }) {
       setJoiningByInvite(true);
       try {
         const membership = await joinGroup(user, group, inviteToken ?? undefined);
-        setGroup((await getGroup(user, id)) ?? { ...group, membership });
+        setGroup((await getGroup(user, id, inviteToken ?? undefined)) ?? { ...group, membership });
         toast.success(`Welcome to ${group.name}!`);
         router.replace(pathname, { scroll: false });
       } catch (err) {

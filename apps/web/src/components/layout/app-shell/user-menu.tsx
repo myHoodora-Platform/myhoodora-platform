@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronDown, HelpCircle, LogOut, Settings, Shield, User } from "lucide-react";
+import { ChevronDown, Gavel, HelpCircle, LogOut, Settings, Shield, User } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +13,7 @@ import {
 } from "@myhoodora/ui/dropdown-menu";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { useAuth } from "@/context/AuthContext";
+import { useLeadStatus } from "@/hooks/use-lead-status";
 import { useViewer } from "@/hooks/use-neighbourhood";
 import { resolveAuthor } from "@/lib/api/users";
 import { USE_MOCKS } from "@/lib/api/config";
@@ -35,7 +36,9 @@ export function UserMenu() {
   const { user, profile } = useAuth();
   const viewer = useViewer();
   const handleLogout = useLogout();
+  const lead = useLeadStatus();
   if (!user) return null;
+  const staff = profile?.role === "owner" || profile?.role === "admin" || profile?.role === "moderator";
   const me = resolveAuthor(user.uid, viewer);
 
   return (
@@ -73,11 +76,19 @@ export function UserMenu() {
             <HelpCircle className="size-4" /> Help centre
           </Link>
         </DropdownMenuItem>
-        {(profile?.role === "admin" || profile?.role === "moderator" || USE_MOCKS) && (
+        {lead?.isLead && (
+          <DropdownMenuItem asChild>
+            <Link href={ROUTES.leads}>
+              <Gavel className="size-4" /> Hood Lead reviews
+              {lead.waiting > 0 && <span className="ml-auto rounded-full bg-primary px-2 text-xs font-bold text-primary-foreground">{lead.waiting}</span>}
+            </Link>
+          </DropdownMenuItem>
+        )}
+        {(staff || USE_MOCKS) && (
           <DropdownMenuItem asChild>
             <Link href={ROUTES.admin}>
               <Shield className="size-4" /> Admin
-              {profile?.role !== "admin" && profile?.role !== "moderator" && <span className="ml-auto text-xs text-muted-foreground">preview</span>}
+              {!staff && <span className="ml-auto text-xs text-muted-foreground">preview</span>}
             </Link>
           </DropdownMenuItem>
         )}

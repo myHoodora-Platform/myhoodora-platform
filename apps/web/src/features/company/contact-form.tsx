@@ -36,7 +36,7 @@ const TOPICS: { id: ContactTopic; label: string; hint: string; icon: LucideIcon 
 
 const schema = z.object({
   topic: z.string().min(1, "Choose what it's about."),
-  name: z.string().trim().min(2, "Enter your name."),
+  name: z.string().trim().min(2, "Enter your name.").max(80, "Use 80 characters or fewer."),
   email: z.string().trim().email("Enter a valid email address."),
   organisation: z.string().trim().max(120).optional(),
   message: z.string().trim().min(20, "Tell us a little more (at least 20 characters).").max(2000),

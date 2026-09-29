@@ -28,7 +28,7 @@ const schema = z.object({
   description: z.string().trim().min(20, "Tell neighbours what you offer (at least 20 characters).").max(300),
   areasServed: z.array(z.string()).min(1, "Choose at least one neighbourhood you serve."),
   address: z.string().trim().max(160).optional(),
-  contactName: z.string().trim().min(2, "Enter your name."),
+  contactName: z.string().trim().min(2, "Enter your name.").max(80),
   phone: z.string().refine((v) => normaliseNigerianPhone(v) !== null, "Enter a Nigerian mobile number, e.g. 0803 123 4567."),
   email: z.string().trim().email("Enter a valid email address."),
   cacNumber: z

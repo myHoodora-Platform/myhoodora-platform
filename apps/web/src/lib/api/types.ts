@@ -192,11 +192,13 @@ export interface Listing {
   photos: string[];
   status: "available" | "pending" | "sold";
   createdAt: string;
+  /** Embedded by the live API. */
+  seller?: { uid: string; displayName: string; photoURL?: string };
 }
 
 export type CreateListingInput = Omit<
   Listing,
-  "_id" | "sellerUid" | "neighborhoodId" | "status" | "createdAt"
+  "_id" | "sellerUid" | "neighborhoodId" | "status" | "createdAt" | "seller"
 >;
 
 // ── Groups (planned) ────────────────────────────────────────────────────────
@@ -252,6 +254,8 @@ export interface GroupPost {
   _id: string;
   groupId: string;
   authorUid: string;
+  /** Embedded by the live API. */
+  author?: { uid: string; displayName: string; photoURL?: string };
   content: string;
   createdAt: string;
 }
@@ -284,6 +288,8 @@ export interface Conversation {
   lastMessage?: { body: string; senderUid: string; createdAt: string };
   unreadCount: number;
   updatedAt: string;
+  /** Embedded by the live API (names/photos of both people). */
+  participants?: { uid: string; displayName: string; photoURL?: string }[];
 }
 
 export interface Message {

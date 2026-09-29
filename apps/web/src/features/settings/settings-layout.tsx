@@ -12,6 +12,7 @@ import {
   LogOut,
   MapPin,
   MessageSquareHeart,
+  Scale,
   Shield,
   ShieldAlert,
   User,
@@ -41,6 +42,7 @@ export const SETTINGS_SECTIONS: Section[] = [
   { label: "Neighbourhood", description: "Where you live and verification", href: ROUTES.settingsNeighbourhood, icon: MapPin },
   { label: "Notifications", description: "What we tell you about, and how", href: ROUTES.settingsNotifications, icon: Bell },
   { label: "Privacy & blocking", description: "Who sees your profile and can message you", href: ROUTES.settingsPrivacy, icon: Shield },
+  { label: "Decisions & appeals", description: "Moderation decisions and appeals", href: ROUTES.settingsModeration, icon: Scale },
 ];
 
 function Summary() {

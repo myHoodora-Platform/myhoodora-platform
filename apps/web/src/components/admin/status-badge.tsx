@@ -22,6 +22,8 @@ const STATUS: Record<string, { label: string; tone: Tone }> = {
   under_review: { label: "Under review", tone: "teal" },
   escalated: { label: "Escalated", tone: "coral" },
   resolved: { label: "Resolved", tone: "grey" },
+  upheld: { label: "Upheld", tone: "grey" },
+  overturned: { label: "Overturned", tone: "teal" },
   dismissed: { label: "Dismissed", tone: "grey" },
   // content
   visible: { label: "Visible", tone: "green" },

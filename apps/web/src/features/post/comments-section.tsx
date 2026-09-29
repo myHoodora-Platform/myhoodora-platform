@@ -18,6 +18,7 @@ import { ROUTES } from "@/lib/routes";
 import { timeAgo } from "@/lib/time";
 import type { Comment } from "@/lib/api/types";
 import { needsKindnessReminder } from "@/features/feed/kindness";
+import { reportKindness } from "@/lib/api/telemetry";
 import { useBlocked } from "@/hooks/use-blocked";
 
 interface CommentsSectionProps {
@@ -54,8 +55,10 @@ export function CommentsSection({ postId, onCountChange }: CommentsSectionProps)
     if (!user || !content) return;
     if (!kindness && needsKindnessReminder(content)) {
       setKindness(true);
+      reportKindness(user, "shown");
       return;
     }
+    if (kindness) reportKindness(user, needsKindnessReminder(content) ? "posted_anyway" : "edited");
     runGatedAction(async () => {
       setSending(true);
       try {

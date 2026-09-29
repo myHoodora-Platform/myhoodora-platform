@@ -115,6 +115,31 @@ export async function apiFetch<T>(
 }
 
 /**
+ * POST to a public (no account) endpoint. Validation (400/422) and rate
+ * limit (429) messages from the API are shown as-is; anything else gets
+ * the friendly wording.
+ */
+export async function publicPost<T>(path: string, body: unknown): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "TimeoutError") throw new ApiError(FRIENDLY_MESSAGES.timeout, 0, "timeout");
+    throw new ApiError(FRIENDLY_MESSAGES.network, 0, "network");
+  }
+  if (!res.ok) {
+    const kind = kindForStatus(res.status);
+    throw new ApiError(await messageFrom(res, kind), res.status, kind);
+  }
+  return (await res.json()) as T;
+}
+
+/**
  * Retry a read once or twice on transient failures (network, timeout, 5xx),
  * with a short backoff. Never retries 4xx — those won't fix themselves.
  */

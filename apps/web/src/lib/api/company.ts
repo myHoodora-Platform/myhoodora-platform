@@ -1,5 +1,5 @@
-import { ApiError, FRIENDLY_MESSAGES } from "./client";
-import { API_BASE_URL, isLive, type EndpointKey } from "./config";
+import { publicPost } from "./client";
+import { isLive, type EndpointKey } from "./config";
 import { latency, load, mockId, save } from "./mock/store";
 
 // ── Contact ─────────────────────────────────────────────────────────────────
@@ -33,7 +33,7 @@ export interface ContactResult {
   status: "received";
 }
 
-/** planned: POST /contact (public). Routed to the right inbox by topic. */
+/** live: POST /contact (public). Routed to the right inbox by topic. */
 export function sendContactMessage(input: ContactMessage): Promise<ContactResult> {
   return submitPublic("contact", "/contact", "contact-messages", "msg", input, "received");
 }
@@ -64,7 +64,7 @@ export interface TalentResult {
   status: "joined";
 }
 
-/** planned: POST /careers/talent-network (public). */
+/** live: POST /careers/talent-network (public). */
 export function joinTalentNetwork(input: TalentProfile): Promise<TalentResult> {
   return submitPublic("careers", "/careers/talent-network", "talent-network", "talent", input, "joined");
 }
@@ -80,19 +80,7 @@ async function submitPublic<S extends string>(
   status: S,
 ): Promise<{ id: string; status: S }> {
   if (isLive(endpoint)) {
-    let res: Response;
-    try {
-      res = await fetch(`${API_BASE_URL}${path}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
-        signal: AbortSignal.timeout(15_000),
-      });
-    } catch {
-      throw new ApiError(FRIENDLY_MESSAGES.network, 0, "network");
-    }
-    if (!res.ok) throw new ApiError(FRIENDLY_MESSAGES.server, res.status, res.status >= 500 ? "server" : "client");
-    return res.json();
+    return publicPost<{ id: string; status: S }>(path, input);
   }
   await latency(600);
   const all = load<object[]>(storeKey, () => []);

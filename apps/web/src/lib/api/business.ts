@@ -1,5 +1,6 @@
-import { ApiError, FRIENDLY_MESSAGES } from "./client";
-import { API_BASE_URL, isLive } from "./config";
+import type { User } from "firebase/auth";
+import { apiFetch, publicPost } from "./client";
+import { isLive } from "./config";
 import { latency, load, mockId, save } from "./mock/store";
 
 export const BUSINESS_CATEGORIES = [
@@ -34,25 +35,13 @@ export interface BusinessApplicationResult {
 }
 
 /**
- * planned: POST /business-pages/applications (public; no account needed yet).
+ * live: POST /business-pages/applications (public; no account needed yet).
  * Creates a pending Business Page; the team verifies the phone (OTP) and CAC
  * number if given, then emails a link to claim the page.
  */
 export async function submitBusinessApplication(input: BusinessApplication): Promise<BusinessApplicationResult> {
   if (isLive("business")) {
-    let res: Response;
-    try {
-      res = await fetch(`${API_BASE_URL}/business-pages/applications`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
-        signal: AbortSignal.timeout(15_000),
-      });
-    } catch {
-      throw new ApiError(FRIENDLY_MESSAGES.network, 0, "network");
-    }
-    if (!res.ok) throw new ApiError(FRIENDLY_MESSAGES.server, res.status, res.status >= 500 ? "server" : "client");
-    return res.json();
+    return publicPost<BusinessApplicationResult>("/business-pages/applications", input);
   }
   await latency(600);
   const all = load<(BusinessApplication & { id: string; at: string })[]>("business-applications", () => []);
@@ -71,4 +60,11 @@ export function normaliseNigerianPhone(raw: string): string | null {
 /** CAC numbers look like RC123456 (companies) or BN1234567 (business names). */
 export function isValidCacNumber(raw: string): boolean {
   return /^(RC|BN|IT)\s?\d{4,8}$/i.test(raw.trim());
+}
+
+/** live: POST /business-pages/claim { token } → { id, businessName } (signed in). */
+export async function claimBusinessPage(user: User, token: string): Promise<{ id: string; businessName: string }> {
+  if (isLive("business.claim")) return apiFetch(user, "/business-pages/claim", { method: "POST", json: { token } });
+  await latency(400);
+  return { id: "preview", businessName: "Your business" };
 }

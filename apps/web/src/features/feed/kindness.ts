@@ -2,7 +2,7 @@
  * Lightweight "Kindness Reminder" (Nextdoor found 36% of prompted neighbours
  * edit or withhold, cutting guideline violations ~15%). This is a gentle
  * nudge, not moderation — the server remains authoritative.
- * planned: POST /moderation/check { text } → { flagged, reasons }.
+ * Counts are reported anonymously (lib/api/telemetry.ts) for admin insights.
  */
 const WORDS = [
   "idiot",

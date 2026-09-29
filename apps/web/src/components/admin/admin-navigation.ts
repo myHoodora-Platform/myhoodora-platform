@@ -16,6 +16,7 @@ import {
   Users,
   UsersRound,
   Flag,
+  Scale,
 } from "lucide-react";
 import type { AdminOverview, Capability } from "@/lib/api/admin/types";
 
@@ -41,6 +42,7 @@ export const ADMIN_NAV: AdminNavSection[] = [
     label: "Moderation",
     items: [
       { title: "Queue", href: "/admin/moderation", icon: Flag, badge: "openReports" },
+      { title: "Appeals", href: "/admin/moderation/appeals", icon: Scale, badge: "openAppeals", capability: "moderation.act" },
       { title: "History", href: "/admin/moderation/history", icon: History },
     ],
   },

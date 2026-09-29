@@ -11,7 +11,7 @@ export const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === "true";
 /**
  * Which backend endpoints exist today. Services call the real API for
  * "live" ones and the mock store for "planned" ones (docs/api-contract.md
- * has the same table). Planned today = backend pass 2. When the backend ships
+ * has the same table). When the backend ships
  * an endpoint, flip it here — the request/response shapes are already
  * defined in lib/api/types.ts and documented in docs/api-contract.md.
  */
@@ -21,24 +21,29 @@ export const ENDPOINTS = {
   "posts.like": "live",
   "posts.delete": "live",
   "auth.emailVerification": "live",
+  "support": "live",
+  "telemetry": "live",
+  "moderation.leads": "live",
+  "moderation.appeals": "live",
+  "business.claim": "live",
   "posts.get": "live",
   "posts.reaction": "live",
   "polls": "live",
   "alerts": "live",
   "comments": "live",
   "users.publicProfile": "live",
-  "listings": "planned",
-  "groups": "planned",
+  "listings": "live",
+  "groups": "live",
   "events.rsvp": "live",
-  "chat": "planned",
+  "chat": "live",
   "notifications": "live",
   "reports": "live",
   "settings": "live",
   "feedback": "live",
-  "business": "planned",
-  "ai.pilot": "planned",
-  "contact": "planned",
-  "careers": "planned",
+  "business": "live",
+  "ai.pilot": "live",
+  "contact": "live",
+  "careers": "live",
   // Admin operations platform (contract §13)
   "admin.session": "live",
   "admin.overview": "live",
@@ -47,11 +52,11 @@ export const ENDPOINTS = {
   "admin.verification": "live",
   "admin.hoods": "live",
   "admin.content": "live",
-  "admin.businesses": "planned",
-  "admin.marketplace": "planned",
-  "admin.groups": "planned",
-  "admin.signups": "planned",
-  "admin.inbox": "planned",
+  "admin.businesses": "live",
+  "admin.marketplace": "live",
+  "admin.groups": "live",
+  "admin.signups": "live",
+  "admin.inbox": "live",
   "admin.broadcasts": "live",
   "admin.insights": "live",
   "admin.team": "live",

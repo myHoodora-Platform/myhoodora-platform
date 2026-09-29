@@ -1,5 +1,5 @@
 import type { User } from "firebase/auth";
-import { ApiError } from "../client";
+import { ApiError, apiFetch } from "../client";
 import { isLive } from "../config";
 import { actorOf, adminGet, adminSend, forbidden, mock, notFound } from "./http";
 import {
@@ -24,6 +24,7 @@ import type {
   AdminRole,
   CreateHoodInput,
   HoodDetail,
+  HoodLead,
   HoodStatus,
   ListQuery,
   NeighbourActionInput,
@@ -264,4 +265,18 @@ export async function updateHood(
     recordAudit(actorOf(user, role), patch.status === "archived" ? "hood_archive" : "hood_update", { type: "hood", id, label: h.name }, reason);
   }, 350);
   return getHood(user, id);
+}
+
+// ── Hood Leads ──────────────────────────────────────────────────────────────
+
+/** live: GET /admin/hoods/:id/leads */
+export async function getHoodLeads(user: User, hoodId: string): Promise<HoodLead[]> {
+  if (isLive("admin.hoods")) return adminGet(user, `/hoods/${hoodId}/leads`);
+  return mock(() => []);
+}
+
+/** live: PUT /admin/hoods/:id/leads { uids } (admins). Voting starts once a Hood has 3 active Leads. */
+export async function setHoodLeads(user: User, hoodId: string, uids: string[]): Promise<HoodLead[]> {
+  if (isLive("admin.hoods")) return apiFetch<HoodLead[]>(user, `/admin/hoods/${hoodId}/leads`, { method: "PUT", json: { uids } });
+  return mock(() => []);
 }

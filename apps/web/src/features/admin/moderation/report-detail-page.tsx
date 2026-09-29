@@ -162,6 +162,17 @@ export function ReportDetailPage({ id }: { id: string }) {
       <DetailLayout
         main={
           <>
+            {(r.route === "leads" || r.leadVotes) && (
+              <div className="rounded-2xl border border-primary/20 bg-primary/[0.04] p-4 text-sm">
+                <p className="font-semibold">{r.route === "leads" ? "Hood Leads are voting on this" : "Hood Leads voted on this"}</p>
+                <p className="text-muted-foreground">
+                  {r.leadVotes
+                    ? `${r.leadVotes.total} ${r.leadVotes.total === 1 ? "vote" : "votes"}: ${r.leadVotes.remove} remove · ${r.leadVotes.maybe_remove} not sure · ${r.leadVotes.keep} keep.`
+                    : "No votes yet."}{" "}
+                  {r.route === "leads" && "You can still decide now; otherwise it comes to staff after 48 hours without agreement."}
+                </p>
+              </div>
+            )}
             <Panel title="What was reported">
               <ContentPreview content={r.content} author={r.author?.displayName} hood={r.hood?.name} />
             </Panel>

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { BookOpen, Mail, ShieldCheck } from "lucide-react";
 import { PageHeader } from "@/components/shared/states";
+import { SupportForm } from "@/features/help/support-form";
 import { ROUTES } from "@/lib/routes";
 
 export const metadata: Metadata = { title: "Help centre | myHoodora" };
@@ -25,11 +26,11 @@ const FAQS = [
   },
   {
     q: "How do I report something?",
-    a: "Use the ••• menu on any post, or “Report” on comments, listings and messages. Reports are private and reviewed by neighbourhood leads.",
+    a: "Use the ••• menu on any post, or “Report” on comments, listings and messages. Reports are private: volunteer Hood Leads or the myHoodora team review them, and nobody is told who reported. You can see the outcome, and appeal it, in Settings → Decisions & appeals.",
   },
   {
     q: "How do I change my neighbourhood?",
-    a: "Moving to a new neighbourhood isn't self-serve yet. Email hello@myhoodora.com and we'll move you over after verifying your new address.",
+    a: "Moving to a new neighbourhood isn't self-serve yet. Send us a message below and we'll move you over after verifying your new address.",
   },
 ];
 
@@ -47,7 +48,7 @@ export default function HelpPage() {
           <ShieldCheck className="size-5 text-primary" aria-hidden />
           <span className="font-semibold">Privacy policy</span>
         </Link>
-        <a href="mailto:hello@myhoodora.com" className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4 hover:bg-muted/50">
+        <a href="#support" className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4 hover:bg-muted/50">
           <Mail className="size-5 text-primary" aria-hidden />
           <span className="font-semibold">Contact support</span>
         </a>
@@ -66,6 +67,13 @@ export default function HelpPage() {
             <p className="px-4 pb-4 text-[15px] text-foreground/80">{f.a}</p>
           </details>
         ))}
+      </section>
+
+      <section id="support" aria-labelledby="support-title" className="scroll-mt-24 rounded-2xl border border-border bg-card">
+        <h2 id="support-title" className="border-b border-border p-4 text-base font-bold">
+          Contact support
+        </h2>
+        <SupportForm />
       </section>
     </div>
   );

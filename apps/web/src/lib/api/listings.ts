@@ -5,6 +5,13 @@ import { isRemoved } from "./mock/moderation-state";
 import { latency, load, mockId, save } from "./mock/store";
 import { seedListings } from "./mock/seed";
 import type { CreateListingInput, Listing, ListingCategory } from "./types";
+import { rememberAuthor } from "./users";
+
+/** Live listings embed the seller card; remember it for resolveAuthor(). */
+function withSeller<T extends Listing | Listing[]>(value: T): T {
+  (Array.isArray(value) ? value : [value]).forEach((l) => rememberAuthor(l.seller));
+  return value;
+}
 
 const KEY = "listings";
 const all = () => load<Listing[]>(KEY, seedListings);
@@ -15,7 +22,7 @@ export interface ListingFilters {
   sellerUid?: string;
 }
 
-/** planned: GET /listings?neighborhoodId&category&free&seller */
+/** live: GET /listings?neighborhoodId&category&free&seller */
 export async function listListings(
   user: User,
   neighborhoodId: string,
@@ -26,7 +33,7 @@ export async function listListings(
     if (filters.category) params.set("category", filters.category);
     if (filters.freeOnly) params.set("free", "true");
     if (filters.sellerUid) params.set("seller", filters.sellerUid);
-    return apiFetch<Listing[]>(user, `/listings?${params}`);
+    return withSeller(await apiFetch<Listing[]>(user, `/listings?${params}`));
   }
   await latency();
   return all()
@@ -38,21 +45,21 @@ export async function listListings(
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
-/** planned: GET /listings/:id */
+/** live: GET /listings/:id */
 export async function getListing(user: User, id: string): Promise<Listing | null> {
-  if (isLive("listings")) return apiFetch<Listing>(user, `/listings/${id}`);
+  if (isLive("listings")) return withSeller(await apiFetch<Listing>(user, `/listings/${id}`));
   await latency();
   return all().find((l) => l._id === id && !isRemoved("listing", l._id)) ?? null;
 }
 
-/** planned: POST /listings */
+/** live: POST /listings */
 export async function createListing(
   user: User,
   neighborhoodId: string,
   input: CreateListingInput,
 ): Promise<Listing> {
   if (isLive("listings")) {
-    return apiFetch<Listing>(user, "/listings", { method: "POST", json: { ...input, neighborhoodId } });
+    return withSeller(await apiFetch<Listing>(user, "/listings", { method: "POST", json: { ...input, neighborhoodId } }));
   }
   await latency(400);
   const listing: Listing = {
@@ -67,7 +74,7 @@ export async function createListing(
   return listing;
 }
 
-/** planned: PATCH /listings/:id { status } (seller only). */
+/** live: PATCH /listings/:id { status } (seller only). */
 export async function setListingStatus(
   user: User,
   id: string,
@@ -86,7 +93,7 @@ export async function setListingStatus(
   return updated;
 }
 
-/** planned: DELETE /listings/:id (seller only). */
+/** live: DELETE /listings/:id (seller only). */
 export async function deleteListing(user: User, id: string): Promise<void> {
   if (isLive("listings")) {
     await apiFetch<void>(user, `/listings/${id}`, { method: "DELETE" });

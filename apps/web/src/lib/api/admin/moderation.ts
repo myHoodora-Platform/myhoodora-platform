@@ -25,8 +25,10 @@ import {
   severityRank,
 } from "./mock-db";
 import type {
+  AdminAppeal,
   AdminReport,
   AdminRole,
+  AppealStatus,
   AuditEvent,
   ListQuery,
   ModerationActionInput,
@@ -216,4 +218,18 @@ export async function listAudit(user: User, query: AuditQuery = {}): Promise<Pag
       .sort((a, b) => b.at.localeCompare(a.at));
     return paginate(rows, query, (e) => `${e.actor.displayName} ${e.target.label} ${e.reason ?? ""}`);
   });
+}
+
+// ── Appeals ─────────────────────────────────────────────────────────────────
+
+/** live: GET /admin/appeals?status */
+export async function listAppeals(user: User, query: ListQuery & { status?: AppealStatus } = {}): Promise<Page<AdminAppeal>> {
+  if (isLive("admin.moderation")) return adminGet(user, "/appeals", query);
+  return mock(() => ({ items: [], page: 1, pageSize: 25, total: 0 }));
+}
+
+/** live: POST /admin/appeals/:id/decide { outcome, reason } — not by the original decider. */
+export async function decideAppeal(user: User, id: string, input: { outcome: "upheld" | "overturned"; reason: string }): Promise<AdminAppeal> {
+  if (isLive("admin.moderation")) return adminSend(user, `/appeals/${id}/decide`, input);
+  return mock(() => notFound("Appeal"));
 }

@@ -29,6 +29,8 @@ export const ROUTES = {
   settingsNeighbourhood: "/settings/neighbourhood",
   settingsNotifications: "/settings/notifications",
   settingsPrivacy: "/settings/privacy",
+  settingsModeration: "/settings/moderation",
+  leads: "/leads",
   help: "/help",
   guidelines: "/guidelines",
 
@@ -58,6 +60,7 @@ export const PUBLIC_PATHS = [
   "/reset-password",
   "/verify-email",
 ] as const;
+// "/business/claim" is under /business but needs a signed-in user; the page itself handles that.
 export const PUBLIC_PREFIXES = ["/coming-soon", "/business"] as const;
 
 /** Auth pages a signed-in user is bounced away from. */

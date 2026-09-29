@@ -30,6 +30,13 @@ const VERB: Partial<Record<AuditAction, string>> = {
   alert_downgrade: "downgraded the urgent alert",
   inbox_reply: "replied to",
   claim: "started reviewing",
+  settings_update: "updated",
+  lead_appoint: "made a Hood Lead in",
+  lead_remove: "removed a Hood Lead from",
+  appeal_filed: "appealed the decision on",
+  appeal_upheld: "upheld the decision on",
+  appeal_overturned: "overturned the decision on",
+  business_claim: "claimed the Business Page",
 };
 
 const ICON: Partial<Record<AuditAction, React.ComponentType<{ className?: string }>>> = {
