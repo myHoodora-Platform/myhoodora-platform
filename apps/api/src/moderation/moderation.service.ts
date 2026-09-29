@@ -12,10 +12,13 @@ import { searchRegex, type Page, type PageQuery } from "../shared/http/paginatio
 import { User, UserDocument } from "../users/schemas/user.schema";
 import { StaffUsersService } from "../users/staff-users.service";
 import { ModerationRegistry, type TargetSnapshot, type TargetType } from "./moderation-registry";
+import { LeadsRosterService, MIN_LEADS_FOR_VOTING } from "./leads-roster.service";
 import { ModerationCase, ModerationCaseDocument, Report, type CaseStatus, type ModerationAction } from "./moderation.schemas";
 
 const RANK: Record<Severity, number> = { high: 1, medium: 2, low: 3 };
 const REMOVABLE: TargetType[] = ["post", "comment", "listing", "group"];
+/** Content Hood Leads may judge. Accounts, messages and businesses always go to staff. */
+const LEAD_TYPES: TargetType[] = ["post", "comment", "listing", "group"];
 
 /** Contract §13.2 AdminReport. */
 export interface AdminReport {
@@ -29,6 +32,8 @@ export interface AdminReport {
   status: CaseStatus;
   assignee?: { uid: string; displayName: string };
   resolution?: { action: ModerationAction; reason: string; note?: string; by: string; at: string };
+  /** "leads" while Hood Leads are voting on it. */
+  route: "staff" | "leads";
 }
 
 export interface ReportQuery extends PageQuery {
@@ -66,6 +71,7 @@ export class ModerationService {
     private readonly audit: AuditService,
     private readonly hoods: HoodsService,
     private readonly notifications: NotificationsService,
+    private readonly roster: LeadsRosterService,
   ) {}
 
   // ── Intake (POST /reports) ────────────────────────────────────────────────
@@ -93,7 +99,9 @@ export class ModerationService {
     }
     const reasons = (await this.settings.get()).reportReasons;
     const setting = reasons.find((r) => r.id === input.reason)!;
-    const staffOnly = setting.staffOnly || input.targetType === "user" || input.targetType === "message";
+    const staffOnly = setting.staffOnly || setting.severity === "high" || !LEAD_TYPES.includes(input.targetType);
+    // Low-risk content in a Hood with enough active Leads goes to a Lead vote.
+    const toLeads = !staffOnly && Boolean(snap.hoodId) && (await this.roster.activeLeadCount(snap.hoodId!)) >= MIN_LEADS_FOR_VOTING;
     const now = new Date();
 
     const already = { reporterUid: viewer.uid, targetType: input.targetType, targetId: input.targetId };
@@ -113,7 +121,8 @@ export class ModerationService {
           preview: snap.preview.slice(0, 200),
           severity: setting.severity,
           severityRank: RANK[setting.severity],
-          route: "staff",
+          route: toLeads ? "leads" : "staff",
+          routedToLeadsAt: toLeads ? now : undefined,
           status: "open",
           firstReportedAt: now,
           lastReportedAt: now,
@@ -126,11 +135,13 @@ export class ModerationService {
         kase.severity = setting.severity;
         kase.severityRank = RANK[setting.severity];
       }
+      // A single high-risk report takes the whole case to staff.
       if (staffOnly) kase.route = "staff";
       // New reports reopen a dismissed case (not one already actioned).
       if (kase.status === "dismissed") {
         kase.status = "open";
         kase.resolution = null;
+        if (kase.route === "leads") kase.routedToLeadsAt = now;
       }
       kase.markModified("reasonCounts");
       await kase.save({ session });
@@ -277,7 +288,7 @@ export class ModerationService {
   private async afterDecision(kase: ModerationCase & { _id: Types.ObjectId }, input: DecisionInput) {
     if (input.action === "escalate") return;
     if (input.action === "remove_content" && kase.authorUid) {
-      await this.notifications.notify({ uids: [kase.authorUid], type: "moderation", title: `Your ${kase.targetType} was removed`, body: `It broke the community guidelines: ${input.reason}.`, href: "/guidelines" });
+      await this.notifications.notify({ uids: [kase.authorUid], type: "moderation", title: `Your ${kase.targetType} was removed`, body: `It broke the community guidelines: ${input.reason}. You can appeal within 30 days.`, href: "/settings/moderation" });
     }
     if (input.action === "warn_author" || input.action === "restrict_author" || input.action === "suspend_author") {
       const user = await this.users.findOne({ uid: kase.authorUid }).lean<User>().exec();
@@ -289,8 +300,8 @@ export class ModerationService {
       uids: reporters.map((r) => r.reporterUid),
       type: "moderation",
       title: "Thanks for your report",
-      body: input.action === "keep" ? "We reviewed it and it doesn't break the guidelines." : "We reviewed it and took action.",
-      href: "/news-feed",
+      body: input.action === "keep" ? "We reviewed it and it doesn't break the guidelines. You can appeal within 30 days." : "We reviewed it and took action.",
+      href: "/settings/moderation",
     });
   }
 
@@ -360,5 +371,6 @@ export function toAdminReport(c: ModerationCase & { _id: Types.ObjectId | string
     status: c.status,
     assignee: c.assignee ?? undefined,
     resolution: c.resolution ? { action: c.resolution.action, reason: c.resolution.reason, note: c.resolution.note, by: c.resolution.by, at: c.resolution.at.toISOString() } : undefined,
+    route: c.route ?? "staff",
   };
 }

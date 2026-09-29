@@ -5,6 +5,7 @@ import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { initializeFirebase } from './config/firebase.config';
+import { API_DESCRIPTION, API_TAGS, ErrorResponse } from './shared/http/api-docs';
 
 async function bootstrap() {
   // rawBody: webhook signatures (Resend/Svix) must be verified on the exact bytes received.
@@ -38,44 +39,33 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
 
   // ── Swagger ───────────────────────────────────────────────────────────────
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('MyHoodora API')
-    .setDescription(
-      'Hyper-local social platform — REST API documentation.\n\n' +
-      'All protected routes require a valid **Firebase ID token** passed as:\n' +
-      '`Authorization: Bearer <idToken>`',
-    )
-    .setVersion('1.0')
-    .addBearerAuth(
-      {
-        type: 'http',
-        scheme: 'bearer',
-        bearerFormat: 'Firebase ID Token',
-        name: 'Authorization',
-        in: 'header',
+  // Off in production unless SWAGGER_ENABLED=true (the spec reveals every route, not secrets).
+  const swaggerOn = config.get<string>('nodeEnv') !== 'production' || process.env.SWAGGER_ENABLED === 'true';
+  if (swaggerOn) {
+    const builder = new DocumentBuilder()
+      .setTitle('myHoodora API')
+      .setDescription(API_DESCRIPTION)
+      .setVersion('2.0')
+      .setContact('myHoodora', 'https://myhoodora.com', 'hello@myhoodora.com')
+      .addServer('/', 'This server')
+      .addBearerAuth(
+        { type: 'http', scheme: 'bearer', bearerFormat: 'Firebase ID token', description: 'Firebase ID token from the web/mobile SDK (user.getIdToken())' },
+        'firebase-jwt', // reference name used in @ApiBearerAuth('firebase-jwt')
+      );
+    for (const [name, description] of API_TAGS) builder.addTag(name, description);
+    const document = SwaggerModule.createDocument(app, builder.build(), { extraModels: [ErrorResponse] });
+    SwaggerModule.setup('api/docs', app, document, {
+      customSiteTitle: 'myHoodora API',
+      jsonDocumentUrl: 'api/docs-json',
+      swaggerOptions: {
+        persistAuthorization: true, // keeps the token across page refreshes
+        tagsSorter: 'alpha',
+        operationsSorter: 'alpha',
+        docExpansion: 'none',
+        filter: true,
       },
-      'firebase-jwt', // reference name used in @ApiBearerAuth('firebase-jwt')
-    )
-    .addTag('health', 'Service health & readiness')
-    .addTag('auth', 'Firebase authentication helpers')
-    .addTag('users', 'User profile management')
-    .addTag('posts', 'Neighbourhood posts & feed')
-    .addTag('neighborhoods', 'Neighbourhood discovery & geo-search')
-    .addTag('comments', 'Comments')
-    .addTag('notifications', 'In-app notifications')
-    .addTag('reports', 'Reporting content & people')
-    .addTag('admin', 'Staff operations (contract §13)')
-    .build();
-
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  // API docs are for development; not exposed in production.
-  if (config.get<string>('nodeEnv') !== 'production') SwaggerModule.setup('api/docs', app, document, {
-    swaggerOptions: {
-      persistAuthorization: true, // keeps the token across page refreshes
-      tagsSorter: 'alpha',
-      operationsSorter: 'alpha',
-    },
-  });
+    });
+  }
   const port = config.get<number>('port') ?? 3000;
 
   // ── Listen ────────────────────────────────────────────────────────────────

@@ -6,6 +6,7 @@ import { Public } from "../shared/auth/public.decorator";
 import { AllowSuspended, CurrentViewer, type Viewer } from "../shared/auth/viewer";
 import { EmailVerificationService } from "../verification/email-verification.service";
 import { AuthService } from "./auth.service";
+import { ApiStandardErrors } from "../shared/http/api-docs";
 
 class ConfirmEmailDto {
   @IsString()
@@ -15,6 +16,7 @@ class ConfirmEmailDto {
 
 @ApiTags("auth")
 @ApiBearerAuth("firebase-jwt")
+@ApiStandardErrors()
 @Controller("auth")
 export class AuthController {
   constructor(

@@ -4,7 +4,10 @@ import { Model, Types, type QueryFilter } from "mongoose";
 import { AuditService } from "../audit/audit.service";
 import { CommentsService } from "../comments/comments.service";
 import { Neighborhood, NeighborhoodDocument, type HoodStatus } from "../hoods/schemas/hood.schema";
+import { BusinessesService } from "../businesses/businesses.service";
 import { InboundService } from "../inbound/inbound.module";
+import { AppealsService } from "../moderation/appeals.service";
+import { TelemetryService } from "../telemetry/telemetry.module";
 import { ModerationService } from "../moderation/moderation.service";
 import { URGENT_WINDOW_HOURS, type AlertCategory } from "../platform/platform-settings.schema";
 import { PlatformSettingsService } from "../platform/platform-settings.service";
@@ -61,6 +64,9 @@ export class AdminReadService {
     private readonly settings: PlatformSettingsService,
     private readonly audit: AuditService,
     private readonly inbound: InboundService,
+    private readonly businesses: BusinessesService,
+    private readonly appeals: AppealsService,
+    private readonly telemetry: TelemetryService,
   ) {}
 
   // ── Hoods ───────────────────────────────────────────────────────────────
@@ -294,6 +300,7 @@ export class AdminReadService {
     const now = Date.now();
     const w1 = new Date(now - 7 * DAY);
     const w2 = new Date(now - 14 * DAY);
+    const [businessApplications, openAppeals] = await Promise.all([this.businesses.pendingCount(), this.appeals.openCount()]);
     const [open, pending, urgent, inbox, newNow, newPrev, postsNow, postsPrev, activeHoods, hoodsTotal, mNow, mPrev, recent] = await Promise.all([
       this.moderation.openCount(),
       this.users.countDocuments({ $or: [{ verificationStatus: "pending_review" }, { verificationStatus: "unverified", "verificationAttempts.0": { $exists: true } }] }).exec(),
@@ -315,8 +322,9 @@ export class AdminReadService {
         urgentReports: open.high,
         oldestOpenReportAt: open.oldest?.toISOString() ?? null,
         pendingVerifications: pending,
-        businessApplications: 0, // pass 2: businesses module
+        businessApplications,
         unansweredInbox: inbox,
+        openAppeals,
         liveUrgentAlerts: urgent,
       },
       pulse: {
@@ -331,7 +339,7 @@ export class AdminReadService {
 
   async insights() {
     const since = new Date(Date.now() - 30 * DAY);
-    const [signups, funnel, active, reasons, median] = await Promise.all([
+    const [signups, funnel, active, reasons, median, kindness] = await Promise.all([
       this.users.aggregate<{ _id: string; n: number }>([
         { $match: { createdAt: { $gte: since } } },
         { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, n: { $sum: 1 } } },
@@ -344,6 +352,7 @@ export class AdminReadService {
       this.listHoods({ page: 1, pageSize: 8, sort: "members:desc" } as PageQuery),
       this.moderation.reasonTotals(),
       this.moderation.medianResolveHours(since, new Date()),
+      this.telemetry.total("kindness.shown", 30),
     ]);
     const byDay = new Map(signups.map((s) => [s._id, s.n]));
     return {
@@ -355,7 +364,7 @@ export class AdminReadService {
       activeByHood: active.items.map((h) => ({ hood: h.name, members: h.stats.members, posts7d: h.stats.posts7d })).sort((a, b) => b.posts7d - a.posts7d),
       reportsByReason: reasons,
       medianResolveHours: median || null,
-      kindnessPrompts: null, // pass 2: telemetry module
+      kindnessPrompts: kindness,
     };
   }
 }

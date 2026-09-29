@@ -6,6 +6,7 @@ import { Can } from "../shared/authz/can.decorator";
 import { ParseObjectIdPipe } from "../shared/http/pagination";
 import { CreateHoodDto } from "./dto/hood.dto";
 import { HoodsService } from "./hoods.service";
+import { ApiStandardErrors } from "../shared/http/api-docs";
 
 class NearbyQuery {
   @Type(() => Number)
@@ -30,6 +31,7 @@ class NearbyQuery {
  */
 @ApiTags("neighborhoods")
 @ApiBearerAuth("firebase-jwt")
+@ApiStandardErrors()
 @Controller("neighborhoods")
 export class HoodsController {
   constructor(private readonly hoods: HoodsService) {}
@@ -47,6 +49,7 @@ export class HoodsController {
   }
 
   @Get(":id")
+  @ApiOperation({ summary: "One Hood" })
   findOne(@Param("id", ParseObjectIdPipe) id: string) {
     return this.hoods.findById(id);
   }

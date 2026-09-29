@@ -1,5 +1,5 @@
 import { Body, Controller, HttpCode, Post } from "@nestjs/common";
-import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
+import { ApiBearerAuth, ApiTags, ApiOperation } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { IsIn, IsOptional, IsString, Length, MaxLength } from "class-validator";
 import { REPORT_REASONS, type ReportReason } from "../platform/platform-settings.schema";
@@ -7,6 +7,7 @@ import { CurrentViewer, type Viewer } from "../shared/auth/viewer";
 import { Can } from "../shared/authz/can.decorator";
 import { TARGET_TYPES, type TargetType } from "./moderation-registry";
 import { ModerationService } from "./moderation.service";
+import { ApiStandardErrors } from "../shared/http/api-docs";
 
 class CreateReportDto {
   @IsIn(TARGET_TYPES) targetType!: TargetType;
@@ -18,11 +19,13 @@ class CreateReportDto {
 /** Contract §9: POST /reports → 204. Private; idempotent per reporter + item. */
 @ApiTags("reports")
 @ApiBearerAuth("firebase-jwt")
+@ApiStandardErrors()
 @Controller("reports")
 export class ReportsController {
   constructor(private readonly moderation: ModerationService) {}
 
   @Post()
+  @ApiOperation({ summary: "Report content or a person (private; idempotent per reporter + item)" })
   @HttpCode(204)
   @Can("report.create")
   @Throttle({ medium: { limit: 10, ttl: 60_000 }, long: { limit: 50, ttl: 3_600_000 } })

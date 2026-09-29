@@ -28,7 +28,7 @@ export default () => ({
     /** Empty → emails are logged (masked), not sent. Server-side only. */
     resendApiKey: process.env.RESEND_API_KEY?.trim() || undefined,
     resendWebhookSecret: process.env.RESEND_WEBHOOK_SECRET?.trim() || undefined,
-    from: process.env.MAIL_FROM ?? "myHoodora <hello@mail.myhoodora.com>",
+    from: process.env.MAIL_FROM ?? "myHoodora <hello@myhoodora.com>",
     replyTo: process.env.MAIL_REPLY_TO || undefined,
   },
 });

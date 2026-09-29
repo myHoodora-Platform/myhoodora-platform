@@ -126,3 +126,11 @@ export class DeactivateDto {
   @MaxLength(1000)
   details?: string;
 }
+
+export class UserSearchQuery {
+  /** Name to search for (empty = first 20 neighbours). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  q?: string;
+}

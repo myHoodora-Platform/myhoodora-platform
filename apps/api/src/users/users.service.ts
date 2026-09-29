@@ -1,3 +1,4 @@
+import { searchRegex } from "../shared/http/pagination";
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { InjectConnection, InjectModel } from "@nestjs/mongoose";
 import type { DecodedIdToken } from "firebase-admin/auth";
@@ -222,6 +223,38 @@ export class UsersService {
       verified: target.verificationStatus === "verified",
       kind: "neighbour",
     };
+  }
+
+  /**
+   * GET /users/search (contract §8 invites): verified, active neighbours in
+   * the caller's own Hood whose name matches. Blocks either way are hidden.
+   */
+  async search(viewer: Viewer, q: string): Promise<PublicProfile[]> {
+    if (!viewer.hoodId) return [];
+    const re = searchRegex(q);
+    const hidden = await this.hiddenAuthorsFor(viewer.uid);
+    const rows = await this.users
+      .find({
+        neighborhoodId: viewer.hoodId,
+        verificationStatus: "verified",
+        deactivatedAt: null,
+        accountStatus: { $ne: "suspended" },
+        uid: { $nin: [viewer.uid, ...hidden] },
+        ...(re && { displayName: re }),
+      })
+      .sort({ displayName: 1 })
+      .limit(20)
+      .lean<User[]>()
+      .exec();
+    const hood = (await this.hoods.findManyByIds([viewer.hoodId])).get(viewer.hoodId);
+    return rows.map((u) => ({
+      uid: u.uid,
+      displayName: u.displayName ?? "Neighbour",
+      photoURL: u.photoURL,
+      neighborhoodName: hood?.name,
+      verified: true,
+      kind: "neighbour" as const,
+    }));
   }
 
   async getPreferences(uid: string): Promise<Preferences> {

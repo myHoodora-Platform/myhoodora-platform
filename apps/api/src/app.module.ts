@@ -1,3 +1,8 @@
+import { BusinessesModule } from "./businesses/businesses.module";
+import { ChatModule } from "./chat/chat.module";
+import { GroupsModule } from "./groups/groups.module";
+import { ListingsModule } from "./listings/listings.module";
+import { TelemetryModule } from "./telemetry/telemetry.module";
 import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { APP_FILTER, APP_GUARD } from "@nestjs/core";
@@ -31,7 +36,10 @@ import { UsersModule } from "./users/users.module";
     ConfigModule.forRoot({ isGlobal: true, cache: true, load: [configuration], envFilePath: ".env", validate: validateEnv }),
     MongooseModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({ uri: config.get<string>("mongodb.uri"), autoIndex: config.get<string>("nodeEnv") !== "production" }),
+      // autoIndex creates *missing* indexes at boot (never drops). Unique indexes carry
+      // real rules here (one vote per Lead, one thread per pair…), so it's on by default;
+      // set MONGO_AUTO_INDEX=false once indexes are managed in Atlas.
+      useFactory: (config: ConfigService) => ({ uri: config.get<string>("mongodb.uri"), autoIndex: process.env.MONGO_AUTO_INDEX !== "false" }),
     }),
     // short 10/s burst · medium 60/min · long 500/h (per IP); stricter per route where needed.
     ThrottlerModule.forRoot([
@@ -56,6 +64,11 @@ import { UsersModule } from "./users/users.module";
     CommentsModule,
     ModerationModule,
     InboundModule,
+    ListingsModule,
+    GroupsModule,
+    ChatModule,
+    BusinessesModule,
+    TelemetryModule,
     AdminModule,
   ],
   controllers: [AppController],

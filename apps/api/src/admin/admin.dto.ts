@@ -150,3 +150,30 @@ export class EstimateDto {
 }
 
 export { boolean };
+
+export class AdminListingQuery extends PageQuery {
+  @IsOptional() @IsIn(["active", "sold", "removed"]) status?: "active" | "sold" | "removed";
+  @IsOptional() @IsMongoId() hoodId?: string;
+  @IsOptional() @Type(() => String) @IsIn(["true", "false"]) reported?: string;
+}
+
+export class AdminGroupQuery extends PageQuery {
+  @IsOptional() @IsIn(["active", "archived"]) status?: "active" | "archived";
+  @IsOptional() @IsMongoId() hoodId?: string;
+  @IsOptional() @IsIn(["open", "private"]) privacy?: "open" | "private";
+  @IsOptional() @Type(() => String) @IsIn(["true", "false"]) reported?: string;
+}
+
+export class AppealQuery extends PageQuery {
+  @IsOptional() @IsIn(["open", "upheld", "overturned"]) status?: "open" | "upheld" | "overturned";
+}
+
+export class AppealDecisionDto {
+  @IsIn(["upheld", "overturned"]) outcome!: "upheld" | "overturned";
+  /** Shown to the person who appealed. */
+  @IsString() @Length(5, 500) reason!: string;
+}
+
+export class HoodLeadsDto {
+  @IsArray() @ArrayMaxSize(15) @IsString({ each: true }) uids!: string[];
+}

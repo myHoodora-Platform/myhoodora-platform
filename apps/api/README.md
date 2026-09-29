@@ -13,7 +13,7 @@ cp .env.example .env          # then fill in MONGODB_URI + Firebase
 pnpm --filter @myhoodora/api dev
 ```
 
-Swagger is served at `/api/docs` outside production.
+Swagger (every route, with request schemas generated from the DTOs) is at `/api/docs`, with the JSON at `/api/docs-json`. It's on outside production, and in production when `SWAGGER_ENABLED=true`.
 
 | Command | What it does |
 | --- | --- |
@@ -33,9 +33,11 @@ Swagger is served at `/api/docs` outside production.
 | `PORT` | | Default `3000`. The web app expects `http://localhost:3001/api` unless `NEXT_PUBLIC_API_URL` says otherwise, so set `PORT=3001` locally |
 | `CORS_ORIGIN` | ✅ in prod | Comma-separated list of web origins |
 | `APP_URL` | ✅ in prod | Web app URL, used for links in emails |
-| `RESEND_API_KEY` | ✅ in prod | A **sending-only** key for `mail.myhoodora.com`. If empty, emails are logged (masked), not sent |
+| `RESEND_API_KEY` | ✅ in prod | A **sending-only** key for the verified sending domain. If empty, emails are logged (masked), not sent |
 | `RESEND_WEBHOOK_SECRET` | ✅ in prod | `whsec_…` from the Resend webhook. Without it the webhook returns 503 |
-| `MAIL_FROM` / `MAIL_REPLY_TO` | | Default `myHoodora <hello@mail.myhoodora.com>` |
+| `MAIL_FROM` / `MAIL_REPLY_TO` | | Default `myHoodora <hello@myhoodora.com>` (switch to `mail.myhoodora.com` once Resend verifies it) |
+| `SWAGGER_ENABLED` | | `true` exposes `/api/docs` in production |
+| `MONGO_AUTO_INDEX` | | Default on: missing indexes are created at boot (unique indexes enforce rules). Set `false` once Atlas manages indexes |
 
 In production the app refuses to start if a required variable is missing (`validateEnv`). Secrets live only in the server environment. None of these may be given a `NEXT_PUBLIC_` prefix.
 
@@ -50,14 +52,20 @@ src/
   hoods/         neighbourhoods: geo lookup, overlap checks, archive instead of delete
   posts/         feed, typed post fields, reactions, polls, RSVPs, alert lifecycle
   comments/      comments (+ denormalised commentCount)
-  moderation/    reports → one case per item, claims, decisions; ModerationRegistry
+  listings/      For Sale & Free
+  groups/        groups, members, join requests, invite links, group posts
+  chat/          conversations + messages (unread counts, preferences, blocks)
+  businesses/    Business Page applications, staff review, claim links
+  moderation/    reports → one case per item, claims, decisions; Hood Leads (routing, votes,
+                 consensus, 48 h escalation); appeals; ModerationRegistry
   notifications/ in-app notifications (+ email per the neighbour's preferences)
   communications/ EmailProvider port → Resend adapter / log adapter, delivery log, Resend webhook
   verification/  email verification tokens
   audit/         append-only staff action history
   platform/      platform settings (report reasons, alert windows)
   admin/         /admin/* (contract §13): read models + staff actions over the modules above
-  inbound/       feedback (contact form in pass 2)
+  inbound/       contact, careers, AI pilot, feedback, in-app support → staff inbox
+  telemetry/     anonymous daily counters (kindness reminders)
   database/      migrations + runner, seed scripts
 ```
 
@@ -67,7 +75,7 @@ Rules the code follows:
 - **Authorization uses capabilities, not role checks.** `capabilitiesOf(user)` in `shared/authz/roles.ts` combines role *and* account state. For example, a restricted admin still can't post, and a suspended one has no capabilities at all. Services receive a `Viewer` and never trust ids from the body.
 - **Scope comes from the Viewer.** A neighbour's Hood comes from their profile, never from the client. Out-of-Hood content returns 404.
 - **Multi-document writes use transactions** (`withTransaction`). Never run parallel operations inside one, and let errors (including duplicate keys) propagate so Mongo can abort cleanly.
-- **Moderation doesn't import content modules.** Posts and comments register `load`/`setRemoved` with `ModerationRegistry`. New content types (listings, groups, messages) plug in the same way.
+- **Moderation doesn't import content modules.** Posts, comments, listings, groups, conversations and Business Pages register `load`/`setRemoved` with `ModerationRegistry`. Staff actions, Hood Lead consensus and appeal overturns all go through it.
 - **Side effects happen after commit.** Emails and notifications are sent once the transaction succeeds, and `sendEmail` never throws into the caller.
 - **Errors use one shape:** `{ statusCode, message }` (contract §0). Unknown errors are logged server-side and returned as a generic 500.
 
@@ -90,7 +98,11 @@ Rules the code follows:
 | `security` | Audit findings F1–F4, suspended/restricted/unverified gates, ownership, admin capabilities, owner rules |
 | `communications` | Welcome sent once, confirm / reuse / expiry, resend limit, webhook signature, replay, idempotency, status ordering |
 | `moderation-engagement` | Report → case → claim → decision → feed/audit/notifications; reactions (incl. concurrent), polls (410), comments, blocks, urgent-alert limit |
-| `admin-contract` | Every live `/admin/*` response has the fields the web's TypeScript types require (parsed from `apps/web`) |
+| `marketplace-chat` | Listing scope/limits/sold visibility, idempotent listing threads, unread counts, messaging preferences, blocks, reports |
+| `groups` | Creation limits, unique names, boundaries, join/requests/invites (incl. revoked links), last-admin rules, delete rule, user search, staff archive |
+| `inbound-business` | Public forms (validation, dedupe, acks), support inbox replies, Business Page apply → approve → claim, capabilities |
+| `leads-appeals` | Lead appointment, routing, voting + consensus, 48 h escalation, author/reporter appeals, reviewer ≠ decider, overturn, telemetry |
+| `admin-contract` | Every `/admin/*` response has the fields the web's TypeScript types require (parsed from `apps/web`) |
 | `migrations` | Dry run writes nothing; legacy data is migrated once; re-runs are no-ops |
 
 ## Deploying
@@ -98,7 +110,7 @@ Rules the code follows:
 1. Set the environment above. Keep Swagger off (automatic in production) and set `trust proxy` (automatic).
 2. `pnpm --filter @myhoodora/api build`.
 3. Run `pnpm migrate:dry`, read the output, then `pnpm migrate`. Migrations are idempotent and recorded in the `migrations` collection.
-4. Start with `node dist/main.js`. Indexes aren't auto-built in production; create them once with `Model.syncIndexes()` or in Atlas.
+4. Start with `node dist/main.js`. Missing indexes are created at boot unless `MONGO_AUTO_INDEX=false`.
 
 ## Firebase Storage rules
 

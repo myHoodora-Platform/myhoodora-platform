@@ -21,6 +21,8 @@ export type Capability =
   | "content.create"
   | "content.react"
   | "report.create"
+  /** Verified neighbours, including restricted ones (restriction stops posting, not messaging). */
+  | "messages.send"
   // Staff
   | "admin.access"
   | "moderation.act"
@@ -80,6 +82,7 @@ export function capabilitiesOf(s: CapabilitySubject, now = new Date()): Capabili
   const status = effectiveAccountStatus(s, now);
   if (status === "suspended") return [];
   const caps: Capability[] = ["profile.manage"];
+  if (s.verificationStatus === "verified" && s.hoodId) caps.push("messages.send");
   if (status === "active" && s.verificationStatus === "verified" && s.hoodId) {
     caps.push("content.create", "content.react", "report.create");
   } else if (status === "active") {

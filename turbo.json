@@ -22,7 +22,9 @@
     "RESEND_WEBHOOK_SECRET",
     "MAIL_FROM",
     "MAIL_REPLY_TO",
-    "TEST_MONGO_URI"
+    "TEST_MONGO_URI",
+    "MONGO_AUTO_INDEX",
+    "SWAGGER_ENABLED"
   ],
   "ui": "tui",
   "tasks": {

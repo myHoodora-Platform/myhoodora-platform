@@ -11,6 +11,8 @@ describe("admin API ↔ web contract (§13)", () => {
   let hood: string;
   let postId: string;
   let reportId: string;
+  let businessId: string;
+  let threadId: string;
   const web = requiredKeys("admin/types.ts", "admin/content.ts");
 
   beforeAll(async () => {
@@ -26,6 +28,17 @@ describe("admin API ↔ web contract (§13)", () => {
     const list = await t.http.get("/api/admin/reports").set(t.auth("boss")).expect(200);
     reportId = list.body.items[0].id;
     await t.http.post(`/api/admin/neighbours/ada/actions`).set(t.auth("boss")).send({ action: "warn", reason: "Be kind" }).expect(201);
+    // Pass-2 data
+    await t.http.post("/api/listings").set(t.auth("ada")).send({ title: "Standing fan", priceNaira: 20000, category: "home_appliances", condition: "good", photos: [] }).expect(201);
+    await t.http.post("/api/groups").set(t.auth("ada")).send({ name: "Road 12 Parents", description: "School runs and playdates.", category: "parents", privacy: "open", boundary: "neighbourhood" }).expect(201);
+    businessId = (
+      await t.http
+        .post("/api/business-pages/applications")
+        .send({ businessName: "Fix It Fast", category: "home_services", description: "Plumbing and electrical repairs around Lekki.", areasServed: ["Lekki Phase 1"], contactName: "Obi", phone: "+2348031234567", email: "obi@fix.test", wantsAdsUpdates: false })
+        .expect(201)
+    ).body.id;
+    threadId = (await t.http.post("/api/contact").send({ topic: "press", name: "Reporter", email: "press@news.test", message: "Interview request about myHoodora's launch in Lagos." }).expect(201)).body.id;
+    await t.http.post("/api/ai/pilot-requests").send({ name: "Dr Bisi", email: "bisi@unilag.test", institution: "UNILAG", institutionType: "university" }).expect(201);
   });
   afterAll(() => t.close());
 
@@ -74,6 +87,21 @@ describe("admin API ↔ web contract (§13)", () => {
     expectPage(await get("/posts"), "AdminPost");
     expectShape(await get(`/posts/${postId}`), "PostDetail");
     expectPage(await get("/alerts"), "AdminAlert");
+  });
+
+  it("marketplace and groups", async () => {
+    expectPage(await get("/listings"), "AdminListing");
+    expectPage(await get("/groups"), "AdminGroup");
+  });
+
+  it("businesses, inbox and sign-ups", async () => {
+    expectPage(await get("/businesses?tab=applications"), "AdminBusiness");
+    expectShape(await get(`/businesses/${businessId}`), "BusinessDetail");
+    expectPage(await get("/inbox"), "InboxThread");
+    expectShape(await get(`/inbox/${threadId}`), "InboxThread");
+    const pilots = (await get("/signups?type=ai_pilot")) as Record<string, unknown>[];
+    expect(pilots.length).toBe(1);
+    pilots.forEach((p) => expectShape(p, "SignupEntry"));
   });
 
   it("team and broadcasts", async () => {
