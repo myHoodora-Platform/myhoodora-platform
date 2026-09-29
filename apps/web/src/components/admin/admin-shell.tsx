@@ -1,45 +1,63 @@
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { AppSkeleton } from "@/components/layout/app-shell/app-skeleton";
+import { useAdminSession } from "@/features/admin/session";
+import { getOverview } from "@/lib/api/admin/platform";
+import type { AdminOverview } from "@/lib/api/admin/types";
+import { errorKind } from "@/lib/api/client";
 import { AdminSidebar } from "./admin-sidebar";
 import { AdminHeader } from "./admin-header";
-import { getActiveNavItem } from "./admin-navigation";
-import { DEFAULT_APP_ROUTE } from "@/lib/routes";
+import { AdminProblem, Unauthorized } from "./admin-states";
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, profile, loading } = useAuth();
-  const isAdmin = profile?.role === "admin";
+  const { user, loading } = useAuth();
+  const { session, loading: sessionLoading, error, reload } = useAdminSession();
+  const [attention, setAttention] = useState<AdminOverview["attention"] | null>(null);
 
   useEffect(() => {
-    if (!loading && !user) {
-      router.push("/login");
-    }
-  }, [user, loading, router]);
+    if (!loading && !user) router.push(`/login?next=${encodeURIComponent(pathname)}`);
+  }, [user, loading, router, pathname]);
 
+  // Sidebar work counts: refresh on navigation and whenever preview data changes.
+  const refreshCounts = useCallback(() => {
+    if (!user || !session) return;
+    getOverview(user)
+      .then((o) => setAttention(o.attention))
+      .catch(() => undefined);
+  }, [user, session]);
+  useEffect(refreshCounts, [refreshCounts, pathname]);
   useEffect(() => {
-    if (!loading && user && profile && !isAdmin) {
-      router.push(DEFAULT_APP_ROUTE);
-    }
-  }, [loading, user, profile, isAdmin, router]);
+    const onChange = () => refreshCounts();
+    window.addEventListener("mh-mock-change", onChange);
+    return () => window.removeEventListener("mh-mock-change", onChange);
+  }, [refreshCounts]);
 
-  if (loading || !user || !isAdmin) {
-    return <AppSkeleton />;
+  if (loading || !user || (sessionLoading && !session)) return <AppSkeleton />;
+
+  if (!session) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-canvas p-6">
+        <div className="w-full max-w-md">
+          {errorKind(error) === "forbidden" ? (
+            <Unauthorized message="The admin is only for myHoodora staff. If you should have access, ask an admin to add you to the team." />
+          ) : (
+            <AdminProblem error={error} onRetry={reload} />
+          )}
+        </div>
+      </div>
+    );
   }
 
-  const title = getActiveNavItem(pathname)?.title ?? "Admin";
-
   return (
-    <div className="flex min-h-screen w-full bg-slate-50">
-      <AdminSidebar />
-
+    <div className="flex min-h-screen w-full bg-canvas">
+      <AdminSidebar attention={attention} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <AdminHeader title={title} />
-
+        <AdminHeader />
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
           <div className="mx-auto w-full max-w-6xl space-y-6">{children}</div>
         </main>

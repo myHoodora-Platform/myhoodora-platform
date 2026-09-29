@@ -20,6 +20,8 @@ import {
   useSidebar,
 } from "@myhoodora/ui/sidebar";
 import { LogOut, ArrowLeftRight } from "lucide-react";
+import { useAdminSession } from "@/features/admin/session";
+import type { AdminOverview } from "@/lib/api/admin/types";
 import { ADMIN_NAV, isNavItemActive } from "./admin-navigation";
 import { DEFAULT_APP_ROUTE } from "@/lib/routes";
 
@@ -32,16 +34,15 @@ function navItemClassName(isActive: boolean, isCollapsed: boolean): string {
   );
 }
 
-export function AdminSidebar() {
+export function AdminSidebar({ attention }: { attention: AdminOverview["attention"] | null }) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, profile, logout } = useAuth();
+  const { session, can } = useAdminSession();
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
 
-  const userInitial = (profile?.displayName || user?.email || "?")
-    .charAt(0)
-    .toUpperCase();
+  const userInitial = (profile?.displayName || user?.email || "?").charAt(0).toUpperCase();
 
   const handleLogout = async () => {
     try {
@@ -54,62 +55,59 @@ export function AdminSidebar() {
 
   return (
     <Sidebar className="border-slate-800 bg-slate-900">
-      {/* Brand */}
       <SidebarHeader className="h-16 flex-row items-center justify-between border-slate-800 px-4 py-0">
         <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-          {isCollapsed ? <MascotMark size="sm" /> : <MascotWordmark size="sm" />}
+          {isCollapsed ? <MascotMark size="sm" /> : <MascotWordmark size="sm" tone="reversed" />}
           {!isCollapsed && (
-            <span className="rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-widest text-white uppercase">
-              Admin
-            </span>
+            <span className="rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-widest text-white uppercase">Admin</span>
           )}
         </div>
-        {!isCollapsed && (
-          <SidebarTrigger className="hidden text-slate-300 hover:bg-white/10 hover:text-white lg:inline-flex" />
-        )}
+        {!isCollapsed && <SidebarTrigger className="hidden text-slate-300 hover:bg-white/10 hover:text-white lg:inline-flex" />}
       </SidebarHeader>
 
-      {/* Navigation */}
       <SidebarContent>
-        {ADMIN_NAV.map((section) => (
-          <SidebarGroup key={section.label}>
-            <SidebarGroupLabel>{section.label}</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {section.items.map((item) => {
-                  const isActive = isNavItemActive(pathname, item.href);
-                  const className = navItemClassName(isActive, isCollapsed);
-                  const label = isCollapsed ? item.title : undefined;
-
-                  return (
-                    <SidebarMenuItem key={item.title}>
-                      <Link
-                        href={item.href}
-                        title={label}
-                        aria-current={isActive ? "page" : undefined}
-                        className={className}
-                      >
-                        {isActive && (
-                          <span
-                            aria-hidden
-                            className="absolute top-1/2 left-0 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-primary"
-                          />
-                        )}
-                        <item.icon className="size-[18px] shrink-0" />
-                        {!isCollapsed && (
-                          <span className="truncate">{item.title}</span>
-                        )}
-                      </Link>
-                    </SidebarMenuItem>
-                  );
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        ))}
+        {ADMIN_NAV.map((section) => {
+          const items = section.items.filter((i) => !i.capability || can(i.capability));
+          if (!items.length) return null;
+          return (
+            <SidebarGroup key={section.label || "home"}>
+              {section.label && section.label !== items[0]?.title && <SidebarGroupLabel>{section.label}</SidebarGroupLabel>}
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {items.map((item) => {
+                    const isActive = isNavItemActive(pathname, item.href);
+                    const count = item.badge && attention ? attention[item.badge] : 0;
+                    const n = typeof count === "number" ? count : 0;
+                    return (
+                      <SidebarMenuItem key={item.href}>
+                        <Link
+                          href={item.href}
+                          title={isCollapsed ? `${item.title}${n ? ` (${n})` : ""}` : undefined}
+                          aria-current={isActive ? "page" : undefined}
+                          className={navItemClassName(isActive, isCollapsed)}
+                        >
+                          {isActive && <span aria-hidden className="absolute top-1/2 left-0 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-primary" />}
+                          <span className="relative">
+                            <item.icon className="size-[18px] shrink-0" />
+                            {isCollapsed && n > 0 && <span className="absolute -top-1 -right-1 size-2 rounded-full bg-brand-coral" />}
+                          </span>
+                          {!isCollapsed && <span className="flex-1 truncate">{item.title}</span>}
+                          {!isCollapsed && n > 0 && (
+                            <span className="rounded-full bg-brand-coral px-1.5 py-0.5 text-[10px] leading-none font-bold text-white" aria-label={`${n} need attention`}>
+                              {n}
+                            </span>
+                          )}
+                        </Link>
+                      </SidebarMenuItem>
+                    );
+                  })}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          );
+        })}
       </SidebarContent>
 
-      {/* User + logout */}
       <SidebarFooter className="gap-2.5 border-slate-800">
         {!isCollapsed ? (
           <Link
@@ -118,30 +116,18 @@ export function AdminSidebar() {
             className="group flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-800/60 p-2.5 transition-colors hover:border-primary/40 hover:bg-slate-800"
           >
             <Avatar className="size-9 shrink-0">
-              <AvatarFallback className="bg-primary/20 text-sm text-primary">
-                {userInitial}
-              </AvatarFallback>
+              <AvatarFallback className="bg-primary/20 text-sm text-primary">{userInitial}</AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-white">
-                {profile?.displayName || user?.email}
-              </p>
-              <p className="truncate text-[11px] text-slate-400">
-                Back to myHoodora
-              </p>
+              <p className="truncate text-sm font-semibold text-white">{profile?.displayName || user?.email}</p>
+              <p className="truncate text-[11px] text-slate-400 capitalize">{session?.role ?? "staff"} · back to myHoodora</p>
             </div>
             <ArrowLeftRight className="size-4 shrink-0 text-slate-500 transition-colors group-hover:text-primary" />
           </Link>
         ) : (
-          <Link
-            href={DEFAULT_APP_ROUTE}
-            title="Back to myHoodora"
-            className="flex justify-center"
-          >
+          <Link href={DEFAULT_APP_ROUTE} title="Back to myHoodora" className="flex justify-center">
             <Avatar className="size-9">
-              <AvatarFallback className="bg-primary/20 text-sm text-primary">
-                {userInitial}
-              </AvatarFallback>
+              <AvatarFallback className="bg-primary/20 text-sm text-primary">{userInitial}</AvatarFallback>
             </Avatar>
           </Link>
         )}

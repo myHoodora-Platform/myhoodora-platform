@@ -1,17 +1,17 @@
 import { SidebarProvider } from "@myhoodora/ui/sidebar";
-import { AdminDataProvider } from "@/context/AdminDataContext";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { AdminSessionProvider } from "@/features/admin/session";
 
-export default function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+// Filters live in the query string; render per request so the router cache
+// never serves a list with stale filters (same fix as the (app) layout).
+export const dynamic = "force-dynamic";
+
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider>
-      <AdminDataProvider>
+      <AdminSessionProvider>
         <AdminShell>{children}</AdminShell>
-      </AdminDataProvider>
+      </AdminSessionProvider>
     </SidebarProvider>
   );
 }

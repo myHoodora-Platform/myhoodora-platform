@@ -15,6 +15,7 @@ import { UserAvatar } from "@/components/shared/user-avatar";
 import { useAuth } from "@/context/AuthContext";
 import { useViewer } from "@/hooks/use-neighbourhood";
 import { resolveAuthor } from "@/lib/api/users";
+import { USE_MOCKS } from "@/lib/api/config";
 import { ROUTES } from "@/lib/routes";
 
 export function useLogout() {
@@ -72,10 +73,11 @@ export function UserMenu() {
             <HelpCircle className="size-4" /> Help centre
           </Link>
         </DropdownMenuItem>
-        {profile?.role === "admin" && (
+        {(profile?.role === "admin" || profile?.role === "moderator" || USE_MOCKS) && (
           <DropdownMenuItem asChild>
             <Link href={ROUTES.admin}>
               <Shield className="size-4" /> Admin
+              {profile?.role !== "admin" && profile?.role !== "moderator" && <span className="ml-auto text-xs text-muted-foreground">preview</span>}
             </Link>
           </DropdownMenuItem>
         )}
