@@ -39,7 +39,7 @@ export interface NeighbourQuery extends ListQuery {
   hoodId?: string;
   verification?: VerificationStatus;
   account?: AccountStatus;
-  role?: "member" | "moderator" | "admin";
+  role?: "member" | "moderator" | "admin" | "owner";
 }
 
 function toNeighbour(n: NeighbourRecord): AdminNeighbour {
@@ -99,7 +99,7 @@ const ADMIN_ONLY: NeighbourActionInput["action"][] = ["suspend", "reinstate"];
 export async function actOnNeighbour(user: User, uid: string, input: NeighbourActionInput, role: AdminRole): Promise<NeighbourDetail> {
   if (isLive("admin.neighbours")) return adminSend(user, `/neighbours/${uid}/actions`, input);
   await mock(() => {
-    if ((ADMIN_ONLY.includes(input.action) || (input.days ?? 0) > 7) && role !== "admin") forbidden();
+    if ((ADMIN_ONLY.includes(input.action) || (input.days ?? 0) > 7) && role === "moderator") forbidden();
     const target = neighbourById(uid);
     if (!target) notFound("Neighbour");
     if ((input.action === "verify" || input.action === "change_hood") && !input.hoodId) {
@@ -225,7 +225,7 @@ export async function getHood(user: User, id: string): Promise<HoodDetail> {
 export async function createHood(user: User, input: CreateHoodInput, role: AdminRole): Promise<AdminHood> {
   if (isLive("admin.hoods")) return adminSend(user, "/hoods", input);
   return mock(() => {
-    if (role !== "admin") forbidden();
+    if (role === "moderator") forbidden();
     const all = hoods();
     if (all.some((h) => h.name.toLowerCase() === input.name.trim().toLowerCase())) {
       throw new ApiError(`A Hood called “${input.name}” already exists.`, 409, "client");
@@ -256,7 +256,7 @@ export async function updateHood(
 ): Promise<HoodDetail> {
   if (isLive("admin.hoods")) return adminSend(user, `/hoods/${id}`, patch, "PATCH");
   await mock(() => {
-    if (role !== "admin") forbidden();
+    if (role === "moderator") forbidden();
     const h = hoodById(id);
     if (!h) notFound("Hood");
     const { reason, ...fields } = patch;

@@ -86,7 +86,7 @@ const AUDIT: Record<BusinessAction, AuditAction> = {
 export async function actOnBusiness(user: User, id: string, input: { action: BusinessAction; reason?: string; message?: string }, role: AdminRole): Promise<BusinessDetail> {
   if (isLive("admin.businesses")) return adminSend(user, `/businesses/${id}/actions`, input);
   await mock(() => {
-    if (role !== "admin") forbidden();
+    if (role === "moderator") forbidden();
     const b = businessRecords().find((x) => x.id === id);
     if (!b) notFound("Business");
     saveBusinessState({ ...businessState(), [id]: { status: NEXT[input.action] } });

@@ -257,7 +257,7 @@ export function invitedUids(groupId: string): string[] {
 
 /** planned: GET /users/search?q&neighborhoodId (people you can invite). */
 export async function searchNeighbours(user: User, query: string) {
-  if (isLive("users.publicProfile")) {
+  if (isLive("groups")) {
     return apiFetch<typeof MOCK_NEIGHBOURS>(user, `/users/search?q=${encodeURIComponent(query)}`);
   }
   await latency(120);

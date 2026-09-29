@@ -2,12 +2,13 @@ import type { User } from "firebase/auth";
 import { apiFetch, withRetry } from "./client";
 import { isLive } from "./config";
 import { alertResolutions } from "./alerts";
+import { rememberAuthor } from "./users";
 import { commentCount } from "./comments";
 import { decodePostContent, encodePostContent, postTypeFor } from "./post-meta";
 import { isRemoved } from "./mock/moderation-state";
 import { latency, load, mockId, save, update } from "./mock/store";
 import { seedPosts } from "./mock/seed";
-import type { ApiPost, CreatePostInput, Post, ReactionType } from "./types";
+import type { ApiPost, CreatePostInput, Post, PostMeta, ReactionType } from "./types";
 
 const POSTS_KEY = "posts";
 const reactionsKey = (uid: string) => `reactions:${uid}`;
@@ -18,6 +19,31 @@ function myReactions(uid: string): Record<string, ReactionType> {
 
 /** API document → what the UI renders. */
 export function hydratePost(doc: ApiPost, viewerUid: string): Post {
+  // The live API sends first-class fields (contract §1); prefer them.
+  if (doc.message !== undefined && doc.category) {
+    rememberAuthor(doc.author);
+    const meta: PostMeta = {
+      category: doc.category,
+      alertCategory: doc.alertCategory,
+      urgent: doc.urgent || undefined,
+      eventDate: doc.eventDate,
+      eventLocation: doc.eventLocation,
+      visibility: doc.visibility,
+      thankedName: doc.thankedName,
+      priceNaira: doc.priceNaira,
+      poll: doc.poll,
+    };
+    return {
+      ...doc,
+      message: doc.message,
+      meta,
+      commentCount: doc.commentCount ?? 0,
+      reactionTotal: doc.reactionTotal ?? 0,
+      myReaction: doc.myReaction ?? null,
+      resolvedAt: doc.resolvedAt ?? null,
+    };
+  }
+  // Mock store / older API: fields live in the encoded content prefix.
   const { message, meta } = decodePostContent(doc.content, doc.type);
   const liked = doc.likes.includes(viewerUid);
   return {
@@ -25,6 +51,7 @@ export function hydratePost(doc: ApiPost, viewerUid: string): Post {
     message,
     meta,
     commentCount: commentCount(doc._id),
+    reactionTotal: doc.likes.length,
     myReaction: liked ? (myReactions(viewerUid)[doc._id] ?? "like") : null,
     resolvedAt: meta.category === "alert" ? (alertResolutions()[doc._id] ?? null) : null,
   };
@@ -40,7 +67,7 @@ function sortNewestFirst(posts: ApiPost[]): ApiPost[] {
 
 // ── Feed ────────────────────────────────────────────────────────────────────
 
-/** live: GET /posts/neighborhood/:id?limit&skip */
+/** live: GET /posts/neighborhood/:id?limit&skip (limit ≤ 50) */
 export async function listFeed(
   user: User,
   neighborhoodId: string,
@@ -60,8 +87,8 @@ export async function listFeed(
 }
 
 /**
- * planned: GET /posts/:id. Until it exists, pages through the live feed to
- * find the post (bounded), so /p/[id] works against today's backend.
+ * live: GET /posts/:id (404 outside the viewer's Hood). With the key
+ * flipped back to planned, pages through the feed instead (bounded).
  */
 export async function getPost(
   user: User,
@@ -146,15 +173,20 @@ async function toggleLike(user: User, postId: string): Promise<ApiPost> {
 
 /**
  * Set or clear the viewer's reaction.
- * planned: PUT /posts/:id/reaction { type } | DELETE /posts/:id/reaction.
- * Today the API only knows "liked or not", so the like is toggled for real
- * and the reaction *type* is remembered locally.
+ * live: PUT /posts/:id/reaction { type } | DELETE /posts/:id/reaction → post.
+ * Mock: the like is toggled and the reaction *type* is remembered locally.
  */
 export async function setReaction(
   user: User,
   post: Post,
   type: ReactionType | null,
 ): Promise<Post> {
+  if (isLive("posts.reaction")) {
+    const doc = type
+      ? await apiFetch<ApiPost>(user, `/posts/${post._id}/reaction`, { method: "PUT", json: { type } })
+      : await apiFetch<ApiPost>(user, `/posts/${post._id}/reaction`, { method: "DELETE" });
+    return hydratePost(doc, user.uid);
+  }
   const hasReacted = post.myReaction !== null;
   const needsToggle = (type === null) === hasReacted;
   const doc = needsToggle ? await toggleLike(user, post._id) : post;

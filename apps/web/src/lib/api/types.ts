@@ -35,7 +35,11 @@ export type PostVisibility = "neighbourhood" | "nearby" | "anyone";
 
 export type ReactionType = "like" | "helpful" | "agree" | "haha" | "wow" | "sad";
 
-/** Raw post document as the API returns it today. */
+/**
+ * Post document as the API returns it. The first-class fields (contract §1)
+ * are optional so the mock store's legacy-shaped seed data still type-checks;
+ * the live API always sends them, and `content` keeps the encoded form.
+ */
 export interface ApiPost {
   _id: string;
   authorUid: string;
@@ -43,10 +47,30 @@ export interface ApiPost {
   type: PostType;
   content: string;
   mediaUrls: string[];
+  /** @deprecated always [] from the live API; use reactionTotal / myReaction. */
   likes: string[];
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  author?: { uid: string; displayName: string; photoURL?: string; neighborhoodName?: string };
+  message?: string;
+  category?: PostCategory;
+  alertCategory?: AlertCategory;
+  urgent?: boolean;
+  eventDate?: string;
+  eventLocation?: string;
+  thankedName?: string;
+  priceNaira?: number | null;
+  poll?: PollDefinition;
+  pollResults?: PollResults;
+  visibility?: PostVisibility;
+  reactionCounts?: Partial<Record<ReactionType, number>>;
+  reactionTotal?: number;
+  myReaction?: ReactionType | null;
+  commentCount?: number;
+  commentsDisabled?: boolean;
+  activeUntil?: string;
+  resolvedAt?: string | null;
 }
 
 /**
@@ -96,11 +120,12 @@ export interface PollResults {
 export interface Post extends ApiPost {
   message: string;
   meta: PostMeta;
-  /** planned: returned by the API alongside the post. */
   commentCount: number;
-  /** planned: the viewer's own reaction type (API only stores likes today). */
+  /** All reactions of every type. */
+  reactionTotal: number;
+  /** The viewer's own reaction type. */
   myReaction: ReactionType | null;
-  /** planned: when an alert was marked resolved (alerts only). */
+  /** When an alert was marked resolved (alerts only). */
   resolvedAt: string | null;
 }
 
@@ -132,6 +157,8 @@ export interface Comment {
   _id: string;
   postId: string;
   authorUid: string;
+  /** Embedded by the live API. */
+  author?: { uid: string; displayName: string; photoURL?: string };
   content: string;
   createdAt: string;
   likes: string[];
@@ -276,7 +303,11 @@ export type NotificationType =
   | "message"
   | "event"
   | "group"
-  | "verification";
+  | "verification"
+  /** Staff decisions about your account or content. */
+  | "moderation"
+  /** Team announcements (admin broadcasts). */
+  | "system";
 
 export interface AppNotification {
   _id: string;

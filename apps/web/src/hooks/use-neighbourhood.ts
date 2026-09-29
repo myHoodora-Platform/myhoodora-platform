@@ -44,6 +44,8 @@ export function useViewer(): Viewer {
   const hood = useNeighbourhood();
   return {
     user,
-    profile: profile ? { displayName: profile.displayName, neighborhoodName: hood?.name } : null,
+    profile: profile
+      ? { displayName: profile.displayName, photoURL: profile.photoURL, bio: profile.bio, neighborhoodName: hood?.name }
+      : null,
   };
 }

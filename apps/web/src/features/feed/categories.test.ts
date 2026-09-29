@@ -18,7 +18,7 @@ function post(meta: PostMeta, hoursAgo = 0): Post {
     updatedAt: createdAt,
     message: "",
     meta,
-    commentCount: 0,
+    commentCount: 0, reactionTotal: 0,
     myReaction: null,
     resolvedAt: null,
   };

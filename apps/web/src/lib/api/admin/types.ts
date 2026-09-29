@@ -21,7 +21,8 @@ export interface ListQuery {
   sort?: string;
 }
 
-export type AdminRole = "moderator" | "admin";
+/** Owners are admins who can also appoint admins (and other owners). */
+export type AdminRole = "moderator" | "admin" | "owner";
 
 export type Capability =
   | "moderation.act"
@@ -31,7 +32,9 @@ export type Capability =
   | "businesses.review"
   | "broadcasts.send"
   | "team.manage"
-  | "settings.manage";
+  | "settings.manage"
+  /** Owner only: grant or revoke admin/owner. */
+  | "team.manage.admins";
 
 export interface AdminSession {
   uid: string;
@@ -135,7 +138,7 @@ export type AccountStatus = "active" | "restricted" | "suspended";
 export interface NeighbourSummary {
   uid: string;
   displayName: string;
-  role: "member" | "moderator" | "admin";
+  role: "member" | AdminRole;
   hood?: { id: string; name: string };
   verificationStatus: VerificationStatus;
   accountStatus: AccountStatus;

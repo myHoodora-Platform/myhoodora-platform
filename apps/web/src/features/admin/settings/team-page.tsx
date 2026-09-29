@@ -21,7 +21,7 @@ import { ROLE_CAPABILITIES } from "@/lib/api/admin/session";
 import { useAdminSession } from "../session";
 import { useAdminQuery } from "../use-admin-query";
 
-type StaffRole = "member" | "moderator" | "admin";
+type StaffRole = "member" | "moderator" | "admin" | "owner";
 
 const CAPABILITY_LABEL: Record<string, string> = {
   "moderation.act": "Review reports, remove content, warn and restrict (up to 7 days)",
@@ -32,7 +32,10 @@ const CAPABILITY_LABEL: Record<string, string> = {
   "broadcasts.send": "Send broadcasts",
   "team.manage": "Manage staff roles",
   "settings.manage": "Change platform settings",
+  "team.manage.admins": "Appoint and remove admins and owners",
 };
+
+const ROLE_NOUN: Record<Exclude<StaffRole, "member">, string> = { moderator: "a moderator", admin: "an admin", owner: "an owner" };
 
 export function TeamPage() {
   const { user } = useAuth();
@@ -65,8 +68,8 @@ export function TeamPage() {
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-2">
-        {(["moderator", "admin"] as const).map((r) => (
+      <div className="grid gap-4 md:grid-cols-3">
+        {(["moderator", "admin", "owner"] as const).map((r) => (
           <Panel key={r} title={<span className="capitalize">{r}s can</span>}>
             <ul className="space-y-1.5 text-sm">
               {ROLE_CAPABILITIES[r].map((c) => (
@@ -104,11 +107,16 @@ export function TeamPage() {
                 <select
                   aria-label={`Change ${p.displayName}'s role`}
                   value={p.role}
+                  // Only owners can change an admin's or owner's role (the API enforces this too).
+                  disabled={(p.role === "admin" || p.role === "owner") && !can("team.manage.admins")}
                   onChange={(e) => setChange({ person: p, to: e.target.value as StaffRole })}
                   className="h-9 rounded-lg border border-border bg-card px-2 text-sm"
                 >
                   <option value="moderator">Moderator</option>
-                  <option value="admin">Admin</option>
+                  <option value="admin" disabled={!can("team.manage.admins") && p.role !== "admin"}>
+                    Admin
+                  </option>
+                  {(can("team.manage.admins") || p.role === "owner") && <option value="owner">Owner</option>}
                   <option value="member">Remove from team</option>
                 </select>
               </li>
@@ -154,7 +162,7 @@ export function TeamPage() {
         <ActionDialog
           open
           onOpenChange={(o) => !o && setChange(null)}
-          title={change.to === "member" ? `Remove ${change.person.displayName} from the team` : `Make ${change.person.displayName} ${change.to === "admin" ? "an admin" : "a moderator"}`}
+          title={change.to === "member" ? `Remove ${change.person.displayName} from the team` : `Make ${change.person.displayName} ${ROLE_NOUN[change.to]}`}
           consequence={
             change.to === "member"
               ? "They lose access to the admin immediately. Their past actions stay in the history."

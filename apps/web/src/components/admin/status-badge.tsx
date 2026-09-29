@@ -42,6 +42,7 @@ const STATUS: Record<string, { label: string; tone: Tone }> = {
   medium: { label: "Medium", tone: "amber" },
   low: { label: "Low", tone: "grey" },
   // roles
+  owner: { label: "Owner", tone: "teal" },
   admin: { label: "Admin", tone: "teal" },
   moderator: { label: "Moderator", tone: "teal" },
   member: { label: "Member", tone: "grey" },

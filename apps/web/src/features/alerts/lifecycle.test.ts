@@ -8,7 +8,7 @@ function alert(category: AlertCategory, hoursAgo: number, extra: Partial<Post> &
   const { urgent, ...rest } = extra;
   return {
     _id: `a${++n}`, authorUid: "u", neighborhoodId: "n", type: "alert", content: "", mediaUrls: [], likes: [],
-    isActive: true, createdAt, updatedAt: createdAt, message: "m", commentCount: 0, myReaction: null,
+    isActive: true, createdAt, updatedAt: createdAt, message: "m", commentCount: 0, reactionTotal: 0, myReaction: null,
     resolvedAt: null, meta: { category: "alert", alertCategory: category, urgent }, ...rest,
   };
 }

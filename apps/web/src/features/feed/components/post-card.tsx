@@ -165,11 +165,11 @@ export function PostCard({ post, onReact, onDelete, variant = "feed" }: PostCard
       )}
 
       {/* Counts */}
-      {(post.likes.length > 0 || post.commentCount > 0) && (
+      {(post.reactionTotal > 0 || post.commentCount > 0) && (
         <div className="flex items-center justify-between px-4 pt-1 text-[13px] text-muted-foreground sm:px-5">
           <span>
-            {post.likes.length > 0 &&
-              `${post.myReaction ? reactionDef(post.myReaction).emoji : "👍"} ${post.likes.length}`}
+            {post.reactionTotal > 0 &&
+              `${post.myReaction ? reactionDef(post.myReaction).emoji : "👍"} ${post.reactionTotal}`}
           </span>
           {post.commentCount > 0 && (
             <Link href={`${postHref}#comments`} className="hover:underline">

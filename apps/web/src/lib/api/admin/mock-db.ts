@@ -106,7 +106,7 @@ export interface NeighbourRecord {
   uid: string;
   displayName: string;
   email: string;
-  role: "member" | "moderator" | "admin";
+  role: "member" | "moderator" | "admin" | "owner";
   hoodId?: string;
   verificationStatus: VerificationStatus;
   accountStatus: AccountStatus;

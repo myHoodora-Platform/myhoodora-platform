@@ -159,7 +159,7 @@ export async function setReportClaim(user: User, id: string, claim: boolean, rol
 export async function actOnReport(user: User, id: string, input: ModerationActionInput, role: AdminRole): Promise<AdminReport> {
   if (isLive("admin.moderation")) return adminSend(user, `/reports/${encodeURIComponent(id)}/actions`, input);
   return mock(() => {
-    if ((input.action === "suspend_author" || (input.restrictDays ?? 0) > 7) && role !== "admin") forbidden();
+    if ((input.action === "suspend_author" || (input.restrictDays ?? 0) > 7) && role === "moderator") forbidden();
     const report = buildReports().find((r) => r.id === id);
     if (!report) notFound("Report");
     const actor = actorOf(user, role);

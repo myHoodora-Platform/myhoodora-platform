@@ -19,9 +19,15 @@ import {
 } from "@/lib/firebase/auth";
 import { clearFeedCaches } from "@/features/feed/feed-cache";
 
-interface UserProfile {
+export interface UserProfile {
+  uid?: string;
+  email?: string;
+  /** False until the neighbour clicks the link in their welcome email (Google/Apple: true at once). */
+  emailVerified?: boolean;
   isOnboarded: boolean;
   displayName?: string;
+  photoURL?: string;
+  bio?: string;
   location?: {
     lat?: number;
     lng?: number;
@@ -29,6 +35,9 @@ interface UserProfile {
   };
   neighborhoodId?: string;
   verificationStatus?: string;
+  /** Separate from verification: active | restricted | suspended (contract §13). */
+  accountStatus?: "active" | "restricted" | "suspended";
+  restrictedUntil?: string | null;
   role?: string;
 }
 
@@ -53,10 +62,8 @@ interface AuthContextType {
     distanceMeters?: number;
     reason?: string;
   }>;
-  updateProfile: (payload: {
-    displayName?: string;
-    neighborhoodId?: string;
-  }) => Promise<void>;
+  /** Your Hood only changes through verification or staff, never here. */
+  updateProfile: (payload: { displayName?: string }) => Promise<void>;
   runGatedAction: (action: () => void) => void;
   logout: () => Promise<void>;
 }
@@ -157,10 +164,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return result;
   };
 
-  const updateProfile = async (payload: {
-    displayName?: string;
-    neighborhoodId?: string;
-  }) => {
+  const updateProfile = async (payload: { displayName?: string }) => {
     if (!user) throw new Error("No authenticated user session found.");
     const updatedProfile = await updateProfileApi(user, payload);
     setProfile(updatedProfile as UserProfile);

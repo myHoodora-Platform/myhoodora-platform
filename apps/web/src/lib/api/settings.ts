@@ -80,7 +80,7 @@ export function myProfileExtras(uid: string): ProfileExtras {
   return load<ProfileExtras>(extrasKey(uid), () => ({}));
 }
 
-/** planned: PATCH /users/me { bio, photoURL } */
+/** live: PATCH /users/me { bio, photoURL (https) } */
 export async function updateProfileExtras(user: User, extras: ProfileExtras): Promise<ProfileExtras> {
   if (isLive("settings")) return apiFetch<ProfileExtras>(user, "/users/me", { method: "PATCH", json: extras });
   await latency(200);

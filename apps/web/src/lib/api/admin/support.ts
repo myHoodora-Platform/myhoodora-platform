@@ -96,7 +96,7 @@ export async function estimateReach(user: User, audience: BroadcastAudience): Pr
 export async function sendBroadcast(user: User, input: { title: string; body: string; audience: BroadcastAudience }, role: AdminRole): Promise<Broadcast> {
   if (isLive("admin.broadcasts")) return adminSend(user, "/broadcasts", input);
   return mock(() => {
-    if (role !== "admin") forbidden();
+    if (role === "moderator") forbidden();
     if (input.audience.type !== "all" && (input.audience.type === "hood" ? input.audience.hoodIds : input.audience.uids).length === 0) {
       throw new ApiError("Choose who should receive this.", 422, "client");
     }

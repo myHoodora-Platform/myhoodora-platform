@@ -17,8 +17,10 @@ import { SettingsSection } from "./ui";
 const BIO_MAX = 160;
 
 export function ProfileSettings() {
-  const { user, profile, updateProfile } = useAuth();
-  const extras = user ? myProfileExtras(user.uid) : {};
+  const { user, profile, updateProfile, refreshProfile } = useAuth();
+  // Preview keeps bio/photo locally; live they're on the profile.
+  const local = user ? myProfileExtras(user.uid) : {};
+  const extras = { bio: local.bio ?? profile?.bio, photoURL: local.photoURL ?? profile?.photoURL };
   const [name, setName] = useState(profile?.displayName ?? "");
   const [bio, setBio] = useState(extras.bio ?? "");
   const [photo, setPhoto] = useState<string | null>(extras.photoURL ?? user?.photoURL ?? null);
@@ -40,6 +42,7 @@ export function ProfileSettings() {
     try {
       if (trimmed !== profile?.displayName) await updateProfile({ displayName: trimmed });
       await updateProfileExtras(user, { bio: bio.trim(), photoURL: photo ?? undefined });
+      await refreshProfile();
       toast.success("Profile updated.");
     } catch (err) {
       toast.error(errorMessage(err, "Couldn't save your profile."));

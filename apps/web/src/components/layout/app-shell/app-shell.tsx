@@ -17,6 +17,7 @@ import { AppSidebar } from "./app-sidebar";
 import { MobileTabBar } from "./mobile-tab-bar";
 import { UrgentAlertBanner } from "./urgent-alert-banner";
 import { VerificationBanner } from "./verification-banner";
+import { EmailVerificationBanner } from "./email-verification-banner";
 
 const LOADING_TIMEOUT_MS = 8000;
 
@@ -102,6 +103,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <OfflineBanner />
             <UrgentAlertBanner />
             <VerificationBanner />
+            <EmailVerificationBanner />
           </div>
           <div className="mx-auto flex max-w-[1280px] gap-6 px-4 lg:px-6">
             <AppSidebar />

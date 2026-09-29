@@ -8,5 +8,7 @@ export default defineConfig({
   test: {
     include: ["src/**/*.test.ts"],
     environment: "node",
+    // Unit tests exercise the in-browser mock store, whatever ENDPOINTS says is live.
+    env: { NEXT_PUBLIC_USE_MOCKS: "true" },
   },
 });

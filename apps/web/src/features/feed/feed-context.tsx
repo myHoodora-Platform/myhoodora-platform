@@ -193,7 +193,8 @@ export function FeedProvider({ children }: { children: ReactNode }) {
         : !type && wasReacted
           ? post.likes.filter((u) => u !== user.uid)
           : post.likes;
-    upsertPost({ ...post, likes, myReaction: type });
+    const reactionTotal = post.reactionTotal + (type && !wasReacted ? 1 : !type && wasReacted ? -1 : 0);
+    upsertPost({ ...post, likes, reactionTotal, myReaction: type });
     try {
       const updated = await postsApi.setReaction(user, post, type);
       upsertPost(updated);

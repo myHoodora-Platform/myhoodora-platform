@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, MessageCircle, ShieldAlert, type LucideIcon } from "lucide-react";
+import { AlertTriangle, Gavel, Megaphone, MessageCircle, ShieldAlert, type LucideIcon } from "lucide-react";
 import { cn } from "@myhoodora/ui/utils";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { useViewer } from "@/hooks/use-neighbourhood";
@@ -13,6 +13,8 @@ const TYPE_ICON: Partial<Record<NotificationType, { icon: LucideIcon; tone: stri
   alert: { icon: AlertTriangle, tone: "bg-danger-soft text-destructive" },
   verification: { icon: ShieldAlert, tone: "bg-warning-soft text-warning" },
   message: { icon: MessageCircle, tone: "bg-primary/10 text-primary" },
+  moderation: { icon: Gavel, tone: "bg-warning-soft text-warning" },
+  system: { icon: Megaphone, tone: "bg-primary/10 text-primary" },
 };
 
 interface NotificationItemProps {

@@ -116,10 +116,10 @@ export async function listTeam(user: User): Promise<AdminNeighbour[]> {
 }
 
 /** live: PATCH /admin/team/:uid (admin only) */
-export async function setTeamRole(user: User, uid: string, newRole: "member" | "moderator" | "admin", role: AdminRole): Promise<void> {
+export async function setTeamRole(user: User, uid: string, newRole: "member" | AdminRole, role: AdminRole): Promise<void> {
   if (isLive("admin.team")) return adminSend(user, `/team/${uid}`, { role: newRole }, "PATCH");
   await mock(() => {
-    if (role !== "admin") forbidden();
+    if (role === "moderator") forbidden();
     const target = neighbours().find((n) => n.uid === uid);
     if (!target) notFound("Neighbour");
     saveNeighbours(neighbours().map((n) => (n.uid === uid ? { ...n, role: newRole } : n)));
@@ -139,7 +139,7 @@ export async function getPlatformSettings(user: User): Promise<PlatformSettings>
 export async function updatePlatformSettings(user: User, next: PlatformSettings, role: AdminRole): Promise<PlatformSettings> {
   if (isLive("admin.settings")) return adminSend(user, "/settings", next, "PATCH");
   return mock(() => {
-    if (role !== "admin") forbidden();
+    if (role === "moderator") forbidden();
     savePlatformSettings(next);
     return next;
   }, 300);
@@ -147,7 +147,7 @@ export async function updatePlatformSettings(user: User, next: PlatformSettings,
 
 /** live: GET /admin/signups?type */
 export async function listSignups(user: User, type: SignupEntry["type"]): Promise<SignupEntry[]> {
-  if (isLive("admin.settings")) return adminGet(user, "/signups", { type: type === "ai_pilot" ? "ai_pilot" : "talent" });
+  if (isLive("admin.signups")) return adminGet(user, "/signups", { type: type === "ai_pilot" ? "ai_pilot" : "talent" });
   return mock(() => {
     const src = signupSources();
     return type === "ai_pilot"

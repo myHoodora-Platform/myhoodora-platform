@@ -56,6 +56,7 @@ export const PUBLIC_PATHS = [
   "/privacy",
   "/terms",
   "/reset-password",
+  "/verify-email",
 ] as const;
 export const PUBLIC_PREFIXES = ["/coming-soon", "/business"] as const;
 

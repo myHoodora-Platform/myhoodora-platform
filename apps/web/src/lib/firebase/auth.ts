@@ -27,6 +27,8 @@ function mockProfile(user: User) {
     displayName: user.displayName ?? user.email?.split("@")[0] ?? "Neighbour",
     isOnboarded: false,
     verificationStatus: "unverified",
+    accountStatus: "active",
+    emailVerified: true,
     role: "member",
   }));
 }
@@ -181,7 +183,7 @@ export async function verifyLocationApi(
 
 export async function updateProfileApi(
   user: User,
-  payload: { displayName?: string; neighborhoodId?: string },
+  payload: { displayName?: string },
 ): Promise<unknown> {
   if (USE_MOCKS) return updateMockProfile(user, payload);
   const token = await user.getIdToken();

@@ -19,6 +19,17 @@ export const ROLE_CAPABILITIES: Record<AdminRole, Capability[]> = {
     "team.manage",
     "settings.manage",
   ],
+  owner: [
+    "moderation.act",
+    "moderation.suspend",
+    "verification.review",
+    "hoods.manage",
+    "businesses.review",
+    "broadcasts.send",
+    "team.manage",
+    "settings.manage",
+    "team.manage.admins",
+  ],
 };
 
 const PREVIEW_KEY = "mh-admin-preview-role";
@@ -48,7 +59,7 @@ export function setPreviewRole(role: AdminRole) {
 export async function getAdminSession(user: User, profileRole?: string): Promise<AdminSession> {
   if (isLive("admin.session")) return adminGet<AdminSession>(user, "/me");
   return mock(() => {
-    const real = profileRole === "admin" || profileRole === "moderator" ? profileRole : null;
+    const real = profileRole === "owner" || profileRole === "admin" || profileRole === "moderator" ? profileRole : null;
     const role = real ?? previewRole();
     return {
       uid: user.uid,

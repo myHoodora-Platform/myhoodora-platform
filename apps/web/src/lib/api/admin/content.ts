@@ -112,7 +112,8 @@ export async function actOnContent(
   role: AdminRole,
 ): Promise<void> {
   const path = { post: "posts", comment: "comments", listing: "listings", group: "groups" }[type];
-  if (isLive("admin.content")) return adminSend(user, `/${path}/${id}/actions`, input);
+  const key = type === "listing" ? "admin.marketplace" : type === "group" ? "admin.groups" : "admin.content";
+  if (isLive(key)) return adminSend(user, `/${path}/${id}/actions`, input);
   await mock(() => {
     setRemoved(type, id, input.action === "remove");
     const label =
@@ -181,7 +182,7 @@ export async function actOnAlert(user: User, id: string, input: { action: "end" 
 
 /** live: GET /admin/listings */
 export async function listListingsAdmin(user: User, query: ListQuery & { status?: AdminListing["status"]; reported?: boolean } = {}): Promise<Page<AdminListing>> {
-  if (isLive("admin.content")) return adminGet(user, "/listings", query);
+  if (isLive("admin.marketplace")) return adminGet(user, "/listings", query);
   return mock(() => {
     const rows = allListings()
       .map<AdminListing>((l) => ({
@@ -204,7 +205,7 @@ export async function listListingsAdmin(user: User, query: ListQuery & { status?
 
 /** live: GET /admin/groups */
 export async function listGroupsAdmin(user: User, query: ListQuery & { status?: AdminGroup["status"]; reported?: boolean } = {}): Promise<Page<AdminGroup>> {
-  if (isLive("admin.content")) return adminGet(user, "/groups", query);
+  if (isLive("admin.groups")) return adminGet(user, "/groups", query);
   return mock(() => {
     const rows = allGroups()
       .map<AdminGroup>((g) => ({

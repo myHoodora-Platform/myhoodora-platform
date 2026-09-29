@@ -10,7 +10,7 @@ function pollPost(id: string, closesInHours: number): Post {
   const now = new Date().toISOString();
   return {
     _id: id, authorUid: "a", neighborhoodId: "n", type: "text", content: "", mediaUrls: [], likes: [],
-    isActive: true, createdAt: now, updatedAt: now, message: "Q?", commentCount: 0, myReaction: null, resolvedAt: null,
+    isActive: true, createdAt: now, updatedAt: now, message: "Q?", commentCount: 0, reactionTotal: 0, myReaction: null, resolvedAt: null,
     meta: {
       category: "poll",
       poll: {
