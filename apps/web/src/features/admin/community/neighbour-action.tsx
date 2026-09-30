@@ -58,6 +58,8 @@ const SPEC: Record<NeighbourAction, { title: string; confirm: string; destructiv
 };
 
 let hoodCache: AdminHood[] | null = null;
+// The API accepts at most 100 per page (PageQuery); Hoods number in the tens.
+const HOODS_PAGE = 100;
 
 /** One dialog for every neighbour action, single or bulk. */
 export function NeighbourActionDialog({
@@ -74,23 +76,37 @@ export function NeighbourActionDialog({
   const { user } = useAuth();
   const { role, can } = useAdminSession();
   const [hoods, setHoods] = useState<AdminHood[]>(hoodCache ?? []);
+  const [hoodsState, setHoodsState] = useState<"loading" | "error" | "ready">(hoodCache ? "ready" : "loading");
+  const [hoodsAttempt, setHoodsAttempt] = useState(0);
   const [hoodId, setHoodId] = useState("");
   const [days, setDays] = useState("7");
   const needsHood = action === "verify" || action === "change_hood";
 
   useEffect(() => {
     if (!needsHood || !user || hoodCache) return;
-    listHoods(user, { pageSize: 200, sort: "name:asc" })
+    let alive = true;
+    setHoodsState("loading");
+    listHoods(user, { pageSize: HOODS_PAGE, sort: "name:asc" })
       .then((p) => {
+        if (!alive) return;
         hoodCache = p.items;
         setHoods(p.items);
+        setHoodsState("ready");
       })
-      .catch(() => undefined);
-  }, [needsHood, user]);
+      .catch((err) => {
+        console.error("Couldn't load Hoods:", err);
+        if (alive) setHoodsState("error");
+      });
+    return () => {
+      alive = false;
+    };
+  }, [needsHood, user, hoodsAttempt]);
 
   // Reset only when a new action/target set opens (targets is a fresh array each render).
   const targetKey = targets.map((t) => t.uid).join(",");
-  const firstHood = targets.length === 1 ? (targets[0]!.hoodId ?? "") : "";
+  // Their current Hood: pre-selected when verifying, but never a "move" target.
+  const currentHood = targets.length === 1 ? (targets[0]!.hoodId ?? "") : "";
+  const firstHood = action === "change_hood" ? "" : currentHood;
   useEffect(() => {
     setHoodId(firstHood);
     setDays("7");
@@ -122,14 +138,32 @@ export function NeighbourActionDialog({
       {needsHood && (
         <label className="block space-y-1.5">
           <span className="text-sm font-semibold">Hood</span>
-          <select value={hoodId} onChange={(e) => setHoodId(e.target.value)} className={fieldInputClass}>
-            <option value="">Choose a Hood…</option>
-            {hoods.map((h) => (
-              <option key={h.id} value={h.id}>
-                {h.name}, {h.city}
-              </option>
-            ))}
-          </select>
+          {hoodsState === "error" ? (
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-border px-3 py-2.5 text-sm">
+              <span className="text-muted-foreground">Couldn&apos;t load Hoods.</span>
+              <button type="button" onClick={() => setHoodsAttempt((n) => n + 1)} className="font-semibold text-primary hover:underline">
+                Try again
+              </button>
+            </div>
+          ) : (
+            <select
+              value={hoodId}
+              onChange={(e) => setHoodId(e.target.value)}
+              disabled={hoodsState === "loading"}
+              className={fieldInputClass}
+            >
+              <option value="">{hoodsState === "loading" ? "Loading Hoods…" : hoods.length === 0 ? "No Hoods yet" : "Choose a Hood…"}</option>
+              {hoods.map((h) => {
+                const isCurrent = action === "change_hood" && h.id === currentHood;
+                return (
+                  <option key={h.id} value={h.id} disabled={isCurrent}>
+                    {h.name}, {h.city}
+                    {isCurrent ? " (current)" : ""}
+                  </option>
+                );
+              })}
+            </select>
+          )}
         </label>
       )}
       {action === "restrict" && (

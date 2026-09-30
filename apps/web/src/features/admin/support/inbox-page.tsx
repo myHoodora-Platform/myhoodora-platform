@@ -1,6 +1,9 @@
 "use client";
 
-import { Inbox } from "lucide-react";
+import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Inbox, MessageSquarePlus } from "lucide-react";
+import { Button } from "@myhoodora/ui/button";
 import { AdminPageHeader } from "@/components/admin/page-header";
 import { AdminToolbar, FilterSelect, SearchBox, StatusTabs } from "@/components/admin/admin-toolbar";
 import { DataTable, countLabel } from "@/components/admin/data-table";
@@ -11,11 +14,13 @@ import { listInbox } from "@/lib/api/admin/support";
 import type { InboxStatus, InboxThread } from "@/lib/api/admin/types";
 import { useAdminQuery } from "../use-admin-query";
 import { useListParams } from "../use-list-params";
+import { NewConversationDialog } from "./new-conversation-dialog";
 
 export const SOURCE_LABEL: Record<InboxThread["source"], string> = {
   in_app: "In-app",
   contact_form: "Contact form",
   feedback: "Feedback",
+  staff: "Started by staff",
 };
 
 export function InboxPage() {
@@ -23,7 +28,12 @@ export function InboxPage() {
   const threads = useAdminQuery(
     (u) => listInbox(u, { status: get("status") as InboxStatus, source: (get("source") || undefined) as InboxThread["source"] | undefined, q: get("q") || undefined, page }),
     key,
+    ["inbox.updated"],
   );
+  // /admin/inbox?new=<uid> (from a neighbour's page) opens the dialog addressed to them.
+  const router = useRouter();
+  const newFor = useSearchParams().get("new");
+  const [composing, setComposing] = useState(Boolean(newFor));
 
   return (
     <div className="space-y-5">
@@ -31,6 +41,19 @@ export function InboxPage() {
         crumbs={[{ label: "Support" }, { label: "Inbox" }]}
         title="Inbox"
         description="Questions from neighbours in the app, the public contact form and feedback, in one queue. High priority first."
+        actions={
+          <Button size="sm" onClick={() => setComposing(true)}>
+            <MessageSquarePlus className="size-4" /> New conversation
+          </Button>
+        }
+      />
+      <NewConversationDialog
+        open={composing}
+        initialUid={newFor}
+        onOpenChange={(o) => {
+          setComposing(o);
+          if (!o && newFor) router.replace("/admin/inbox", { scroll: false });
+        }}
       />
       <StatusTabs<InboxStatus>
         active={get("status") as InboxStatus}

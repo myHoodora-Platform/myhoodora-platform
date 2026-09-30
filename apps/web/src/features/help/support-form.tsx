@@ -1,42 +1,39 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@myhoodora/ui/button";
 import { Field, fieldInputClass } from "@/components/shared/field";
 import { useAuth } from "@/context/AuthContext";
 import { errorMessage } from "@/lib/api/client";
 import { SUPPORT_TOPICS, submitSupportRequest, type SupportTopic } from "@/lib/api/support";
+import { ROUTES } from "@/lib/routes";
 
-/** "Contact support" on the help centre → the team inbox (replies by email + notification). */
-export function SupportForm() {
+/** How long replies usually take (shown wherever someone contacts support). */
+export const SUPPORT_REPLY_TIME = "usually within two working days";
+
+/**
+ * "Contact support" → opens a conversation in the team inbox and takes you
+ * to it in Messages, where the team's replies arrive live.
+ */
+export function SupportForm({ onSent }: { onSent?: (threadId: string) => void } = {}) {
   const { user } = useAuth();
+  const router = useRouter();
   const [topic, setTopic] = useState<SupportTopic>("account");
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
   const tooShort = message.trim().length < 20;
 
   if (!user) return null;
 
-  if (sent) {
-    return (
-      <div className="flex items-start gap-3 p-4 text-sm" role="status">
-        <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden />
-        <p>
-          <span className="font-semibold">Thanks, we&apos;ve got it.</span> We&apos;ll reply to {user.email ?? "your email"} and in your notifications, usually within two working
-          days.
-        </p>
-      </div>
-    );
-  }
-
   const send = async () => {
     setSending(true);
     try {
-      await submitSupportRequest(user, { topic, message: message.trim() });
-      setSent(true);
+      const { id } = await submitSupportRequest(user, { topic, message: message.trim() });
+      toast.success("Message sent. We'll reply here in Messages.");
+      if (onSent) onSent(id);
+      else router.push(ROUTES.supportThread(id));
     } catch (err) {
       toast.error(errorMessage(err, "Couldn't send your message."));
     } finally {

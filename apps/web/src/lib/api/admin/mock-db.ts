@@ -116,6 +116,8 @@ export interface NeighbourRecord {
   bio?: string;
   location?: { address: string; lat: number; lng: number };
   attempts: VerificationAttempt[];
+  /** Asked to join this nearby Hood from outside its boundary. */
+  requestedHoodId?: string;
 }
 
 function person(
@@ -175,6 +177,12 @@ function seedNeighbours(): NeighbourRecord[] {
       verificationStatus: "pending_review",
       location: { address: "5 Diya Street, Gbagada Phase 2, Lagos", lat: 6.5605, lng: 3.3905 },
       attempts: [{ at: hoursAgo(50), address: "5 Diya Street, Gbagada Phase 2", point: { lat: 6.5605, lng: 3.3905 }, result: "mismatch" }],
+    }),
+    person("nb_tolu", "Tolu Adebayo", undefined, 0.2, {
+      verificationStatus: "pending_review",
+      requestedHoodId: hoodIdFor("Lekki Phase 1"),
+      location: { address: "7 Fola Osibo Road, Lekki, Lagos", lat: 6.4412, lng: 3.4995 },
+      attempts: [{ at: hoursAgo(5), address: "7 Fola Osibo Road, Lekki", point: { lat: 6.4412, lng: 3.4995 }, result: "outside_coverage" }],
     }),
     person("nb_peter", "Peter Udoh", undefined, 3, {
       location: { address: "Plot 22, Lugbe, Abuja", lat: 8.97, lng: 7.37 },
@@ -524,7 +532,13 @@ export function buildThreads(): InboxThread[] {
     createdAt: f.at,
     updatedAt: f.at,
   }));
-  return [...seedThreads(), ...contact, ...feedback].map((t) => ({ ...t, ...overrides[t.id] }) as InboxThread);
+  const started = load<InboxThread[]>("admin-inbox-started", () => []);
+  return [...seedThreads(), ...started, ...contact, ...feedback].map((t) => ({ ...t, ...overrides[t.id] }) as InboxThread);
+}
+
+/** Preview mode: a conversation staff started with a neighbour. */
+export function addStartedThread(t: InboxThread) {
+  save("admin-inbox-started", [t, ...load<InboxThread[]>("admin-inbox-started", () => [])]);
 }
 
 export function patchThread(id: string, patch: Partial<InboxThread>) {

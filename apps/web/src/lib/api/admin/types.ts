@@ -76,6 +76,7 @@ export type AuditAction =
   | "alert_end"
   | "alert_downgrade"
   | "inbox_reply"
+  | "inbox_start"
   | "claim"
   | "settings_update"
   | "lead_appoint"
@@ -197,6 +198,8 @@ export interface VerificationCase {
   attempts: number;
   lastError?: "outside_coverage" | "low_accuracy" | "mismatch";
   status: "pending_review" | "failed";
+  /** The nearby Hood they asked to join (contract §16); approve into this one. */
+  requestedHood?: { id: string; name: string };
 }
 
 // ── Hoods ───────────────────────────────────────────────────────────────────
@@ -317,7 +320,8 @@ export type InboxStatus = "open" | "waiting" | "resolved";
 
 export interface InboxThread {
   id: string;
-  source: "in_app" | "contact_form" | "feedback";
+  /** "staff": a conversation a team member started with a neighbour. */
+  source: "in_app" | "contact_form" | "feedback" | "staff";
   topic: string;
   subject: string;
   from: { uid?: string; name: string; email: string };

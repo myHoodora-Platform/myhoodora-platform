@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -14,9 +14,11 @@ import { MascotLockup } from "@myhoodora/ui/logo";
 import { PasswordInput } from "@myhoodora/ui/password-input";
 import { cn } from "@myhoodora/ui/utils";
 import { SocialAuthButtons } from "@/components/shared/social-auth-buttons";
-import { signInWithApple, signInWithGoogle, signUpUser } from "@/lib/firebase/auth";
+import { routeAfterSignIn, signInWithApple, signInWithGoogle, signUpUser } from "@/lib/firebase/auth";
 import { getAuthErrorMessage } from "@/lib/firebase/errors";
 import { registerSchema, type RegisterInput } from "@/lib/validation/auth";
+import { DEFAULT_APP_ROUTE, ROUTES } from "@/lib/routes";
+import type { User } from "firebase/auth";
 
 function reportAuthError(err: unknown) {
   const { code, message, silent } = getAuthErrorMessage(err);
@@ -33,6 +35,8 @@ export function SignupCard({ className }: { className?: string }) {
   const [emailMode, setEmailMode] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [appleLoading, setAppleLoading] = useState(false);
+  // Blocks a second sign-up from a fast double submit.
+  const submittingRef = useRef(false);
 
   const {
     register,
@@ -44,19 +48,25 @@ export function SignupCard({ className }: { className?: string }) {
   });
 
   const onSubmit = async (data: RegisterInput) => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     try {
       await signUpUser(data.email, data.password);
-      router.push("/onboarding");
+      router.push(ROUTES.onboarding);
     } catch (err) {
       reportAuthError(err);
+    } finally {
+      submittingRef.current = false;
     }
   };
 
-  const withProvider = (signIn: () => Promise<unknown>, setLoading: (v: boolean) => void) => async () => {
+  // Google/Apple may sign in an existing account: only new or unfinished
+  // accounts go to onboarding.
+  const withProvider = (signIn: () => Promise<User>, setLoading: (v: boolean) => void) => async () => {
     setLoading(true);
     try {
-      await signIn();
-      router.push("/onboarding");
+      const user = await signIn();
+      router.push(await routeAfterSignIn(user, DEFAULT_APP_ROUTE));
     } catch (err) {
       reportAuthError(err);
     } finally {

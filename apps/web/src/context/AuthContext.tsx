@@ -2,12 +2,15 @@
 
 import React, {
   createContext,
+  useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   ReactNode,
 } from "react";
 import { onIdTokenChanged, User } from "firebase/auth";
+import { toast } from "sonner";
 import { auth } from "@/lib/firebase/config";
 import {
   fetchUserProfile,
@@ -16,34 +19,33 @@ import {
   updateProfileApi,
   revokeBackendSession,
   logoutUser,
+  requestHoodApi,
+  cancelHoodRequestApi,
 } from "@/lib/firebase/auth";
+import type { VerifyLocationResult } from "@/lib/api/types";
+import { ApiError, FRIENDLY_MESSAGES } from "@/lib/api/client";
+import {
+  parseProfile,
+  toApiError,
+  type ProfileStatus,
+  type UserProfile,
+} from "@/lib/auth/profile";
+import { clearAllOnboardingDrafts } from "@/features/onboarding/draft";
 import { clearFeedCaches } from "@/features/feed/feed-cache";
 
-export interface UserProfile {
-  uid?: string;
-  email?: string;
-  /** False until the neighbour clicks the link in their welcome email (Google/Apple: true at once). */
-  emailVerified?: boolean;
-  isOnboarded: boolean;
-  displayName?: string;
-  photoURL?: string;
-  bio?: string;
-  location?: {
-    lat?: number;
-    lng?: number;
-    address?: string;
-  };
-  neighborhoodId?: string;
-  verificationStatus?: string;
-  /** Separate from verification: active | restricted | suspended (contract §13). */
-  accountStatus?: "active" | "restricted" | "suspended";
-  restrictedUntil?: string | null;
-  role?: string;
-}
+export type { ProfileStatus, UserProfile } from "@/lib/auth/profile";
 
 interface AuthContextType {
   user: User | null;
   profile: UserProfile | null;
+  /**
+   * Whether `profile` can be trusted. Check this before treating a missing
+   * profile as "not onboarded": `error` means the API failed, not that the
+   * account is new.
+   */
+  profileStatus: ProfileStatus;
+  /** Why the last profile load failed (kept even if a stale profile is still shown). */
+  profileError: ApiError | null;
   loading: boolean;
   authReady: boolean;
   isGatingModalOpen: boolean;
@@ -53,15 +55,11 @@ interface AuthContextType {
     displayName?: string;
     location?: { lat?: number; lng?: number; address?: string };
   }) => Promise<void>;
-  verifyLocation: (coords: {
-    lat: number;
-    lng: number;
-  }) => Promise<{
-    verificationStatus: string;
-    neighborhoodId?: string;
-    distanceMeters?: number;
-    reason?: string;
-  }>;
+  verifyLocation: (coords: { lat: number; lng: number }) => Promise<VerifyLocationResult>;
+  /** Ask to join a nearby Hood (address outside every Hood). Staff approve it. */
+  requestHood: (hoodId: string) => Promise<void>;
+  /** Withdraw a pending join request. */
+  cancelHoodRequest: () => Promise<void>;
   /** Your Hood only changes through verification or staff, never here. */
   updateProfile: (payload: { displayName?: string }) => Promise<void>;
   runGatedAction: (action: () => void) => void;
@@ -73,23 +71,79 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [profileStatus, setProfileStatus] = useState<ProfileStatus>("loading");
+  const [profileError, setProfileError] = useState<ApiError | null>(null);
   const [loading, setLoading] = useState(true);
   const [authReady, setAuthReady] = useState(false);
   const [isGatingModalOpen, setIsGatingModalOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
 
-  const refreshProfile = async () => {
-    if (!auth.currentUser) {
+  // Which account the current `profile` belongs to, so a failed refresh can
+  // keep showing it (same account) but never leak it to another account.
+  const profileUidRef = useRef<string | null>(null);
+  // Bumped per profile request / sign-out; only the latest response may land.
+  const requestSeqRef = useRef(0);
+
+  const acceptProfile = useCallback((uid: string, data: unknown) => {
+    const next = parseProfile(data);
+    profileUidRef.current = uid;
+    setProfile(next);
+    setProfileError(null);
+    setProfileStatus("ready");
+  }, []);
+
+  // 401 from our API: the session is gone (revoked, password changed,
+  // account deleted). Sign out properly so every screen sends them to
+  // login, instead of carrying on with a signed-in shell and no profile.
+  const endExpiredSession = useCallback(async () => {
+    toast.error(FRIENDLY_MESSAGES.auth, { id: "session-expired" });
+    try {
+      await logoutUser();
+    } catch (err) {
+      console.error("Failed to sign out after session expiry:", err);
+    }
+  }, []);
+
+  const loadProfile = useCallback(
+    async (firebaseUser: User) => {
+      const seq = ++requestSeqRef.current;
+      if (profileUidRef.current !== firebaseUser.uid) {
+        // Different account (or first load): nothing trustworthy to show yet.
+        profileUidRef.current = null;
+        setProfile(null);
+        setProfileStatus("loading");
+      }
+      try {
+        const data = await fetchUserProfile(firebaseUser);
+        if (seq !== requestSeqRef.current) return;
+        acceptProfile(firebaseUser.uid, data);
+      } catch (err) {
+        if (seq !== requestSeqRef.current) return;
+        const apiErr = toApiError(err);
+        console.error("Failed to load user profile:", err);
+        if (apiErr.kind === "auth") {
+          await endExpiredSession();
+          return;
+        }
+        setProfileError(apiErr);
+        // Same account (e.g. the hourly token refresh hit a blip): keep the
+        // profile we already have. Otherwise surface an error state — never
+        // an empty profile, which would read as "not onboarded".
+        if (profileUidRef.current !== firebaseUser.uid) setProfileStatus("error");
+      }
+    },
+    [acceptProfile, endExpiredSession],
+  );
+
+  const refreshProfile = useCallback(async () => {
+    const current = auth.currentUser;
+    if (!current) {
       setProfile(null);
+      setProfileStatus("idle");
       return;
     }
-    try {
-      const data = await fetchUserProfile(auth.currentUser);
-      setProfile(data as UserProfile);
-    } catch (err) {
-      console.error("Failed to refresh user profile from backend:", err);
-    }
-  };
+    await loadProfile(current);
+  }, [loadProfile]);
 
   useEffect(() => {
     const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
@@ -99,6 +153,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // session-cookie + profile network round-trips below.
       setAuthReady(true);
       if (firebaseUser) {
+        // The cookie only gates server routing; failing to set it must not
+        // stop the profile from loading.
         try {
           const idToken = await firebaseUser.getIdToken();
           await fetch("/api/auth/session", {
@@ -108,17 +164,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             },
             body: JSON.stringify({ idToken }),
           });
-
-          const data = await fetchUserProfile(firebaseUser);
-          setProfile(data as UserProfile);
         } catch (err) {
-          console.error(
-            "Failed to fetch user profile or update session cookie:",
-            err,
-          );
-          setProfile(null);
+          console.error("Failed to update session cookie:", err);
         }
+        await loadProfile(firebaseUser);
       } else {
+        requestSeqRef.current++; // drop any in-flight profile response
+        profileUidRef.current = null;
+        setProfile(null);
+        setProfileError(null);
+        setProfileStatus("idle");
+        // Drafts hold home addresses; don't leave them for the next person.
+        clearAllOnboardingDrafts();
         try {
           await fetch("/api/auth/logout", {
             method: "POST",
@@ -126,13 +183,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch (err) {
           console.error("Failed to clear session cookie on logout:", err);
         }
-        setProfile(null);
       }
       setLoading(false);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [loadProfile]);
 
   useEffect(() => {
     // When a page is restored from the browser's back-forward cache, its
@@ -141,33 +197,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // this re-syncs it without needing a full reload.
     const handlePageShow = (event: PageTransitionEvent) => {
       if (event.persisted) {
-        refreshProfile();
+        void refreshProfile();
       }
     };
     window.addEventListener("pageshow", handlePageShow);
     return () => window.removeEventListener("pageshow", handlePageShow);
-  }, []);
+  }, [refreshProfile]);
+
+  // Writes that return the updated profile. A 401 ends the session like a
+  // failed load does; every error is rethrown for the caller to show.
+  const withSessionCheck = async <T,>(request: () => Promise<T>): Promise<T> => {
+    try {
+      return await request();
+    } catch (err) {
+      if (err instanceof ApiError && err.kind === "auth") await endExpiredSession();
+      throw err;
+    }
+  };
 
   const completeOnboarding = async (payload: {
     displayName?: string;
     location?: { lat?: number; lng?: number; address?: string };
   }) => {
-    if (!user) throw new Error("No authenticated user session found.");
-    const updatedProfile = await completeOnboardingApi(user, payload);
-    setProfile(updatedProfile as UserProfile);
+    if (!user) throw new ApiError(FRIENDLY_MESSAGES.auth, 401, "auth");
+    const updatedProfile = await withSessionCheck(() => completeOnboardingApi(user, payload));
+    acceptProfile(user.uid, updatedProfile);
   };
 
   const verifyLocation = async (coords: { lat: number; lng: number }) => {
-    if (!user) throw new Error("No authenticated user session found.");
-    const result = await verifyLocationApi(user, coords);
+    if (!user) throw new ApiError(FRIENDLY_MESSAGES.auth, 401, "auth");
+    const result = await withSessionCheck(() => verifyLocationApi(user, coords));
     await refreshProfile();
     return result;
   };
 
+  const requestHood = async (hoodId: string) => {
+    if (!user) throw new ApiError(FRIENDLY_MESSAGES.auth, 401, "auth");
+    const updatedProfile = await withSessionCheck(() => requestHoodApi(user, hoodId));
+    acceptProfile(user.uid, updatedProfile);
+  };
+
+  const cancelHoodRequest = async () => {
+    if (!user) throw new ApiError(FRIENDLY_MESSAGES.auth, 401, "auth");
+    const updatedProfile = await withSessionCheck(() => cancelHoodRequestApi(user));
+    acceptProfile(user.uid, updatedProfile);
+  };
+
   const updateProfile = async (payload: { displayName?: string }) => {
-    if (!user) throw new Error("No authenticated user session found.");
-    const updatedProfile = await updateProfileApi(user, payload);
-    setProfile(updatedProfile as UserProfile);
+    if (!user) throw new ApiError(FRIENDLY_MESSAGES.auth, 401, "auth");
+    const updatedProfile = await withSessionCheck(() => updateProfileApi(user, payload));
+    acceptProfile(user.uid, updatedProfile);
   };
 
   const logout = async () => {
@@ -185,6 +264,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await logoutUser();
     // Don't leave this neighbourhood's cached posts on a shared device.
     clearFeedCaches();
+    clearAllOnboardingDrafts();
     // Explicitly await the cookie clear rather than relying on the
     // onIdTokenChanged listener's side effect above, which races with any
     // navigation the caller does right after this resolves.
@@ -198,10 +278,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const runGatedAction = (action: () => void) => {
     if (profile?.isOnboarded) {
       action();
-    } else {
+      return;
+    }
+    if (profile && profileStatus === "ready") {
       setPendingAction(() => action);
       setIsGatingModalOpen(true);
+      return;
     }
+    // We don't know yet whether they're onboarded (still loading, or the
+    // profile request failed). Say so and retry — don't send an existing
+    // neighbour back through onboarding.
+    toast.error(
+      profileStatus === "error"
+        ? "We couldn't load your account. Please try again in a moment."
+        : "Still loading your account. Please try again in a moment.",
+      { id: "profile-unavailable" },
+    );
+    if (profileStatus === "error") void refreshProfile();
   };
 
   // If gating modal is open, and user subsequently completes onboarding, we can execute the pending action.
@@ -218,6 +311,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         profile,
+        profileStatus,
+        profileError,
         loading,
         authReady,
         isGatingModalOpen,
@@ -225,6 +320,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         refreshProfile,
         completeOnboarding,
         verifyLocation,
+        requestHood,
+        cancelHoodRequest,
         updateProfile,
         runGatedAction,
         logout,

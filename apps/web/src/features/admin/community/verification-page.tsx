@@ -72,6 +72,8 @@ export function VerificationPage() {
         <ul className="space-y-3">
           {cases.data.items.map((c) => {
             const nearest = c.nearestHoods[0];
+            // A join request names the Hood; otherwise suggest the nearest one if it's close.
+            const approveInto = c.requestedHood ?? (nearest && nearest.distanceMeters < 5000 ? nearest : undefined);
             return (
               <li key={c.uid} className="rounded-2xl border border-border bg-card p-5">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
@@ -82,6 +84,9 @@ export function VerificationPage() {
                       </Link>
                       <StatusBadge status={c.status} />
                       {c.lastError && <span className="text-xs font-semibold text-muted-foreground">{ERROR[c.lastError]}</span>}
+                      {c.requestedHood && (
+                        <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">Requested: {c.requestedHood.name}</span>
+                      )}
                     </div>
                     <p className="flex items-start gap-1.5 text-sm">
                       <MapPin className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
@@ -100,8 +105,8 @@ export function VerificationPage() {
                   </div>
                   {can("verification.review") && (
                     <div className="flex shrink-0 flex-wrap gap-2">
-                      <Button size="sm" onClick={() => setPending({ action: "verify", c, hoodId: nearest && nearest.distanceMeters < 5000 ? nearest.id : undefined })}>
-                        {nearest && nearest.distanceMeters < 5000 ? `Approve into ${nearest.name}` : "Approve…"}
+                      <Button size="sm" onClick={() => setPending({ action: "verify", c, hoodId: approveInto?.id })}>
+                        {approveInto ? `Approve into ${approveInto.name}` : "Approve…"}
                       </Button>
                       <Button size="sm" variant="outline" onClick={() => setPending({ action: "reject_verification", c })}>
                         Reject

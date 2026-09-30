@@ -22,6 +22,7 @@ export const ENDPOINTS = {
   "posts.delete": "live",
   "auth.emailVerification": "live",
   "support": "live",
+  "support.threads": "live",
   "telemetry": "live",
   "moderation.leads": "live",
   "moderation.appeals": "live",
@@ -39,6 +40,8 @@ export const ENDPOINTS = {
   "notifications": "live",
   "reports": "live",
   "settings": "live",
+  // Join a nearby Hood when the address is outside every Hood (contract §16).
+  "users.hoodRequest": "planned",
   "feedback": "live",
   "business": "live",
   "ai.pilot": "live",

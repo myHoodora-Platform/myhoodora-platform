@@ -29,7 +29,8 @@ const SAVED_REPLIES = [
 export function ThreadPage({ id }: { id: string }) {
   const { user } = useAuth();
   const { role } = useAdminSession();
-  const thread = useAdminQuery((u) => getThread(u, id), id);
+  // Live: the neighbour's replies (and other staff's actions) appear without a reload.
+  const thread = useAdminQuery((u) => getThread(u, id), id, ["inbox.updated"]);
   const [reply, setReply] = useState("");
   const [busy, setBusy] = useState<null | "reply" | "resolve">(null);
 

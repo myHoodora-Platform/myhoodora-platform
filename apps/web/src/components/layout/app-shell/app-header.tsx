@@ -5,6 +5,7 @@ import { MessageCircle, Search } from "lucide-react";
 import { MascotWordmark } from "@myhoodora/ui/logo";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@myhoodora/ui/tooltip";
 import { NotificationBell } from "@/features/notifications/notification-bell";
+import { RealtimeStatusChip } from "@/components/shared/realtime-status";
 import { useUnreadMessages } from "@/features/chat/use-unread-messages";
 import { ROUTES } from "@/lib/routes";
 import { HeaderIconButton } from "./header-icon-button";
@@ -37,6 +38,7 @@ export function AppHeader() {
         </div>
 
         <div className="ml-auto flex items-center gap-2">
+          <RealtimeStatusChip className="hidden sm:inline-flex" />
           <HeaderIconButton
             href={ROUTES.inbox}
             icon={MessageCircle}

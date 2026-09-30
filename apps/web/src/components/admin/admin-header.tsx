@@ -1,6 +1,7 @@
 "use client";
 
 import { SidebarTrigger, useSidebar } from "@myhoodora/ui/sidebar";
+import { RealtimeStatusChip } from "@/components/shared/realtime-status";
 import { FlaskConical } from "lucide-react";
 import { useAdminSession } from "@/features/admin/session";
 import { setPreviewRole } from "@/lib/api/admin/session";
@@ -21,6 +22,7 @@ export function AdminHeader() {
       <SidebarTrigger className="lg:hidden" />
       {isCollapsed && <SidebarTrigger className="hidden lg:inline-flex" />}
       <p className="text-sm font-semibold text-muted-foreground lg:hidden">myHoodora Admin</p>
+      <RealtimeStatusChip className="ml-auto" />
 
       {session?.preview && (
         <div className="ml-auto flex items-center gap-2 rounded-full border border-info/30 bg-info-soft/60 py-1 pr-1 pl-3 text-xs font-semibold text-info">

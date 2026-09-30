@@ -13,6 +13,7 @@ import { ImageWithFallback } from "@/components/shared/image-with-fallback";
 import { EmptyState, PreviewNotice } from "@/components/shared/states";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { useAuth } from "@/context/AuthContext";
+import { useLiveVersion } from "@/lib/realtime/use-realtime";
 import { useViewer } from "@/hooks/use-neighbourhood";
 import { createGroupPost, deleteGroupPost, getGroup, joinGroup, listGroupPosts } from "@/lib/api/groups";
 import { errorMessage } from "@/lib/api/client";
@@ -49,9 +50,11 @@ export function GroupPage({ id }: { id: string }) {
     if (user) void getGroup(user, id, inviteToken ?? undefined).then(setGroup).catch(() => setGroup(null));
   }, [user, id, inviteToken]);
 
+  // Live: new and deleted posts in this group (members get group.post).
+  const postsVersion = useLiveVersion("group.post", { filter: (e) => e.groupId === id });
   useEffect(() => {
     if (user && canRead) void listGroupPosts(user, id).then(setPosts);
-  }, [user, id, canRead]);
+  }, [user, id, canRead, postsVersion]);
 
   // After creating a group, go straight to inviting (then tidy the URL).
   useEffect(() => {

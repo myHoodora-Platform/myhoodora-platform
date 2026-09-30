@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
-import { BadgeCheck, CalendarDays, ChevronRight, ShieldAlert } from "lucide-react";
+import { BadgeCheck, CalendarDays, ChevronRight, Hourglass, ShieldAlert } from "lucide-react";
 import { cn } from "@myhoodora/ui/utils";
 import { useAuth } from "@/context/AuthContext";
 import { isActiveAlert } from "@/features/alerts/lifecycle";
@@ -16,6 +16,7 @@ function NeighbourhoodCard() {
   const hood = useNeighbourhood();
   const { posts } = useFeed();
   const verified = profile?.verificationStatus === "verified";
+  const requested = profile?.verificationStatus === "pending_review" ? profile.requestedHood : null;
   const activeAlerts = posts.filter((p) => isActiveAlert(p)).length;
 
   return (
@@ -25,13 +26,17 @@ function NeighbourhoodCard() {
           <span className="size-3.5 rounded-full bg-primary ring-4 ring-primary/20" />
         </span>
         <div className="min-w-0">
-          <p className="truncate text-base font-bold">{hood?.name ?? "Your neighbourhood"}</p>
+          <p className="truncate text-base font-bold">{hood?.name ?? requested?.name ?? "Your neighbourhood"}</p>
           <p className="flex items-center gap-1 truncate text-sm text-muted-foreground">
             {hood?.city}
             {verified ? (
               <span className="inline-flex items-center gap-0.5 text-primary">
                 {hood?.city && " · "}
                 <BadgeCheck className="size-3.5" aria-hidden /> Verified
+              </span>
+            ) : requested ? (
+              <span className="inline-flex items-center gap-0.5 text-primary">
+                <Hourglass className="size-3.5" aria-hidden /> Waiting for approval
               </span>
             ) : (
               <span className="text-warning">{hood?.city && " · "}Not verified</span>

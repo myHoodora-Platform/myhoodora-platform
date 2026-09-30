@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, CalendarDays, Lock, MapPin, ShieldAlert, ShoppingBag, Users } from "lucide-react";
+import { ArrowRight, CalendarDays, Hourglass, Lock, MapPin, ShieldAlert, ShoppingBag, Users } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 import { ROUTES } from "@/lib/routes";
 
 const LOCKED = [
@@ -12,26 +13,34 @@ const LOCKED = [
 ];
 
 /**
- * Shown in place of the feed for someone who skipped onboarding: they have
- * no neighbourhood yet, so there's nothing to show until they join one.
+ * Shown in place of the feed for someone with no neighbourhood yet: they
+ * skipped onboarding, or asked to join a nearby Hood and are waiting for
+ * staff to approve it. There's nothing to show until they're in one.
  */
 export function FinishJoiningCard() {
+  const { profile } = useAuth();
+  const pendingHood = profile?.verificationStatus === "pending_review" ? (profile.requestedHood?.name ?? "your neighbourhood") : null;
+
   return (
     <section className="overflow-hidden rounded-2xl border border-border bg-card">
       <div className="relative bg-primary px-6 py-8 text-primary-foreground sm:px-8">
         <span aria-hidden className="absolute -top-12 -right-12 size-44 rounded-full bg-white/10" />
         <span className="flex size-12 items-center justify-center rounded-2xl bg-white/15">
-          <MapPin className="size-6" aria-hidden />
+          {pendingHood ? <Hourglass className="size-6" aria-hidden /> : <MapPin className="size-6" aria-hidden />}
         </span>
-        <h1 className="mt-4 text-2xl font-bold tracking-tight">Finish joining your neighbourhood</h1>
+        <h1 className="mt-4 text-2xl font-bold tracking-tight">
+          {pendingHood ? `Request pending for ${pendingHood}` : "Finish joining your neighbourhood"}
+        </h1>
         <p className="mt-1 max-w-md text-primary-foreground/85">
-          Confirm where you live to see what neighbours are sharing, and to post, comment and message. It takes about a minute.
+          {pendingHood
+            ? `Our team is reviewing your request to join ${pendingHood}. Your neighbourhood feed appears here as soon as you're approved.`
+            : "Confirm where you live to see what neighbours are sharing, and to post, comment and message. It takes about a minute."}
         </p>
         <Link
-          href={ROUTES.onboarding}
+          href={pendingHood ? ROUTES.settingsNeighbourhood : ROUTES.onboarding}
           className="mt-5 inline-flex h-11 items-center gap-2 rounded-full bg-white px-5 font-bold text-primary transition-colors hover:bg-white/90"
         >
-          Find my neighbourhood <ArrowRight className="size-4" aria-hidden />
+          {pendingHood ? "View request" : "Find my neighbourhood"} <ArrowRight className="size-4" aria-hidden />
         </Link>
       </div>
       <div className="space-y-3 p-6 sm:px-8">

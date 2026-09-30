@@ -6,6 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { AppSkeleton } from "@/components/layout/app-shell/app-skeleton";
 import { useAdminSession } from "@/features/admin/session";
 import { getOverview } from "@/lib/api/admin/platform";
+import { useLiveVersion } from "@/lib/realtime/use-realtime";
 import type { AdminOverview } from "@/lib/api/admin/types";
 import { errorKind } from "@/lib/api/client";
 import { AdminSidebar } from "./admin-sidebar";
@@ -23,7 +24,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     if (!loading && !user) router.push(`/login?next=${encodeURIComponent(pathname)}`);
   }, [user, loading, router, pathname]);
 
-  // Sidebar work counts: refresh on navigation and whenever preview data changes.
+  // Sidebar work counts: refresh on navigation, when reports or support
+  // messages arrive (live), and whenever preview data changes.
   const refreshCounts = useCallback(() => {
     if (!user || !session) return;
     getOverview(user)
@@ -31,11 +33,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       .catch(() => undefined);
   }, [user, session]);
   useEffect(refreshCounts, [refreshCounts, pathname]);
-  useEffect(() => {
-    const onChange = () => refreshCounts();
-    window.addEventListener("mh-mock-change", onChange);
-    return () => window.removeEventListener("mh-mock-change", onChange);
-  }, [refreshCounts]);
+  const liveCounts = useLiveVersion(["queue.changed", "inbox.updated"]);
+  useEffect(refreshCounts, [refreshCounts, liveCounts]);
 
   if (loading || !user || (sessionLoading && !session)) return <AppSkeleton />;
 

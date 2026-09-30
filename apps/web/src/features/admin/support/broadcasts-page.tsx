@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Check, Megaphone, Users } from "lucide-react";
+import { Check, Loader2, Megaphone, RefreshCw, User as UserIcon, Users } from "lucide-react";
 import { Button } from "@myhoodora/ui/button";
 import { cn } from "@myhoodora/ui/utils";
 import { MascotMark } from "@myhoodora/ui/logo";
@@ -13,47 +14,92 @@ import { Panel } from "@/components/admin/detail";
 import { dateTimeLabel, timeAgo } from "@/components/admin/format";
 import { Field, fieldInputClass } from "@/components/shared/field";
 import { useAuth } from "@/context/AuthContext";
-import { listHoods } from "@/lib/api/admin/community";
+import { getNeighbour, listHoods } from "@/lib/api/admin/community";
 import { estimateReach, listBroadcasts, sendBroadcast } from "@/lib/api/admin/support";
 import type { AdminHood, BroadcastAudience } from "@/lib/api/admin/types";
 import { useAdminSession } from "../session";
+import { PeoplePicker, type Person } from "../people-picker";
 import { useAdminQuery } from "../use-admin-query";
+
+type Mode = "hood" | "people" | "all";
+
+// The API accepts at most 100 per page (PageQuery) and Hoods number in the tens.
+const HOODS_PAGE = 100;
+// Same cap as the API's AudienceDto.uids.
+const MAX_PEOPLE = 500;
+
+const MODES: { id: Mode; label: string; hint: string; icon: typeof Users }[] = [
+  {
+    id: "hood",
+    label: "Selected Hoods",
+    hint: "Local notices, launches, outages",
+    icon: Users,
+  },
+  {
+    id: "people",
+    label: "Specific people",
+    hint: "A notice to one or a few neighbours",
+    icon: UserIcon,
+  },
+  {
+    id: "all",
+    label: "Everyone",
+    hint: "Platform-wide news only",
+    icon: Megaphone,
+  },
+];
 
 export function BroadcastsPage() {
   const { user } = useAuth();
   const { role, can } = useAdminSession();
   const history = useAdminQuery(listBroadcasts, "broadcasts");
-  const hoods = useAdminQuery((u) => listHoods(u, { pageSize: 200, sort: "name:asc" }), "bc-hoods");
+  const hoods = useAdminQuery((u) => listHoods(u, { pageSize: HOODS_PAGE, sort: "name:asc" }), "bc-hoods");
+  // /admin/broadcasts?to=<uid> (e.g. "Send a notice" on a neighbour's page) starts with that person.
+  const preselectUid = useSearchParams().get("to");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const [mode, setMode] = useState<"hood" | "all">("hood");
+  const [mode, setMode] = useState<Mode>(preselectUid ? "people" : "hood");
   const [hoodIds, setHoodIds] = useState<string[]>([]);
+  const [people, setPeople] = useState<Person[]>([]);
   const [reach, setReach] = useState<number | null>(null);
   const [confirming, setConfirming] = useState(false);
 
-  const audience: BroadcastAudience = mode === "all" ? { type: "all" } : { type: "hood", hoodIds };
-  const audienceKey = mode === "all" ? "all" : hoodIds.join(",");
+  useEffect(() => {
+    if (!user || !preselectUid) return;
+    let alive = true;
+    getNeighbour(user, preselectUid)
+      .then((n) => alive && setPeople((p) => (p.some((x) => x.uid === n.uid) ? p : [{ uid: n.uid, displayName: n.displayName, hood: n.hood }, ...p])))
+      .catch(() => alive && toast.error("Couldn't load that neighbour. Search for them below."));
+    return () => {
+      alive = false;
+    };
+  }, [user, preselectUid]);
+
+  const uids = people.map((p) => p.uid);
+  const audience: BroadcastAudience = mode === "all" ? { type: "all" } : mode === "people" ? { type: "user", uids } : { type: "hood", hoodIds };
+  const audienceKey = mode === "all" ? "all" : mode === "people" ? `u:${uids.join(",")}` : `h:${hoodIds.join(",")}`;
+  const nothingChosen = (mode === "hood" && hoodIds.length === 0) || (mode === "people" && uids.length === 0);
 
   useEffect(() => {
     if (!user) return;
-    if (mode === "hood" && hoodIds.length === 0) {
+    if (nothingChosen) {
       setReach(0);
       return;
     }
     let alive = true;
-    estimateReach(user, mode === "all" ? { type: "all" } : { type: "hood", hoodIds })
+    estimateReach(user, audience)
       .then((n) => alive && setReach(n))
       .catch(() => alive && setReach(null));
     return () => {
       alive = false;
     };
-    // audienceKey captures hoodIds/mode changes.
+    // audienceKey captures mode, hoodIds and people changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, audienceKey]);
 
   if (!can("broadcasts.send")) return <Unauthorized message="Broadcasts are sent by admins." />;
 
-  const valid = title.trim().length >= 3 && body.trim().length >= 10 && (mode === "all" || hoodIds.length > 0);
+  const valid = title.trim().length >= 3 && body.trim().length >= 10 && !nothingChosen;
   const toggleHood = (id: string) => setHoodIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
   const hoodName = (h: AdminHood) => `${h.name}`;
 
@@ -70,50 +116,80 @@ export function BroadcastsPage() {
           <div className="space-y-4">
             <fieldset className="space-y-2">
               <legend className="text-sm font-semibold">Who should get it?</legend>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {(["hood", "all"] as const).map((m) => (
+              <div className="grid gap-2 sm:grid-cols-3">
+                {MODES.filter((m) => m.id !== "all" || role !== "moderator").map((m) => (
                   <button
-                    key={m}
+                    key={m.id}
                     type="button"
-                    onClick={() => setMode(m)}
-                    className={cn("flex items-center gap-3 rounded-xl border p-3 text-left text-sm", mode === m ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border hover:bg-muted/40")}
+                    aria-pressed={mode === m.id}
+                    onClick={() => setMode(m.id)}
+                    className={cn(
+                      "flex items-center gap-3 rounded-xl border p-3 text-left text-sm",
+                      mode === m.id ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border hover:bg-muted/40",
+                    )}
                   >
-                    {m === "hood" ? <Users className="size-4 text-primary" /> : <Megaphone className="size-4 text-primary" />}
-                    <span>
-                      <span className="block font-semibold">{m === "hood" ? "Selected Hoods" : "Everyone"}</span>
-                      <span className="block text-xs text-muted-foreground">{m === "hood" ? "Local notices, launches, outages" : "Platform-wide news only"}</span>
+                    <m.icon className="size-4 shrink-0 text-primary" />
+                    <span className="min-w-0">
+                      <span className="block font-semibold">{m.label}</span>
+                      <span className="block text-xs text-muted-foreground">{m.hint}</span>
                     </span>
                   </button>
                 ))}
               </div>
-              {mode === "hood" && (
-                <div className="flex max-h-44 flex-wrap gap-2 overflow-y-auto rounded-xl border border-border p-3">
-                  {(hoods.data?.items ?? []).map((h) => {
-                    const on = hoodIds.includes(h.id);
-                    return (
-                      <button
-                        key={h.id}
-                        type="button"
-                        aria-pressed={on}
-                        onClick={() => toggleHood(h.id)}
-                        className={cn("inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold", on ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-muted")}
-                      >
-                        {on && <Check className="size-3" aria-hidden />} {hoodName(h)}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              {mode === "hood" &&
+                (hoods.error ? (
+                  <div className="flex items-center justify-between gap-3 rounded-xl border border-border p-3 text-sm">
+                    <span className="text-muted-foreground">Couldn&apos;t load Hoods.</span>
+                    <Button size="sm" variant="outline" onClick={() => void hoods.refetch()}>
+                      <RefreshCw className="size-3.5" /> Try again
+                    </Button>
+                  </div>
+                ) : !hoods.data ? (
+                  <p className="flex items-center gap-2 rounded-xl border border-border p-3 text-sm text-muted-foreground">
+                    <Loader2 className="size-4 animate-spin" aria-hidden /> Loading Hoods…
+                  </p>
+                ) : hoods.data.items.length === 0 ? (
+                  <p className="rounded-xl border border-border p-3 text-sm text-muted-foreground">No Hoods yet. Create one under Community → Hoods.</p>
+                ) : (
+                  <div className="flex max-h-44 flex-wrap gap-2 overflow-y-auto rounded-xl border border-border p-3">
+                    {hoods.data.items.map((h) => {
+                      const on = hoodIds.includes(h.id);
+                      return (
+                        <button
+                          key={h.id}
+                          type="button"
+                          aria-pressed={on}
+                          onClick={() => toggleHood(h.id)}
+                          className={cn(
+                            "inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold",
+                            on ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-muted",
+                          )}
+                        >
+                          {on && <Check className="size-3" aria-hidden />} {hoodName(h)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
+              {mode === "people" && <PeoplePicker people={people} onChange={setPeople} max={MAX_PEOPLE} />}
             </fieldset>
             <Field label="Title" htmlFor="bc-title" hint="Shown in bold on the notification.">
-              <input id="bc-title" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={60} className={fieldInputClass} placeholder="e.g. Scheduled maintenance tonight" />
+              <input
+                id="bc-title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                maxLength={60}
+                className={fieldInputClass}
+                placeholder="e.g. Scheduled maintenance tonight"
+              />
             </Field>
             <Field label="Message" htmlFor="bc-body" hint={`${body.length}/240`}>
               <textarea id="bc-body" value={body} onChange={(e) => setBody(e.target.value)} maxLength={240} rows={3} className={fieldInputClass} />
             </Field>
             <div className="flex flex-col gap-3 rounded-xl bg-muted/60 p-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm">
-                Will reach about <span className="font-bold">{reach === null ? "…" : reach.toLocaleString()}</span> neighbours
+                Will reach {mode === "people" ? "" : "about "}
+                <span className="font-bold">{reach === null ? "…" : reach.toLocaleString()}</span> {reach === 1 ? "neighbour" : "neighbours"}
               </p>
               <Button onClick={() => setConfirming(true)} disabled={!valid}>
                 Review &amp; send
@@ -157,7 +233,7 @@ export function BroadcastsPage() {
                 </div>
                 <p className="mt-0.5 text-sm text-muted-foreground">{b.body}</p>
                 <p className="mt-1 text-xs font-semibold text-primary">
-                  {b.audienceLabel} · {b.reach.toLocaleString()} neighbours
+                  {b.audienceLabel} · {b.reach.toLocaleString()} {b.reach === 1 ? "neighbour" : "neighbours"}
                 </p>
               </li>
             ))}
@@ -169,8 +245,18 @@ export function BroadcastsPage() {
         <ActionDialog
           open
           onOpenChange={(o) => !o && setConfirming(false)}
-          title={mode === "all" ? "Send to everyone?" : "Send broadcast?"}
-          consequence={`About ${reach?.toLocaleString() ?? "?"} neighbours${mode === "hood" ? ` in ${hoodIds.length} Hood${hoodIds.length > 1 ? "s" : ""}` : " across every Hood"} get a push notification straight away. It can't be unsent.`}
+          title={
+            mode === "all"
+              ? "Send to everyone?"
+              : mode === "people"
+                ? `Send to ${people.length === 1 ? people[0]!.displayName : `${people.length} people`}?`
+                : "Send broadcast?"
+          }
+          consequence={
+            mode === "people"
+              ? `${people.length === 1 ? people[0]!.displayName : `${people.length} neighbours`} get${people.length === 1 ? "s" : ""} a notification straight away. It can't be unsent.`
+              : `About ${reach?.toLocaleString() ?? "?"} neighbours${mode === "hood" ? ` in ${hoodIds.length} Hood${hoodIds.length > 1 ? "s" : ""}` : " across every Hood"} get a push notification straight away. It can't be unsent.`
+          }
           requireReason={false}
           destructive={mode === "all"}
           confirmLabel="Send now"
@@ -181,6 +267,7 @@ export function BroadcastsPage() {
             setTitle("");
             setBody("");
             setHoodIds([]);
+            setPeople([]);
             void history.refetch();
           }}
         />

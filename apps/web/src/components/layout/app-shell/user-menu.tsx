@@ -18,6 +18,7 @@ import { useViewer } from "@/hooks/use-neighbourhood";
 import { resolveAuthor } from "@/lib/api/users";
 import { USE_MOCKS } from "@/lib/api/config";
 import { ROUTES } from "@/lib/routes";
+import { isStaff } from "@/lib/auth/profile";
 
 export function useLogout() {
   const router = useRouter();
@@ -38,7 +39,7 @@ export function UserMenu() {
   const handleLogout = useLogout();
   const lead = useLeadStatus();
   if (!user) return null;
-  const staff = profile?.role === "owner" || profile?.role === "admin" || profile?.role === "moderator";
+  const staff = isStaff(profile?.role);
   const me = resolveAuthor(user.uid, viewer);
 
   return (

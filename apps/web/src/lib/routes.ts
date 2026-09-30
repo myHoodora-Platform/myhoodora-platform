@@ -22,6 +22,8 @@ export const ROUTES = {
   notifications: "/notifications",
   inbox: "/inbox",
   conversation: (id: string) => `/inbox/${id}`,
+  support: "/inbox/support",
+  supportThread: (id: string) => `/inbox/support/${id}`,
   profile: (uid: string) => `/profile/${uid}`,
   settings: "/settings",
   settingsProfile: "/settings/profile",

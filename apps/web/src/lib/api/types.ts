@@ -290,6 +290,8 @@ export interface Conversation {
   updatedAt: string;
   /** Embedded by the live API (names/photos of both people). */
   participants?: { uid: string; displayName: string; photoURL?: string }[];
+  /** When each person last read the thread (for "Seen"). */
+  readBy?: { uid: string; lastReadAt?: string }[];
 }
 
 export interface Message {
@@ -341,4 +343,25 @@ export interface ReportInput {
   targetId: string;
   reason: ReportReason;
   details?: string;
+}
+
+// ── Nearby-neighbourhood requests (docs/api-contract.md §16) ────────────────
+
+/** An open Hood close to (but not covering) an address. Nearest first, max 3. */
+export interface NearbyHood {
+  id: string;
+  name: string;
+  city: string;
+  /** From the verified point to the Hood, rounded. */
+  distanceMeters: number;
+}
+
+/** Result of POST /users/me/verify-location. */
+export interface VerifyLocationResult {
+  verificationStatus: string;
+  neighborhoodId?: string;
+  distanceMeters?: number;
+  reason?: string;
+  /** Only when reason is "outside_coverage"; [] when nothing is close. */
+  nearbyHoods?: NearbyHood[];
 }
