@@ -160,6 +160,7 @@ export class UsersService {
    * Address verification: match the point to an open Hood. Records every
    * attempt (last 10) so staff can review failures in the verification queue.
    */
+  // TODO: Allow user to join nearest when there is no hood match for their location.
   async verifyLocation(viewer: Viewer, dto: VerifyLocationDto) {
     const user = await this.findByUid(viewer.uid);
     if (!user) throw new NotFoundException("Profile not found.");
