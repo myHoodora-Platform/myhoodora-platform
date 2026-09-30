@@ -30,7 +30,7 @@ export function CreateGroupPage() {
           const group = await createGroup(user, profile.neighborhoodId, input);
           toast.success(`“${group.name}” is ready.`);
           // Land on the new group with the invite dialog open (Nextdoor's next step).
-          router.push(`${ROUTES.group(group._id)}?created=1`);
+          router.replace(`${ROUTES.group(group._id)}?created=1`);
         }}
       />
     </div>

@@ -9,7 +9,7 @@ import {
   Smartphone,
   type LucideIcon,
 } from "lucide-react";
-import type { ListingCategory, ListingCondition } from "@/lib/api/types";
+import type { ListingCategory, ListingCondition, ListingStatus } from "@/lib/api/types";
 
 export const LISTING_CATEGORIES: { id: ListingCategory; label: string; icon: LucideIcon }[] = [
   { id: "furniture", label: "Furniture", icon: Armchair },
@@ -35,6 +35,12 @@ export function listingCategory(id: ListingCategory) {
 
 export function conditionLabel(id: ListingCondition): string {
   return CONDITIONS.find((c) => c.id === id)?.label ?? id;
+}
+
+export function listingStatusLabel(status: ListingStatus, isFree: boolean): string {
+  if (status === "sold") return isFree ? "Given away" : "Sold";
+  if (status === "pending") return "Pending";
+  return "Available";
 }
 
 export const SAFETY_TIPS = [

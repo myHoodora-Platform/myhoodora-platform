@@ -50,7 +50,7 @@ export function NewHoodPage() {
     try {
       const hood = await createHood(user, { name: name.trim(), city, country: "Nigeria", center: { lat: latN, lng: lngN }, radiusMeters: radius, description: description.trim() || undefined }, role);
       toast.success(`${hood.name} is live`);
-      router.push(`/admin/hoods/${hood.id}`);
+      router.replace(`/admin/hoods/${hood.id}`);
     } catch (err) {
       setError(errorMessage(err, "Couldn't create the Hood."));
     } finally {

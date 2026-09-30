@@ -130,7 +130,10 @@ export function ForSalePage() {
       >
         <ListingForm
           onCancel={() => setSelling(false)}
-          onDone={(listing) => router.push(ROUTES.listing(listing._id))}
+          onDone={(listing) => {
+            setSelling(false);
+            router.push(ROUTES.listing(listing._id));
+          }}
         />
       </ResponsiveModal>
     </div>

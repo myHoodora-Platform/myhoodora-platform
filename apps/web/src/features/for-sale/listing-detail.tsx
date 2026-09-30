@@ -24,7 +24,7 @@ import { formatMonthYear, formatNaira } from "@/lib/format";
 import { ROUTES } from "@/lib/routes";
 import { timeAgo } from "@/lib/time";
 import type { Listing } from "@/lib/api/types";
-import { SAFETY_TIPS, conditionLabel, listingCategory } from "./constants";
+import { SAFETY_TIPS, conditionLabel, listingCategory, listingStatusLabel } from "./constants";
 import { ListingPhoto } from "./listing-photo";
 
 export function ListingDetail({ id }: { id: string }) {
@@ -71,6 +71,7 @@ export function ListingDetail({ id }: { id: string }) {
 
   const seller = resolveAuthor(listing.sellerUid, viewer);
   const isOwn = listing.sellerUid === user?.uid;
+  const isFree = listing.priceNaira === null;
   const category = listingCategory(listing.category);
 
   // In-app chat: open (or reuse) a thread about this listing with the seller.
@@ -97,7 +98,13 @@ export function ListingDetail({ id }: { id: string }) {
     if (!user) return;
     try {
       setListing(await setListingStatus(user, listing._id, status));
-      toast.success(status === "sold" ? "Marked as sold." : status === "pending" ? "Marked as pending." : "Marked as available.");
+      toast.success(
+        status === "sold"
+          ? isFree ? "Marked as given away." : "Marked as sold."
+          : status === "pending"
+            ? "Marked as pending."
+            : "Marked as available.",
+      );
     } catch (err) {
       toast.error(errorMessage(err, "Couldn't update the listing."));
     }
@@ -109,7 +116,7 @@ export function ListingDetail({ id }: { id: string }) {
     try {
       await deleteListing(user, listing._id);
       toast.success("Listing deleted.");
-      router.push(ROUTES.forSale);
+      router.replace(ROUTES.forSale);
     } catch (err) {
       toast.error(errorMessage(err, "Couldn't delete the listing."));
       setDeleting(false);
@@ -124,7 +131,7 @@ export function ListingDetail({ id }: { id: string }) {
           <ListingPhoto listing={listing} className="aspect-square" />
           {listing.status !== "available" && (
             <span className="absolute top-3 left-3 rounded-full bg-foreground/80 px-3 py-1 text-sm font-bold text-background">
-              {listing.status === "sold" ? "Sold" : "Pending"}
+              {listingStatusLabel(listing.status, isFree)}
             </span>
           )}
         </div>
@@ -154,11 +161,11 @@ export function ListingDetail({ id }: { id: string }) {
                     aria-pressed={listing.status === s}
                     onClick={() => void changeStatus(s)}
                     className={cn(
-                      "h-9 rounded-full border px-4 text-sm font-semibold capitalize",
+                      "h-9 rounded-full border px-4 text-sm font-semibold",
                       listing.status === s ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-muted",
                     )}
                   >
-                    {s}
+                    {listingStatusLabel(s, isFree)}
                   </button>
                 ))}
               </div>
@@ -170,7 +177,7 @@ export function ListingDetail({ id }: { id: string }) {
             <div className="flex gap-2">
               <Button className="flex-1" onClick={messageSeller} loading={messaging} disabled={listing.status === "sold"}>
                 <MessageCircle className="size-4" />
-                Message seller
+                {listing.status === "sold" ? (isFree ? "Given away" : "Sold") : "Message seller"}
               </Button>
               <Button variant="outline" aria-label="Share listing" onClick={() => void shareLink(ROUTES.listing(listing._id), listing.title)}>
                 <Share2 className="size-4" />

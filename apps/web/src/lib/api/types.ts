@@ -177,6 +177,7 @@ export type ListingCategory =
   | "other";
 
 export type ListingCondition = "new" | "like_new" | "good" | "fair";
+export type ListingStatus = "available" | "pending" | "sold";
 
 export interface Listing {
   _id: string;
@@ -190,7 +191,7 @@ export interface Listing {
   category: ListingCategory;
   condition: ListingCondition;
   photos: string[];
-  status: "available" | "pending" | "sold";
+  status: ListingStatus;
   createdAt: string;
   /** Embedded by the live API. */
   seller?: { uid: string; displayName: string; photoURL?: string };
