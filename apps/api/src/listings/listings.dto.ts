@@ -5,10 +5,8 @@ import { LISTING_CATEGORIES, LISTING_CONDITIONS, LISTING_STATUSES, type ListingC
 
 export class CreateListingDto {
   /** Must be your own Hood if sent. */
-  /**
-   * @example Office chair, barely used
-   */
   @IsOptional() @IsMongoId() neighborhoodId?: string;
+  /** @example "Office chair, barely used" */
   @IsString() @Length(3, 80) title!: string;
   @IsOptional() @IsString() @MaxLength(1500) description?: string;
   /** Naira, whole numbers; null = free.

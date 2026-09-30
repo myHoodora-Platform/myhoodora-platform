@@ -15,10 +15,8 @@ export class FeedbackDto {
 
 /** In-app help request (signed in). */
 export class SupportRequestDto {
-  /**
-   * @example My address keeps failing verification even though the pin is right.
-   */
   @IsIn(SUPPORT_TOPICS) topic!: (typeof SUPPORT_TOPICS)[number];
+  /** @example "My address keeps failing verification even though the pin is right." */
   @IsString() @Length(20, 2000) message!: string;
 }
 
@@ -57,7 +55,7 @@ export class InboxQuery extends PageQuery {
 /** A neighbour's reply in their support conversation. */
 export class SupportMessageDto {
   /**
-   * @example Thanks, that fixed it!
+   * @example "Thanks, that fixed it!"
    */
   @IsString() @Length(1, 2000) body!: string;
 }
@@ -68,14 +66,10 @@ export class StartInboxConversationDto {
    * The neighbour's Firebase uid.
    * @example u3Q9Lp2aFzT8example
    */
-  /**
-   * @example About your verification
-   */
-  /**
-   * @example Hi, we've checked your address and moved you to the right Hood.
-   */
   @IsString() @Length(1, 128) uid!: string;
+  /** @example "About your verification" */
   @IsString() @Length(3, 120) subject!: string;
+  /** @example "Hi, we have checked your address and moved you to the right Hood." */
   @IsString() @Length(2, 4000) body!: string;
 }
 
