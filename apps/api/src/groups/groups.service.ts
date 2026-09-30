@@ -5,6 +5,7 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import { Connection, Model, Types, type QueryFilter } from "mongoose";
 import { HoodsService } from "../hoods/hoods.service";
 import { ModerationRegistry } from "../moderation/moderation-registry";
+import { RealtimeService } from "../realtime/realtime.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import type { Viewer } from "../shared/auth/viewer";
 import { withTransaction } from "../shared/db/transaction";
@@ -65,6 +66,7 @@ export class GroupsService implements OnModuleInit {
     private readonly notifications: NotificationsService,
     private readonly registry: ModerationRegistry,
     private readonly config: ConfigService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   onModuleInit() {
@@ -391,6 +393,7 @@ export class GroupsService implements OnModuleInit {
     const text = content.trim();
     if (!text) throw new BadRequestException("Write something first.");
     const doc = await this.posts.create({ groupId: id, authorUid: viewer.uid, content: text });
+    await this.announcePost(id);
     return (await this.postViews([doc.toObject() as GroupPost & { _id: Types.ObjectId }]))[0]!;
   }
 
@@ -399,6 +402,13 @@ export class GroupsService implements OnModuleInit {
     if (!p) throw new NotFoundException("Post not found.");
     if (p.authorUid !== viewer.uid) await this.requireAdmin(viewer, id);
     await this.posts.deleteOne({ _id: postId }).exec();
+    await this.announcePost(id);
+  }
+
+  /** Live update for members only: groups can span Hoods and be private, so never the Hood channel. */
+  private async announcePost(groupId: string): Promise<void> {
+    const uids = (await this.members.find({ groupId }).select({ uid: 1 }).lean<Pick<GroupMember, "uid">[]>().exec()).map((m) => m.uid);
+    this.realtime.toUsers(uids, "group.post", { groupId });
   }
 
   private async postViews(rows: (GroupPost & { _id: Types.ObjectId })[]) {

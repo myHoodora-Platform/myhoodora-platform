@@ -51,6 +51,18 @@ export class InboxQuery extends PageQuery {
   @IsOptional() @IsString() @MaxLength(40) topic?: string;
 }
 
+/** A neighbour's reply in their support conversation. */
+export class SupportMessageDto {
+  @IsString() @Length(1, 2000) body!: string;
+}
+
+/** Staff starting a conversation with one neighbour. */
+export class StartInboxConversationDto {
+  @IsString() @Length(1, 128) uid!: string;
+  @IsString() @Length(3, 120) subject!: string;
+  @IsString() @Length(2, 4000) body!: string;
+}
+
 export class InboxReplyDto {
   @IsString() @Length(2, 4000) body!: string;
   /** Resolve the thread with this reply. */

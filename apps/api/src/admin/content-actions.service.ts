@@ -17,6 +17,7 @@ export class ContentActionsService {
     const snap = await handler.load(id);
     if (!snap) throw new NotFoundException("Not found.");
     await handler.setRemoved(id, body.action === "remove", v.uid);
+    await this.registry.announce(type, id);
     await this.audit.record(v, body.action === "remove" ? "remove_content" : "restore_content", { type, id, label: `“${snap.preview.slice(0, 60)}”` }, { reason: body.reason, note: body.note });
     return { ok: true };
   }

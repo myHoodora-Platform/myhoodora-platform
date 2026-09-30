@@ -29,6 +29,7 @@ import { ModerationModule } from "./moderation/moderation.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { PlatformModule } from "./platform/platform.module";
 import { PostsModule } from "./posts/posts.module";
+import { RealtimeModule } from "./realtime/realtime.module";
 import { UsersModule } from "./users/users.module";
 
 @Module({
@@ -52,6 +53,7 @@ import { UsersModule } from "./users/users.module";
     // Cross-cutting (global) modules
     AuditModule,
     CommunicationsModule,
+    RealtimeModule,
     NotificationsModule,
     PlatformModule,
     ModerationRegistryModule,

@@ -3,6 +3,7 @@ import { InjectConnection, InjectModel } from "@nestjs/mongoose";
 import { Connection, Model, Types } from "mongoose";
 import { ListingsService } from "../listings/listings.service";
 import { ModerationRegistry } from "../moderation/moderation-registry";
+import { RealtimeService } from "../realtime/realtime.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import type { Viewer } from "../shared/auth/viewer";
 import { withTransaction } from "../shared/db/transaction";
@@ -18,6 +19,7 @@ export interface ConversationView {
   context?: ChatContext;
   lastMessage?: { body: string; senderUid: string; createdAt: string };
   unreadCount: number;
+  readBy: { uid: string; lastReadAt?: string }[];
   updatedAt: string;
 }
 
@@ -44,6 +46,7 @@ export class ChatService implements OnModuleInit {
     private readonly listings: ListingsService,
     private readonly notifications: NotificationsService,
     private readonly registry: ModerationRegistry,
+    private readonly realtime: RealtimeService,
   ) {}
 
   /** Reports use targetType "message" with the conversation id (contract §5). */
@@ -160,11 +163,18 @@ export class ChatService implements OnModuleInit {
 
   /** Oldest first; marks the thread read for the caller. */
   async listMessages(viewer: Viewer, id: string): Promise<MessageView[]> {
-    await this.load(viewer, id);
+    const c = await this.load(viewer, id);
     const rows = await this.messages.find({ conversationId: id }).sort({ createdAt: 1 }).limit(500).lean<(Message & { _id: Types.ObjectId })[]>().exec();
-    await this.conversations
-      .updateOne({ _id: id }, { $set: { "members.$[m].unread": 0, "members.$[m].lastReadAt": new Date() } }, { arrayFilters: [{ "m.uid": viewer.uid }], timestamps: false })
+    // Only when there was something unread: announcing every open would make
+    // two open threads refetch each other forever.
+    const read = await this.conversations
+      .updateOne(
+        { _id: id, members: { $elemMatch: { uid: viewer.uid, unread: { $gt: 0 } } } },
+        { $set: { "members.$[m].unread": 0, "members.$[m].lastReadAt": new Date() } },
+        { arrayFilters: [{ "m.uid": viewer.uid }], timestamps: false },
+      )
       .exec();
+    if (read.modifiedCount) this.realtime.toUsers(c.participantUids, "chat.read", { conversationId: id });
     return rows.map(toMessage);
   }
 
@@ -200,6 +210,8 @@ export class ChatService implements OnModuleInit {
       category: "messages",
       groupKey: `conversation:${id}`,
     });
+    // Everyone in the thread, including the sender's other tabs.
+    this.realtime.toUsers(c.participantUids, "chat.message", { conversationId: id });
     return toMessage(msg.toObject() as Message & { _id: Types.ObjectId });
   }
 
@@ -212,6 +224,8 @@ export class ChatService implements OnModuleInit {
       context: c.context,
       lastMessage: c.lastMessage ? { ...c.lastMessage, createdAt: new Date(c.lastMessage.createdAt).toISOString() } : undefined,
       unreadCount: c.members.find((m) => m.uid === uid)?.unread ?? 0,
+      // For "Seen": when each person last read the thread.
+      readBy: c.members.map((m) => ({ uid: m.uid, lastReadAt: m.lastReadAt ? new Date(m.lastReadAt).toISOString() : undefined })),
       updatedAt: (c.updatedAt ?? new Date()).toISOString(),
     }));
   }

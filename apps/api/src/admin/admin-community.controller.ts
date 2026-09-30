@@ -4,7 +4,7 @@ import { AdminBusinessQuery, BusinessActionDto } from "../businesses/businesses.
 import { BusinessesService } from "../businesses/businesses.service";
 import { AdminGroupActionDto } from "../groups/groups.dto";
 import { GroupsService } from "../groups/groups.service";
-import { InboxQuery, InboxReplyDto, InboxUpdateDto, SignupQuery } from "../inbound/inbound.dto";
+import { InboxQuery, InboxReplyDto, InboxUpdateDto, SignupQuery, StartInboxConversationDto } from "../inbound/inbound.dto";
 import { InboundService } from "../inbound/inbound.service";
 import { ListingsService } from "../listings/listings.service";
 import { AppealsService } from "../moderation/appeals.service";
@@ -95,6 +95,13 @@ export class AdminCommunityController {
   @ApiOperation({ summary: "Support inbox: in-app help, contact form and feedback" })
   inbox(@Query() q: InboxQuery) {
     return this.inbound.list(q);
+  }
+
+  @Post("inbox")
+  @HttpCode(201)
+  @ApiOperation({ summary: "Start a conversation with one neighbour (notified in-app and by email)" })
+  startConversation(@CurrentViewer() v: Viewer, @Body() body: StartInboxConversationDto) {
+    return this.inbound.startConversation(v, body);
   }
 
   @Get("inbox/:id")

@@ -21,6 +21,12 @@ export interface ModeratableContent {
   load(id: string): Promise<TargetSnapshot | null>;
   /** Hide or restore; must be idempotent and accept the decision's session. */
   setRemoved(id: string, removed: boolean, actorUid: string, session?: ClientSession): Promise<void>;
+  /**
+   * Tell open screens the item changed (live update). Called by moderation
+   * after its transaction commits, never inside it. Optional: types nobody
+   * watches live can skip it.
+   */
+  announce?(id: string): Promise<void>;
 }
 
 /**
@@ -37,6 +43,11 @@ export class ModerationRegistry {
 
   get(type: TargetType): ModeratableContent | undefined {
     return this.handlers.get(type);
+  }
+
+  /** After a hide/restore has committed: update open screens, if that type is watched live. */
+  async announce(type: TargetType, id: string): Promise<void> {
+    await this.handlers.get(type)?.announce?.(id);
   }
 }
 

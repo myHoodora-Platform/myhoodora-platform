@@ -31,6 +31,16 @@ export default () => ({
     from: process.env.MAIL_FROM ?? "myHoodora <hello@myhoodora.com>",
     replyTo: process.env.MAIL_REPLY_TO || undefined,
   },
+
+  /** Live updates across API instances (docs/api-contract.md §19). */
+  realtime: {
+    /** Upstash/Redis URL with publish rights (rediss://…). Empty → Mongo change streams, then in-memory. */
+    redisUrl: process.env.REDIS_URL?.trim() || undefined,
+    /** auto (default) | redis | mongo | memory */
+    bus: (process.env.REALTIME_BUS?.trim() || "auto") as "auto" | "redis" | "mongo" | "memory",
+    /** Keeps environments that share Redis/Mongo apart (their own channel). */
+    env: process.env.REALTIME_ENV?.trim() || process.env.NODE_ENV || "development",
+  },
 });
 
 export function validateEnv(env: Record<string, unknown>): Record<string, unknown> {
@@ -38,6 +48,9 @@ export function validateEnv(env: Record<string, unknown>): Record<string, unknow
     const required = ["MONGODB_URI", "APP_URL", "CORS_ORIGIN", "RESEND_API_KEY", "RESEND_WEBHOOK_SECRET", "MAIL_FROM"];
     const missing = required.filter((k) => !env[k]);
     if (missing.length) throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
+    if (!env.REDIS_URL) {
+      console.warn("REDIS_URL is not set: live updates will use MongoDB change streams, or in-memory delivery (single instance only).");
+    }
   }
   return env;
 }

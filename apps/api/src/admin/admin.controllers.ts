@@ -277,7 +277,10 @@ export class AdminController {
   async alertAction(@CurrentViewer() v: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Body() body: AlertActionDto) {
     const snap = await this.registry.get("post")!.load(id);
     if (!snap) throw new NotFoundException("Alert not found.");
-    if (body.action === "remove") await this.registry.get("post")!.setRemoved(id, true, v.uid);
+    if (body.action === "remove") {
+      await this.registry.get("post")!.setRemoved(id, true, v.uid);
+      await this.registry.announce("post", id);
+    }
     else await this.posts.staffAlertAction(id, body.action, v.uid);
     const action = body.action === "end" ? "alert_end" : body.action === "downgrade" ? "alert_downgrade" : "remove_content";
     await this.audit.record(v, action, { type: "post", id, label: `“${snap.preview.slice(0, 60)}”` }, { reason: body.reason });
