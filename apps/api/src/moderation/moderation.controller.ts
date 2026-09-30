@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, Param, Post } from "@nestjs/common";
-import { ApiBearerAuth, ApiConflictResponse, ApiForbiddenResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { ApiBearerAuth, ApiConflictResponse, ApiCreatedResponse, ApiForbiddenResponse, ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { IsIn, IsString, Length } from "class-validator";
 import { CurrentViewer, type Viewer } from "../shared/auth/viewer";
@@ -38,6 +38,7 @@ export class ModerationController {
   @Get("lead/queue")
   @ApiOperation({ summary: "Reports in my Hood waiting for Lead votes (Leads only). Reporters are never shown" })
   @ApiForbiddenResponse({ description: "Not a Hood Lead" })
+  @ApiOkResponse({ description: "Open cases in your Hood awaiting your vote" })
   queue(@CurrentViewer() viewer: Viewer) {
     return this.leads.queue(viewer);
   }
@@ -47,6 +48,7 @@ export class ModerationController {
   @Throttle({ medium: { limit: 30, ttl: 60_000 } })
   @ApiOperation({ summary: "Vote keep / maybe_remove / remove (Leads). ≥3 votes and a 2/3 majority decide; otherwise staff after 48 h" })
   @ApiConflictResponse({ description: "Voting has closed" })
+  @ApiOkResponse({ description: "Vote recorded; the case resolves once enough Leads agree" })
   vote(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Body() body: VoteDto) {
     return this.leads.vote(viewer, id, body.vote);
   }
@@ -61,6 +63,7 @@ export class ModerationController {
   @Throttle({ medium: { limit: 5, ttl: 60_000 } })
   @ApiOperation({ summary: "Appeal a decision (author, or a reporter when we kept the content) within 30 days → { id, status }" })
   @ApiConflictResponse({ description: "Already appealed" })
+  @ApiCreatedResponse({ description: "Appeal submitted for staff review" })
   appeal(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Body() body: AppealDto) {
     return this.appeals.file(viewer, id, body.reason);
   }

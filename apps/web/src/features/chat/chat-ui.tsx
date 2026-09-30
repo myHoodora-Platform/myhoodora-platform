@@ -38,15 +38,34 @@ const NEAR_BOTTOM_PX = 80;
  * bottom only if you're already there (or sent them); otherwise a
  * "New messages" pill appears instead of yanking you away from what you're reading.
  */
+/** "Ada is typing" as a bubble of three pulsing dots (the familiar chat-app cue). */
+export function TypingDots({ label }: { label: string }) {
+  return (
+    <div className="flex justify-start" role="status" aria-label={`${label} is typing`}>
+      <div className="flex items-center gap-2 rounded-2xl rounded-bl-md bg-muted px-3.5 py-2.5">
+        <span className="flex items-center gap-1" aria-hidden>
+          {[0, 150, 300].map((delay) => (
+            <span key={delay} className="size-1.5 animate-bounce rounded-full bg-muted-foreground/70" style={{ animationDelay: `${delay}ms` }} />
+          ))}
+        </span>
+        <span className="text-xs text-muted-foreground">{label} is typing</span>
+      </div>
+    </div>
+  );
+}
+
 export function ChatMessageList({
   items,
   empty,
   seenAt,
   onRetry,
+  typing,
   mineClassName = "bg-primary text-primary-foreground",
 }: {
   items: ChatItem[];
   empty?: ReactNode;
+  /** Who's typing on the other side (shows animated dots), or nothing. */
+  typing?: string | null;
   /** When the other side last read the thread: shows "Seen" under your last message. */
   seenAt?: string;
   onRetry?: (id: string) => void;
@@ -72,6 +91,11 @@ export function ChatMessageList({
     if (first || nearBottom.current || newest?.mine) scrollToBottom(!first);
     else setUnseenBelow(true);
   }, [items]);
+
+  // Keep the dots in view when they appear, if the reader is at the bottom.
+  useEffect(() => {
+    if (typing && nearBottom.current) scrollToBottom(true);
+  }, [typing]);
 
   const lastMine = [...items].reverse().find((m) => m.mine && !m.state);
   const seen = Boolean(seenAt && lastMine && new Date(seenAt) >= new Date(lastMine.at));
@@ -124,6 +148,7 @@ export function ChatMessageList({
             </Fragment>
           );
         })}
+        {typing && <TypingDots label={typing} />}
       </div>
       {unseenBelow && (
         <button

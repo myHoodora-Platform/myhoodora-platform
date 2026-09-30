@@ -103,6 +103,11 @@ export async function replyToSupport(user: User, id: string, body: string): Prom
   return next;
 }
 
+/** live: POST /support/threads/:id/typing (ephemeral; lets the team see you're typing). */
+export async function sendSupportTyping(user: User, id: string): Promise<void> {
+  if (isLive("support.threads")) await apiFetch<void>(user, `/support/threads/${encodeURIComponent(id)}/typing`, { method: "POST" });
+}
+
 /** live: GET /support/threads/unread-count → conversations with an unread team reply. */
 export async function fetchSupportUnread(user: User): Promise<number> {
   if (isLive("support.threads")) return (await apiFetch<{ count: number }>(user, "/support/threads/unread-count")).count;

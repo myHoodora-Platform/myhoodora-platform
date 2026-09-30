@@ -15,13 +15,14 @@ import { useLiveVersion } from "@/lib/realtime/use-realtime";
 import { ROUTES } from "@/lib/routes";
 import { timeAgo } from "@/lib/time";
 import { SupportAvatar, SupportName, SupportStatusChip } from "./support-identity";
+import { supportListCache } from "@/features/chat/conversation-list";
 
 /** Your conversations with the team (the pane behind the pinned row in Messages). */
 export function SupportConversations() {
   const { user } = useAuth();
   const router = useRouter();
   const version = useLiveVersion(["support.message", "unread.changed"], { mockPrefix: "support-threads" });
-  const [threads, setThreads] = useState<SupportThreadSummary[] | null>(null);
+  const [threads, setThreads] = useState<SupportThreadSummary[] | null>(() => (user ? (supportListCache.get(user.uid) ?? null) : null));
   const [error, setError] = useState<string | null>(null);
   const [composing, setComposing] = useState(false);
 
@@ -31,6 +32,7 @@ export function SupportConversations() {
     listSupportThreads(user)
       .then((t) => {
         if (!alive) return;
+        supportListCache.set(user.uid, t);
         setThreads(t);
         setError(null);
       })

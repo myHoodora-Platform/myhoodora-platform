@@ -90,6 +90,11 @@ export async function listMessages(user: User, conversationId: string): Promise<
 }
 
 /** live: POST /conversations/:id/messages { body } */
+/** live: POST /conversations/:id/typing (ephemeral; preview mode has nobody to tell). */
+export async function sendTyping(user: User, conversationId: string): Promise<void> {
+  if (isLive("chat")) await apiFetch<void>(user, `/conversations/${conversationId}/typing`, { method: "POST" });
+}
+
 export async function sendMessage(user: User, conversationId: string, body: string): Promise<Message> {
   if (isLive("chat")) {
     return apiFetch<Message>(user, `/conversations/${conversationId}/messages`, { method: "POST", json: { body } });

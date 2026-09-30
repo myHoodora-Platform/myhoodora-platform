@@ -8,10 +8,15 @@ import { useAuth } from "@/context/AuthContext";
 import { ChatComposer, ChatMessageList, localId, type ChatItem } from "@/features/chat/chat-ui";
 import { SUPPORT_REPLY_TIME } from "@/features/help/support-form";
 import { errorKind } from "@/lib/api/client";
-import { getSupportThread, replyToSupport, type SupportThread } from "@/lib/api/support";
+import { getSupportThread, replyToSupport, sendSupportTyping, type SupportThread } from "@/lib/api/support";
+import { useTypingIndicator, useTypingSignal } from "@/features/chat/use-typing";
 import { useRealtime, useRealtimeResync } from "@/lib/realtime/use-realtime";
 import { ROUTES } from "@/lib/routes";
 import { SupportAvatar, SupportName, SupportStatusChip } from "./support-identity";
+import { createMemoryCache } from "@/lib/memory-cache";
+
+// Reopening a conversation shows it at once, then refreshes.
+const supportThreadCache = createMemoryCache<SupportThread>(20);
 
 interface Pending {
   id: string;
@@ -23,7 +28,7 @@ interface Pending {
 /** One conversation with the team, live: replies appear the moment they're sent. */
 export function SupportThreadView({ id }: { id: string }) {
   const { user } = useAuth();
-  const [thread, setThread] = useState<SupportThread | null | undefined>(undefined);
+  const [thread, setThread] = useState<SupportThread | null | undefined>(() => supportThreadCache.get(`${user?.uid}:${id}`));
   const [pending, setPending] = useState<Pending[]>([]);
   const [draft, setDraft] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -31,7 +36,9 @@ export function SupportThreadView({ id }: { id: string }) {
   const load = useCallback(async () => {
     if (!user) return;
     try {
-      setThread(await getSupportThread(user, id));
+      const t = await getSupportThread(user, id);
+      supportThreadCache.set(`${user.uid}:${id}`, t);
+      setThread(t);
     } catch (err) {
       if (errorKind(err) === "not_found") setThread(null);
       else setThread((prev) => prev ?? null);
@@ -46,11 +53,15 @@ export function SupportThreadView({ id }: { id: string }) {
   });
   useRealtimeResync(() => void load());
 
+  const teamTyping = useTypingIndicator("support.typing", ["support.message"], (e) => e.threadId === id);
+  useTypingSignal(draft, () => (user ? sendSupportTyping(user, id) : Promise.resolve()));
+
   const deliver = async (p: Pending) => {
     if (!user) return;
     try {
       const next = await replyToSupport(user, id, p.body);
       setPending((prev) => prev.filter((x) => x.id !== p.id));
+      supportThreadCache.set(`${user.uid}:${id}`, next);
       setThread(next);
     } catch {
       setPending((prev) => prev.map((x) => (x.id === p.id ? { ...x, state: "failed" } : x)));
@@ -134,7 +145,7 @@ export function SupportThreadView({ id }: { id: string }) {
         )
       )}
 
-      <ChatMessageList items={items} onRetry={retry} />
+      <ChatMessageList items={items} onRetry={retry} typing={teamTyping ? "myHoodora team" : null} />
 
       <ChatComposer value={draft} onChange={setDraft} onSend={send} label="Message myHoodora Support" placeholder="Write to the team…" inputRef={inputRef} />
     </>

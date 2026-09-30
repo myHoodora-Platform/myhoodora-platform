@@ -3,7 +3,7 @@ import { InjectConnection, InjectModel } from "@nestjs/mongoose";
 import { Connection, Model, Types } from "mongoose";
 import { ListingsService } from "../listings/listings.service";
 import { ModerationRegistry } from "../moderation/moderation-registry";
-import { RealtimeService } from "../realtime/realtime.service";
+import { RealtimeService, TYPING_SIGNAL_MS } from "../realtime/realtime.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import type { Viewer } from "../shared/auth/viewer";
 import { withTransaction } from "../shared/db/transaction";
@@ -176,6 +176,17 @@ export class ChatService implements OnModuleInit {
       .exec();
     if (read.modifiedCount) this.realtime.toUsers(c.participantUids, "chat.read", { conversationId: id });
     return rows.map(toMessage);
+  }
+
+  /** "… is typing": to the other member only; ephemeral, never stored. */
+  async typing(viewer: Viewer, id: string): Promise<void> {
+    if (!this.realtime.gate(`typing:${viewer.uid}:${id}`, TYPING_SIGNAL_MS)) return;
+    const c = await this.load(viewer, id);
+    this.realtime.toUsers(
+      c.participantUids.filter((u) => u !== viewer.uid),
+      "chat.typing",
+      { conversationId: id },
+    );
   }
 
   async send(viewer: Viewer, id: string, body: string): Promise<MessageView> {

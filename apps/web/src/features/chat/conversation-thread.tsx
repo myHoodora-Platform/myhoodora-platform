@@ -9,14 +9,19 @@ import { ReportDialog } from "@/components/shared/report-dialog";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { useAuth } from "@/context/AuthContext";
 import { useViewer } from "@/hooks/use-neighbourhood";
-import { getConversation, listMessages, sendMessage } from "@/lib/api/chat";
+import { getConversation, listMessages, sendMessage, sendTyping } from "@/lib/api/chat";
 import { resolveAuthor } from "@/lib/api/users";
 import { formatNaira } from "@/lib/format";
 import { useRealtime, useRealtimeResync } from "@/lib/realtime/use-realtime";
 import { ROUTES } from "@/lib/routes";
 import type { Conversation, Message } from "@/lib/api/types";
 import { ChatComposer, ChatMessageList, localId, type ChatItem } from "./chat-ui";
+import { createMemoryCache } from "@/lib/memory-cache";
 import { otherParticipant } from "./conversation-list";
+import { useTypingIndicator, useTypingSignal } from "./use-typing";
+
+// Reopening a thread shows its last messages at once, then refreshes.
+const threadCache = createMemoryCache<{ convo: Conversation; messages: Message[] }>(30);
 
 /** A message you've sent that the server hasn't confirmed (or rejected). */
 interface Pending {
@@ -32,8 +37,9 @@ export function ConversationThread({ id }: { id: string }) {
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const [convo, setConvo] = useState<Conversation | null | undefined>(undefined);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const cacheKey = `${user?.uid}:${id}`;
+  const [convo, setConvo] = useState<Conversation | null | undefined>(() => threadCache.get(cacheKey)?.convo);
+  const [messages, setMessages] = useState<Message[]>(() => threadCache.get(cacheKey)?.messages ?? []);
   const [pending, setPending] = useState<Pending[]>([]);
   const [draft, setDraft] = useState(() => params.get("draft") ?? "");
   const [reporting, setReporting] = useState(false);
@@ -45,6 +51,7 @@ export function ConversationThread({ id }: { id: string }) {
       const [c, m] = await Promise.all([getConversation(user, id), listMessages(user, id)]);
       setConvo(c);
       setMessages(m);
+      if (c) threadCache.set(`${user.uid}:${id}`, { convo: c, messages: m });
     } catch {
       setConvo((prev) => (prev === undefined ? null : prev));
     }
@@ -60,6 +67,9 @@ export function ConversationThread({ id }: { id: string }) {
     if (e.conversationId === id) void load();
   });
   useRealtimeResync(() => void load());
+
+  const otherTyping = useTypingIndicator("chat.typing", ["chat.message"], (e) => e.conversationId === id);
+  useTypingSignal(draft, () => (user ? sendTyping(user, id) : Promise.resolve()));
 
   useEffect(() => {
     if (params.has("draft")) router.replace(pathname, { scroll: false });
@@ -162,6 +172,7 @@ export function ConversationThread({ id }: { id: string }) {
         items={items}
         seenAt={seenAt}
         onRetry={retry}
+        typing={otherTyping ? other.displayName.split(" ")[0] : null}
         empty={
           <p className="py-8 text-center text-sm text-muted-foreground">
             Say hello to {other.displayName.split(" ")[0]}. Keep payments and meet-ups safe: meet in public and inspect before paying.

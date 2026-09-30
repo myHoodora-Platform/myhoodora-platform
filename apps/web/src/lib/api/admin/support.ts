@@ -36,6 +36,11 @@ export async function getThread(user: User, id: string): Promise<InboxThread> {
   });
 }
 
+/** live: POST /admin/inbox/:id/typing (ephemeral; the neighbour sees "myHoodora team is typing"). */
+export async function sendStaffTyping(user: User, id: string): Promise<void> {
+  if (isLive("admin.inbox")) await adminSend<void>(user, `/inbox/${id}/typing`, {});
+}
+
 /** live: POST /admin/inbox → start a conversation with one neighbour (notified + emailed). */
 export async function startInboxConversation(user: User, input: { uid: string; subject: string; body: string }, role: AdminRole): Promise<InboxThread> {
   if (isLive("admin.inbox")) return adminSend(user, "/inbox", input);

@@ -67,3 +67,17 @@ describe("RealtimeService", () => {
     expect(() => s.toUser("a", "unread.changed")).not.toThrow();
   });
 });
+
+describe("RealtimeService.gate", () => {
+  it("lets one signal through per window, per key", () => {
+    jest.useFakeTimers();
+    const s = new RealtimeService(new InMemoryRealtimeBus());
+    expect(s.gate("typing:a:c1", 2_500)).toBe(true);
+    expect(s.gate("typing:a:c1", 2_500)).toBe(false);
+    expect(s.gate("typing:b:c1", 2_500)).toBe(true);
+    jest.advanceTimersByTime(2_500);
+    expect(s.gate("typing:a:c1", 2_500)).toBe(true);
+    s.onModuleDestroy();
+    jest.useRealTimers();
+  });
+});

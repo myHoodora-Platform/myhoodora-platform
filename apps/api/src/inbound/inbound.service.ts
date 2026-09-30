@@ -7,7 +7,7 @@ import { AuditService } from "../audit/audit.service";
 import { CommunicationsService } from "../communications/communications.service";
 import { messageEmail } from "../communications/templates/email-templates";
 import { NotificationsService } from "../notifications/notifications.service";
-import { RealtimeService } from "../realtime/realtime.service";
+import { RealtimeService, TYPING_SIGNAL_MS } from "../realtime/realtime.service";
 import type { Viewer } from "../shared/auth/viewer";
 import { searchRegex, type Page } from "../shared/http/pagination";
 import { User, UserDocument } from "../users/schemas/user.schema";
@@ -148,6 +148,21 @@ export class InboundService {
     this.realtime.toStaff("inbox.updated", { threadId: id });
     this.realtime.toUser(viewer.uid, "support.message", { threadId: id }); // their other tabs
     return this.myThread(viewer, id);
+  }
+
+  /** The neighbour is typing in their conversation → staff watching it see "… is typing". */
+  async userTyping(viewer: Viewer, id: string): Promise<void> {
+    if (!this.realtime.gate(`support-typing:${viewer.uid}:${id}`, TYPING_SIGNAL_MS)) return;
+    await this.loadMine(viewer, id);
+    this.realtime.toStaff("support.typing", { threadId: id });
+  }
+
+  /** A team member is typing a reply → the neighbour sees "myHoodora team is typing". */
+  async staffTyping(actor: Viewer, id: string): Promise<void> {
+    if (!this.realtime.gate(`support-typing:${actor.uid}:${id}`, TYPING_SIGNAL_MS)) return;
+    const row = Types.ObjectId.isValid(id) ? await this.inbound.findById(id).select({ uid: 1 }).lean<Pick<Row, "uid">>().exec() : null;
+    if (!row) throw new NotFoundException("Conversation not found.");
+    if (row.uid) this.realtime.toUser(row.uid, "support.typing", { threadId: id });
   }
 
   async myUnreadCount(viewer: Viewer): Promise<{ count: number }> {

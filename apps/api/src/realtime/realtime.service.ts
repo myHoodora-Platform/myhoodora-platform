@@ -8,6 +8,10 @@ type EventFields = Omit<RealtimeEvent, "type" | "at">;
 
 /** How long bursty updates to one thing are merged into a single event. */
 const COALESCE_MS = 1_000;
+/** At most one typing signal per person per thread in this window (clients send every ~2.5 s). */
+export const TYPING_SIGNAL_MS = 2_500;
+/** Forget gate keys this long after last use (keeps the map small). */
+const GATE_SWEEP_MS = 60_000;
 
 /**
  * The one place services publish live updates. Call it after the write has
@@ -18,6 +22,8 @@ const COALESCE_MS = 1_000;
 export class RealtimeService implements OnModuleDestroy {
   private readonly logger = new Logger(RealtimeService.name);
   private readonly pending = new Map<string, NodeJS.Timeout>();
+  private readonly gates = new Map<string, number>();
+  private lastSweep = Date.now();
 
   constructor(@Inject(REALTIME_BUS) private readonly bus: RealtimeBus) {}
 
@@ -52,6 +58,23 @@ export class RealtimeService implements OnModuleDestroy {
         this.toHood(hoodId, type, fields);
       }, COALESCE_MS),
     );
+  }
+
+  /**
+   * true at most once per `ms` for a key: for chatty, ephemeral signals like
+   * typing. Check it before any database read so fast typists cost nothing.
+   * Per instance: with several instances the bound is per instance, which is fine.
+   */
+  gate(key: string, ms: number): boolean {
+    const now = Date.now();
+    if (now - this.lastSweep > GATE_SWEEP_MS) {
+      for (const [k, at] of this.gates) if (now - at > GATE_SWEEP_MS) this.gates.delete(k);
+      this.lastSweep = now;
+    }
+    const last = this.gates.get(key);
+    if (last !== undefined && now - last < ms) return false;
+    this.gates.set(key, now);
+    return true;
   }
 
   /** Everything this person may hear about: their own channel, their Hood, and staff news. */

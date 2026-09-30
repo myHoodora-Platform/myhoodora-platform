@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, ForbiddenException, Get, NotFoundException, Param, Patch, Post, Query } from "@nestjs/common";
-import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { AuditService } from "../audit/audit.service";
 import { CreateHoodDto, UpdateHoodDto } from "../hoods/dto/hood.dto";
 import { HoodsService } from "../hoods/hoods.service";
@@ -34,7 +34,7 @@ import {
 import { AdminReadService } from "./admin-read.service";
 import { BroadcastsService, type Audience } from "./broadcasts.service";
 import { ContentActionsService } from "./content-actions.service";
-import { ApiStandardErrors } from "../shared/http/api-docs";
+import { ApiNotFound, ApiStandardErrors } from "../shared/http/api-docs";
 
 /** §13.1 capability names exposed to the web (owner-only ones omitted). */
 const CONTRACT_CAPABILITIES = ["moderation.act", "moderation.suspend", "verification.review", "hoods.manage", "businesses.review", "broadcasts.send", "team.manage", "settings.manage", "team.manage.admins"];
@@ -86,6 +86,8 @@ export class AdminController {
   @Get("reports/:id")
   @Can("moderation.act")
   @ApiOperation({ summary: "Report detail: content, author, reporters (staff only), related, timeline, Lead votes" })
+  @ApiOkResponse()
+  @ApiNotFound("Report")
   async report(@Param("id", ParseObjectIdPipe) id: string) {
     const [detail, votes] = await Promise.all([this.moderation.detail(id), this.leads.votesFor(id)]);
     return { ...detail, leadVotes: detail.route === "leads" || votes.total ? votes : undefined };
@@ -131,6 +133,8 @@ export class AdminController {
 
   @Get("neighbours/:uid")
   @ApiOperation({ summary: "Neighbour detail (address for admins only)" })
+  @ApiOkResponse()
+  @ApiNotFound("Neighbour")
   async neighbour(@Param("uid") uid: string) {
     const u = await this.staffUsers.get(uid);
     const [row] = await this.staffUsers.toRows([u]);

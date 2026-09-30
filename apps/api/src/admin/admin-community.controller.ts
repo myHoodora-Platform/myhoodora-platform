@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, Param, Patch, Post, Put, Query } from "@nestjs/common";
-import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { AdminBusinessQuery, BusinessActionDto } from "../businesses/businesses.dto";
 import { BusinessesService } from "../businesses/businesses.service";
 import { AdminGroupActionDto } from "../groups/groups.dto";
@@ -15,7 +15,7 @@ import { Can } from "../shared/authz/can.decorator";
 import { ParseObjectIdPipe } from "../shared/http/pagination";
 import { AdminGroupQuery, AdminListingQuery, AppealDecisionDto, AppealQuery, ContentActionDto, HoodLeadsDto } from "./admin.dto";
 import { ContentActionsService } from "./content-actions.service";
-import { ApiStandardErrors } from "../shared/http/api-docs";
+import { ApiNotFound, ApiStandardErrors } from "../shared/http/api-docs";
 
 /**
  * §13.6–13.9 (pass 2): marketplace, groups, businesses, inbox, sign-ups,
@@ -106,13 +106,24 @@ export class AdminCommunityController {
 
   @Get("inbox/:id")
   @ApiOperation({ summary: "One thread" })
+  @ApiOkResponse()
+  @ApiNotFound("Conversation")
   thread(@Param("id", ParseObjectIdPipe) id: string) {
     return this.inbound.get(id);
+  }
+
+  @Post("inbox/:id/typing")
+  @HttpCode(204)
+  @ApiOperation({ summary: "Show the neighbour that the team is typing (live only, nothing stored)" })
+  async typing(@CurrentViewer() v: Viewer, @Param("id", ParseObjectIdPipe) id: string) {
+    await this.inbound.staffTyping(v, id);
   }
 
   @Post("inbox/:id/reply")
   @HttpCode(200)
   @ApiOperation({ summary: "Reply (emailed, and notified in-app if they have an account)" })
+  @ApiOkResponse()
+  @ApiNotFound("Conversation")
   reply(@CurrentViewer() v: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Body() body: InboxReplyDto) {
     return this.inbound.reply(v, id, body.body, body.resolve);
   }

@@ -14,10 +14,14 @@ export type RealtimeEventType =
   | "unread.changed"
   | "chat.message"
   | "chat.read"
+  /** Ephemeral: someone is typing in the conversation (never stored). */
+  | "chat.typing"
   | "group.post"
   | "listing.created"
   | "listing.updated"
   | "support.message"
+  /** Ephemeral: the neighbour (to staff) or the team (to the neighbour) is typing. */
+  | "support.typing"
   | "inbox.updated"
   | "queue.changed"
   | "session.changed";

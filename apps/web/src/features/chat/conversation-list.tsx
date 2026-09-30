@@ -8,6 +8,7 @@ import { cn } from "@myhoodora/ui/utils";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { useAuth } from "@/context/AuthContext";
 import { useLiveVersion } from "@/lib/realtime/use-realtime";
+import { createMemoryCache } from "@/lib/memory-cache";
 import { useViewer } from "@/hooks/use-neighbourhood";
 import { listConversations } from "@/lib/api/chat";
 import { listSupportThreads, type SupportThreadSummary } from "@/lib/api/support";
@@ -22,14 +23,24 @@ export function otherParticipant(convo: Conversation, myUid: string): string {
   return convo.participantUids.find((u) => u !== myUid) ?? myUid;
 }
 
+// Revisiting Messages shows the last list at once, then refreshes.
+const listCache = createMemoryCache<Conversation[]>(5);
+export const supportListCache = createMemoryCache<SupportThreadSummary[]>(5);
+
 /** Always first in Messages: the official support conversation(s). */
 function SupportRow({ active }: { active: boolean }) {
   const { user } = useAuth();
   const version = useLiveVersion(["support.message", "unread.changed"], { mockPrefix: "support-threads" });
-  const [threads, setThreads] = useState<SupportThreadSummary[] | null>(null);
+  const [threads, setThreads] = useState<SupportThreadSummary[] | null>(() => (user ? (supportListCache.get(user.uid) ?? null) : null));
 
   useEffect(() => {
-    if (user) void listSupportThreads(user).then(setThreads).catch(() => setThreads([]));
+    if (!user) return;
+    void listSupportThreads(user)
+      .then((t) => {
+        supportListCache.set(user.uid, t);
+        setThreads(t);
+      })
+      .catch(() => setThreads((prev) => prev ?? []));
   }, [user, version]);
 
   const latest = threads?.[0];
@@ -68,10 +79,16 @@ export function ConversationList({ activeId }: { activeId?: string }) {
   const { user } = useAuth();
   const viewer = useViewer();
   const version = useLiveVersion(["chat.message", "chat.read"], { mockPrefix: "chat:" });
-  const [items, setItems] = useState<Conversation[] | null>(null);
+  const [items, setItems] = useState<Conversation[] | null>(() => (user ? (listCache.get(user.uid) ?? null) : null));
 
   useEffect(() => {
-    if (user) void listConversations(user).then(setItems).catch(() => setItems([]));
+    if (!user) return;
+    void listConversations(user)
+      .then((c) => {
+        listCache.set(user.uid, c);
+        setItems(c);
+      })
+      .catch(() => setItems((prev) => prev ?? []));
   }, [user, version]);
 
   if (items === null) {

@@ -32,6 +32,7 @@ import {
 } from "@/lib/auth/profile";
 import { clearAllOnboardingDrafts } from "@/features/onboarding/draft";
 import { clearFeedCaches } from "@/features/feed/feed-cache";
+import { clearMemoryCaches } from "@/lib/memory-cache";
 
 export type { ProfileStatus, UserProfile } from "@/lib/auth/profile";
 
@@ -174,8 +175,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(null);
         setProfileError(null);
         setProfileStatus("idle");
-        // Drafts hold home addresses; don't leave them for the next person.
+        // Drafts hold home addresses and caches hold messages: don't leave them for the next person.
         clearAllOnboardingDrafts();
+        clearMemoryCaches();
         try {
           await fetch("/api/auth/logout", {
             method: "POST",

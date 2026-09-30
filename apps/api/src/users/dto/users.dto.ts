@@ -35,6 +35,10 @@ class OnboardingLocationDto {
 }
 
 export class OnboardingDto {
+  /**
+   * Name neighbours see.
+   * @example Ada Okafor
+   */
   @IsOptional()
   @IsString()
   @Length(2, 60)
@@ -47,12 +51,21 @@ export class OnboardingDto {
 }
 
 export class VerifyLocationDto {
+  /**
+   * @example 6.4474
+   */
   @IsLatitude()
   lat!: number;
 
+  /**
+   * @example 3.472
+   */
   @IsLongitude()
   lng!: number;
 
+  /**
+   * @example Admiralty Way, Lekki Phase 1, Lagos
+   */
   @IsOptional()
   @IsString()
   @MaxLength(200)
