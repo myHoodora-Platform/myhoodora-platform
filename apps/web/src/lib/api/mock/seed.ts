@@ -26,6 +26,20 @@ export const MOCK_NEIGHBORHOOD = {
   location: { type: "Point" as const, coordinates: [3.4746, 6.4478] as [number, number] },
 };
 
+/** Mock coverage: inside this distance of Lekki Phase 1 counts as verified. */
+export const MOCK_HOOD_RADIUS_M = 1500;
+/** Outside the Hood but within this distance, nearby Hoods are offered. */
+export const MOCK_NEARBY_LIMIT_M = 5000;
+
+/**
+ * Hoods offered as "nearby" in mock mode. Only Lekki Phase 1 has content;
+ * Oniru exists so the picker shows a real choice.
+ */
+export const MOCK_NEARBY_HOODS = [
+  { id: MOCK_NEIGHBORHOOD._id, name: MOCK_NEIGHBORHOOD.name, city: "Lagos", lat: 6.4478, lng: 3.4746 },
+  { id: "mock-oniru", name: "Oniru", city: "Lagos", lat: 6.4351, lng: 3.4538 },
+];
+
 export const MOCK_NEIGHBOURS: PublicProfile[] = [
   { uid: "nb_adaeze", displayName: "Adaeze Okafor", neighborhoodName: "Lekki Phase 1", neighbourSince: "2023-02-11", bio: "Mum of two, runs a small bakery from home. Happy to recommend good tailors!", verified: true },
   { uid: "nb_tunde", displayName: "Tunde Bakare", neighborhoodName: "Lekki Phase 1", neighbourSince: "2022-08-03", bio: "Civil engineer. Chairman, Road 12 residents.", verified: true },

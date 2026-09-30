@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   BadgeCheck,
   Bell,
+  Hourglass,
   ChevronRight,
   HelpCircle,
   KeyRound,
@@ -51,6 +52,7 @@ function Summary() {
   if (!user) return null;
   const me = resolveAuthor(user.uid, viewer);
   const verified = profile?.verificationStatus === "verified";
+  const requested = profile?.verificationStatus === "pending_review" ? profile.requestedHood : null;
   return (
     <Link
       href={ROUTES.profile(user.uid)}
@@ -59,9 +61,19 @@ function Summary() {
       <UserAvatar person={me} size="lg" />
       <div className="min-w-0 flex-1">
         <p className="truncate text-lg font-bold">{me.displayName}</p>
-        <p className={cn("flex items-center gap-1 text-sm", verified ? "text-primary" : "text-warning")}>
-          {verified ? <BadgeCheck className="size-4" aria-hidden /> : <ShieldAlert className="size-4" aria-hidden />}
-          {verified ? `Verified in ${me.neighborhoodName ?? "your neighbourhood"}` : "Address not verified"}
+        <p className={cn("flex items-center gap-1 text-sm", verified || requested ? "text-primary" : "text-warning")}>
+          {verified ? (
+            <BadgeCheck className="size-4" aria-hidden />
+          ) : requested ? (
+            <Hourglass className="size-4" aria-hidden />
+          ) : (
+            <ShieldAlert className="size-4" aria-hidden />
+          )}
+          {verified
+            ? `Verified in ${me.neighborhoodName ?? "your neighbourhood"}`
+            : requested
+              ? `Waiting to join ${requested.name}`
+              : "Address not verified"}
         </p>
         <p className="text-sm font-semibold text-primary">View your profile</p>
       </div>

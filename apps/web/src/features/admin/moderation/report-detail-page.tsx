@@ -98,7 +98,8 @@ export function ReportDetailPage({ id }: { id: string }) {
   const router = useRouter();
   const { user } = useAuth();
   const { role, can } = useAdminSession();
-  const report = useAdminQuery((u) => getReport(u, id), id);
+  // Live: another moderator claiming or deciding it shows straight away.
+  const report = useAdminQuery((u) => getReport(u, id), id, ["queue.changed"]);
   const [open, setOpen] = useState<ActionSpec | null>(null);
   const [days, setDays] = useState("7");
   const [claiming, setClaiming] = useState(false);

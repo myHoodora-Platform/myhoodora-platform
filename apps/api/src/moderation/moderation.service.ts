@@ -6,6 +6,7 @@ import { HoodsService } from "../hoods/hoods.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import type { ReportReason, Severity } from "../platform/platform-settings.schema";
 import { PlatformSettingsService } from "../platform/platform-settings.service";
+import { RealtimeService } from "../realtime/realtime.service";
 import type { Viewer } from "../shared/auth/viewer";
 import { withTransaction } from "../shared/db/transaction";
 import { searchRegex, type Page, type PageQuery } from "../shared/http/pagination";
@@ -72,6 +73,7 @@ export class ModerationService {
     private readonly hoods: HoodsService,
     private readonly notifications: NotificationsService,
     private readonly roster: LeadsRosterService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   // ── Intake (POST /reports) ────────────────────────────────────────────────
@@ -150,6 +152,7 @@ export class ModerationService {
       if (err?.code === 11000) return;
       throw err;
     });
+    this.realtime.toStaff("queue.changed");
   }
 
   // ── Queue & detail (admin §13.2) ──────────────────────────────────────────
@@ -231,6 +234,7 @@ export class ModerationService {
         .exec();
       if (!updated) throw new ConflictException(kase.assignee ? `${kase.assignee.displayName} is already reviewing this report.` : "This report is already closed.");
       await this.audit.record(actor, "claim", { type: "report", id, label: kase.preview.slice(0, 60) });
+      this.realtime.toStaff("queue.changed", { id });
       return toAdminReport(updated);
     }
     const updated = await this.cases
@@ -238,6 +242,7 @@ export class ModerationService {
       .lean<ModerationCase & { _id: Types.ObjectId }>()
       .exec();
     if (!updated) throw new ForbiddenException("Only the person reviewing it can release it.");
+    this.realtime.toStaff("queue.changed", { id });
     return toAdminReport(updated);
   }
 
@@ -286,7 +291,9 @@ export class ModerationService {
 
   /** Author gets the public reason; reporters learn it was reviewed; nobody sees who reported. */
   private async afterDecision(kase: ModerationCase & { _id: Types.ObjectId }, input: DecisionInput) {
+    this.realtime.toStaff("queue.changed", { id: String(kase._id) });
     if (input.action === "escalate") return;
+    if (input.action === "remove_content") await this.registry.announce(kase.targetType, kase.targetId);
     if (input.action === "remove_content" && kase.authorUid) {
       await this.notifications.notify({ uids: [kase.authorUid], type: "moderation", title: `Your ${kase.targetType} was removed`, body: `It broke the community guidelines: ${input.reason}. You can appeal within 30 days.`, href: "/settings/moderation" });
     }

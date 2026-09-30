@@ -7,14 +7,16 @@ import { Button } from "@myhoodora/ui/button";
 import { TooltipProvider } from "@myhoodora/ui/tooltip";
 import { useAuth } from "@/context/AuthContext";
 import { OnboardingGatingModal } from "@/components/shared/OnboardingGatingModal";
-import { OfflineBanner } from "@/components/shared/connection-states";
+import { OfflineBanner, ProblemState } from "@/components/shared/connection-states";
 import { ComposerProvider } from "@/features/feed/composer-context";
 import { hasSkippedOnboarding } from "@/features/onboarding/draft";
 import { ROUTES } from "@/lib/routes";
+import { isStaff } from "@/lib/auth/profile";
 import { AppHeader } from "./app-header";
 import { AppSkeleton } from "./app-skeleton";
 import { AppSidebar } from "./app-sidebar";
 import { MobileTabBar } from "./mobile-tab-bar";
+import { useLogout } from "./user-menu";
 import { UrgentAlertBanner } from "./urgent-alert-banner";
 import { VerificationBanner } from "./verification-banner";
 import { EmailVerificationBanner } from "./email-verification-banner";
@@ -24,8 +26,10 @@ const LOADING_TIMEOUT_MS = 8000;
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, profile, loading, refreshProfile } = useAuth();
+  const { user, profile, profileStatus, profileError, loading, refreshProfile } = useAuth();
+  const handleLogout = useLogout();
   const [loadingTooLong, setLoadingTooLong] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   // Full-height screens (chat) size themselves with --banners-h, since the
   // urgent/verification banners come and go. A ref callback (not an effect)
   // so it attaches when the banners mount, after the loading skeleton.
@@ -49,21 +53,56 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   // Nextdoor-style: finish onboarding before the app, unless they chose
   // "Skip for now" (limited access; the feed and gates nudge them back).
-  const needsOnboarding = !!user && !!profile && !profile.isOnboarded && !hasSkippedOnboarding(user.uid);
+  // Only a *loaded* profile can say they aren't onboarded — a failed load
+  // is shown as an error below, never treated as a new account. Staff who
+  // aren't residents browse with limited access instead, like "Skip for now".
+  const needsOnboarding =
+    !!user &&
+    profileStatus === "ready" &&
+    !!profile &&
+    !profile.isOnboarded &&
+    !isStaff(profile.role) &&
+    !hasSkippedOnboarding(user.uid);
   useEffect(() => {
     if (!loading && needsOnboarding) router.replace(ROUTES.onboarding);
   }, [loading, needsOnboarding, router]);
 
+  const waiting = loading || profileStatus === "loading";
   useEffect(() => {
-    if (!loading) {
+    if (!waiting) {
       setLoadingTooLong(false);
       return;
     }
     const timer = setTimeout(() => setLoadingTooLong(true), LOADING_TIMEOUT_MS);
     return () => clearTimeout(timer);
-  }, [loading]);
+  }, [waiting]);
 
-  if (loading || !user || needsOnboarding) {
+  const retryProfile = async () => {
+    setRetrying(true);
+    await refreshProfile();
+    setRetrying(false);
+  };
+
+  if (!loading && user && profileStatus === "error") {
+    return (
+      <div className="flex min-h-screen w-full items-center justify-center bg-canvas p-6">
+        <div className="w-full max-w-md space-y-3">
+          <ProblemState
+            title="We couldn't load your account"
+            message={profileError?.message ?? "Something went wrong. Please try again."}
+            kind={profileError?.kind ?? null}
+            onRetry={() => void retryProfile()}
+            retrying={retrying}
+          />
+          <Button variant="ghost" className="w-full" onClick={() => void handleLogout()}>
+            Log out
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (waiting || !user || needsOnboarding) {
     if (loadingTooLong && !needsOnboarding) {
       return (
         <div className="flex min-h-screen w-full items-center justify-center bg-canvas p-6">

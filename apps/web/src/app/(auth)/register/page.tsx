@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -14,15 +14,21 @@ import {
   signUpUser,
   signInWithGoogle,
   signInWithApple,
+  routeAfterSignIn,
 } from "@/lib/firebase/auth";
+import { DEFAULT_APP_ROUTE, ROUTES } from "@/lib/routes";
 import { getAuthErrorMessage } from "@/lib/firebase/errors";
 import { SocialAuthButtons } from "@/components/shared/social-auth-buttons";
+import { useRedirectIfSignedIn } from "@/hooks/use-redirect-if-signed-in";
 import { toast } from "sonner";
 
 export default function RegisterPage() {
   const router = useRouter();
   const [googleLoading, setGoogleLoading] = useState(false);
   const [appleLoading, setAppleLoading] = useState(false);
+  // Blocks a second sign-up from a fast double submit (see login page).
+  const submittingRef = useRef(false);
+  useRedirectIfSignedIn();
 
   const {
     register,
@@ -36,10 +42,14 @@ export default function RegisterPage() {
   });
 
   const onSubmit = async (data: RegisterInput) => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     try {
       await signUpUser(data.email, data.password);
-      // New registration redirects to onboarding
-      router.push("/onboarding");
+      // A brand-new account always starts onboarding. The onboarding page
+      // waits for the profile (created by GET /users/me) and shows an error
+      // with Retry if that fails.
+      router.push(ROUTES.onboarding);
     } catch (err: unknown) {
       const { code, message, silent } = getAuthErrorMessage(err);
       if (process.env.NODE_ENV === "development" && code) {
@@ -48,17 +58,18 @@ export default function RegisterPage() {
       if (!silent) {
         toast.error(message);
       }
+    } finally {
+      submittingRef.current = false;
     }
   };
 
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
     try {
-      await signInWithGoogle();
-      // Assume Google sign-in is new or existing.
-      // Usually Google signup redirects to onboarding if new.
-      // For this phase, we redirect to onboarding as a default for signup path.
-      router.push("/onboarding");
+      // Google may sign in an existing account: only new or unfinished
+      // accounts go to onboarding.
+      const user = await signInWithGoogle();
+      router.push(await routeAfterSignIn(user, DEFAULT_APP_ROUTE));
     } catch (err: unknown) {
       const { code, message, silent } = getAuthErrorMessage(err);
       if (process.env.NODE_ENV === "development" && code) {
@@ -75,8 +86,8 @@ export default function RegisterPage() {
   const handleAppleSignIn = async () => {
     setAppleLoading(true);
     try {
-      await signInWithApple();
-      router.push("/onboarding");
+      const user = await signInWithApple();
+      router.push(await routeAfterSignIn(user, DEFAULT_APP_ROUTE));
     } catch (err: unknown) {
       const { code, message, silent } = getAuthErrorMessage(err);
       if (process.env.NODE_ENV === "development" && code) {

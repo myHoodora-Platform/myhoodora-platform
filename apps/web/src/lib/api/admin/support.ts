@@ -3,7 +3,7 @@ import { ApiError } from "../client";
 import { isLive } from "../config";
 import { mockId } from "../mock/store";
 import { actorOf, adminGet, adminSend, forbidden, mock, notFound } from "./http";
-import { broadcasts, buildThreads, hoods, neighbours, paginate, patchThread, recordAudit, saveBroadcasts } from "./mock-db";
+import { addStartedThread, broadcasts, buildThreads, hoods, neighbourById, neighbours, paginate, patchThread, recordAudit, saveBroadcasts } from "./mock-db";
 import type { AdminRole, Broadcast, BroadcastAudience, InboxStatus, InboxThread, ListQuery, Page } from "./types";
 
 // ── Inbox ───────────────────────────────────────────────────────────────────
@@ -34,6 +34,38 @@ export async function getThread(user: User, id: string): Promise<InboxThread> {
     if (!t) notFound("Conversation");
     return t;
   });
+}
+
+/** live: POST /admin/inbox/:id/typing (ephemeral; the neighbour sees "myHoodora team is typing"). */
+export async function sendStaffTyping(user: User, id: string): Promise<void> {
+  if (isLive("admin.inbox")) await adminSend<void>(user, `/inbox/${id}/typing`, {});
+}
+
+/** live: POST /admin/inbox → start a conversation with one neighbour (notified + emailed). */
+export async function startInboxConversation(user: User, input: { uid: string; subject: string; body: string }, role: AdminRole): Promise<InboxThread> {
+  if (isLive("admin.inbox")) return adminSend(user, "/inbox", input);
+  return mock(() => {
+    const n = neighbourById(input.uid);
+    if (!n) notFound("Neighbour");
+    const actor = actorOf(user, role);
+    const now = new Date().toISOString();
+    const t: InboxThread = {
+      id: mockId("q"),
+      source: "staff",
+      topic: "other",
+      subject: input.subject,
+      from: { uid: n.uid, name: n.displayName, email: n.email },
+      status: "waiting",
+      priority: "normal",
+      assignee: { uid: actor.uid, displayName: actor.displayName },
+      messages: [{ from: "staff", body: input.body, at: now, by: actor.displayName }],
+      createdAt: now,
+      updatedAt: now,
+    };
+    addStartedThread(t);
+    recordAudit(actor, "inbox_start", { type: "inbox", id: t.id, label: t.subject });
+    return t;
+  }, 400);
 }
 
 /** live: POST /admin/inbox/:id/reply → emails / notifies the neighbour */

@@ -1,36 +1,34 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { toast } from "sonner";
-import { ArrowLeft, Flag, SendHorizontal } from "lucide-react";
+import { ArrowLeft, Flag } from "lucide-react";
 import { Skeleton } from "@myhoodora/ui/skeleton";
-import { cn } from "@myhoodora/ui/utils";
-import { EmojiPickerButton, insertAtCaret } from "@/components/shared/emoji-picker-button";
 import { ReportDialog } from "@/components/shared/report-dialog";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { useAuth } from "@/context/AuthContext";
 import { useViewer } from "@/hooks/use-neighbourhood";
-import { getConversation, listMessages, sendMessage } from "@/lib/api/chat";
-import { errorMessage } from "@/lib/api/client";
+import { getConversation, listMessages, sendMessage, sendTyping } from "@/lib/api/chat";
 import { resolveAuthor } from "@/lib/api/users";
 import { formatNaira } from "@/lib/format";
+import { useRealtime, useRealtimeResync } from "@/lib/realtime/use-realtime";
 import { ROUTES } from "@/lib/routes";
 import type { Conversation, Message } from "@/lib/api/types";
+import { ChatComposer, ChatMessageList, localId, type ChatItem } from "./chat-ui";
+import { createMemoryCache } from "@/lib/memory-cache";
 import { otherParticipant } from "./conversation-list";
+import { useTypingIndicator, useTypingSignal } from "./use-typing";
 
-function dayLabel(iso: string): string {
-  const d = new Date(iso);
-  const today = new Date();
-  const yesterday = new Date(Date.now() - 86_400_000);
-  if (d.toDateString() === today.toDateString()) return "Today";
-  if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
-  return d.toLocaleDateString("en-NG", { weekday: "short", day: "numeric", month: "short" });
-}
+// Reopening a thread shows its last messages at once, then refreshes.
+const threadCache = createMemoryCache<{ convo: Conversation; messages: Message[] }>(30);
 
-function clock(iso: string): string {
-  return new Date(iso).toLocaleTimeString("en-NG", { hour: "numeric", minute: "2-digit" });
+/** A message you've sent that the server hasn't confirmed (or rejected). */
+interface Pending {
+  id: string;
+  body: string;
+  at: string;
+  state: "sending" | "failed";
 }
 
 export function ConversationThread({ id }: { id: string }) {
@@ -39,23 +37,39 @@ export function ConversationThread({ id }: { id: string }) {
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const [convo, setConvo] = useState<Conversation | null | undefined>(undefined);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const cacheKey = `${user?.uid}:${id}`;
+  const [convo, setConvo] = useState<Conversation | null | undefined>(() => threadCache.get(cacheKey)?.convo);
+  const [messages, setMessages] = useState<Message[]>(() => threadCache.get(cacheKey)?.messages ?? []);
+  const [pending, setPending] = useState<Pending[]>([]);
   const [draft, setDraft] = useState(() => params.get("draft") ?? "");
-  const [sending, setSending] = useState(false);
   const [reporting, setReporting] = useState(false);
-  const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!user) return;
-    void Promise.all([getConversation(user, id), listMessages(user, id)])
-      .then(([c, m]) => {
-        setConvo(c);
-        setMessages(m);
-      })
-      .catch(() => setConvo(null));
+    try {
+      const [c, m] = await Promise.all([getConversation(user, id), listMessages(user, id)]);
+      setConvo(c);
+      setMessages(m);
+      if (c) threadCache.set(`${user.uid}:${id}`, { convo: c, messages: m });
+    } catch {
+      setConvo((prev) => (prev === undefined ? null : prev));
+    }
   }, [user, id]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  // Live: a new message or read receipt in this thread → refetch (the API
+  // is the source of truth; the event only says "something changed").
+  useRealtime(["chat.message", "chat.read"], (e) => {
+    if (e.conversationId === id) void load();
+  });
+  useRealtimeResync(() => void load());
+
+  const otherTyping = useTypingIndicator("chat.typing", ["chat.message"], (e) => e.conversationId === id);
+  useTypingSignal(draft, () => (user ? sendTyping(user, id) : Promise.resolve()));
 
   useEffect(() => {
     if (params.has("draft")) router.replace(pathname, { scroll: false });
@@ -64,12 +78,37 @@ export function ConversationThread({ id }: { id: string }) {
   }, []);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: "end" });
-  }, [messages.length]);
-
-  useEffect(() => {
     if (convo) inputRef.current?.focus();
   }, [convo]);
+
+  const deliver = async (p: Pending) => {
+    if (!user) return;
+    try {
+      const m = await sendMessage(user, id, p.body);
+      setPending((prev) => prev.filter((x) => x.id !== p.id));
+      setMessages((prev) => (prev.some((x) => x._id === m._id) ? prev : [...prev, m]));
+    } catch {
+      setPending((prev) => prev.map((x) => (x.id === p.id ? { ...x, state: "failed" } : x)));
+    }
+  };
+
+  const send = () => {
+    const body = draft.trim();
+    if (!body) return;
+    const p: Pending = { id: localId(), body, at: new Date().toISOString(), state: "sending" };
+    setDraft("");
+    setPending((prev) => [...prev, p]);
+    void deliver(p);
+    inputRef.current?.focus();
+  };
+
+  const retry = (localMessageId: string) => {
+    const p = pending.find((x) => x.id === localMessageId);
+    if (!p) return;
+    const again = { ...p, state: "sending" as const };
+    setPending((prev) => prev.map((x) => (x.id === p.id ? again : x)));
+    void deliver(again);
+  };
 
   if (convo === undefined) {
     return (
@@ -87,22 +126,11 @@ export function ConversationThread({ id }: { id: string }) {
   const otherUid = otherParticipant(convo, user.uid);
   const other = resolveAuthor(otherUid, viewer);
 
-  const send = async () => {
-    const body = draft.trim();
-    if (!body || sending) return;
-    setSending(true);
-    setDraft("");
-    try {
-      const m = await sendMessage(user, id, body);
-      setMessages((prev) => [...prev, m]);
-    } catch (err) {
-      setDraft(body);
-      toast.error(errorMessage(err, "Message not sent. Try again."));
-    } finally {
-      setSending(false);
-      inputRef.current?.focus();
-    }
-  };
+  const items: ChatItem[] = [
+    ...messages.map((m) => ({ id: m._id, mine: m.senderUid === user.uid, body: m.body, at: m.createdAt })),
+    ...pending.map((p) => ({ id: p.id, mine: true, body: p.body, at: p.at, state: p.state })),
+  ];
+  const seenAt = convo.readBy?.find((r) => r.uid === otherUid)?.lastReadAt;
 
   return (
     <>
@@ -140,78 +168,19 @@ export function ConversationThread({ id }: { id: string }) {
         </Link>
       )}
 
-      {/* Messages */}
-      <div className="flex-1 space-y-1 overflow-y-auto p-4" aria-live="polite">
-        {messages.length === 0 && (
+      <ChatMessageList
+        items={items}
+        seenAt={seenAt}
+        onRetry={retry}
+        typing={otherTyping ? other.displayName.split(" ")[0] : null}
+        empty={
           <p className="py-8 text-center text-sm text-muted-foreground">
             Say hello to {other.displayName.split(" ")[0]}. Keep payments and meet-ups safe: meet in public and inspect before paying.
           </p>
-        )}
-        {messages.map((m, i) => {
-          const mine = m.senderUid === user.uid;
-          const prev = messages[i - 1];
-          const newDay = !prev || dayLabel(prev.createdAt) !== dayLabel(m.createdAt);
-          return (
-            <Fragment key={m._id}>
-              {newDay && (
-                <p className="py-2 text-center text-xs font-semibold text-muted-foreground">{dayLabel(m.createdAt)}</p>
-              )}
-              <div className={cn("flex", mine ? "justify-end" : "justify-start")}>
-                <div
-                  className={cn(
-                    "max-w-[80%] rounded-2xl px-3.5 py-2 text-[15px]",
-                    mine ? "rounded-br-md bg-primary text-primary-foreground" : "rounded-bl-md bg-muted text-foreground",
-                  )}
-                >
-                  <p className="whitespace-pre-wrap">{m.body}</p>
-                  <p className={cn("mt-0.5 text-right text-[11px]", mine ? "text-primary-foreground/70" : "text-muted-foreground")}>
-                    {clock(m.createdAt)}
-                  </p>
-                </div>
-              </div>
-            </Fragment>
-          );
-        })}
-        <div ref={endRef} />
-      </div>
+        }
+      />
 
-      {/* Composer */}
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          void send();
-        }}
-        className="flex items-end gap-2 border-t border-border p-3"
-      >
-        <label htmlFor="message-input" className="sr-only">
-          Message {other.displayName}
-        </label>
-        <textarea
-          id="message-input"
-          ref={inputRef}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              void send();
-            }
-          }}
-          rows={1}
-          maxLength={2000}
-          placeholder="Write a message…"
-          className="max-h-32 min-h-11 flex-1 resize-none rounded-2xl border border-input bg-card px-4 py-2.5 text-[15px] outline-none focus:border-primary focus:ring-2 focus:ring-ring/20"
-        />
-        <EmojiPickerButton onSelect={(emoji) => setDraft((d) => insertAtCaret(inputRef.current, d, emoji))} />
-        <button
-          type="submit"
-          disabled={!draft.trim() || sending}
-          aria-label="Send message"
-          className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground disabled:opacity-40"
-        >
-          <SendHorizontal className="size-5" aria-hidden />
-        </button>
-      </form>
+      <ChatComposer value={draft} onChange={setDraft} onSend={send} label={`Message ${other.displayName}`} inputRef={inputRef} />
 
       <ReportDialog open={reporting} onOpenChange={setReporting} target={{ targetType: "message", targetId: id }} />
     </>

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { Newspaper } from "lucide-react";
+import { ArrowUp, Newspaper } from "lucide-react";
 import { Button } from "@myhoodora/ui/button";
 import { EmptyState } from "@/components/shared/states";
 import { InlineRetry, ProblemState, StaleNotice } from "@/components/shared/connection-states";
@@ -31,7 +31,7 @@ const EMPTY_COPY: Record<FeedFilter, { title: string; description: string; categ
 };
 
 export function NewsFeed() {
-  const { posts, loading, refreshing, loadingMore, error, stale, loadMoreError, hasMore, loadMore, refetch, react, deletePost } =
+  const { posts, loading, refreshing, loadingMore, error, stale, loadMoreError, hasMore, loadMore, refetch, react, deletePost, incoming, showIncoming } =
     useFeed();
   const { openComposer } = useComposer();
   const filter = parseFeedFilter(useSearchParams().get("filter"));
@@ -82,6 +82,22 @@ export function NewsFeed() {
         active={filter}
         hrefFor={(id) => (id === "all" ? ROUTES.newsFeed : `${ROUTES.newsFeed}?filter=${id}`)}
       />
+
+      {incoming.length > 0 && (
+        <div className="sticky top-20 z-20 flex justify-center">
+          <button
+            type="button"
+            onClick={() => {
+              showIncoming();
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-bold text-primary-foreground shadow-lg transition-transform hover:scale-[1.02]"
+          >
+            <ArrowUp className="size-4" aria-hidden />
+            {incoming.length === 1 ? "1 new post" : `${incoming.length} new posts`}
+          </button>
+        </div>
+      )}
 
       {stale && !loading && (
         <StaleNotice kind={stale.kind} since={stale.since} onRetry={() => void refetch()} retrying={refreshing} />

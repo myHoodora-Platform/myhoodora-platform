@@ -1,7 +1,8 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import type { HydratedDocument } from "mongoose";
 
-export const INBOX_SOURCES = ["in_app", "contact_form", "feedback"] as const;
+/** "staff": a conversation a team member started with a neighbour. */
+export const INBOX_SOURCES = ["in_app", "contact_form", "feedback", "staff"] as const;
 export const INBOX_STATUSES = ["open", "waiting", "resolved"] as const;
 export const INBOX_PRIORITIES = ["low", "normal", "high"] as const;
 export type InboxSource = (typeof INBOX_SOURCES)[number];
@@ -39,11 +40,14 @@ export class InboundMessage {
   @Prop({ type: String, required: true, enum: INBOX_STATUSES, default: "open", index: true }) status!: InboxStatus;
   @Prop({ type: String, enum: INBOX_PRIORITIES, default: "normal" }) priority!: InboxPriority;
   @Prop({ type: Object }) assignee?: { uid: string; displayName: string };
+  /** When the neighbour last opened the thread in the app (for their unread badge). */
+  @Prop() userReadAt?: Date;
   createdAt?: Date;
   updatedAt?: Date;
 }
 export const InboundMessageSchema = SchemaFactory.createForClass(InboundMessage);
 InboundMessageSchema.index({ status: 1, priority: -1, updatedAt: 1 });
+InboundMessageSchema.index({ uid: 1, updatedAt: -1 });
 
 /** myHoodora AI pilot waitlist (contract §11b). One row per email + institution. */
 @Schema({ timestamps: true, collection: "ai_pilot_requests" })

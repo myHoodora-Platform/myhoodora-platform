@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
@@ -39,8 +40,18 @@ export function AdminSidebar({ attention }: { attention: AdminOverview["attentio
   const pathname = usePathname();
   const { user, profile, logout } = useAuth();
   const { session, can } = useAdminSession();
-  const { state } = useSidebar();
+  const { state, setOpenMobile } = useSidebar();
   const isCollapsed = state === "collapsed";
+
+  useEffect(() => {
+    setOpenMobile(false);
+  }, [pathname, setOpenMobile]);
+
+  const handleNavClick = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest("a")) {
+      setOpenMobile(false);
+    }
+  };
 
   const userInitial = (profile?.displayName || user?.email || "?").charAt(0).toUpperCase();
 
@@ -54,7 +65,7 @@ export function AdminSidebar({ attention }: { attention: AdminOverview["attentio
   };
 
   return (
-    <Sidebar className="border-slate-800 bg-slate-900">
+    <Sidebar className="border-slate-800 bg-slate-900" onClick={handleNavClick}>
       <SidebarHeader className="h-16 flex-row items-center justify-between border-slate-800 px-4 py-0">
         <div className="flex min-w-0 items-center gap-2 overflow-hidden">
           {isCollapsed ? <MascotMark size="sm" /> : <MascotWordmark size="sm" tone="reversed" />}

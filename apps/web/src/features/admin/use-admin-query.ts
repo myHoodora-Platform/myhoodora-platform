@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { User } from "firebase/auth";
 import { useAuth } from "@/context/AuthContext";
+import { useLiveVersion } from "@/lib/realtime/use-realtime";
+import type { RealtimeEventType } from "@/lib/realtime/types";
 
 export interface AdminQuery<T> {
   data: T | null;
@@ -17,9 +19,10 @@ export interface AdminQuery<T> {
 /**
  * Loads admin data for the signed-in user. Re-runs when `key` changes (e.g.
  * the URL filters), keeps the previous data visible while refreshing, and
- * ignores out-of-order responses.
+ * ignores out-of-order responses. Pass `live` event types to refresh the
+ * moment something relevant happens (docs/api-contract.md §19).
  */
-export function useAdminQuery<T>(fetcher: (user: User) => Promise<T>, key: string): AdminQuery<T> {
+export function useAdminQuery<T>(fetcher: (user: User) => Promise<T>, key: string, live?: readonly RealtimeEventType[]): AdminQuery<T> {
   const { user } = useAuth();
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<unknown>(null);
@@ -51,9 +54,13 @@ export function useAdminQuery<T>(fetcher: (user: User) => Promise<T>, key: strin
     }
   }, [user]);
 
+  // Without `live`, never refetch on events (and ignore preview-store churn).
+  const liveVersion = useLiveVersion(live ?? [], { mockPrefix: live ? undefined : "\u0000none" });
+  const liveKey = live ? liveVersion : 0;
+
   useEffect(() => {
     void run();
-  }, [run, key]);
+  }, [run, key, liveKey]);
 
   return {
     data,

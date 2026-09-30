@@ -259,7 +259,7 @@ export function ManageGroupPage({ id }: { id: string }) {
                 onClick={() =>
                   void act(async () => {
                     await leaveGroup(user!, group._id);
-                    router.push(ROUTES.groups);
+                    router.replace(ROUTES.groups);
                   }, "You left the group.")
                 }
               >
@@ -338,7 +338,7 @@ export function ManageGroupPage({ id }: { id: string }) {
           void act(async () => {
             await deleteGroup(user!, group._id);
             setConfirmDelete(false);
-            router.push(ROUTES.groups);
+            router.replace(ROUTES.groups);
           }, "Group deleted.")
         }
       />

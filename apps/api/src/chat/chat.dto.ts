@@ -11,6 +11,10 @@ export class ChatContextDto {
 }
 
 export class StartConversationDto {
+  /**
+   * The other neighbour's Firebase uid.
+   * @example u3Q9Lp2aFzT8example
+   */
   @IsString() @Length(1, 128) recipientUid!: string;
   @IsOptional() @ValidateNested() @Type(() => ChatContextDto) context?: ChatContextDto;
 }

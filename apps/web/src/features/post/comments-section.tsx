@@ -20,6 +20,7 @@ import type { Comment } from "@/lib/api/types";
 import { needsKindnessReminder } from "@/features/feed/kindness";
 import { reportKindness } from "@/lib/api/telemetry";
 import { useBlocked } from "@/hooks/use-blocked";
+import { useLiveVersion } from "@/lib/realtime/use-realtime";
 
 interface CommentsSectionProps {
   postId: string;
@@ -38,12 +39,15 @@ export function CommentsSection({ postId, onCountChange }: CommentsSectionProps)
   const [reporting, setReporting] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  // Live: neighbours' new or deleted comments on this post appear without a reload.
+  const version = useLiveVersion(["comment.created", "comment.deleted"], { filter: (e) => e.postId === postId });
+
   useEffect(() => {
     if (!user) return;
     listComments(user, postId)
       .then(setComments)
       .catch((err) => setError(errorMessage(err, "Couldn't load comments.")));
-  }, [user, postId]);
+  }, [user, postId, version]);
 
   // Arriving via "Comment" (…#comments) focuses the box.
   useEffect(() => {

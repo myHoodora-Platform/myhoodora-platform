@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { AlertCircle, ArrowLeft, ArrowRight, Check, Loader2, LocateFixed, MapPin, PartyPopper, Pencil, RefreshCw, ShieldCheck } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowRight, Check, Hourglass, Info, Loader2, LocateFixed, MapPin, MapPinned, PartyPopper, Pencil, RefreshCw, Send, ShieldCheck } from "lucide-react";
 import { Button } from "@myhoodora/ui/button";
 import { cn } from "@myhoodora/ui/utils";
 import { Field, fieldAria, fieldInputClass } from "@/components/shared/field";
 import { COVERAGE } from "@/lib/coverage";
+import { formatDistance } from "@/lib/format";
+import type { NearbyHood } from "@/lib/api/types";
 import { LocationMap } from "./location-map";
 import { PrivacyNote } from "./onboarding-shell";
 
@@ -163,7 +165,7 @@ export function ConfirmStep({ address, coords, onBack, onNext }: ConfirmStepProp
 type Outcome = "pending" | "success" | "unverified" | "error";
 
 interface VerifyStepProps {
-  /** Real milestones set by runVerification: 1 coords, 2 location check, 3 saving, 4 done. */
+  /** Real milestones set by runVerification: 1 coords, 2 saving, 3 location check, 4 done. */
   status: number;
   outcome: Outcome;
   neighbourhoodName: string | null;
@@ -270,8 +272,8 @@ export function VerifyStep({ status, outcome, neighbourhoodName, onRetry, onEdit
 
       <ol className="space-y-3 rounded-2xl border border-border bg-card p-5" aria-live="polite">
         <CheckItem label="Checking your address" state={item(1)} />
-        <CheckItem label="Matching you to a neighbourhood" state={item(2, status >= 3 && outcome === "error")} />
-        <CheckItem label="Setting up your feed" state={item(3)} />
+        <CheckItem label="Saving your details" state={item(2)} />
+        <CheckItem label="Matching you to a neighbourhood" state={item(3, outcome === "error")} />
       </ol>
 
       {outcome === "error" && (
@@ -299,6 +301,135 @@ export function VerifyStep({ status, outcome, neighbourhoodName, onRetry, onEdit
           .
         </p>
       )}
+    </div>
+  );
+}
+
+// ── Step 3b: outside every Hood, but close to some ──────────────────────────
+
+interface NearbyHoodsStepProps {
+  hoods: NearbyHood[];
+  selectedId: string | null;
+  requesting: boolean;
+  error: string | null;
+  onSelect: (id: string) => void;
+  onRequest: () => void;
+  onEditAddress: () => void;
+  onNotNow: () => void;
+}
+
+export function NearbyHoodsStep({ hoods, selectedId, requesting, error, onSelect, onRequest, onEditAddress, onNotNow }: NearbyHoodsStepProps) {
+  const selected = hoods.find((h) => h.id === selectedId) ?? null;
+  const only = hoods.length === 1 ? hoods[0] : null;
+
+  return (
+    <div className="space-y-6">
+      <div className="space-y-2 text-center">
+        <span className="mx-auto flex size-16 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <MapPinned className="size-8" aria-hidden />
+        </span>
+        <h1 className="text-2xl font-bold tracking-tight">You&apos;re close to a neighbourhood</h1>
+        <p className="text-muted-foreground">
+          {only ? (
+            <>
+              Your address isn&apos;t inside one of our neighbourhoods yet, but you&apos;re near <strong className="text-foreground">{only.name}</strong>. Would
+              you like to join?
+            </>
+          ) : (
+            "Your address isn't inside one of our neighbourhoods yet, but you're near these. Choose the one you'd like to join."
+          )}
+        </p>
+      </div>
+
+      {error && <ErrorBanner message={error} />}
+
+      <fieldset className="space-y-3">
+        <legend className="sr-only">Nearby neighbourhoods</legend>
+        {hoods.map((h, i) => {
+          const checked = h.id === selectedId;
+          return (
+            <label
+              key={h.id}
+              className={cn(
+                "flex cursor-pointer items-center gap-4 rounded-2xl border-2 bg-card p-4 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-primary/40",
+                checked ? "border-primary bg-primary/5" : "border-border hover:border-primary/40",
+              )}
+            >
+              <input
+                type="radio"
+                name="nearby-hood"
+                value={h.id}
+                checked={checked}
+                onChange={() => onSelect(h.id)}
+                disabled={requesting}
+                className="sr-only"
+              />
+              <span
+                aria-hidden
+                className={cn(
+                  "flex size-5 shrink-0 items-center justify-center rounded-full border-2",
+                  checked ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40",
+                )}
+              >
+                {checked && <Check className="size-3" />}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block font-bold">{h.name}</span>
+                <span className="block text-sm text-muted-foreground">
+                  {h.city} · {formatDistance(h.distanceMeters)}
+                </span>
+              </span>
+              {i === 0 && hoods.length > 1 && (
+                <span className="shrink-0 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">Closest</span>
+              )}
+            </label>
+          );
+        })}
+      </fieldset>
+
+      <div className="flex items-start gap-3 rounded-xl bg-muted/60 p-4 text-sm text-muted-foreground">
+        <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
+        <p>
+          To keep neighbourhoods local, our team reviews requests from just outside a neighbourhood. We&apos;ll let you know once it&apos;s approved. Until
+          then you can browse with limited access.
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        <Button size="lg" className="w-full" onClick={onRequest} loading={requesting} disabled={!selected}>
+          <Send className="size-4" aria-hidden /> {selected ? `Request to join ${selected.name}` : "Choose a neighbourhood"}
+        </Button>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <Button variant="outline" size="lg" className="w-full sm:flex-1" onClick={onEditAddress} disabled={requesting}>
+            <Pencil className="size-4" aria-hidden /> Edit address
+          </Button>
+          <Button variant="ghost" size="lg" className="w-full sm:flex-1" onClick={onNotNow} disabled={requesting}>
+            Not now
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Step 3c: join request sent ──────────────────────────────────────────────
+
+export function RequestSentStep({ hoodName, onContinue }: { hoodName: string; onContinue: () => void }) {
+  return (
+    <div className="space-y-6 text-center" role="status">
+      <span className="mx-auto flex size-20 items-center justify-center rounded-full bg-primary/10 text-primary">
+        <Hourglass className="size-9" aria-hidden />
+      </span>
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold tracking-tight">Request sent to {hoodName}</h1>
+        <p className="mx-auto max-w-md text-muted-foreground">
+          We&apos;ll let you know once our team has reviewed it. Until then you can browse with limited access. Alerts, Events, Groups and For Sale &amp;
+          Free unlock when you&apos;re approved.
+        </p>
+      </div>
+      <Button size="lg" onClick={onContinue}>
+        Go to my feed <ArrowRight className="size-4" aria-hidden />
+      </Button>
     </div>
   );
 }

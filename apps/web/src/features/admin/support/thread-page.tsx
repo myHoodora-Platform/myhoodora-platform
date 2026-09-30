@@ -14,7 +14,9 @@ import { dateTimeLabel, initials, timeAgo } from "@/components/admin/format";
 import { fieldInputClass } from "@/components/shared/field";
 import { useAuth } from "@/context/AuthContext";
 import { errorMessage } from "@/lib/api/client";
-import { getThread, replyToThread, updateThread } from "@/lib/api/admin/support";
+import { getThread, replyToThread, sendStaffTyping, updateThread } from "@/lib/api/admin/support";
+import { TypingDots } from "@/features/chat/chat-ui";
+import { useTypingIndicator, useTypingSignal } from "@/features/chat/use-typing";
 import type { InboxStatus } from "@/lib/api/admin/types";
 import { useAdminSession } from "../session";
 import { useAdminQuery } from "../use-admin-query";
@@ -29,9 +31,13 @@ const SAVED_REPLIES = [
 export function ThreadPage({ id }: { id: string }) {
   const { user } = useAuth();
   const { role } = useAdminSession();
-  const thread = useAdminQuery((u) => getThread(u, id), id);
+  // Live: the neighbour's replies (and other staff's actions) appear without a reload.
+  const thread = useAdminQuery((u) => getThread(u, id), id, ["inbox.updated"]);
   const [reply, setReply] = useState("");
   const [busy, setBusy] = useState<null | "reply" | "resolve">(null);
+  // Live: see the neighbour typing; let them see you typing a reply.
+  const neighbourTyping = useTypingIndicator("support.typing", ["inbox.updated"], (e) => e.threadId === id);
+  useTypingSignal(reply, () => (user ? sendStaffTyping(user, id) : Promise.resolve()));
 
   if (thread.loading && !thread.data) return <DetailSkeleton />;
   if (!thread.data) return <AdminProblem error={thread.error} onRetry={thread.refetch} backHref="/admin/inbox" />;
@@ -92,6 +98,11 @@ export function ThreadPage({ id }: { id: string }) {
                     </div>
                   </li>
                 ))}
+                {neighbourTyping && (
+                  <li>
+                    <TypingDots label={t.from.name.split(" ")[0] ?? "They"} />
+                  </li>
+                )}
               </ol>
             </Panel>
             <Panel title={t.status === "resolved" ? "Reply (reopens the conversation)" : "Reply"}>

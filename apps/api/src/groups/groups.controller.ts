@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from "@nestjs/common";
-import { ApiBearerAuth, ApiConflictResponse, ApiForbiddenResponse, ApiNoContentResponse, ApiOperation, ApiTags, ApiTooManyRequestsResponse } from "@nestjs/swagger";
+import { ApiBearerAuth, ApiConflictResponse, ApiCreatedResponse, ApiForbiddenResponse, ApiNoContentResponse, ApiOkResponse, ApiOperation, ApiTags, ApiTooManyRequestsResponse } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { CurrentViewer, type Viewer } from "../shared/auth/viewer";
 import { Can } from "../shared/authz/can.decorator";
@@ -17,7 +17,7 @@ import {
   UpdateGroupDto,
 } from "./groups.dto";
 import { GroupsService } from "./groups.service";
-import { ApiStandardErrors } from "../shared/http/api-docs";
+import { ApiNotFound, ApiStandardErrors } from "../shared/http/api-docs";
 
 /** Contract §8 (Nextdoor-style groups). Group admins moderate their own group. */
 @ApiTags("groups")
@@ -35,6 +35,8 @@ export class GroupsController {
 
   @Get(":id")
   @ApiOperation({ summary: "One group (viewer-relative membership / isAdmin). `?invite=` lets invitees from elsewhere see it" })
+  @ApiOkResponse()
+  @ApiNotFound("Group")
   get(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Query() q: GroupViewQuery) {
     return this.groups.get(viewer, id, q.invite);
   }
@@ -44,6 +46,7 @@ export class GroupsController {
   @ApiOperation({ summary: "Create a group; you become its first admin (verified neighbours, 3 a day)" })
   @ApiConflictResponse({ description: "Name already used in your Hood" })
   @ApiTooManyRequestsResponse({ description: "More than 3 groups in 24 h" })
+  @ApiCreatedResponse({ description: "The new group, with you as admin" })
   create(@CurrentViewer() viewer: Viewer, @Body() body: CreateGroupDto) {
     return this.groups.create(viewer, body);
   }
@@ -58,6 +61,7 @@ export class GroupsController {
   @HttpCode(204)
   @ApiOperation({ summary: "Delete (group admins) — only while no one else has posted" })
   @ApiConflictResponse({ description: "Other members have posted" })
+  @ApiNoContentResponse({ description: "Deleted" })
   async delete(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string) {
     await this.groups.delete(viewer, id);
   }
@@ -74,6 +78,7 @@ export class GroupsController {
   @HttpCode(204)
   @ApiOperation({ summary: "Leave, or cancel your request" })
   @ApiConflictResponse({ description: "You're the last admin while others remain" })
+  @ApiNoContentResponse({ description: "Left the group, or request cancelled" })
   async leave(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string) {
     await this.groups.leave(viewer, id);
   }
@@ -97,6 +102,7 @@ export class GroupsController {
   @Get(":id/members")
   @ApiOperation({ summary: "Members, admins first (private groups: members only)" })
   @ApiForbiddenResponse({ description: "Private group and you're not a member" })
+  @ApiOkResponse({ description: "Members, admins first" })
   members(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string) {
     return this.groups.listMembers(viewer, id);
   }
@@ -132,6 +138,7 @@ export class GroupsController {
   @HttpCode(204)
   @ApiOperation({ summary: "Make admin / member (group admins)" })
   @ApiConflictResponse({ description: "Would leave the group without an admin" })
+  @ApiNoContentResponse({ description: "Role changed" })
   async setRole(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Param("uid") uid: string, @Body() body: MemberRoleDto) {
     await this.groups.setRole(viewer, id, uid, body.role);
   }

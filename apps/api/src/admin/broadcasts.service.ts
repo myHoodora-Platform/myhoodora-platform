@@ -48,6 +48,16 @@ export class BroadcastsService {
     return rows.map((b) => ({ id: String(b._id), title: b.title, body: b.body, audience: b.audience, audienceLabel: b.audienceLabel, reach: b.reach, sentAt: b.sentAt?.toISOString(), sentBy: b.sentBy }));
   }
 
+  /** "Ada Obi", "Ada Obi, Tunde Bello" … "Ada Obi, Tunde Bello, Kemi Ade and 4 more". */
+  private async peopleLabel(uids: string[]): Promise<string> {
+    const shown = 3;
+    const names = (await this.users.find({ uid: { $in: uids.slice(0, shown) } }).select({ displayName: 1 }).lean<Pick<User, "displayName">[]>().exec()).map(
+      (u) => u.displayName ?? "Neighbour",
+    );
+    const more = uids.length - names.length;
+    return more > 0 ? `${names.join(", ")} and ${more} more` : names.join(", ");
+  }
+
   async send(actor: Viewer, input: { title: string; body: string; audience: Audience }) {
     if (input.audience.type === "all" && actor.role === "moderator") throw new ForbiddenException("Only admins can message everyone.");
     const ids = input.audience.type === "hood" ? input.audience.hoodIds : input.audience.type === "user" ? input.audience.uids : ["all"];
@@ -58,7 +68,7 @@ export class BroadcastsService {
         ? "Everyone"
         : input.audience.type === "hood"
           ? (await this.hoods.find({ _id: { $in: input.audience.hoodIds } }).select({ name: 1 }).lean<{ name: string }[]>().exec()).map((h) => h.name).join(", ")
-          : `${input.audience.uids.length} neighbour(s)`;
+          : await this.peopleLabel(input.audience.uids);
     const doc = await this.broadcasts.create({ ...input, audienceLabel: label, reach: recipients.length, sentBy: actor.displayName ?? "Staff" });
     await this.notifications.notify({ uids: recipients, type: "system", title: input.title, body: input.body, href: "/notifications" });
     await this.audit.record(actor, "broadcast_send", { type: "broadcast", id: String(doc._id), label: input.title }, { reason: label });

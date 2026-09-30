@@ -2,36 +2,28 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { useMockChanges } from "@/hooks/use-mock-changes";
 import { fetchUnreadTotal } from "@/lib/api/chat";
-
-const POLL_MS = 60_000;
+import { fetchSupportUnread } from "@/lib/api/support";
+import { useLiveVersion } from "@/lib/realtime/use-realtime";
 
 /**
- * Unread message count for the header/tab badge. Live: polled every minute
- * and whenever the tab regains focus (contract §5: polling before realtime).
+ * Unread count for the Messages badge: chats plus support conversations with
+ * an unread team reply. Live: refetched when a message or read receipt
+ * arrives, and after a reconnect (docs/api-contract.md §19).
  */
 export function useUnreadMessages(): number {
   const { user } = useAuth();
-  const version = useMockChanges("chat:");
+  const version = useLiveVersion(["chat.message", "chat.read", "support.message", "unread.changed"], { mockPrefix: "chat:" });
   const [count, setCount] = useState(0);
 
   useEffect(() => {
     if (!user) return;
     let alive = true;
-    const refresh = () => {
-      if (document.visibilityState !== "visible") return;
-      fetchUnreadTotal(user)
-        .then((n) => alive && setCount(n))
-        .catch(() => undefined); // A badge isn't worth an error toast.
-    };
-    refresh();
-    const timer = window.setInterval(refresh, POLL_MS);
-    document.addEventListener("visibilitychange", refresh);
+    Promise.all([fetchUnreadTotal(user), fetchSupportUnread(user).catch(() => 0)])
+      .then(([chat, support]) => alive && setCount(chat + support))
+      .catch(() => undefined); // A badge isn't worth an error toast.
     return () => {
       alive = false;
-      window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", refresh);
     };
   }, [user, version]);
 

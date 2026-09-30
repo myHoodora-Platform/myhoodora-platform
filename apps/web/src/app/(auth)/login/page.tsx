@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -19,6 +19,7 @@ import {
 } from "@/lib/firebase/auth";
 import { getAuthErrorMessage } from "@/lib/firebase/errors";
 import { SocialAuthButtons } from "@/components/shared/social-auth-buttons";
+import { useRedirectIfSignedIn } from "@/hooks/use-redirect-if-signed-in";
 import { toast } from "sonner";
 
 // Read at click time (not via useSearchParams) so this page stays statically rendered.
@@ -29,6 +30,10 @@ export default function LoginPage() {
   const router = useRouter();
   const [googleLoading, setGoogleLoading] = useState(false);
   const [appleLoading, setAppleLoading] = useState(false);
+  // isSubmitting only disables the button after a re-render, so a fast
+  // Enter + click could start two sign-ins; this blocks the second at once.
+  const submittingRef = useRef(false);
+  useRedirectIfSignedIn();
 
   const {
     register,
@@ -39,6 +44,8 @@ export default function LoginPage() {
   });
 
   const onSubmit = async (data: LoginInput) => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     try {
       const user = await signInUser(data.email, data.password);
       router.push(await routeAfterSignIn(user, nextPath()));
@@ -50,6 +57,8 @@ export default function LoginPage() {
       if (!silent) {
         toast.error(message);
       }
+    } finally {
+      submittingRef.current = false;
     }
   };
 

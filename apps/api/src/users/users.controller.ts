@@ -1,12 +1,12 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from "@nestjs/common";
-import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import type { DecodedIdToken } from "firebase-admin/auth";
 import { CurrentUser } from "../shared/auth/current-user.decorator";
 import { AllowSuspended, CurrentViewer, type Viewer } from "../shared/auth/viewer";
 import { BlockDto, DeactivateDto, OnboardingDto, PreferencesDto, UpdateMeDto, UserSearchQuery, VerifyLocationDto } from "./dto/users.dto";
 import { UsersService } from "./users.service";
-import { ApiStandardErrors } from "../shared/http/api-docs";
+import { ApiNotFound, ApiStandardErrors } from "../shared/http/api-docs";
 
 @ApiTags("users")
 @ApiBearerAuth("firebase-jwt")
@@ -91,6 +91,8 @@ export class UsersController {
 
   @Get(":uid/public")
   @ApiOperation({ summary: "A neighbour's public profile (your Hood only; never an address)" })
+  @ApiOkResponse()
+  @ApiNotFound("Neighbour")
   publicProfile(@CurrentViewer() viewer: Viewer, @Param("uid") uid: string) {
     return this.users.publicProfile(viewer, uid);
   }

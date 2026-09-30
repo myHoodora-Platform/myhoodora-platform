@@ -1,5 +1,5 @@
 import { applyDecorators } from "@nestjs/common";
-import { ApiBadRequestResponse, ApiForbiddenResponse, ApiProperty, ApiTooManyRequestsResponse, ApiUnauthorizedResponse } from "@nestjs/swagger";
+import { ApiBadRequestResponse, ApiForbiddenResponse, ApiNotFoundResponse, ApiProperty, ApiTooManyRequestsResponse, ApiUnauthorizedResponse } from "@nestjs/swagger";
 
 /** Every error response (contract §0). 400/422 messages are safe to show verbatim. */
 export class ErrorResponse {
@@ -16,6 +16,12 @@ export const ApiStandardErrors = () =>
     ApiForbiddenResponse({ description: "Not allowed (capability, account state or ownership)", type: ErrorResponse }),
     ApiTooManyRequestsResponse({ description: "Rate limited", type: ErrorResponse }),
   );
+
+/**
+ * 404 for detail routes. Anything outside your Hood, or hidden from you
+ * (blocked, removed, private), also answers 404, so ids never leak.
+ */
+export const ApiNotFound = (what: string) => ApiNotFoundResponse({ description: `${what} not found, or not visible to you`, type: ErrorResponse });
 
 export const API_DESCRIPTION = `
 REST API for **myHoodora**, the hyper-local network for Nigerian neighbourhoods. The web app's contract is
@@ -56,7 +62,8 @@ export const API_TAGS: [string, string][] = [
   ["groups", "Groups, members, invites, group posts (contract §8)"],
   ["reports", "Reporting content & people (private)"],
   ["moderation", "Hood Lead voting, your moderation decisions, appeals"],
-  ["support", "Feedback and in-app help requests"],
+  ["support", "Feedback, help requests and your support conversations (contract §18)"],
+  ["realtime", "Live updates over Server-Sent Events (contract §19)"],
   ["business-pages", "Business Page applications & claiming (contract §11)"],
   ["public", "Public forms: contact, careers, AI pilot (no account)"],
   ["telemetry", "Anonymous product counters"],

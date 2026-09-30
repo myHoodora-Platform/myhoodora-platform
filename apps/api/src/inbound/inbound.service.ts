@@ -7,10 +7,11 @@ import { AuditService } from "../audit/audit.service";
 import { CommunicationsService } from "../communications/communications.service";
 import { messageEmail } from "../communications/templates/email-templates";
 import { NotificationsService } from "../notifications/notifications.service";
+import { RealtimeService, TYPING_SIGNAL_MS } from "../realtime/realtime.service";
 import type { Viewer } from "../shared/auth/viewer";
 import { searchRegex, type Page } from "../shared/http/pagination";
 import { User, UserDocument } from "../users/schemas/user.schema";
-import type { AiPilotDto, ContactDto, FeedbackDto, InboxQuery, InboxUpdateDto, SupportRequestDto, TalentDto } from "./inbound.dto";
+import type { AiPilotDto, ContactDto, FeedbackDto, InboxQuery, InboxUpdateDto, StartInboxConversationDto, SupportRequestDto, TalentDto } from "./inbound.dto";
 import { AiPilotRequest, InboundMessage, InboundMessageDocument, TalentProfile, type InboxPriority, type InboxSource, type InboxStatus } from "./inbound.schemas";
 
 export interface InboxThreadView {
@@ -26,6 +27,23 @@ export interface InboxThreadView {
   createdAt: string;
   updatedAt: string;
 }
+
+/** What a neighbour sees of their own conversation: no staff-only fields. */
+export interface SupportThreadView {
+  id: string;
+  subject: string;
+  topic: string;
+  status: InboxStatus;
+  startedBy: "user" | "staff";
+  messages: { from: "user" | "staff"; body: string; at: string; by?: string }[];
+  unread: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SupportThreadSummary = Omit<SupportThreadView, "messages"> & {
+  lastMessage?: { from: "user" | "staff"; body: string; at: string };
+};
 
 export interface SignupEntry {
   id: string;
@@ -58,6 +76,7 @@ export class InboundService {
     private readonly notifications: NotificationsService,
     private readonly audit: AuditService,
     private readonly config: ConfigService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   // ── Neighbours (signed in) ─────────────────────────────────────────────────
@@ -86,8 +105,75 @@ export class InboundService {
       email: viewer.email,
       priority: dto.topic === "safety" ? "high" : "normal",
       messages: [{ from: "user", body: dto.message, at: new Date() }],
+      userReadAt: new Date(),
     });
+    this.realtime.toStaff("inbox.updated", { threadId: String(doc._id) });
     return { id: String(doc._id), status: "received" };
+  }
+
+  // ── A neighbour's own support conversations (contract §18) ───────────────
+
+  /** Threads a neighbour opened in the app, or staff opened with them. */
+  private mine(viewer: Viewer): QueryFilter<InboundMessage> {
+    return { uid: viewer.uid, source: { $in: ["in_app", "staff"] } };
+  }
+
+  async myThreads(viewer: Viewer): Promise<SupportThreadSummary[]> {
+    const rows = await this.inbound.find(this.mine(viewer)).sort({ updatedAt: -1 }).limit(50).lean<Row[]>().exec();
+    return rows.map((r) => {
+      const { messages, ...rest } = toSupportView(r);
+      const last = messages[messages.length - 1];
+      return { ...rest, lastMessage: last && { from: last.from, body: last.body.slice(0, 200), at: last.at } };
+    });
+  }
+
+  /** Opens the thread (marks it read). Someone else's thread looks like it doesn't exist. */
+  async myThread(viewer: Viewer, id: string): Promise<SupportThreadView> {
+    const row = await this.loadMine(viewer, id);
+    const view = toSupportView(row);
+    if (view.unread) {
+      await this.inbound.updateOne({ _id: id }, { $set: { userReadAt: new Date() } }, { timestamps: false }).exec();
+      this.realtime.toUser(viewer.uid, "unread.changed");
+    }
+    return { ...view, unread: false };
+  }
+
+  /** The neighbour replies. This reopens a resolved thread and puts it back in "Needs a reply". */
+  async userReply(viewer: Viewer, id: string, body: string): Promise<SupportThreadView> {
+    await this.loadMine(viewer, id);
+    const text = body.trim();
+    if (!text) throw new BadRequestException("Write a message first.");
+    const at = new Date();
+    await this.inbound.updateOne({ _id: id }, { $push: { messages: { from: "user", body: text, at } }, $set: { status: "open", userReadAt: at } }).exec();
+    this.realtime.toStaff("inbox.updated", { threadId: id });
+    this.realtime.toUser(viewer.uid, "support.message", { threadId: id }); // their other tabs
+    return this.myThread(viewer, id);
+  }
+
+  /** The neighbour is typing in their conversation → staff watching it see "… is typing". */
+  async userTyping(viewer: Viewer, id: string): Promise<void> {
+    if (!this.realtime.gate(`support-typing:${viewer.uid}:${id}`, TYPING_SIGNAL_MS)) return;
+    await this.loadMine(viewer, id);
+    this.realtime.toStaff("support.typing", { threadId: id });
+  }
+
+  /** A team member is typing a reply → the neighbour sees "myHoodora team is typing". */
+  async staffTyping(actor: Viewer, id: string): Promise<void> {
+    if (!this.realtime.gate(`support-typing:${actor.uid}:${id}`, TYPING_SIGNAL_MS)) return;
+    const row = Types.ObjectId.isValid(id) ? await this.inbound.findById(id).select({ uid: 1 }).lean<Pick<Row, "uid">>().exec() : null;
+    if (!row) throw new NotFoundException("Conversation not found.");
+    if (row.uid) this.realtime.toUser(row.uid, "support.typing", { threadId: id });
+  }
+
+  async myUnreadCount(viewer: Viewer): Promise<{ count: number }> {
+    const rows = await this.inbound.find(this.mine(viewer)).select({ messages: 1, userReadAt: 1 }).lean<Row[]>().exec();
+    return { count: rows.filter((r) => isUnread(r)).length };
+  }
+
+  private async loadMine(viewer: Viewer, id: string): Promise<Row> {
+    const row = Types.ObjectId.isValid(id) ? await this.inbound.findOne({ _id: id, ...this.mine(viewer) }).lean<Row>().exec() : null;
+    if (!row) throw new NotFoundException("Conversation not found.");
+    return row;
   }
 
   // ── Public forms ───────────────────────────────────────────────────────────
@@ -213,24 +299,66 @@ export class InboundService {
       .updateOne({ _id: id }, { $push: { messages: { from: "staff", body, at, by: actor.displayName ?? "myHoodora team" } }, $set: { status: resolve ? "resolved" : "waiting" } })
       .exec();
     await this.audit.record(actor, "inbox_reply", { type: "inbox", id, label: thread.subject });
-    if (thread.from.uid) {
-      await this.notifications.notify({ uids: [thread.from.uid], type: "system", title: "The myHoodora team replied", body: body.slice(0, 140), href: "/help" });
-    }
-    if (thread.from.email) {
-      await this.comms.sendEmail({
-        uid: thread.from.uid,
-        to: thread.from.email,
-        type: "inbox_reply",
-        email: messageEmail({
-          subject: `Re: ${thread.subject}`,
-          name: thread.from.name,
-          paragraphs: [body, "Reply to this email if you need anything else."],
-          footer: thread.from.uid ? undefined : PUBLIC_FOOTER,
-        }),
-        idempotencyKey: `inbox-reply:${id}:${at.getTime()}`,
+    await this.tellRequester(thread, body, at, "reply");
+    return this.get(id);
+  }
+
+  /** Staff start a conversation with one neighbour (contract §18). */
+  async startConversation(actor: Viewer, dto: StartInboxConversationDto): Promise<InboxThreadView> {
+    const person = await this.users.findOne({ uid: dto.uid }).select({ uid: 1, email: 1, displayName: 1 }).lean<User>().exec();
+    if (!person) throw new NotFoundException("Neighbour not found.");
+    const at = new Date();
+    const doc = await this.inbound.create({
+      source: "staff",
+      kind: "other",
+      subject: dto.subject.trim(),
+      uid: person.uid,
+      name: person.displayName,
+      email: person.email,
+      status: "waiting",
+      assignee: { uid: actor.uid, displayName: actor.displayName ?? "Staff" },
+      messages: [{ from: "staff", body: dto.body.trim(), at, by: actor.displayName ?? "myHoodora team" }],
+    });
+    const id = String(doc._id);
+    await this.audit.record(actor, "inbox_start", { type: "inbox", id, label: dto.subject.trim() });
+    const thread = await this.get(id);
+    await this.tellRequester(thread, dto.body.trim(), at, "start");
+    return thread;
+  }
+
+  /**
+   * One way to reach the person behind a thread (DRY for reply and start):
+   * live update + in-app notification if they have an account, and an email
+   * that sends app users back to the conversation, where replies are read.
+   */
+  private async tellRequester(thread: InboxThreadView, body: string, at: Date, kind: "reply" | "start"): Promise<void> {
+    const { id, from, subject } = thread;
+    this.realtime.toStaff("inbox.updated", { threadId: id });
+    if (from.uid) {
+      this.realtime.toUser(from.uid, "support.message", { threadId: id });
+      await this.notifications.notify({
+        uids: [from.uid],
+        type: "system",
+        title: kind === "start" ? "A message from the myHoodora team" : "The myHoodora team replied",
+        body: body.slice(0, 140),
+        href: `/inbox/support/${id}`,
       });
     }
-    return this.get(id);
+    if (from.email) {
+      await this.comms.sendEmail({
+        uid: from.uid,
+        to: from.email,
+        type: "inbox_reply",
+        email: messageEmail({
+          subject: kind === "start" ? subject : `Re: ${subject}`,
+          name: from.name,
+          paragraphs: [body, from.uid ? "Reply in the app so the whole conversation stays in one place." : "Reply to this email if you need anything else."],
+          cta: from.uid ? { href: `${this.config.get<string>("appUrl")}/inbox/support/${id}`, label: "Open the conversation" } : undefined,
+          footer: from.uid ? undefined : PUBLIC_FOOTER,
+        }),
+        idempotencyKey: `inbox-${kind}:${id}:${at.getTime()}`,
+      });
+    }
   }
 
   async update(actor: Viewer, id: string, dto: InboxUpdateDto): Promise<InboxThreadView> {
@@ -245,7 +373,11 @@ export class InboundService {
       set.assignee = { uid: staff.uid, displayName: staff.displayName ?? "Staff" };
     }
     await this.inbound.updateOne({ _id: id }, { $set: set }).exec();
-    return this.get(id);
+    this.realtime.toStaff("inbox.updated", { threadId: id });
+    // Resolving (or reopening) shows on the neighbour's side too.
+    const thread = await this.get(id);
+    if (dto.status && thread.from.uid) this.realtime.toUser(thread.from.uid, "support.message", { threadId: id });
+    return thread;
   }
 
   async signups(type: "ai_pilot" | "talent"): Promise<SignupEntry[]> {
@@ -295,4 +427,23 @@ export class InboundService {
       };
     });
   }
+}
+
+function isUnread(r: Pick<Row, "messages" | "userReadAt">): boolean {
+  const lastStaff = [...(r.messages ?? [])].reverse().find((m) => m.from === "staff");
+  return Boolean(lastStaff && (!r.userReadAt || new Date(lastStaff.at) > new Date(r.userReadAt)));
+}
+
+function toSupportView(r: Row): SupportThreadView {
+  return {
+    id: String(r._id),
+    subject: r.subject ?? `${titleCase(r.kind)} help request`,
+    topic: r.kind,
+    status: r.status,
+    startedBy: r.source === "staff" ? "staff" : "user",
+    messages: (r.messages ?? []).map((m) => ({ from: m.from, body: m.body, at: new Date(m.at).toISOString(), by: m.from === "staff" ? m.by : undefined })),
+    unread: isUnread(r),
+    createdAt: (r.createdAt ?? new Date()).toISOString(),
+    updatedAt: (r.updatedAt ?? new Date()).toISOString(),
+  };
 }

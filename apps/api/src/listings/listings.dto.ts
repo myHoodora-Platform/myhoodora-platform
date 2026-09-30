@@ -5,10 +5,15 @@ import { LISTING_CATEGORIES, LISTING_CONDITIONS, LISTING_STATUSES, type ListingC
 
 export class CreateListingDto {
   /** Must be your own Hood if sent. */
+  /**
+   * @example Office chair, barely used
+   */
   @IsOptional() @IsMongoId() neighborhoodId?: string;
   @IsString() @Length(3, 80) title!: string;
   @IsOptional() @IsString() @MaxLength(1500) description?: string;
-  /** Naira, whole numbers; null = free. */
+  /** Naira, whole numbers; null = free.
+   * @example 25000
+   */
   @ValidateIf((_o, v) => v !== null) @IsInt() @Min(1) @Max(1_000_000_000) priceNaira!: number | null;
   @IsOptional() @IsBoolean() negotiable?: boolean;
   @IsIn(LISTING_CATEGORIES) category!: ListingCategory;

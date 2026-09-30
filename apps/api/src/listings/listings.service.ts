@@ -3,6 +3,7 @@ import { InjectModel } from "@nestjs/mongoose";
 import { Model, Types, type QueryFilter } from "mongoose";
 import { HoodsService } from "../hoods/hoods.service";
 import { ModerationRegistry } from "../moderation/moderation-registry";
+import { RealtimeService } from "../realtime/realtime.service";
 import type { Viewer } from "../shared/auth/viewer";
 import { searchRegex, type Page, type PageQuery } from "../shared/http/pagination";
 import { UsersService } from "../users/users.service";
@@ -50,6 +51,7 @@ export class ListingsService implements OnModuleInit {
     private readonly users: UsersService,
     private readonly hoods: HoodsService,
     private readonly registry: ModerationRegistry,
+    private readonly realtime: RealtimeService,
   ) {}
 
   onModuleInit() {
@@ -70,6 +72,10 @@ export class ListingsService implements OnModuleInit {
       },
       setRemoved: async (id, removed, _actor, session) => {
         await this.listings.updateOne({ _id: id }, { $set: { removedAt: removed ? new Date() : null } }, { session }).exec();
+      },
+      announce: async (id) => {
+        const l = await this.findRaw(id);
+        if (l) this.realtime.toHood(l.neighborhoodId, "listing.updated", { id });
       },
     });
   }
@@ -136,6 +142,7 @@ export class ListingsService implements OnModuleInit {
       condition: dto.condition,
       photos: dto.photos,
     });
+    this.realtime.toHood(hoodId, "listing.created", { id: String(doc._id) });
     return (await this.toViews([doc.toObject() as Row]))[0]!;
   }
 
@@ -144,6 +151,7 @@ export class ListingsService implements OnModuleInit {
     if (l.sellerUid !== viewer.uid) throw new ForbiddenException("Only the seller can change this listing.");
     if (l.removedAt) throw new BadRequestException("This listing was removed by our team.");
     const updated = await this.listings.findByIdAndUpdate(id, { $set: { status } }, { returnDocument: "after" }).lean<Row>().exec();
+    this.realtime.toHood(l.neighborhoodId, "listing.updated", { id });
     return (await this.toViews([updated!]))[0]!;
   }
 
@@ -151,6 +159,7 @@ export class ListingsService implements OnModuleInit {
     const l = await this.loadVisible(viewer, id);
     if (l.sellerUid !== viewer.uid) throw new ForbiddenException("Only the seller can delete this listing.");
     await this.listings.updateOne({ _id: id }, { $set: { deletedAt: new Date() } }).exec();
+    this.realtime.toHood(l.neighborhoodId, "listing.updated", { id });
   }
 
   private async toViews(rows: Row[]): Promise<ListingView[]> {

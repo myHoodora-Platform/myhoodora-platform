@@ -6,6 +6,7 @@ import { NotificationsService } from "../notifications/notifications.service";
 import { PostsService } from "../posts/posts.service";
 import type { Viewer } from "../shared/auth/viewer";
 import { withTransaction } from "../shared/db/transaction";
+import { RealtimeService } from "../realtime/realtime.service";
 import { UsersService } from "../users/users.service";
 import { Comment, CommentDocument } from "./comment.schema";
 
@@ -28,6 +29,7 @@ export class CommentsService implements OnModuleInit {
     private readonly users: UsersService,
     private readonly notifications: NotificationsService,
     private readonly registry: ModerationRegistry,
+    private readonly realtime: RealtimeService,
   ) {}
 
   onModuleInit() {
@@ -53,6 +55,11 @@ export class CommentsService implements OnModuleInit {
         c.removedAt = removed ? new Date() : null;
         await c.save({ session });
         if (!c.deletedAt) await this.posts.incCommentCount(c.postId, removed ? -1 : 1, session);
+      },
+      announce: async (id) => {
+        const c = Types.ObjectId.isValid(id) ? await this.comments.findById(id).lean<Comment>().exec() : null;
+        const post = c ? await this.posts.findRaw(c.postId) : null;
+        if (c && post) this.announce(post, c.removedAt || c.deletedAt ? "comment.deleted" : "comment.created", id);
       },
     });
   }
@@ -88,6 +95,7 @@ export class CommentsService implements OnModuleInit {
       href: `/p/${postId}`,
       category: "comments",
     });
+    this.announce(post, "comment.created", String(created._id));
     return (await this.toViews([created.toObject()]))[0]!;
   }
 
@@ -95,13 +103,20 @@ export class CommentsService implements OnModuleInit {
   async delete(viewer: Viewer, id: string): Promise<void> {
     const c = Types.ObjectId.isValid(id) ? await this.comments.findById(id).exec() : null;
     if (!c || c.deletedAt) throw new NotFoundException("Comment not found.");
-    await this.posts.loadVisible(viewer, c.postId);
+    const post = await this.posts.loadVisible(viewer, c.postId);
     if (c.authorUid !== viewer.uid && !viewer.capabilities.includes("moderation.act")) throw new ForbiddenException("You can only delete your own comments.");
     await withTransaction(this.connection, async (session) => {
       c.deletedAt = new Date();
       await c.save({ session });
       if (!c.removedAt) await this.posts.incCommentCount(c.postId, -1, session);
     });
+    this.announce(post, "comment.deleted", id);
+  }
+
+  /** Live update for the post's thread, and its comment count on feed cards. */
+  private announce(post: { _id: unknown; neighborhoodId?: string | null }, type: "comment.created" | "comment.deleted", id: string): void {
+    this.realtime.toHood(post.neighborhoodId, type, { id, postId: String(post._id) });
+    this.posts.changed(post);
   }
 
   /** For admin post detail (includes removed). */

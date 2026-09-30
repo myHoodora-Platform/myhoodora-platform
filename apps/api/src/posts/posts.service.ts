@@ -6,6 +6,7 @@ import { ModerationRegistry } from "../moderation/moderation-registry";
 import { NotificationsService } from "../notifications/notifications.service";
 import { URGENT_WINDOW_HOURS, type AlertCategory } from "../platform/platform-settings.schema";
 import { PlatformSettingsService } from "../platform/platform-settings.service";
+import { RealtimeService } from "../realtime/realtime.service";
 import type { Viewer } from "../shared/auth/viewer";
 import { UsersService } from "../users/users.service";
 import { decodePostContent, encodePostContent, postTypeFor, type PostMeta } from "./domain/post-meta";
@@ -68,6 +69,7 @@ export class PostsService implements OnModuleInit {
     private readonly settings: PlatformSettingsService,
     private readonly notifications: NotificationsService,
     private readonly registry: ModerationRegistry,
+    private readonly realtime: RealtimeService,
   ) {}
 
   onModuleInit() {
@@ -88,6 +90,7 @@ export class PostsService implements OnModuleInit {
         };
       },
       setRemoved: (id, removed, actorUid, session) => this.setRemoved(id, removed, actorUid, session),
+      announce: (id) => this.announce(id),
     });
   }
 
@@ -165,6 +168,7 @@ export class PostsService implements OnModuleInit {
     });
 
     if (meta.category === "alert") await this.notifyAlert(viewer, doc, message, Boolean(meta.urgent));
+    this.realtime.toHood(viewer.hoodId, "post.created", { id: String(doc._id) });
     return (await this.toViews([doc.toObject()], viewer))[0]!;
   }
 
@@ -265,6 +269,7 @@ export class PostsService implements OnModuleInit {
     const p = await this.loadVisible(viewer, id);
     if (p.authorUid !== viewer.uid) throw new ForbiddenException("You can only delete your own posts.");
     await this.posts.updateOne({ _id: p._id }, { $set: { isActive: false } }).exec();
+    this.realtime.toHood(p.neighborhoodId, "post.deleted", { id });
   }
 
   /** PATCH /posts/:id/alert — author or staff (Hood Leads in a later phase). */
@@ -274,6 +279,7 @@ export class PostsService implements OnModuleInit {
     if (p.authorUid !== viewer.uid && !viewer.capabilities.includes("moderation.act")) throw new ForbiddenException("Only the person who posted it can mark it resolved.");
     const resolvedAt = resolved ? new Date() : null;
     await this.posts.updateOne({ _id: p._id }, { $set: { resolvedAt, resolvedBy: resolved ? viewer.uid : undefined } }).exec();
+    this.changed(p);
     return { resolvedAt: resolvedAt?.toISOString() ?? null };
   }
 
@@ -282,12 +288,29 @@ export class PostsService implements OnModuleInit {
     const set = action === "end" ? { resolvedAt: new Date(), resolvedBy: actorUid } : { urgent: false };
     const res = await this.posts.updateOne({ _id: id, category: "alert" }, { $set: set }).exec();
     if (!res.matchedCount) throw new NotFoundException("Alert not found.");
+    await this.announce(id);
   }
 
   async setRemoved(id: string, removed: boolean, actorUid: string, session?: ClientSession): Promise<void> {
     await this.posts
       .updateOne({ _id: id }, removed ? { $set: { removedAt: new Date(), removedBy: actorUid } } : { $set: { removedAt: null }, $unset: { removedBy: 1 } }, { session })
       .exec();
+  }
+
+  /**
+   * Live update: something about this post changed (reactions, votes, RSVPs,
+   * comment count, alert state). Coalesced, so a burst refetches once.
+   */
+  changed(post: { _id: unknown; neighborhoodId?: string | null }): void {
+    this.realtime.toHoodCoalesced(post.neighborhoodId, "post.updated", { id: String(post._id) });
+  }
+
+  /** Live update after a change made without the post in hand (staff actions, moderation). */
+  async announce(id: string): Promise<void> {
+    const p = await this.findRaw(id);
+    if (!p) return;
+    if (!p.isActive || p.removedAt) this.realtime.toHood(p.neighborhoodId, "post.deleted", { id });
+    else this.changed(p);
   }
 
   incCommentCount(id: string, by: 1 | -1, session?: ClientSession) {

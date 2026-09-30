@@ -111,7 +111,13 @@ export async function apiFetch<T>(
   }
   if (response.status === 204) return undefined as T;
   const text = await response.text();
-  return (text ? JSON.parse(text) : undefined) as T;
+  try {
+    return (text ? JSON.parse(text) : undefined) as T;
+  } catch {
+    // A 2xx that isn't JSON (a proxy's HTML error page, a truncated body) is
+    // a server fault, not something the caller should have to special-case.
+    throw new ApiError(FRIENDLY_MESSAGES.server, response.status, "server");
+  }
 }
 
 /**

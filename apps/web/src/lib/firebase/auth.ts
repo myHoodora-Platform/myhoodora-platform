@@ -9,10 +9,15 @@ import {
   type User,
 } from "firebase/auth";
 import { auth } from "./config";
-import { API_BASE_URL, USE_MOCKS } from "@/lib/api/config";
+import { USE_MOCKS, isLive } from "@/lib/api/config";
+import { ApiError, FRIENDLY_MESSAGES, apiFetch } from "@/lib/api/client";
+import type { NearbyHood, VerifyLocationResult } from "@/lib/api/types";
+import { distanceMeters } from "@/lib/geo";
 import { load, save } from "@/lib/api/mock/store";
-import { MOCK_NEIGHBORHOOD } from "@/lib/api/mock/seed";
+import { MOCK_HOOD_RADIUS_M, MOCK_NEARBY_HOODS, MOCK_NEARBY_LIMIT_M, MOCK_NEIGHBORHOOD } from "@/lib/api/mock/seed";
 import { hasSkippedOnboarding } from "@/features/onboarding/draft";
+import { isStaff } from "@/lib/auth/profile";
+import { DEFAULT_APP_ROUTE, ROUTES } from "@/lib/routes";
 
 // ── Mock mode (NEXT_PUBLIC_USE_MOCKS=true) ──────────────────────────────────
 // Firebase sign-in stays real; everything our API would return is served
@@ -40,49 +45,42 @@ function updateMockProfile(user: User, patch: Record<string, unknown>) {
 }
 
 /**
- * Syncs the Firebase user profile to the NestJS backend DB.
- * Automatically called on successful sign-in/registration.
- */
-export async function syncUserProfile(user: User): Promise<unknown> {
-  if (USE_MOCKS) return mockProfile(user);
-  const token = await user.getIdToken();
-  const response = await fetch(`${API_BASE_URL}/users/me`, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(errorText || "Failed to sync user profile with backend.");
-  }
-
-  return response.json();
-}
-
-/**
  * Where to send someone right after they sign in: straight to onboarding
  * until they've finished it (Nextdoor-style), unless they already chose
  * "Skip for now" for limited access.
+ *
+ * Staff who aren't residents (no onboarding) skip it and go where they were
+ * headed, or to the admin when they just opened /login. Staff who are also
+ * onboarded residents land like everyone else.
+ *
+ * GET /users/me also creates the account on first sign-in. If it fails, the
+ * person is still signed in, so send them on to `fallback`: the app shell
+ * shows a "couldn't load your account" state with Retry, rather than guessing
+ * they're new and sending them through onboarding.
  */
 export async function routeAfterSignIn(user: User, fallback: string): Promise<string> {
   try {
-    const profile = (await syncUserProfile(user)) as { isOnboarded?: boolean } | null;
-    if (profile && !profile.isOnboarded && !hasSkippedOnboarding(user.uid)) return "/onboarding";
-  } catch {
-    // Profile unavailable: carry on; the app shell re-checks once it loads.
+    const profile = (await fetchUserProfile(user)) as { isOnboarded?: boolean; role?: string } | null;
+    if (profile && profile.isOnboarded === false) {
+      if (isStaff(profile.role)) return fallback === DEFAULT_APP_ROUTE ? ROUTES.admin : fallback;
+      if (!hasSkippedOnboarding(user.uid)) return ROUTES.onboarding;
+    }
+  } catch (err) {
+    console.error("Couldn't load profile after sign-in:", err);
   }
   return fallback;
 }
+
+// The helpers below only talk to Firebase. Loading the profile is a separate
+// step (routeAfterSignIn / AuthProvider): once Firebase has signed someone in
+// they *are* signed in, so a profile hiccup must not be reported as a failed
+// sign-in (retrying would then say "account already exists").
 
 export async function signInUser(
   email: string,
   password: string,
 ): Promise<User> {
   const credential = await signInWithEmailAndPassword(auth, email, password);
-  await syncUserProfile(credential.user);
   return credential.user;
 }
 
@@ -95,7 +93,6 @@ export async function signUpUser(
     email,
     password,
   );
-  await syncUserProfile(credential.user);
   return credential.user;
 }
 
@@ -116,14 +113,12 @@ export async function resetUserPassword(email: string): Promise<void> {
 export async function signInWithGoogle(): Promise<User> {
   const provider = new GoogleAuthProvider();
   const credential = await signInWithPopup(auth, provider);
-  await syncUserProfile(credential.user);
   return credential.user;
 }
 
 export async function signInWithApple(): Promise<User> {
   const provider = new OAuthProvider("apple.com");
   const credential = await signInWithPopup(auth, provider);
-  await syncUserProfile(credential.user);
   return credential.user;
 }
 
@@ -133,52 +128,74 @@ export async function logoutUser(): Promise<void> {
 
 export async function fetchUserProfile(user: User): Promise<unknown> {
   if (USE_MOCKS) return mockProfile(user);
-  const token = await user.getIdToken();
-  const response = await fetch(`${API_BASE_URL}/users/me`, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-  });
+  return apiFetch<unknown>(user, "/users/me");
+}
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(errorText || "Failed to fetch user profile.");
-  }
-
-  return response.json();
+/** Mock of the API's nearby-Hood search: open Hoods close to a point, nearest first. */
+function mockNearbyHoods(point: { lat: number; lng: number }): NearbyHood[] {
+  return MOCK_NEARBY_HOODS.map((h) => ({ id: h.id, name: h.name, city: h.city, distanceMeters: Math.round(distanceMeters(point, h)) }))
+    .filter((h) => h.distanceMeters <= MOCK_NEARBY_LIMIT_M)
+    .sort((a, b) => a.distanceMeters - b.distanceMeters)
+    .slice(0, 3);
 }
 
 export async function verifyLocationApi(
   user: User,
   coords: { lat: number; lng: number },
-): Promise<{
-  verificationStatus: string;
-  neighborhoodId?: string;
-  distanceMeters?: number;
-  reason?: string;
-}> {
+): Promise<VerifyLocationResult> {
   if (USE_MOCKS) {
-    updateMockProfile(user, { verificationStatus: "verified", neighborhoodId: MOCK_NEIGHBORHOOD._id, location: coords });
-    return { verificationStatus: "verified", neighborhoodId: MOCK_NEIGHBORHOOD._id, distanceMeters: 120 };
+    const lekki = MOCK_NEARBY_HOODS[0]!;
+    const toLekki = Math.round(distanceMeters(coords, lekki));
+    if (toLekki <= MOCK_HOOD_RADIUS_M) {
+      updateMockProfile(user, { verificationStatus: "verified", neighborhoodId: MOCK_NEIGHBORHOOD._id, location: coords, lastKnownLocation: coords, requestedHood: null });
+      return { verificationStatus: "verified", neighborhoodId: MOCK_NEIGHBORHOOD._id, distanceMeters: toLekki };
+    }
+    const current = mockProfile(user);
+    updateMockProfile(user, { lastKnownLocation: coords });
+    return {
+      verificationStatus: current.verificationStatus === "verified" ? "verified" : "unverified",
+      reason: "outside_coverage",
+      nearbyHoods: mockNearbyHoods(coords),
+    };
   }
-  const token = await user.getIdToken();
-  const response = await fetch(`${API_BASE_URL}/users/me/verify-location`, {
+  return apiFetch(user, "/users/me/verify-location", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ lng: coords.lng, lat: coords.lat }),
+    json: { lng: coords.lng, lat: coords.lat },
   });
+}
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(errorText || "Failed to verify location on server.");
+/**
+ * Ask to join a Hood near (but not covering) your address. Staff approve it
+ * from the verification queue; until then you're "pending_review". Returns
+ * the updated profile. Contract §16.
+ */
+export async function requestHoodApi(user: User, hoodId: string): Promise<unknown> {
+  if (isLive("users.hoodRequest")) {
+    return apiFetch<unknown>(user, "/users/me/hood-request", { method: "POST", json: { hoodId } });
   }
+  // Same rules the API enforces: only an offered Hood, never once verified.
+  const current = mockProfile(user) as { verificationStatus?: string; lastKnownLocation?: { lat: number; lng: number } };
+  if (current.verificationStatus === "verified") {
+    throw new ApiError("You're already a verified neighbour.", 409, "client");
+  }
+  const hood = current.lastKnownLocation ? mockNearbyHoods(current.lastKnownLocation).find((h) => h.id === hoodId) : undefined;
+  if (!hood) throw new ApiError("That neighbourhood isn't near your address.", 400, "client");
+  return updateMockProfile(user, {
+    verificationStatus: "pending_review",
+    requestedHood: { id: hood.id, name: hood.name, requestedAt: new Date().toISOString() },
+  });
+}
 
-  return response.json();
+/** Withdraw a pending join request. Returns the updated profile. */
+export async function cancelHoodRequestApi(user: User): Promise<unknown> {
+  if (isLive("users.hoodRequest")) {
+    return apiFetch<unknown>(user, "/users/me/hood-request", { method: "DELETE" });
+  }
+  const current = mockProfile(user) as { verificationStatus?: string };
+  if (current.verificationStatus !== "pending_review") {
+    throw new ApiError(FRIENDLY_MESSAGES.client, 409, "client");
+  }
+  return updateMockProfile(user, { verificationStatus: "unverified", requestedHood: null });
 }
 
 export async function updateProfileApi(
@@ -186,39 +203,14 @@ export async function updateProfileApi(
   payload: { displayName?: string },
 ): Promise<unknown> {
   if (USE_MOCKS) return updateMockProfile(user, payload);
-  const token = await user.getIdToken();
-  const response = await fetch(`${API_BASE_URL}/users/me`, {
-    method: "PATCH",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(errorText || "Failed to update profile on server.");
-  }
-
-  return response.json();
+  return apiFetch<unknown>(user, "/users/me", { method: "PATCH", json: payload });
 }
 
 // Revokes the user's Firebase refresh tokens server-side. Must be called
 // with a still-valid bearer token, before signOut() discards it.
 export async function revokeBackendSession(user: User): Promise<void> {
   if (USE_MOCKS) return;
-  const token = await user.getIdToken();
-  const response = await fetch(`${API_BASE_URL}/auth/logout`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to revoke session on server: ${response.status}`);
-  }
+  await apiFetch<void>(user, "/auth/logout", { method: "POST" });
 }
 
 export interface NeighborhoodSummary {
@@ -240,20 +232,12 @@ export async function fetchNeighborhood(
   neighborhoodId: string,
 ): Promise<NeighborhoodSummary | null> {
   if (USE_MOCKS) return neighborhoodId === MOCK_NEIGHBORHOOD._id ? MOCK_NEIGHBORHOOD : null;
-  const token = await user.getIdToken();
-  const response = await fetch(`${API_BASE_URL}/neighborhoods/${neighborhoodId}`, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (response.status === 404) return null;
-  if (!response.ok) {
-    throw new Error(`Failed to fetch neighborhood: ${response.status}`);
+  try {
+    return await apiFetch<NeighborhoodSummary>(user, `/neighborhoods/${neighborhoodId}`);
+  } catch (err) {
+    if (err instanceof ApiError && err.kind === "not_found") return null;
+    throw err;
   }
-
-  return response.json();
 }
 
 export async function completeOnboardingApi(
@@ -264,20 +248,5 @@ export async function completeOnboardingApi(
   },
 ): Promise<unknown> {
   if (USE_MOCKS) return updateMockProfile(user, { ...payload, isOnboarded: true });
-  const token = await user.getIdToken();
-  const response = await fetch(`${API_BASE_URL}/users/me/onboarding`, {
-    method: "PATCH",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(errorText || "Failed to complete onboarding on server.");
-  }
-
-  return response.json();
+  return apiFetch<unknown>(user, "/users/me/onboarding", { method: "PATCH", json: payload });
 }

@@ -11,6 +11,7 @@ import { EmptyState, ErrorState, PageHeader, PreviewNotice } from "@/components/
 import { useAuth } from "@/context/AuthContext";
 import { listListings } from "@/lib/api/listings";
 import { errorMessage } from "@/lib/api/client";
+import { useRealtime, useRealtimeResync } from "@/lib/realtime/use-realtime";
 import { ROUTES } from "@/lib/routes";
 import type { Listing, ListingCategory } from "@/lib/api/types";
 import { LISTING_CATEGORIES } from "./constants";
@@ -38,10 +39,13 @@ export function ForSalePage() {
   const [listings, setListings] = useState<Listing[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  /** `quiet`: a live refresh keeps the grid on screen instead of flashing skeletons. */
+  const load = useCallback(async (quiet = false) => {
     if (!user || !profile?.neighborhoodId) return;
-    setError(null);
-    setListings(null);
+    if (!quiet) {
+      setError(null);
+      setListings(null);
+    }
     try {
       setListings(
         await listListings(user, profile.neighborhoodId, {
@@ -51,13 +55,17 @@ export function ForSalePage() {
         }),
       );
     } catch (err) {
-      setError(errorMessage(err, "Couldn't load listings."));
+      if (!quiet) setError(errorMessage(err, "Couldn't load listings."));
     }
   }, [user, profile?.neighborhoodId, filter]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Live: neighbours' new, sold or removed items show up without a reload.
+  useRealtime(["listing.created", "listing.updated"], () => void load(true));
+  useRealtimeResync(() => void load(true));
 
   const setSelling = (open: boolean) => {
     const next = new URLSearchParams(params);
@@ -122,7 +130,10 @@ export function ForSalePage() {
       >
         <ListingForm
           onCancel={() => setSelling(false)}
-          onDone={(listing) => router.push(ROUTES.listing(listing._id))}
+          onDone={(listing) => {
+            setSelling(false);
+            router.push(ROUTES.listing(listing._id));
+          }}
         />
       </ResponsiveModal>
     </div>

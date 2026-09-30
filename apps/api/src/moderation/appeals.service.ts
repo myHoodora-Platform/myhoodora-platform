@@ -3,6 +3,7 @@ import { InjectConnection, InjectModel } from "@nestjs/mongoose";
 import { Connection, Model, Types, type QueryFilter } from "mongoose";
 import { AuditService } from "../audit/audit.service";
 import { NotificationsService } from "../notifications/notifications.service";
+import { RealtimeService } from "../realtime/realtime.service";
 import type { Viewer } from "../shared/auth/viewer";
 import { withTransaction } from "../shared/db/transaction";
 import type { Page, PageQuery } from "../shared/http/pagination";
@@ -59,6 +60,7 @@ export class AppealsService {
     private readonly staffUsers: StaffUsersService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   /** Decisions about my content, and outcomes of my reports (last 90 days). */
@@ -165,6 +167,11 @@ export class AppealsService {
       }
       await this.audit.record(actor, outcome === "overturned" ? "appeal_overturned" : "appeal_upheld", { type: kase.targetType, id: kase.targetId, label: `“${kase.preview.slice(0, 60)}”` }, { reason }, session);
     });
+
+    if (outcome === "overturned") {
+      if (action === "remove_content" || action === "keep") await this.registry.announce(kase.targetType, kase.targetId);
+      if ((action === "restrict_author" || action === "suspend_author") && kase.authorUid) this.realtime.toUser(kase.authorUid, "session.changed");
+    }
 
     await this.notifications.notify({
       uids: [appeal.byUid],

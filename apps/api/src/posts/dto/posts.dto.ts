@@ -63,8 +63,18 @@ export class CreatePostDto {
   /** Legacy: message with optional `<!--mh:{…}-->` prefix. */
   @IsOptional() @IsString() @Length(1, 9000) content?: string;
 
+  /**
+
+   * @example Has anyone else lost power on Admiralty Way this evening?
+
+   */
+
   @IsOptional() @IsString() @Length(1, 8192) message?: string;
 
+  /**
+   * ISO 8601 date-time (events).
+   * @example 2026-10-12T16:00:00.000Z
+   */
   @IsOptional() @IsIn(["text", "image", "event", "alert"]) type?: "text" | "image" | "event" | "alert";
   @IsOptional() @IsIn(POST_CATEGORIES) category?: PostCategory;
   @IsOptional() @IsIn(ALERT_CATEGORIES) alertCategory?: string;

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { safeNextPath } from "@/lib/safe-redirect";
+import { isLive } from "@/lib/api/config";
+import { staffVerdict } from "@/lib/auth/staff-gate";
 import {
   DEFAULT_APP_ROUTE,
   isGuestOnlyPath,
@@ -31,6 +33,10 @@ async function hasValidSession(request: NextRequest): Promise<boolean> {
     console.warn("Session verification failed inside proxy interceptor:", err);
     return false;
   }
+}
+
+function isAdminPath(pathname: string): boolean {
+  return pathname === "/admin" || pathname.startsWith("/admin/");
 }
 
 function noStoreRedirect(url: URL): NextResponse {
@@ -74,6 +80,25 @@ export async function proxy(request: NextRequest) {
     const wanted = pathname + request.nextUrl.search;
     if (wanted !== DEFAULT_APP_ROUTE) redirectUrl.searchParams.set("next", wanted);
     return noStoreRedirect(redirectUrl);
+  }
+
+  // Admin portal: staff only. Checked here, before anything renders, so
+  // non-staff get the ordinary 404 page (same body as a made-up URL) and
+  // never receive admin code. The API still authorises every admin call.
+  if (isAdminPath(pathname) && isLive("admin.session")) {
+    const verdict = await staffVerdict(request.cookies.get("__session")!.value);
+    if (verdict === "expired") {
+      return noStoreRedirect(new URL(`/login?next=${encodeURIComponent(pathname + request.nextUrl.search)}`, request.url));
+    }
+    if (verdict === "not_staff") {
+      return NextResponse.rewrite(new URL("/__not-found", request.url), { status: 404 });
+    }
+    // Staff, or the API is unreachable: let the page load. AdminShell
+    // re-checks /admin/me and shows its own error state.
+    const response = NextResponse.next();
+    response.headers.set("Cache-Control", "private, no-store");
+    response.headers.set("X-Robots-Tag", "noindex, nofollow");
+    return response;
   }
 
   // Note: normal pass-through responses intentionally allow the browser's

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ChevronDown, MapPin } from "lucide-react";
 import { Button } from "@myhoodora/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@myhoodora/ui/dropdown-menu";
@@ -32,6 +33,7 @@ const RESULT: Record<string, string> = {
 
 export function NeighbourDetailPage({ uid }: { uid: string }) {
   const { can } = useAdminSession();
+  const router = useRouter();
   const person = useAdminQuery((u) => getNeighbour(u, uid), uid);
   const posts = useAdminQuery((u) => listPosts(u, { authorUid: uid, pageSize: 20 }), `posts-${uid}`);
   const reports = useAdminQuery((u) => listReports(u, { authorUid: uid, status: "all", pageSize: 20 }), `reports-${uid}`);
@@ -86,6 +88,10 @@ export function NeighbourDetailPage({ uid }: { uid: string }) {
                 {n.verificationStatus === "verified" && <DropdownMenuItem onSelect={() => setAction("change_hood")}>Move to another Hood</DropdownMenuItem>}
                 {n.verificationStatus !== "verified" && n.verificationStatus !== "rejected" && can("verification.review") && (
                   <DropdownMenuItem onSelect={() => setAction("reject_verification")}>Reject verification</DropdownMenuItem>
+                )}
+                <DropdownMenuItem onSelect={() => router.push(`/admin/inbox?new=${encodeURIComponent(n.uid)}`)}>Message</DropdownMenuItem>
+                {can("broadcasts.send") && (
+                  <DropdownMenuItem onSelect={() => router.push(`/admin/broadcasts?to=${encodeURIComponent(n.uid)}`)}>Send a notice</DropdownMenuItem>
                 )}
                 <DropdownMenuItem onSelect={() => setAction("warn")}>Send a warning</DropdownMenuItem>
                 <DropdownMenuSeparator />

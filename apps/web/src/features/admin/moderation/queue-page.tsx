@@ -53,7 +53,7 @@ export function QueuePage() {
     q: get("q") || undefined,
     page,
   };
-  const reports = useAdminQuery((u) => listReports(u, query), key);
+  const reports = useAdminQuery((u) => listReports(u, query), key, ["queue.changed"]);
 
   return (
     <div className="space-y-5">

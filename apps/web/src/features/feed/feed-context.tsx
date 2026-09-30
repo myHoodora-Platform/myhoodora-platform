@@ -14,6 +14,7 @@ import * as postsApi from "@/lib/api/posts";
 import { errorKind, errorMessage, type ApiErrorKind } from "@/lib/api/client";
 import type { CreatePostInput, Post, ReactionType } from "@/lib/api/types";
 import { readFeedCache, writeFeedCache } from "./feed-cache";
+import { useRealtime, useRealtimeResync } from "@/lib/realtime/use-realtime";
 
 const PAGE_SIZE = 10;
 /** Returning to the tab after this long quietly refreshes the feed. */
@@ -46,6 +47,12 @@ interface FeedContextValue {
   deletePost: (postId: string) => Promise<void>;
   /** Replace one post in the list (e.g. after the post page refreshes it). */
   upsertPost: (post: Post) => void;
+  /**
+   * Neighbours' new posts that arrived live, held back so the feed doesn't
+   * jump under the reader's thumb. Shown behind a "N new posts" pill.
+   */
+  incoming: Post[];
+  showIncoming: () => void;
 }
 
 const FeedContext = createContext<FeedContextValue | undefined>(undefined);
@@ -182,6 +189,55 @@ export function FeedProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
+  // ── Live updates (docs/api-contract.md §19) ──
+  const [incoming, setIncoming] = useState<Post[]>([]);
+  const incomingRef = useRef<Post[]>([]);
+  incomingRef.current = incoming;
+
+  useEffect(() => setIncoming([]), [user, neighborhoodId]);
+
+  /** Newest page vs. what's on screen: anything unseen (and not ours) is new. */
+  const checkForNew = useCallback(async () => {
+    if (!user || !neighborhoodId) return;
+    const page = await postsApi.listFeed(user, neighborhoodId, { limit: PAGE_SIZE, skip: 0 });
+    const known = new Set([...postsRef.current, ...incomingRef.current].map((p) => p._id));
+    const fresh = page.filter((p) => !known.has(p._id) && p.authorUid !== user.uid);
+    if (!fresh.length) return;
+    // Nothing on screen to push around: just show them.
+    if (postsRef.current.length === 0) setPosts((prev) => mergePage(fresh, prev));
+    else setIncoming((prev) => [...fresh, ...prev]);
+  }, [user, neighborhoodId]);
+
+  const refreshOne = useCallback(
+    async (postId: string) => {
+      if (!user || !neighborhoodId || !postsRef.current.some((p) => p._id === postId)) return;
+      try {
+        const fresh = await postsApi.getPost(user, neighborhoodId, postId);
+        if (fresh) upsertPost(fresh);
+        else setPosts((prev) => prev.filter((p) => p._id !== postId));
+      } catch (err) {
+        // 404: gone for this viewer (deleted, removed, author blocked).
+        if (errorKind(err) === "not_found") setPosts((prev) => prev.filter((p) => p._id !== postId));
+      }
+    },
+    [user, neighborhoodId, upsertPost],
+  );
+
+  useRealtime("post.created", () => void checkForNew().catch(() => undefined));
+  useRealtime("post.updated", (e) => e.id && void refreshOne(e.id));
+  useRealtime("post.deleted", (e) => {
+    if (!e.id) return;
+    setPosts((prev) => prev.filter((p) => p._id !== e.id));
+    setIncoming((prev) => prev.filter((p) => p._id !== e.id));
+  });
+  // After a reconnect, pick up anything posted while we were away.
+  useRealtimeResync(() => void checkForNew().catch(() => undefined));
+
+  const showIncoming = useCallback(() => {
+    setPosts((prev) => mergePage(incomingRef.current, prev));
+    setIncoming([]);
+  }, []);
+
   const react = async (post: Post, type: ReactionType | null) => {
     if (!user) throw new Error("Not signed in.");
     const previous = posts;
@@ -235,6 +291,8 @@ export function FeedProvider({ children }: { children: ReactNode }) {
         react,
         deletePost,
         upsertPost,
+        incoming,
+        showIncoming,
       }}
     >
       {children}

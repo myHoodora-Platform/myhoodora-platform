@@ -14,9 +14,11 @@ import {
 import { resetUserPassword } from "@/lib/firebase/auth";
 import { getAuthErrorMessage } from "@/lib/firebase/errors";
 import { toast } from "sonner";
+import { useRedirectIfSignedIn } from "@/hooks/use-redirect-if-signed-in";
 
 export default function ForgotPasswordPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  useRedirectIfSignedIn();
 
   const {
     register,

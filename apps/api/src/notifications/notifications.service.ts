@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import { CommunicationsService } from "../communications/communications.service";
+import { RealtimeService } from "../realtime/realtime.service";
 import type { RenderedEmail } from "../communications/templates/email-templates";
 import { User, UserDocument } from "../users/schemas/user.schema";
 import type { NotificationCategory } from "../users/domain/preferences";
@@ -45,6 +46,7 @@ export class NotificationsService {
     @InjectModel(Notification.name) private readonly notifications: Model<NotificationDocument>,
     @InjectModel(User.name) private readonly users: Model<UserDocument>,
     private readonly comms: CommunicationsService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   async notify(input: NotifyInput): Promise<number> {
@@ -77,6 +79,8 @@ export class NotificationsService {
         await this.comms.sendEmail({ uid: r.uid, to: r.email, type: input.email!.type, email: input.email!.render(r.displayName), idempotencyKey: input.email!.idempotencyKey(r.uid) });
       }
     }
+    // Every notification in the app goes through here, so they're all live.
+    this.realtime.toUsers(recipients.map((r) => r.uid), "notification.created");
     return recipients.length;
   }
 
@@ -89,11 +93,13 @@ export class NotificationsService {
     // Ownership: the filter includes uid, so another user's id is a 404.
     const row = await this.notifications.findOneAndUpdate({ _id: id, uid }, { $set: { readAt: new Date() } }, { new: true }).lean().exec();
     if (!row) throw new NotFoundException("Notification not found.");
+    this.realtime.toUser(uid, "unread.changed");
     return toApp(row);
   }
 
   async markAllRead(uid: string): Promise<void> {
     await this.notifications.updateMany({ uid, readAt: null }, { $set: { readAt: new Date() } }).exec();
+    this.realtime.toUser(uid, "unread.changed");
   }
 
   async unreadCount(uid: string): Promise<number> {

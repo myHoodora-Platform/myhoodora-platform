@@ -1,10 +1,10 @@
 import { Body, Controller, Get, HttpCode, Param, Patch, Post } from "@nestjs/common";
-import { ApiBearerAuth, ApiTags, ApiOperation } from "@nestjs/swagger";
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Equals, IsBoolean } from "class-validator";
 import { CurrentViewer, type Viewer } from "../shared/auth/viewer";
 import { ParseObjectIdPipe } from "../shared/http/pagination";
 import { NotificationsService } from "./notifications.service";
-import { ApiStandardErrors } from "../shared/http/api-docs";
+import { ApiNotFound, ApiStandardErrors } from "../shared/http/api-docs";
 
 class MarkReadDto {
   @IsBoolean()
@@ -34,6 +34,8 @@ export class NotificationsController {
 
   @Patch(":id")
   @ApiOperation({ summary: "Mark one read" })
+  @ApiOkResponse()
+  @ApiNotFound("Notification")
   markRead(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Body() _body: MarkReadDto) {
     return this.notifications.markRead(viewer.uid, id);
   }

@@ -1,4 +1,5 @@
 import type { User } from "firebase/auth";
+import { distanceMeters as haversine } from "@/lib/geo";
 import { ApiError, apiFetch } from "../client";
 import { isLive } from "../config";
 import { actorOf, adminGet, adminSend, forbidden, mock, notFound } from "./http";
@@ -109,11 +110,15 @@ export async function actOnNeighbour(user: User, uid: string, input: NeighbourAc
     const patch: Partial<NeighbourRecord> = (() => {
       switch (input.action) {
         case "verify":
-          return { verificationStatus: "verified", hoodId: input.hoodId };
+          return { verificationStatus: "verified", hoodId: input.hoodId, requestedHoodId: undefined };
         case "change_hood":
           return { hoodId: input.hoodId };
         case "reject_verification":
-          return { verificationStatus: "rejected" };
+          // Declining a join request isn't a verdict on the person: they go
+          // back to unverified and can try again (contract §16).
+          return target.requestedHoodId
+            ? { verificationStatus: "unverified", requestedHoodId: undefined }
+            : { verificationStatus: "rejected" };
         case "restrict":
           return { accountStatus: "restricted", restrictedUntil: new Date(Date.now() + (input.days ?? 7) * 86_400_000).toISOString() };
         case "suspend":
@@ -139,14 +144,7 @@ export async function bulkNeighbours(user: User, uids: string[], input: Neighbou
 
 // ── Verification ────────────────────────────────────────────────────────────
 
-function distanceMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
-  const R = 6_371_000;
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(b.lat - a.lat);
-  const dLng = toRad(b.lng - a.lng);
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
-  return Math.round(2 * R * Math.asin(Math.sqrt(h)));
-}
+const distanceMeters = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => Math.round(haversine(a, b));
 
 /** live: GET /admin/verification */
 export async function listVerification(user: User, query: ListQuery & { status?: "pending_review" | "failed" } = {}): Promise<Page<VerificationCase>> {
@@ -171,6 +169,10 @@ export async function listVerification(user: User, query: ListQuery & { status?:
           attempts: n.attempts.length,
           lastError: last && last.result !== "matched" ? last.result : undefined,
           status: n.verificationStatus === "pending_review" ? "pending_review" : "failed",
+          requestedHood: (() => {
+            const h = n.requestedHoodId ? hoods().find((x) => x.id === n.requestedHoodId) : undefined;
+            return h ? { id: h.id, name: h.name } : undefined;
+          })(),
         };
       })
       .filter((c) => !query.status || c.status === query.status)

@@ -24,7 +24,10 @@
     "MAIL_REPLY_TO",
     "TEST_MONGO_URI",
     "MONGO_AUTO_INDEX",
-    "SWAGGER_ENABLED"
+    "SWAGGER_ENABLED",
+    "REDIS_URL",
+    "REALTIME_BUS",
+    "REALTIME_ENV"
   ],
   "ui": "tui",
   "tasks": {

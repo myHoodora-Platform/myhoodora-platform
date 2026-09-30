@@ -1,4 +1,4 @@
-import { Ban, CheckCircle2, CircleDot, Eye, Flag, MailCheck, Megaphone, ShieldAlert, ShieldCheck, Trash2, Undo2, UserCog } from "lucide-react";
+import { Ban, CheckCircle2, CircleDot, Eye, Flag, MailCheck, Megaphone, MessageSquarePlus, ShieldAlert, ShieldCheck, Trash2, Undo2, UserCog } from "lucide-react";
 import type { AuditAction, AuditEvent } from "@/lib/api/admin/types";
 import { dateTimeLabel, timeAgo } from "./format";
 
@@ -29,6 +29,7 @@ const VERB: Partial<Record<AuditAction, string>> = {
   alert_end: "ended the alert",
   alert_downgrade: "downgraded the urgent alert",
   inbox_reply: "replied to",
+  inbox_start: "started a conversation:",
   claim: "started reviewing",
   settings_update: "updated",
   lead_appoint: "made a Hood Lead in",
@@ -53,6 +54,7 @@ const ICON: Partial<Record<AuditAction, React.ComponentType<{ className?: string
   broadcast_send: Megaphone,
   role_change: UserCog,
   inbox_reply: MailCheck,
+  inbox_start: MessageSquarePlus,
 };
 
 export function auditSentence(e: AuditEvent) {

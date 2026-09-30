@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Put, Query } from "@nestjs/common";
-import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { ApiBearerAuth, ApiNoContentResponse, ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { CurrentViewer, type Viewer } from "../shared/auth/viewer";
 import { Can } from "../shared/authz/can.decorator";
@@ -7,7 +7,7 @@ import { ParseObjectIdPipe } from "../shared/http/pagination";
 import { CreatePostDto, FeedQuery, ReactionDto, ResolveAlertDto, RsvpDto, VoteDto } from "./dto/posts.dto";
 import { EngagementService } from "./engagement.service";
 import { PostsService } from "./posts.service";
-import { ApiStandardErrors } from "../shared/http/api-docs";
+import { ApiNotFound, ApiStandardErrors } from "../shared/http/api-docs";
 
 @ApiTags("posts")
 @ApiBearerAuth("firebase-jwt")
@@ -35,6 +35,8 @@ export class PostsController {
 
   @Get(":id")
   @ApiOperation({ summary: "One post (404 outside your Hood, removed or from someone you blocked)" })
+  @ApiOkResponse()
+  @ApiNotFound("Post")
   get(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string) {
     return this.posts.get(viewer, id);
   }
@@ -42,6 +44,8 @@ export class PostsController {
   @Delete(":id")
   @ApiOperation({ summary: "Delete your post" })
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse()
+  @ApiNotFound("Post")
   async delete(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string) {
     await this.posts.delete(viewer, id);
   }
@@ -56,6 +60,8 @@ export class PostsController {
   @Put(":id/reaction")
   @ApiOperation({ summary: "Set your reaction (one per post; replaces the previous one) → post" })
   @Can("content.react")
+  @ApiOkResponse()
+  @ApiNotFound("Post")
   react(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Body() body: ReactionDto) {
     return this.engagement.react(viewer, id, body.type);
   }
@@ -69,6 +75,8 @@ export class PostsController {
 
   @Get(":id/poll")
   @ApiOperation({ summary: "Poll results (anonymous counts + your vote)" })
+  @ApiOkResponse()
+  @ApiNotFound("Post")
   poll(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string) {
     return this.engagement.pollResults(viewer, id);
   }
@@ -101,6 +109,8 @@ export class PostsController {
 
   @Put(":id/rsvp")
   @ApiOperation({ summary: "RSVP going / interested (host is notified on 'going')" })
+  @ApiOkResponse()
+  @ApiNotFound("Post")
   setRsvp(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Body() body: RsvpDto) {
     return this.engagement.rsvp(viewer, id, body.status);
   }

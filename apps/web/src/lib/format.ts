@@ -52,3 +52,9 @@ export function timeLeft(iso: string): string {
   if (hours >= 1) return `${hours} hour${hours > 1 ? "s" : ""} left`;
   return "Closing soon";
 }
+
+/** Friendly approximate distance: "about 850 m away", "about 1.4 km away". */
+export function formatDistance(meters: number): string {
+  if (meters < 1000) return `about ${Math.max(50, Math.round(meters / 50) * 50)} m away`;
+  return `about ${(meters / 1000).toFixed(1).replace(/\.0$/, "")} km away`;
+}

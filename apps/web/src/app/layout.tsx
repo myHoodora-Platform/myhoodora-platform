@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Outfit, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
+import { RealtimeProvider } from "@/lib/realtime/realtime-provider";
 import { AppToaster } from "@/components/shared/app-toaster";
 
 const outfit = Outfit({
@@ -73,8 +74,10 @@ export default function RootLayout({
         className={`${outfit.variable} ${jetbrainsMono.variable} antialiased bg-background text-foreground`}
       >
         <AuthProvider>
-          {children}
-          <AppToaster />
+          <RealtimeProvider>
+            {children}
+            <AppToaster />
+          </RealtimeProvider>
         </AuthProvider>
       </body>
     </html>

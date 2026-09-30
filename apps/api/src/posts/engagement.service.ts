@@ -39,6 +39,7 @@ export class EngagementService {
       await this.posts.updateOne({ _id: postId }, { $inc: inc }, { session }).exec();
       return before?.type ?? null;
     });
+    if (previous !== type) this.postsService.changed(post);
     if (!previous && post.authorUid !== viewer.uid) {
       await this.notifications.notify({
         uids: [post.authorUid],
@@ -54,11 +55,13 @@ export class EngagementService {
   }
 
   async unreact(viewer: Viewer, postId: string): Promise<PostView> {
-    await this.postsService.loadVisible(viewer, postId);
-    await withTransaction(this.connection, async (session) => {
-      const removed = await this.reactions.findOneAndDelete({ postId, uid: viewer.uid }, { session }).lean<Reaction>().exec();
-      if (removed) await this.posts.updateOne({ _id: postId }, { $inc: { [`reactionCounts.${removed.type}`]: -1 } }, { session }).exec();
+    const post = await this.postsService.loadVisible(viewer, postId);
+    const removed = await withTransaction(this.connection, async (session) => {
+      const r = await this.reactions.findOneAndDelete({ postId, uid: viewer.uid }, { session }).lean<Reaction>().exec();
+      if (r) await this.posts.updateOne({ _id: postId }, { $inc: { [`reactionCounts.${r.type}`]: -1 } }, { session }).exec();
+      return Boolean(r);
     });
+    if (removed) this.postsService.changed(post);
     return this.postsService.get(viewer, postId);
   }
 
@@ -86,6 +89,7 @@ export class EngagementService {
     if (Date.now() >= new Date(post.poll!.closesAt).getTime()) throw new HttpException("This poll has closed.", HttpStatus.GONE);
     if (!post.poll!.options.some((o) => o.id === optionId)) throw new BadRequestException("That option isn't in this poll.");
     await this.votes.updateOne({ postId, uid: viewer.uid }, { $set: { optionId } }, { upsert: true }).exec();
+    this.postsService.changed(post);
     return this.pollResults(viewer, postId);
   }
 
@@ -93,6 +97,7 @@ export class EngagementService {
     const post = await this.openPoll(viewer, postId);
     if (Date.now() >= new Date(post.poll!.closesAt).getTime()) throw new HttpException("This poll has closed.", HttpStatus.GONE);
     await this.votes.deleteOne({ postId, uid: viewer.uid }).exec();
+    this.postsService.changed(post);
     return this.pollResults(viewer, postId);
   }
 
@@ -113,6 +118,7 @@ export class EngagementService {
     const post = await this.eventPost(viewer, postId);
     if (!viewer.capabilities.includes("content.react")) throw new ForbiddenException("Verify your address to join events.");
     const before = await this.rsvps.findOneAndUpdate({ postId, uid: viewer.uid }, { $set: { status } }, { upsert: true, new: false }).lean<Rsvp>().exec();
+    if (before?.status !== status) this.postsService.changed(post);
     if (status === "going" && before?.status !== "going") {
       await this.notifications.notify({
         uids: [post.authorUid],
@@ -128,8 +134,9 @@ export class EngagementService {
   }
 
   async cancelRsvp(viewer: Viewer, postId: string): Promise<RsvpSummary> {
-    await this.eventPost(viewer, postId);
-    await this.rsvps.deleteOne({ postId, uid: viewer.uid }).exec();
+    const post = await this.eventPost(viewer, postId);
+    const res = await this.rsvps.deleteOne({ postId, uid: viewer.uid }).exec();
+    if (res.deletedCount) this.postsService.changed(post);
     return this.summary(viewer.uid, postId);
   }
 

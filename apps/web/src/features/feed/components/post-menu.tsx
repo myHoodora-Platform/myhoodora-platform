@@ -54,7 +54,7 @@ export function PostMenu({ post, isOwn, onDelete, redirectAfterDelete }: PostMen
       await onDelete(post._id);
       toast.success("Post deleted.");
       setConfirming(false);
-      if (redirectAfterDelete) router.push(redirectAfterDelete);
+      if (redirectAfterDelete) router.replace(redirectAfterDelete);
     } catch (err) {
       toast.error(errorMessage(err, "Couldn't delete this post."));
     } finally {

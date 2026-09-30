@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useFeed } from "@/features/feed/feed-context";
-import { useMockChanges } from "@/hooks/use-mock-changes";
+import { useLiveVersion } from "@/lib/realtime/use-realtime";
 import { listConversations } from "@/lib/api/chat";
 import {
   listNotifications,
@@ -15,7 +15,8 @@ import type { AppNotification } from "@/lib/api/types";
 export function useNotifications() {
   const { user, profile } = useAuth();
   const { posts } = useFeed();
-  const version = useMockChanges();
+  // Live: every notification in the app arrives as notification.created.
+  const version = useLiveVersion(["notification.created", "unread.changed", "chat.message", "chat.read"]);
   const [items, setItems] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
 
