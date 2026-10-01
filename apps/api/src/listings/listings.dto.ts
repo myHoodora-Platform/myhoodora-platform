@@ -33,5 +33,7 @@ export class ListingQuery {
   free?: boolean;
   /** Seller uid */
   @IsOptional() @IsString() @MaxLength(128) seller?: string;
+  /** Words to find in the title or description (used by GET /search). */
+  @IsOptional() @IsString() @Length(2, 100) q?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) limit?: number;
 }

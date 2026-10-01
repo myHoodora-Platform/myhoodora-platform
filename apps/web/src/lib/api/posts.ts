@@ -125,8 +125,8 @@ export async function createPost(
   const payload = {
     neighborhoodId,
     content: encodePostContent(input.message, input.meta),
-    type: postTypeFor(input.meta, Boolean(input.mediaUrl)),
-    mediaUrls: input.mediaUrl ? [input.mediaUrl] : undefined,
+    type: postTypeFor(input.meta, Boolean(input.mediaUrls?.length)),
+    mediaUrls: input.mediaUrls?.length ? input.mediaUrls.slice(0, 10) : undefined,
   };
   if (isLive("posts.create")) {
     const doc = await apiFetch<ApiPost>(user, "/posts", { method: "POST", json: payload });

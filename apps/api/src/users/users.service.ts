@@ -1,11 +1,15 @@
 import { searchRegex } from "../shared/http/pagination";
-import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { InjectConnection, InjectModel } from "@nestjs/mongoose";
 import type { DecodedIdToken } from "firebase-admin/auth";
 import { Connection, Model } from "mongoose";
 import { AuthService } from "../auth/auth.service";
-import { HoodsService } from "../hoods/hoods.service";
+import { AuditService } from "../audit/audit.service";
+import { HoodsService, isOpenHood, type NearbyHood } from "../hoods/hoods.service";
 import { NotificationsService } from "../notifications/notifications.service";
+import { RealtimeService } from "../realtime/realtime.service";
+import { StorageService } from "../storage/storage.service";
 import type { Viewer } from "../shared/auth/viewer";
 import { withTransaction } from "../shared/db/transaction";
 import { EmailVerificationService } from "../verification/email-verification.service";
@@ -30,6 +34,8 @@ export interface MeResponse {
   accountStatus: User["accountStatus"];
   restrictedUntil?: string | null;
   location?: User["location"];
+  /** Set while waiting for staff to approve a join request (contract §16). */
+  requestedHood: { id: string; name: string; requestedAt: string } | null;
   createdAt?: string;
 }
 
@@ -59,6 +65,7 @@ export function toMe(u: User): MeResponse {
     accountStatus: u.accountStatus,
     restrictedUntil: u.restrictedUntil?.toISOString() ?? null,
     location: u.location,
+    requestedHood: u.requestedHood ? { id: u.requestedHood.id, name: u.requestedHood.name, requestedAt: u.requestedHood.requestedAt.toISOString() } : null,
     createdAt: u.createdAt?.toISOString(),
   };
 }
@@ -75,6 +82,10 @@ export class UsersService {
     private readonly emailVerification: EmailVerificationService,
     private readonly notifications: NotificationsService,
     private readonly auth: AuthService,
+    private readonly audit: AuditService,
+    private readonly realtime: RealtimeService,
+    private readonly config: ConfigService,
+    private readonly storage: StorageService,
   ) {}
 
   findByUid(uid: string): Promise<UserDocument | null> {
@@ -140,11 +151,31 @@ export class UsersService {
     return toMe(user);
   }
 
-  /** PATCH /users/me — display name, bio, photo only. */
+  /**
+   * PATCH /users/me — display name, bio, photo only. `photoURL: null` removes
+   * the photo. A replaced or removed photo we stored is deleted afterwards.
+   */
   async updateMe(uid: string, dto: UpdateMeDto): Promise<MeResponse> {
-    const user = await this.users.findOneAndUpdate({ uid }, { $set: dto }, { new: true, runValidators: true }).exec();
-    if (!user) throw new NotFoundException("Profile not found.");
-    return toMe(user);
+    const { photoURL, ...rest } = dto;
+    const update = {
+      $set: { ...rest, ...(photoURL && { photoURL }) },
+      ...(photoURL === null && { $unset: { photoURL: 1 } }),
+    };
+    const before = await this.users.findOneAndUpdate({ uid }, update, { new: false, runValidators: true }).exec();
+    if (!before) throw new NotFoundException("Profile not found.");
+    if (photoURL !== undefined && before.photoURL && before.photoURL !== photoURL) {
+      // Only files this person uploaded through us are touched; Google/Apple photos are left alone.
+      void this.storage.discardByUrl(uid, before.photoURL);
+    }
+    return toMe((await this.findByUid(uid))!);
+  }
+
+  /**
+   * Account writes before the first GET /users/me can find no document (it
+   * failed or never ran). Create it from the token, exactly as sign-in would.
+   */
+  async ensureAccount(viewer: Viewer, token: DecodedIdToken): Promise<void> {
+    if (!viewer.exists) await this.getOrCreateMe(token);
   }
 
   async completeOnboarding(uid: string, dto: OnboardingDto): Promise<MeResponse> {
@@ -159,6 +190,7 @@ export class UsersService {
   /**
    * Address verification: match the point to an open Hood. Records every
    * attempt (last 10) so staff can review failures in the verification queue.
+   * Outside every Hood, offers the close ones to ask to join (contract §16).
    */
   // TODO: Allow user to join nearest when there is no hood match for their location.
   async verifyLocation(viewer: Viewer, dto: VerifyLocationDto) {
@@ -173,7 +205,11 @@ export class UsersService {
 
     if (!match) {
       await this.users.updateOne({ uid: viewer.uid }, { $set: { lastKnownLocation: { lat: dto.lat, lng: dto.lng }, verificationAttempts: attempts } }).exec();
-      return { verificationStatus: user.verificationStatus === "verified" ? "verified" : "unverified", reason: "outside_coverage" as const };
+      return {
+        verificationStatus: user.verificationStatus === "verified" ? "verified" : "unverified",
+        reason: "outside_coverage" as const,
+        nearbyHoods: await this.nearbyHoods(dto.lng, dto.lat),
+      };
     }
 
     const changedHood = user.neighborhoodId !== match.neighborhoodId;
@@ -187,6 +223,7 @@ export class UsersService {
             verifiedAt: changedHood || !user.verifiedAt ? new Date() : user.verifiedAt,
             lastKnownLocation: { lat: dto.lat, lng: dto.lng },
             verificationAttempts: attempts,
+            requestedHood: null,
           },
         },
       )
@@ -195,6 +232,63 @@ export class UsersService {
       await this.notifications.notify({ uids: [viewer.uid], type: "verification", title: "You're a verified neighbour", body: "Welcome to your Hood.", href: "/news-feed" });
     }
     return { verificationStatus: "verified" as const, neighborhoodId: match.neighborhoodId, distanceMeters: Math.round(match.distanceMeters) };
+  }
+
+  private nearbyHoods(lng: number, lat: number): Promise<NearbyHood[]> {
+    return this.hoods.nearbyForJoin(lng, lat, this.config.get<number>("verification.nearbyBufferMeters") ?? 3000);
+  }
+
+  /**
+   * Ask to join a Hood near your last address check. The Hood must be one the
+   * server offers for that point (never trusted from the client). Puts you in
+   * the staff verification queue; re-requesting replaces the request.
+   */
+  async requestHood(viewer: Viewer, hoodId: string): Promise<MeResponse> {
+    const user = await this.findByUid(viewer.uid);
+    if (!user) throw new NotFoundException("Profile not found.");
+    if (user.verificationStatus === "verified") throw new ConflictException("You're already a verified neighbour.");
+    if (user.verificationStatus === "rejected") {
+      throw new ForbiddenException("Your address couldn't be verified. Contact support if you think that's wrong.");
+    }
+    const last = user.verificationAttempts?.[user.verificationAttempts.length - 1];
+    const hood = last ? (await this.nearbyHoods(last.lng, last.lat)).find((h) => h.id === hoodId) : undefined;
+    if (!hood) {
+      const known = (await this.hoods.findManyByIds([hoodId])).get(hoodId);
+      if (known && !isOpenHood(known)) throw new BadRequestException("That neighbourhood isn't taking new neighbours right now.");
+      throw new BadRequestException("That neighbourhood isn't near your address.");
+    }
+    const updated = await withTransaction(this.connection, async (s) => {
+      const doc = await this.users
+        .findOneAndUpdate(
+          { uid: viewer.uid, verificationStatus: { $in: ["unverified", "pending_review"] } },
+          { $set: { verificationStatus: "pending_review", requestedHood: { id: hood.id, name: hood.name, requestedAt: new Date() } } },
+          { new: true, session: s },
+        )
+        .exec();
+      if (!doc) throw new ConflictException("Your verification status just changed. Refresh and try again.");
+      await this.audit.record(viewer, "hood_request", { type: "user", id: viewer.uid, label: hood.name }, { reason: last?.address }, s);
+      return doc;
+    });
+    this.realtime.toStaff("queue.changed");
+    return toMe(updated);
+  }
+
+  /** Withdraw a pending join request; 409 if nothing is pending. */
+  async cancelHoodRequest(viewer: Viewer): Promise<MeResponse> {
+    const updated = await withTransaction(this.connection, async (s) => {
+      const before = await this.users
+        .findOneAndUpdate(
+          { uid: viewer.uid, verificationStatus: "pending_review", requestedHood: { $ne: null } },
+          { $set: { verificationStatus: "unverified", requestedHood: null } },
+          { session: s },
+        )
+        .exec();
+      if (!before) throw new ConflictException("You don't have a pending request to join a neighbourhood.");
+      await this.audit.record(viewer, "hood_request_cancel", { type: "user", id: viewer.uid, label: before.requestedHood!.name }, {}, s);
+      return this.users.findOne({ uid: viewer.uid }).session(s).exec();
+    });
+    this.realtime.toStaff("queue.changed");
+    return toMe(updated!);
   }
 
   /**

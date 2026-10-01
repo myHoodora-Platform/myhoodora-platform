@@ -30,6 +30,8 @@ import { NotificationsModule } from "./notifications/notifications.module";
 import { PlatformModule } from "./platform/platform.module";
 import { PostsModule } from "./posts/posts.module";
 import { RealtimeModule } from "./realtime/realtime.module";
+import { SearchModule } from "./search/search.module";
+import { StorageModule } from "./storage/storage.module";
 import { UsersModule } from "./users/users.module";
 
 @Module({
@@ -54,6 +56,7 @@ import { UsersModule } from "./users/users.module";
     AuditModule,
     CommunicationsModule,
     RealtimeModule,
+    StorageModule,
     NotificationsModule,
     PlatformModule,
     ModerationRegistryModule,
@@ -63,6 +66,7 @@ import { UsersModule } from "./users/users.module";
     UsersModule,
     HoodsModule,
     PostsModule,
+    SearchModule,
     CommentsModule,
     ModerationModule,
     InboundModule,

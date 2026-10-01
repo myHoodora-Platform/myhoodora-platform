@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { BadgeCheck, CalendarDays, CheckCircle2, HandHeart, MapPin, MessageCircle, Share2 } from "lucide-react";
 import { cn } from "@myhoodora/ui/utils";
-import { ImageWithFallback } from "@/components/shared/image-with-fallback";
+import { PhotoGallery } from "@/components/shared/photo-gallery";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { useAuth } from "@/context/AuthContext";
 import { useViewer } from "@/hooks/use-neighbourhood";
@@ -156,13 +156,7 @@ export function PostCard({ post, onReact, onDelete, variant = "feed" }: PostCard
         {meta.category === "poll" && <PollCard post={post} />}
       </div>
 
-      {post.mediaUrls[0] && (
-        <ImageWithFallback
-          src={post.mediaUrls[0]}
-          alt=""
-          className="max-h-[28rem] w-full border-y border-border object-cover"
-        />
-      )}
+      <PhotoGallery urls={post.mediaUrls} className="border-y border-border" />
 
       {/* Counts */}
       {(post.reactionTotal > 0 || post.commentCount > 0) && (

@@ -103,6 +103,8 @@ export class ListingsService implements OnModuleInit {
       ...(q.free && { priceNaira: null }),
       ...(q.seller ? { sellerUid: q.seller } : hidden.length ? { sellerUid: { $nin: hidden } } : {}),
     };
+    const re = searchRegex(q.q);
+    if (re) filter.$and = [{ $or: [{ title: re }, { description: re }] }];
     if (q.seller && hidden.includes(q.seller)) return [];
     const rows = await this.listings.find(filter).sort({ createdAt: -1 }).limit(q.limit ?? 60).lean<Row[]>().exec();
     return this.toViews(rows);

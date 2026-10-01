@@ -32,6 +32,29 @@ export default () => ({
     replyTo: process.env.MAIL_REPLY_TO || undefined,
   },
 
+  /** Address verification (docs/api-contract.md §16). */
+  verification: {
+    /** How far outside a Hood's edge an address can be and still be offered "ask to join". */
+    nearbyBufferMeters: Number(process.env.NEARBY_BUFFER_M) || 3000,
+  },
+
+  /** Uploaded photos and videos (docs/api-contract.md §20). */
+  storage: {
+    /** cloudinary (default). Other providers need an adapter in src/storage/providers/. */
+    provider: (process.env.STORAGE_PROVIDER?.trim() || "cloudinary").toLowerCase(),
+    /** cloudinary://<api_key>:<api_secret>@<cloud_name>. Server-side only; never logged. */
+    cloudinaryUrl: process.env.CLOUDINARY_URL?.trim() || undefined,
+    /** Folder root per environment, so local test uploads never mix with production. */
+    folder: `myhoodora/${process.env.NODE_ENV || "development"}`,
+    /**
+     * Browser → provider uploads (POST /media/direct). Off by default: each one costs a Cloudinary Admin API
+     * call, which the free plan rate-limits hourly. Turn on with a paid plan: STORAGE_DIRECT_UPLOADS=true.
+     */
+    directUploads: process.env.STORAGE_DIRECT_UPLOADS === "true",
+    /** Files one instance sends to storage at once; more wait briefly, then get 503 "try again". */
+    maxConcurrentUploads: Number(process.env.STORAGE_MAX_CONCURRENT_UPLOADS) || 4,
+  },
+
   /** Live updates across API instances (docs/api-contract.md §19). */
   realtime: {
     /** Upstash/Redis URL with publish rights (rediss://…). Empty → Mongo change streams, then in-memory. */
@@ -43,13 +66,22 @@ export default () => ({
   },
 });
 
+const CLOUDINARY_URL_SHAPE = /^cloudinary:\/\/[^:@\s]+:[^@\s]+@[\w-]+$/;
+
 export function validateEnv(env: Record<string, unknown>): Record<string, unknown> {
+  // Shape only: the message never echoes the value (it contains the API secret).
+  if (typeof env.CLOUDINARY_URL === "string" && env.CLOUDINARY_URL.trim() && !CLOUDINARY_URL_SHAPE.test(env.CLOUDINARY_URL.trim())) {
+    throw new Error("CLOUDINARY_URL must look like cloudinary://<api_key>:<api_secret>@<cloud_name>");
+  }
   if (env.NODE_ENV === "production") {
     const required = ["MONGODB_URI", "APP_URL", "CORS_ORIGIN", "RESEND_API_KEY", "RESEND_WEBHOOK_SECRET", "MAIL_FROM"];
     const missing = required.filter((k) => !env[k]);
     if (missing.length) throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
     if (!env.REDIS_URL) {
       console.warn("REDIS_URL is not set: live updates will use MongoDB change streams, or in-memory delivery (single instance only).");
+    }
+    if ((env.STORAGE_PROVIDER ?? "cloudinary") === "cloudinary" && !env.CLOUDINARY_URL) {
+      console.warn("CLOUDINARY_URL is not set: photo and video uploads are off (POST /media answers 503).");
     }
   }
   return env;

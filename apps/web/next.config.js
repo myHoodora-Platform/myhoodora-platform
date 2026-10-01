@@ -7,6 +7,8 @@ const nextConfig = {
       { protocol: "https", hostname: "upload.wikimedia.org" },
       { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "https", hostname: "lh3.googleusercontent.com" },
+      // Uploaded photos (contract §20: the API's storage layer, Cloudinary today).
+      { protocol: "https", hostname: "res.cloudinary.com" },
     ],
   },
   async headers() {

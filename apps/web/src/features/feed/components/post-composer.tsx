@@ -10,12 +10,12 @@ import { Button } from "@myhoodora/ui/button";
 import { cn } from "@myhoodora/ui/utils";
 import { EmojiPickerButton, insertAtCaret } from "@/components/shared/emoji-picker-button";
 import { Field, fieldAria, fieldInputClass } from "@/components/shared/field";
-import { ImagePicker } from "@/components/shared/image-picker";
+import { PhotoPicker } from "@/components/shared/image-picker";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { errorMessage } from "@/lib/api/client";
 import type { AlertCategory, Post, PostCategory } from "@/lib/api/types";
 import { ALERT_CATEGORIES, POST_CATEGORIES, categoryDef } from "../categories";
-import { needsKindnessReminder } from "../kindness";
+import { checkKindness, kindnessHint, type KindnessReason } from "@/lib/api/kindness";
 import { reportKindness } from "@/lib/api/telemetry";
 import { useAuth } from "@/context/AuthContext";
 import { useFeed } from "../feed-context";
@@ -89,8 +89,10 @@ export function PostComposer({ initialCategory, onDone, onCancel, onSell }: Post
   const { user } = useAuth();
   const online = useOnlineStatus();
   const [step, setStep] = useState<"pick" | "write">(initialCategory ? "write" : "pick");
-  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
+  const [mediaUrls, setMediaUrls] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [kindnessShown, setKindnessShown] = useState(false);
+  const [kindnessReasons, setKindnessReasons] = useState<KindnessReason[]>([]);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const messageEl = useRef<HTMLTextAreaElement | null>(null);
 
@@ -120,12 +122,14 @@ export function PostComposer({ initialCategory, onDone, onCancel, onSell }: Post
 
   const submit = async (values: FormValues) => {
     setSubmitError(null);
-    if (!kindnessShown && needsKindnessReminder(values.message)) {
+    const kindness = user ? await checkKindness(user, values.message) : { flagged: false, reasons: [] };
+    if (!kindnessShown && kindness.flagged) {
+      setKindnessReasons(kindness.reasons);
       setKindnessShown(true);
       reportKindness(user, "shown");
       return;
     }
-    if (kindnessShown) reportKindness(user, needsKindnessReminder(values.message) ? "posted_anyway" : "edited");
+    if (kindnessShown) reportKindness(user, kindness.flagged ? "posted_anyway" : "edited");
     try {
       const options = values.pollOptions
         .map((o) => o.text.trim())
@@ -133,7 +137,7 @@ export function PostComposer({ initialCategory, onDone, onCancel, onSell }: Post
         .map((text, i) => ({ id: `o${i + 1}`, text }));
       const post = await createPost({
         message: values.message,
-        mediaUrl: mediaUrl ?? undefined,
+        mediaUrls: values.category === "poll" ? [] : mediaUrls,
         meta: {
           category: values.category,
           alertCategory: values.category === "alert" ? (values.alertCategory as AlertCategory) : undefined,
@@ -343,7 +347,9 @@ export function PostComposer({ initialCategory, onDone, onCancel, onSell }: Post
         </label>
       )}
 
-      {category !== "poll" && <ImagePicker value={mediaUrl} onChange={setMediaUrl} disabled={isSubmitting} />}
+      {category !== "poll" && (
+        <PhotoPicker value={mediaUrls} onChange={setMediaUrls} onUploadingChange={setUploading} purpose="post" allowVideo disabled={isSubmitting} />
+      )}
 
       {kindnessShown && (
         <div role="alert" className="flex gap-3 rounded-xl bg-warning-soft p-3 text-sm text-warning">
@@ -351,7 +357,7 @@ export function PostComposer({ initialCategory, onDone, onCancel, onSell }: Post
           <div>
             <p className="font-bold">Keep it kind, neighbour</p>
             <p className="text-foreground/80">
-              Some of this might come across as hurtful. Want to edit it before posting? You can still post as is.
+              {kindnessHint(kindnessReasons)} Want to edit it before posting? You can still post as is.
             </p>
           </div>
         </div>
@@ -390,7 +396,7 @@ export function PostComposer({ initialCategory, onDone, onCancel, onSell }: Post
           <Button variant="ghost" onClick={onCancel} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button type="submit" loading={isSubmitting} disabled={!online}>
+          <Button type="submit" loading={isSubmitting} disabled={!online || uploading}>
             {kindnessShown
               ? "Post anyway"
               : category === "alert"

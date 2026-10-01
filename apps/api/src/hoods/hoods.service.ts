@@ -12,8 +12,21 @@ export interface HoodInput {
   radiusMeters: number;
 }
 
+/** A Hood close to (but not covering) an address, offered as "ask to join" (contract §16). */
+export interface NearbyHood {
+  id: string;
+  name: string;
+  city: string;
+  distanceMeters: number;
+}
+
 /** Rows written before migration 002 still have isActive instead of status. */
 const OPEN: QueryFilter<Neighborhood> = { $or: [{ status: "active" }, { status: { $exists: false }, isActive: { $ne: false } }] };
+
+/** The same rule as OPEN, for a Hood already loaded. */
+export function isOpenHood(h: Pick<Neighborhood, "status" | "isActive">): boolean {
+  return h.status === "active" || (!h.status && h.isActive !== false);
+}
 
 @Injectable()
 export class HoodsService {
@@ -115,6 +128,30 @@ export class HoodsService {
       ])
       .exec();
     return rows.map((r) => ({ id: r._id.toString(), name: r.name, distanceMeters: Math.round(r.distanceMeters) }));
+  }
+
+  /**
+   * Open Hoods whose edge is within `bufferMeters` of a point, nearest first.
+   * The server decides "close"; clients never send a radius (contract §16).
+   */
+  async nearbyForJoin(lng: number, lat: number, bufferMeters: number, limit = 3): Promise<NearbyHood[]> {
+    const rows = await this.hoods
+      .aggregate<{ _id: Types.ObjectId; name: string; city: string; distanceMeters: number }>([
+        {
+          $geoNear: {
+            near: { type: "Point", coordinates: [lng, lat] },
+            distanceField: "distanceMeters",
+            spherical: true,
+            maxDistance: bufferMeters + 20_000,
+            query: OPEN,
+          },
+        },
+        { $match: { $expr: { $lte: ["$distanceMeters", { $add: ["$radiusMeters", bufferMeters] }] } } },
+        { $limit: limit },
+        { $project: { name: 1, city: 1, distanceMeters: 1 } },
+      ])
+      .exec();
+    return rows.map((r) => ({ id: r._id.toString(), name: r.name, city: r.city, distanceMeters: Math.round(r.distanceMeters) }));
   }
 
   private async overlapping(center: { lat: number; lng: number }, radiusMeters: number) {

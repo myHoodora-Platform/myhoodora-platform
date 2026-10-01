@@ -117,11 +117,17 @@ export class StaffUsersService {
 
     // Set inside the transaction; used afterwards to tell the neighbour.
     let hoodName: string | undefined;
+    let joinRequest: string | undefined;
     const run = async (s: ClientSession) => {
       const target = await this.users.findOne({ uid }).session(s).exec();
       if (!target) throw new NotFoundException("Neighbour not found.");
       if (ROLE_RANK[target.role] >= ROLE_RANK[actor.role] && input.action !== "verify" && input.action !== "change_hood") {
         throw new ForbiddenException("You can't take action on staff at or above your role.");
+      }
+      // A staff decision on verification settles any pending join request (contract §16).
+      if ((input.action === "verify" || input.action === "reject_verification") && target.requestedHood) {
+        joinRequest = target.requestedHood.name;
+        target.requestedHood = null;
       }
       switch (input.action) {
         case "verify":
@@ -138,7 +144,8 @@ export class StaffUsersService {
           break;
         }
         case "reject_verification":
-          target.verificationStatus = "rejected";
+          // Turning down a join request isn't a verdict on the person: they can fix their address or ask again.
+          target.verificationStatus = joinRequest ? "unverified" : "rejected";
           break;
         case "restrict":
           target.accountStatus = "restricted";
@@ -160,20 +167,25 @@ export class StaffUsersService {
       return target.toObject() as User;
     };
     const updated = session ? await run(session) : await withTransaction(this.connection, run);
-    if (!session) await this.tellNeighbour(updated, input, hoodName);
+    if (!session) await this.tellNeighbour(updated, input, hoodName, joinRequest);
+    if (joinRequest) this.realtime.toStaff("queue.changed");
     return updated;
   }
 
   /** Neighbour-facing notice: public reason only, never the staff note. */
-  async tellNeighbour(user: User, input: NeighbourActionInput, hoodName?: string): Promise<void> {
+  async tellNeighbour(user: User, input: NeighbourActionInput, hoodName?: string, joinRequest?: string): Promise<void> {
     const hood = hoodName ?? "your new Hood";
     const copy: Partial<Record<NeighbourAction, { title: string; body: string }>> = {
-      verify: { title: "You're a verified neighbour", body: `Our team confirmed your address. Welcome to ${hood}.` },
+      verify: joinRequest
+        ? { title: `You've joined ${hood}`, body: `Our team approved your request. Welcome to ${hood}.` }
+        : { title: "You're a verified neighbour", body: `Our team confirmed your address. Welcome to ${hood}.` },
       change_hood: {
         title: `You've moved to ${hood}`,
         body: `Our team moved you to ${hood} (${input.reason}). Your feed now shows ${hood}. Your old posts stay where you posted them.`,
       },
-      reject_verification: { title: "We couldn't verify your address", body: `Reason: ${input.reason}. Contact support if you think that's wrong.` },
+      reject_verification: joinRequest
+        ? { title: `Your request to join ${joinRequest} wasn't approved`, body: `Reason: ${input.reason}. You can check your address or ask to join again.` }
+        : { title: "We couldn't verify your address", body: `Reason: ${input.reason}. Contact support if you think that's wrong.` },
       warn: { title: "A note from the myHoodora team", body: `Please keep to the community guidelines (${input.reason}).` },
       restrict: { title: "Your account is restricted", body: `You can read and message, but can't post for ${input.days ?? 7} days. Reason: ${input.reason}.` },
       suspend: { title: "Your account is suspended", body: `Reason: ${input.reason}.` },
@@ -186,7 +198,7 @@ export class StaffUsersService {
     if (!c) return;
     // Hood changes open their neighbourhood settings; account actions open account settings.
     const hoodChange = input.action === "verify" || input.action === "change_hood";
-    await this.notifications.notify({ uids: [user.uid], type: "moderation", title: c.title, body: c.body, href: hoodChange ? "/settings/neighbourhood" : "/settings/account" });
+    await this.notifications.notify({ uids: [user.uid], type: "moderation", title: c.title, body: c.body, href: hoodChange || joinRequest ? "/settings/neighbourhood" : "/settings/account" });
     if (!user.email) return;
     const idempotencyKey = `account:${user.uid}:${input.action}:${Date.now()}`;
     if (hoodChange) {
@@ -242,6 +254,7 @@ export class StaffUsersService {
           attempts: u.verificationAttempts?.length ?? 0,
           lastError: last && last.result !== "matched" ? last.result : undefined,
           status: u.verificationStatus === "pending_review" ? ("pending_review" as const) : ("failed" as const),
+          requestedHood: u.requestedHood ? { id: u.requestedHood.id, name: u.requestedHood.name } : undefined,
         };
       }),
     );

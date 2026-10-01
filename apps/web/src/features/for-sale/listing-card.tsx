@@ -5,7 +5,7 @@ import { ROUTES } from "@/lib/routes";
 import { timeAgo } from "@/lib/time";
 import type { Listing } from "@/lib/api/types";
 import { ListingPhoto } from "./listing-photo";
-import { listingStatusLabel } from "./constants";
+import { listingStatusLabel, listingStatusTone } from "./constants";
 
 export function ListingCard({ listing }: { listing: Listing }) {
   const free = listing.priceNaira === null;
@@ -17,7 +17,7 @@ export function ListingCard({ listing }: { listing: Listing }) {
       <div className="relative">
         <ListingPhoto listing={listing} className="aspect-square" />
         {listing.status !== "available" && (
-          <span className="absolute top-2 left-2 rounded-full bg-foreground/80 px-2.5 py-1 text-xs font-bold text-background">
+          <span className={cn("absolute top-2 left-2 rounded-full px-2.5 py-1 text-xs font-bold shadow-sm", listingStatusTone(listing.status, free))}>
             {listingStatusLabel(listing.status, free)}
           </span>
         )}

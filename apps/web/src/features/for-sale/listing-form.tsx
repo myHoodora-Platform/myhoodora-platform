@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { Button } from "@myhoodora/ui/button";
 import { cn } from "@myhoodora/ui/utils";
 import { Field, fieldAria, fieldInputClass } from "@/components/shared/field";
-import { ImagePicker } from "@/components/shared/image-picker";
+import { PhotoPicker } from "@/components/shared/image-picker";
 import { useAuth } from "@/context/AuthContext";
 import { createListing } from "@/lib/api/listings";
 import { errorMessage } from "@/lib/api/client";
@@ -40,10 +40,11 @@ interface ListingFormProps {
   onCancel: () => void;
 }
 
-/** "Sell or give away" — Nextdoor listing fields: title, description, price or free, category, photo. */
+/** "Sell or give away" — Nextdoor listing fields: title, description, price or free, category, photos (up to 10). */
 export function ListingForm({ onDone, onCancel }: ListingFormProps) {
   const { user, profile } = useAuth();
-  const [photo, setPhoto] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
   const { register, handleSubmit, watch, setValue, formState } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { title: "", description: "", category: "", condition: "good", free: false, price: "", negotiable: true },
@@ -61,7 +62,7 @@ export function ListingForm({ onDone, onCancel }: ListingFormProps) {
         condition: v.condition as ListingCondition,
         priceNaira: v.free ? null : Number((v.price ?? "").replace(/[,\s₦]/g, "")),
         negotiable: !v.free && v.negotiable,
-        photos: photo ? [photo] : [],
+        photos,
       });
       toast.success(v.free ? "Your free item is listed." : "Your item is listed.");
       onDone(listing);
@@ -74,10 +75,10 @@ export function ListingForm({ onDone, onCancel }: ListingFormProps) {
     <form onSubmit={handleSubmit(submit)} className="space-y-4" noValidate>
       <div className="space-y-1.5">
         <p className="text-sm font-semibold">
-          Photo <span className="font-normal text-muted-foreground">(strongly recommended)</span>
+          Photos <span className="font-normal text-muted-foreground">(strongly recommended, up to 10)</span>
         </p>
-        <ImagePicker value={photo} onChange={setPhoto} disabled={isSubmitting} />
-        {!photo && <p className="text-xs text-muted-foreground">Listings with a clear photo sell much faster.</p>}
+        <PhotoPicker value={photos} onChange={setPhotos} onUploadingChange={setUploading} purpose="listing" disabled={isSubmitting} />
+        {!photos.length && <p className="text-xs text-muted-foreground">Listings with a clear photo sell much faster.</p>}
       </div>
 
       <Field label="Title" htmlFor="title" error={errors.title?.message} hint="Just the item name, e.g. “Chest freezer, 200L”">
@@ -164,7 +165,7 @@ export function ListingForm({ onDone, onCancel }: ListingFormProps) {
         <Button variant="ghost" onClick={onCancel} disabled={isSubmitting}>
           Cancel
         </Button>
-        <Button type="submit" loading={isSubmitting}>
+        <Button type="submit" loading={isSubmitting} disabled={uploading}>
           {free ? "List for free" : "List item"}
         </Button>
       </div>

@@ -35,6 +35,9 @@ function saveErrorMessage(err: unknown): string {
   // Validation errors carry the API's own explanation; everything else
   // (offline, slow, server down) already has friendly wording.
   if (err instanceof ApiError) {
+    // The API now creates a missing account on this call (contract §14); a 404 here means an older API or a
+    // deleted account, never "the page you wanted isn't there".
+    if (err.kind === "not_found") return "We couldn't find your account to save these details. Please try again, or sign out and back in.";
     return err.kind === "client" ? `We couldn't save your details: ${err.message}` : err.message;
   }
   return "We couldn't save your details. Please try again.";

@@ -56,9 +56,12 @@ function kindForStatus(status: number): ApiErrorKind {
 }
 
 async function messageFrom(response: Response, kind: ApiErrorKind): Promise<string> {
+  return messageFromText(await response.text().catch(() => ""), kind);
+}
+
+function messageFromText(text: string, kind: ApiErrorKind): string {
   // Only validation-style errors carry a message worth showing verbatim.
   if (kind !== "client") return FRIENDLY_MESSAGES[kind];
-  const text = await response.text().catch(() => "");
   try {
     const body = JSON.parse(text) as { message?: string | string[] };
     if (Array.isArray(body.message)) return body.message.join(", ");
@@ -118,6 +121,43 @@ export async function apiFetch<T>(
     // a server fault, not something the caller should have to special-case.
     throw new ApiError(FRIENDLY_MESSAGES.server, response.status, "server");
   }
+}
+
+/**
+ * Multipart upload with progress (fetch can't report upload progress, so
+ * this uses XHR). Same auth, errors and friendly messages as apiFetch.
+ */
+export async function apiUpload<T>(
+  user: User,
+  path: string,
+  body: FormData,
+  { onProgress, timeoutMs = 120_000 }: { onProgress?: (fraction: number) => void; timeoutMs?: number } = {},
+): Promise<T> {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    throw new ApiError(FRIENDLY_MESSAGES.offline, 0, "offline");
+  }
+  const token = await user.getIdToken();
+  return new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${API_BASE_URL}${path}`);
+    xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    xhr.timeout = timeoutMs;
+    xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(e.loaded / e.total);
+    xhr.ontimeout = () => reject(new ApiError(FRIENDLY_MESSAGES.timeout, 0, "timeout"));
+    xhr.onerror = () => reject(new ApiError(FRIENDLY_MESSAGES.network, 0, "network"));
+    xhr.onload = () => {
+      if (xhr.status < 200 || xhr.status >= 300) {
+        const kind = kindForStatus(xhr.status);
+        return reject(new ApiError(messageFromText(xhr.responseText, kind), xhr.status, kind));
+      }
+      try {
+        resolve((xhr.responseText ? JSON.parse(xhr.responseText) : undefined) as T);
+      } catch {
+        reject(new ApiError(FRIENDLY_MESSAGES.server, xhr.status, "server"));
+      }
+    };
+    xhr.send(body);
+  });
 }
 
 /**

@@ -132,7 +132,8 @@ export interface Post extends ApiPost {
 export interface CreatePostInput {
   message: string;
   meta: PostMeta;
-  mediaUrl?: string;
+  /** Up to 10 photo URLs (from POST /media or pasted). */
+  mediaUrls?: string[];
 }
 
 // ── People ──────────────────────────────────────────────────────────────────

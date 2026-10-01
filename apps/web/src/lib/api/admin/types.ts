@@ -84,7 +84,9 @@ export type AuditAction =
   | "appeal_filed"
   | "appeal_upheld"
   | "appeal_overturned"
-  | "business_claim";
+  | "business_claim"
+  | "hood_request"
+  | "hood_request_cancel";
 
 export interface AuditEvent {
   id: string;

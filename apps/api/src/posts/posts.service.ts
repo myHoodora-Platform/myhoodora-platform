@@ -8,6 +8,8 @@ import { URGENT_WINDOW_HOURS, type AlertCategory } from "../platform/platform-se
 import { PlatformSettingsService } from "../platform/platform-settings.service";
 import { RealtimeService } from "../realtime/realtime.service";
 import type { Viewer } from "../shared/auth/viewer";
+import { searchRegex } from "../shared/http/pagination";
+import { mediaMixProblem } from "../storage/media-kind";
 import { UsersService } from "../users/users.service";
 import { decodePostContent, encodePostContent, postTypeFor, type PostMeta } from "./domain/post-meta";
 import type { CreatePostDto, FeedQuery } from "./dto/posts.dto";
@@ -147,6 +149,8 @@ export class PostsService implements OnModuleInit {
     }
 
     const mediaUrls = dto.mediaUrls ?? [];
+    const mediaProblem = mediaMixProblem(mediaUrls);
+    if (mediaProblem) throw new BadRequestException(mediaProblem);
     const doc = await this.posts.create({
       authorUid: viewer.uid,
       neighborhoodId: viewer.hoodId,
@@ -229,6 +233,9 @@ export class PostsService implements OnModuleInit {
       ...(q.category && { category: q.category }),
       ...(hidden.length && { authorUid: { $nin: hidden } }),
     };
+    const re = searchRegex(q.q);
+    // Older posts only have `content` (meta prefix + text); newer ones keep the plain text in `message`.
+    if (re) filter.$or = [{ message: re }, { message: null, content: re }];
     const created: Record<string, Date> = {};
     if (q.before) created.$lt = new Date(q.before);
     if (q.since) created.$gte = new Date(q.since);

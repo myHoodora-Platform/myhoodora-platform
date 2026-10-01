@@ -12,6 +12,7 @@ export const ROUTES = {
   newsFeed: "/news-feed",
   post: (id: string) => `/p/${id}`,
   forSale: "/for-sale",
+  search: (q?: string, type?: string) => `/search${q ? `?q=${encodeURIComponent(q)}${type ? `&type=${type}` : ""}` : ""}`,
   listing: (id: string) => `/for-sale/${id}`,
   alerts: "/alerts",
   events: "/events",

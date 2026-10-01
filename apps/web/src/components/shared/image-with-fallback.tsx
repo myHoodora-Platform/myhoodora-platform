@@ -8,6 +8,13 @@ interface ImageWithFallbackProps {
   src: string;
   alt: string;
   className?: string;
+  /** Sizing for the wrapper, e.g. "absolute inset-0" inside a fixed-size tile. */
+  wrapperClassName?: string;
+  srcSet?: string;
+  sizes?: string;
+  style?: React.CSSProperties;
+  /** Called with the loaded element (natural size, for smart framing). */
+  onLoaded?: (img: HTMLImageElement) => void;
 }
 
 /**
@@ -20,6 +27,11 @@ export function ImageWithFallback({
   src,
   alt,
   className,
+  wrapperClassName,
+  srcSet,
+  sizes,
+  style,
+  onLoaded,
 }: ImageWithFallbackProps) {
   const [status, setStatus] = useState<"loading" | "loaded" | "error">(
     "loading",
@@ -35,6 +47,7 @@ export function ImageWithFallback({
         className={cn(
           "flex flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-200 bg-slate-50 p-6 text-center",
           className,
+          wrapperClassName,
         )}
       >
         <ImageOff className="size-5 text-slate-400" />
@@ -49,7 +62,7 @@ export function ImageWithFallback({
   }
 
   return (
-    <div className="relative">
+    <div className={cn("relative", wrapperClassName)}>
       {status === "loading" && (
         <div
           className={cn(
@@ -63,8 +76,15 @@ export function ImageWithFallback({
       {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary user-provided/uploaded remote URL */}
       <img
         src={src}
+        srcSet={srcSet}
+        sizes={sizes}
         alt={alt}
-        onLoad={() => setStatus("loaded")}
+        style={style}
+        decoding="async"
+        onLoad={(e) => {
+          setStatus("loaded");
+          onLoaded?.(e.currentTarget);
+        }}
         onError={() => setStatus("error")}
         className={cn(className, status === "loading" && "opacity-0")}
       />

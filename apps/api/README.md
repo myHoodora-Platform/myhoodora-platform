@@ -38,6 +38,10 @@ Swagger (every route, with request schemas generated from the DTOs) is at `/api/
 | `MAIL_FROM` / `MAIL_REPLY_TO` | | Default `myHoodora <hello@myhoodora.com>` (switch to `mail.myhoodora.com` once Resend verifies it) |
 | `SWAGGER_ENABLED` | | `true` exposes `/api/docs` in production |
 | `MONGO_AUTO_INDEX` | | Default on: missing indexes are created at boot (unique indexes enforce rules). Set `false` once Atlas manages indexes |
+| `STORAGE_PROVIDER` | | Default `cloudinary`. See "File storage" |
+| `CLOUDINARY_URL` | ✅ for uploads | `cloudinary://<api_key>:<api_secret>@<cloud_name>`. Without it, `POST /media` answers 503 |
+| `STORAGE_MAX_CONCURRENT_UPLOADS` | | Default `4` per instance |
+| `STORAGE_DIRECT_UPLOADS` | | Default off. `true` = browser → Cloudinary for videos (uses the Admin API quota) |
 
 In production the app refuses to start if a required variable is missing (`validateEnv`). Secrets live only in the server environment. None of these may be given a `NEXT_PUBLIC_` prefix.
 
@@ -112,15 +116,12 @@ Rules the code follows:
 3. Run `pnpm migrate:dry`, read the output, then `pnpm migrate`. Migrations are idempotent and recorded in the `migrations` collection.
 4. Start with `node dist/main.js`. Missing indexes are created at boot unless `MONGO_AUTO_INDEX=false`.
 
-## Firebase Storage rules
+## File storage
 
-The feed's image upload writes to `posts/{uid}/…`. Suggested rule:
+Photos and videos are uploaded through `POST /api/media`; the browser never talks to a storage vendor and never sees its credentials (contract §20).
 
-```
-match /posts/{uid}/{fileName} {
-  allow read: if true;
-  allow write: if request.auth != null && request.auth.uid == uid
-    && request.resource.size < 8 * 1024 * 1024
-    && request.resource.contentType.matches('image/.*');
-}
-```
+- **Layers:** business modules → `StorageService` (`src/storage/storage.service.ts`: validation, folders, ownership in `media_assets`) → `StorageProvider` port (`providers/storage-provider.ts`) → an adapter. `CloudinaryStorageAdapter` is the only file that imports the `cloudinary` SDK.
+- **How files travel:** uploads stream to a temp file (`os.tmpdir()/myhoodora-uploads`), the real type is read from the bytes, and the adapter streams the file from disk to the provider in one request. Temp files are always deleted, and stale ones are swept at startup and hourly. At most `STORAGE_MAX_CONCURRENT_UPLOADS` go at once per instance.
+- **Cloudinary:** set `CLOUDINARY_URL` from the Cloudinary console (API Keys). Its shape is checked at startup and the value is never logged. Files land in `myhoodora/<NODE_ENV>/<purpose>/`.
+- **Switching provider:** write `providers/<name>-storage.adapter.ts` implementing `upload`, `delete` and `url`, add a `case` in `createStorageProvider()` (`storage.module.ts`), then set `STORAGE_PROVIDER=<name>`. Nothing else changes. An unknown `STORAGE_PROVIDER` stops the API at startup.
+- **Tests:** `storage.service.spec.ts` (fake provider), `cloudinary-storage.adapter.spec.ts` (fake SDK), `storage.module.spec.ts` (selection).

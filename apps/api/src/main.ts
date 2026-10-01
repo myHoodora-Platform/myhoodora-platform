@@ -69,6 +69,9 @@ async function bootstrap() {
   const port = config.get<number>('port') ?? 3000;
 
   // ── Listen ────────────────────────────────────────────────────────────────
+  // Uploads up to 100 MB on slow mobile data can take many minutes; Node's default cuts requests at 5.
+  // Headers must still arrive quickly (headersTimeout), so slow-header attacks stay blocked.
+  (app.getHttpServer() as import("node:http").Server).requestTimeout = 20 * 60_000;
     await app.listen(port);
   logger.log(`MyHoodora API is running on http://localhost:${port}/api`);
 }

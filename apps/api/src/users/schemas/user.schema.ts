@@ -76,6 +76,10 @@ export class User {
   })
   verificationAttempts!: { at: Date; lat: number; lng: number; address?: string; result: "matched" | "outside_coverage" | "low_accuracy" | "mismatch" }[];
 
+  /** A pending "ask to join" a nearby Hood (contract §16). Cleared on approve, reject, cancel or an address match. */
+  @Prop({ type: { id: String, name: String, requestedAt: Date }, _id: false, default: null })
+  requestedHood?: { id: string; name: string; requestedAt: Date } | null;
+
   createdAt?: Date;
   updatedAt?: Date;
 }

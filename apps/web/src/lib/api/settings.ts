@@ -69,7 +69,8 @@ export async function updatePreferences(user: User, next: Preferences): Promise<
 
 export interface ProfileExtras {
   bio?: string;
-  photoURL?: string;
+  /** null removes the photo. */
+  photoURL?: string | null;
 }
 
 const extrasKey = (uid: string) => `profile-extra:${uid}`;

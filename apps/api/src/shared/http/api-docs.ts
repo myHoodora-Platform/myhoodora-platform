@@ -64,6 +64,8 @@ export const API_TAGS: [string, string][] = [
   ["moderation", "Hood Lead voting, your moderation decisions, appeals"],
   ["support", "Feedback, help requests and your support conversations (contract §18)"],
   ["realtime", "Live updates over Server-Sent Events (contract §19)"],
+  ["media", "Photo and video uploads through the storage abstraction (contract §20)"],
+  ["search", "Search your Hood: posts, For Sale & Free, neighbours"],
   ["business-pages", "Business Page applications & claiming (contract §11)"],
   ["public", "Public forms: contact, careers, AI pilot (no account)"],
   ["telemetry", "Anonymous product counters"],

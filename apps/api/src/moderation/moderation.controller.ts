@@ -6,11 +6,17 @@ import { CurrentViewer, type Viewer } from "../shared/auth/viewer";
 import { ParseObjectIdPipe } from "../shared/http/pagination";
 import { AppealsService } from "./appeals.service";
 import { HoodLeadsService } from "./hood-leads.service";
+import { checkKindness } from "./kindness";
 import { LEAD_VOTES, type LeadVoteValue } from "./moderation.schemas";
 import { ApiStandardErrors } from "../shared/http/api-docs";
 
 class VoteDto {
   @IsIn(LEAD_VOTES) vote!: LeadVoteValue;
+}
+
+class KindnessCheckDto {
+  /** @example "Whoever keeps parking across my gate is an idiot" */
+  @IsString() @Length(1, 9000) text!: string;
 }
 
 class AppealDto {
@@ -41,6 +47,19 @@ export class ModerationController {
   @ApiOkResponse({ description: "Open cases in your Hood awaiting your vote" })
   queue(@CurrentViewer() viewer: Viewer) {
     return this.leads.queue(viewer);
+  }
+
+  @Post("check")
+  @HttpCode(200)
+  @Throttle({ medium: { limit: 60, ttl: 60_000 } })
+  @ApiOperation({
+    summary: "Kindness Reminder check before posting or commenting",
+    description:
+      "A gentle nudge, not moderation: nothing is stored or reported. `reasons` can include `insult` (name-calling), `threat` (first-person threats) and `shouting` (mostly capitals). The client shows a reminder and lets the person edit or post anyway.",
+  })
+  @ApiOkResponse({ description: "Check result", schema: { example: { flagged: true, reasons: ["insult"] } } })
+  check(@Body() body: KindnessCheckDto) {
+    return checkKindness(body.text);
   }
 
   @Post("cases/:id/votes")

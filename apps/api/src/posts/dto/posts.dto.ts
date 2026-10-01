@@ -92,6 +92,8 @@ export class CreatePostDto {
 
 export class FeedQuery extends CursorQuery {
   @IsOptional() @IsIn(POST_CATEGORIES) category?: PostCategory;
+  /** Words to find in the post text (used by GET /search). */
+  @IsOptional() @IsString() @Length(2, 100) q?: string;
   /** e.g. alerts from the last 7 days */
   @IsOptional() @IsDateString() since?: string;
 }
