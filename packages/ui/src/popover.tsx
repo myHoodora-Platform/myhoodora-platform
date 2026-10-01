@@ -14,6 +14,13 @@ function PopoverTrigger(
   return <PopoverPrimitive.Trigger {...props} />;
 }
 
+/** Positions the content against an element other than the trigger (or `virtualRef`, any measurable element). */
+function PopoverAnchor(
+  props: React.ComponentProps<typeof PopoverPrimitive.Anchor>,
+) {
+  return <PopoverPrimitive.Anchor {...props} />;
+}
+
 function PopoverContent({
   className,
   sideOffset = 8,
@@ -35,4 +42,4 @@ function PopoverContent({
   );
 }
 
-export { Popover, PopoverTrigger, PopoverContent };
+export { Popover, PopoverTrigger, PopoverAnchor, PopoverContent };

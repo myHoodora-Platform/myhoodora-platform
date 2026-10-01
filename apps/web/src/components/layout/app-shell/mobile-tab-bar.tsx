@@ -22,6 +22,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@myhoodora/ui
 import { cn } from "@myhoodora/ui/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useComposer } from "@/features/feed/composer-context";
+import { navTourId } from "@/features/tour/placement";
 import { ROUTES } from "@/lib/routes";
 import { isNavActive, type NavItem } from "./navigation";
 import { useLogout } from "./user-menu";
@@ -48,7 +49,7 @@ export function MobileTabBar() {
   const tab = (item: NavItem) => {
     const active = isNavActive(pathname, item);
     return (
-      <Link href={item.href} aria-current={active ? "page" : undefined} className={tabClass(active)}>
+      <Link href={item.href} aria-current={active ? "page" : undefined} data-tour={navTourId(item.href)} className={tabClass(active)}>
         <item.icon className="size-6" strokeWidth={active ? 2.4 : 1.8} aria-hidden />
         {item.label}
       </Link>

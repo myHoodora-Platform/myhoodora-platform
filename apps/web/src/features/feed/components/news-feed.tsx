@@ -76,12 +76,14 @@ export function NewsFeed() {
     <div className="space-y-4">
       <h1 className="sr-only">Home</h1>
       <ComposerPrompt />
-      <FilterChips
-        label="Filter posts"
-        items={FEED_FILTERS}
-        active={filter}
-        hrefFor={(id) => (id === "all" ? ROUTES.newsFeed : `${ROUTES.newsFeed}?filter=${id}`)}
-      />
+      <div data-tour="feed-filters">
+        <FilterChips
+          label="Filter posts"
+          items={FEED_FILTERS}
+          active={filter}
+          hrefFor={(id) => (id === "all" ? ROUTES.newsFeed : `${ROUTES.newsFeed}?filter=${id}`)}
+        />
+      </div>
 
       {incoming.length > 0 && (
         <div className="sticky top-20 z-20 flex justify-center">

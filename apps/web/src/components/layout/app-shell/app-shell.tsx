@@ -10,6 +10,7 @@ import { OnboardingGatingModal } from "@/components/shared/OnboardingGatingModal
 import { OfflineBanner, ProblemState } from "@/components/shared/connection-states";
 import { ComposerProvider } from "@/features/feed/composer-context";
 import { hasSkippedOnboarding } from "@/features/onboarding/draft";
+import { FirstRunTour } from "@/features/tour/first-run-tour";
 import { ROUTES } from "@/lib/routes";
 import { isStaff } from "@/lib/auth/profile";
 import { AppHeader } from "./app-header";
@@ -152,6 +153,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
           <MobileTabBar />
           <OnboardingGatingModal />
+          <FirstRunTour />
         </div>
       </ComposerProvider>
     </TooltipProvider>

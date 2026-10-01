@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Plus } from "lucide-react";
 import { cn } from "@myhoodora/ui/utils";
 import { useComposer } from "@/features/feed/composer-context";
+import { navTourId } from "@/features/tour/placement";
 import { ROUTES } from "@/lib/routes";
 import { PRIMARY_NAV, isNavActive } from "./navigation";
 
@@ -24,6 +25,7 @@ export function AppSidebar() {
                 <Link
                   href={item.href}
                   aria-current={active ? "page" : undefined}
+                  data-tour={navTourId(item.href)}
                   className={cn(
                     "flex h-12 items-center gap-4 rounded-xl px-3 text-[17px] transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none",
                     active ? "font-bold text-foreground" : "font-medium text-foreground/80",

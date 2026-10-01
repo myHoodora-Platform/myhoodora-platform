@@ -32,6 +32,7 @@ import {
 } from "@/lib/auth/profile";
 import { clearAllOnboardingDrafts } from "@/features/onboarding/draft";
 import { clearFeedCaches } from "@/features/feed/feed-cache";
+import { noteTourEligibility } from "@/features/tour/storage";
 import { clearMemoryCaches } from "@/lib/memory-cache";
 
 export type { ProfileStatus, UserProfile } from "@/lib/auth/profile";
@@ -87,6 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const acceptProfile = useCallback((uid: string, data: unknown) => {
     const next = parseProfile(data);
+    noteTourEligibility(uid, next);
     profileUidRef.current = uid;
     setProfile(next);
     setProfileError(null);
