@@ -11,6 +11,7 @@ import type { Viewer } from "../shared/auth/viewer";
 import { searchRegex } from "../shared/http/pagination";
 import { mediaMixProblem } from "../storage/media-kind";
 import { UsersService } from "../users/users.service";
+import { eventDateProblem } from "./domain/event-time";
 import { decodePostContent, encodePostContent, postTypeFor, type PostMeta } from "./domain/post-meta";
 import type { CreatePostDto, FeedQuery } from "./dto/posts.dto";
 import { FeedPost, PollVote, Reaction, type PostDocument, type ReactionType } from "./schemas/post.schema";
@@ -179,6 +180,9 @@ export class PostsService implements OnModuleInit {
   private validateMeta(meta: PostMeta) {
     if (meta.category === "event") {
       if (!meta.eventDate || !meta.eventLocation) throw new BadRequestException("Events need a date and a place.");
+      // Not just the composer: an event can't be dated in the past (1 h grace) or more than a year ahead.
+      const problem = eventDateProblem(new Date(meta.eventDate));
+      if (problem) throw new BadRequestException(problem);
     }
     if (meta.category === "thanks" && !meta.thankedName) throw new BadRequestException("Say who you're thanking.");
     if (meta.category === "poll") {

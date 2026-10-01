@@ -38,6 +38,11 @@ export default () => ({
     nearbyBufferMeters: Number(process.env.NEARBY_BUFFER_M) || 3000,
   },
 
+  /** Event reminders and follow-ups (docs/api-contract.md §23). On unless EVENT_REMINDERS_ENABLED=false. */
+  eventReminders: {
+    enabled: process.env.EVENT_REMINDERS_ENABLED !== "false",
+  },
+
   /** Uploaded photos and videos (docs/api-contract.md §20). */
   storage: {
     /** cloudinary (default). Other providers need an adapter in src/storage/providers/. */

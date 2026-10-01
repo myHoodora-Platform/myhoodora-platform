@@ -1,5 +1,6 @@
 "use client";
 
+import { eventEndsAt } from "@/features/events/event-time";
 import Link from "next/link";
 import { useMemo } from "react";
 import { BadgeCheck, CalendarDays, ChevronRight, Hourglass, ShieldAlert } from "lucide-react";
@@ -63,7 +64,8 @@ function UpcomingEvents() {
   const upcoming = useMemo(
     () =>
       posts
-        .filter((p) => p.meta.category === "event" && p.meta.eventDate && new Date(p.meta.eventDate) > new Date())
+        // Still listed while it's on (until it ends), like the Events page.
+        .filter((p) => p.meta.category === "event" && p.meta.eventDate && eventEndsAt(p.meta.eventDate) > new Date())
         .sort((a, b) => a.meta.eventDate!.localeCompare(b.meta.eventDate!))
         .slice(0, 3),
     [posts],

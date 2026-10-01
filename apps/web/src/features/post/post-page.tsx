@@ -15,6 +15,7 @@ import { errorMessage } from "@/lib/api/client";
 import { ROUTES } from "@/lib/routes";
 import type { Post, ReactionType } from "@/lib/api/types";
 import { RsvpButtons } from "@/features/events/rsvp-buttons";
+import { calendarFor, eventPhase } from "@/features/events/event-time";
 import { CommentsSection } from "./comments-section";
 
 /** /p/[id] — a post's own page: what gets shared, and where comments live. */
@@ -93,8 +94,8 @@ export function PostPage({ postId }: { postId: string }) {
           <PostCard post={post} onReact={react} onDelete={feed.deletePost} variant="detail" />
           {post.meta.category === "event" && (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4">
-              <p className="text-sm font-bold">Are you going?</p>
-              <RsvpButtons postId={post._id} />
+              <p className="text-sm font-bold">{eventPhase(post.meta.eventDate) === "ended" ? "This event has ended" : "Are you going?"}</p>
+              <RsvpButtons postId={post._id} eventDate={post.meta.eventDate} calendar={calendarFor(post)} />
             </div>
           )}
           <CommentsSection postId={post._id} onCountChange={setCommentCount} />

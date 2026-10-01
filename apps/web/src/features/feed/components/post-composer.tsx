@@ -19,6 +19,7 @@ import { checkKindness, kindnessHint, type KindnessReason } from "@/lib/api/kind
 import { reportKindness } from "@/lib/api/telemetry";
 import { useAuth } from "@/context/AuthContext";
 import { useFeed } from "../feed-context";
+import { eventDateProblem } from "@/features/events/event-time";
 
 const MAX_POLL_OPTIONS = 4;
 const POLL_DURATIONS = [
@@ -45,8 +46,10 @@ const schema = z
     }
     if (v.category === "event") {
       if (!v.eventDate) ctx.addIssue({ code: "custom", path: ["eventDate"], message: "Add a date and time." });
-      else if (new Date(v.eventDate).getTime() < Date.now() - 60 * 60 * 1000) {
-        ctx.addIssue({ code: "custom", path: ["eventDate"], message: "That date has already passed." });
+      else {
+        // Same window as the API: not in the past (1 h grace), at most a year ahead.
+        const problem = eventDateProblem(v.eventDate);
+        if (problem) ctx.addIssue({ code: "custom", path: ["eventDate"], message: problem });
       }
       if (!v.eventLocation) ctx.addIssue({ code: "custom", path: ["eventLocation"], message: "Add where it's happening." });
     }

@@ -14,6 +14,7 @@ import { ROUTES } from "@/lib/routes";
 import { timeAgo } from "@/lib/time";
 import type { Post, ReactionType } from "@/lib/api/types";
 import { alertStatus } from "@/features/alerts/lifecycle";
+import { EventPhaseChip } from "@/features/events/event-phase-chip";
 import { alertCategoryDef, categoryDef, reactionDef } from "../categories";
 import { shareLink } from "../share";
 import { PollCard } from "./poll-card";
@@ -117,9 +118,10 @@ export function PostCard({ post, onReact, onDelete, variant = "feed" }: PostCard
         {meta.category === "event" && (meta.eventDate || meta.eventLocation) && (
           <div className="space-y-1 rounded-xl bg-primary/5 px-3 py-2.5 text-sm font-semibold text-primary">
             {meta.eventDate && (
-              <p className="flex items-center gap-2">
+              <p className="flex flex-wrap items-center gap-2">
                 <CalendarDays className="size-4 shrink-0" aria-hidden />
                 {formatEventDate(meta.eventDate)}
+                <EventPhaseChip eventDate={meta.eventDate} />
               </p>
             )}
             {meta.eventLocation && (

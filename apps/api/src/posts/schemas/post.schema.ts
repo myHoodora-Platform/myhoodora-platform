@@ -41,6 +41,8 @@ export class FeedPost {
   urgent!: boolean;
 
   @Prop() eventDate?: Date;
+  /** Host notices already sent for this event ("host_2d", "host_followup"); claimed atomically, so exactly once. */
+  @Prop({ type: [String], default: undefined }) hostNotices?: string[];
   @Prop({ maxlength: 200 }) eventLocation?: string;
   @Prop({ maxlength: 80 }) thankedName?: string;
   @Prop({ type: Number, default: undefined }) priceNaira?: number | null;
@@ -90,6 +92,8 @@ export class FeedPost {
 export const PostSchema = SchemaFactory.createForClass(FeedPost);
 PostSchema.index({ neighborhoodId: 1, isActive: 1, createdAt: -1 });
 PostSchema.index({ neighborhoodId: 1, category: 1, createdAt: -1 });
+// The reminder scheduler scans events by date.
+PostSchema.index({ category: 1, eventDate: 1 });
 
 /** One reaction per person per post (unique), replaces the unbounded likes[] array. */
 @Schema({ timestamps: true, collection: "reactions" })
@@ -117,6 +121,10 @@ export class Rsvp {
   @Prop({ required: true }) postId!: string;
   @Prop({ required: true }) uid!: string;
   @Prop({ required: true, enum: ["going", "interested"] }) status!: "going" | "interested";
+  /** Reminders already sent to this person for this event; claimed atomically, so exactly once (event-reminders.service). */
+  @Prop({ type: [String], default: [] }) remindersSent!: string[];
+  updatedAt?: Date;
 }
 export const RsvpSchema = SchemaFactory.createForClass(Rsvp);
 RsvpSchema.index({ postId: 1, uid: 1 }, { unique: true });
+RsvpSchema.index({ postId: 1, status: 1 });

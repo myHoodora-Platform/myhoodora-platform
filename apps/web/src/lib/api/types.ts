@@ -271,6 +271,8 @@ export interface EventRsvpSummary {
   goingCount: number;
   interestedCount: number;
   myStatus: RsvpStatus | null;
+  /** The event is over: RSVPs are closed (contract §23). */
+  ended?: boolean;
 }
 
 // ── Chat (planned) ──────────────────────────────────────────────────────────
@@ -322,6 +324,10 @@ export type NotificationType =
 export interface AppNotification {
   _id: string;
   type: NotificationType;
+  /** Finer meaning, e.g. "event_reminder_final" opens the reminder pop-up (contract §23). */
+  kind?: "event_reminder" | "event_reminder_final" | "event_followup";
+  /** What it's about (e.g. the event's post id). */
+  subjectId?: string;
   actorUid?: string;
   title: string;
   body?: string;

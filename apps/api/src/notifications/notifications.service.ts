@@ -6,7 +6,7 @@ import { RealtimeService } from "../realtime/realtime.service";
 import type { RenderedEmail } from "../communications/templates/email-templates";
 import { User, UserDocument } from "../users/schemas/user.schema";
 import type { NotificationCategory } from "../users/domain/preferences";
-import { Notification, NotificationDocument, type NotificationType } from "./notification.schema";
+import { Notification, NotificationDocument, type NotificationKind, type NotificationType } from "./notification.schema";
 
 export interface NotifyInput {
   uids: string[];
@@ -19,6 +19,8 @@ export interface NotifyInput {
   category?: NotificationCategory;
   /** Same key within an unread window → update the existing row instead of adding another. */
   groupKey?: string;
+  kind?: NotificationKind;
+  subjectId?: string;
   /** Optional email, sent only if the recipient's preferences allow it (or `forceEmail`). */
   email?: { type: string; render: (name?: string) => RenderedEmail; idempotencyKey: (uid: string) => string; force?: boolean };
 }
@@ -26,6 +28,8 @@ export interface NotifyInput {
 export interface AppNotification {
   _id: string;
   type: NotificationType;
+  kind?: NotificationKind;
+  subjectId?: string;
   actorUid?: string;
   title: string;
   body?: string;
@@ -68,10 +72,10 @@ export class NotificationsService {
           )
           .exec();
         if (!updated.matchedCount) {
-          await this.notifications.create({ uid: r.uid, type: input.type, actorUid: input.actorUid, title: input.title, body: input.body, href: input.href, groupKey: input.groupKey });
+          await this.notifications.create({ uid: r.uid, type: input.type, kind: input.kind, subjectId: input.subjectId, actorUid: input.actorUid, title: input.title, body: input.body, href: input.href, groupKey: input.groupKey });
         }
       } else {
-        await this.notifications.create({ uid: r.uid, type: input.type, actorUid: input.actorUid, title: input.title, body: input.body, href: input.href });
+        await this.notifications.create({ uid: r.uid, type: input.type, kind: input.kind, subjectId: input.subjectId, actorUid: input.actorUid, title: input.title, body: input.body, href: input.href });
       }
 
       const wantsEmail = input.email && (input.email.force || (input.category && r.preferences?.notifications?.[input.category]?.email));
@@ -111,6 +115,8 @@ function toApp(n: Notification & { _id: unknown }): AppNotification {
   return {
     _id: String(n._id),
     type: n.type,
+    kind: n.kind,
+    subjectId: n.subjectId,
     actorUid: n.actorUid,
     title: n.title,
     body: n.body,
