@@ -1,23 +1,64 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/context/AuthContext";
-import { Button } from "@myhoodora/ui/button";
-import { Input } from "@myhoodora/ui/input";
-import { LogoFull } from "@myhoodora/ui/logo";
-import {
-  MapPin,
-  Navigation,
-  ArrowRight,
-  ShieldCheck,
-  Check,
-} from "lucide-react";
 import { Skeleton } from "@myhoodora/ui/skeleton";
+import { useAuth } from "@/context/AuthContext";
+import { useNeighbourhood } from "@/hooks/use-neighbourhood";
+import { ProblemState } from "@/components/shared/connection-states";
+import { ApiError } from "@/lib/api/client";
+import { DEFAULT_APP_ROUTE, ROUTES } from "@/lib/routes";
+import {
+  clearOnboardingDraft,
+  clearOnboardingSkipped,
+  markOnboardingSkipped,
+  readOnboardingDraft,
+  saveOnboardingDraft,
+} from "@/features/onboarding/draft";
+import { OnboardingShell } from "@/features/onboarding/onboarding-shell";
+import { ConfirmStep, DetailsStep, NearbyHoodsStep, RequestSentStep, VerifyStep } from "@/features/onboarding/steps";
+import type { NearbyHood } from "@/lib/api/types";
+
+// How long to hold checklist step 1 ("Checking address coordinates") visible
+// before moving to step 2. That check is really just "do we have coordinates
+// to send?" — true the instant runVerification runs — so without a small
+// floor it would flip to done in the same frame as step 2, and both would
+// visually tick together. Step 2 onward has no floor: each is held open for
+// exactly as long as its real network call takes.
+const LOCAL_CHECK_MIN_MS = 300;
+
+// Same bounds as the API's OnboardingDto.displayName (2–60 characters).
+const NAME_MIN = 2;
+const NAME_MAX = 60;
+
+function saveErrorMessage(err: unknown): string {
+  // Validation errors carry the API's own explanation; everything else
+  // (offline, slow, server down) already has friendly wording.
+  if (err instanceof ApiError) {
+    // The API now creates a missing account on this call (contract §14); a 404 here means an older API or a
+    // deleted account, never "the page you wanted isn't there".
+    if (err.kind === "not_found") return "We couldn't find your account to save these details. Please try again, or sign out and back in.";
+    return err.kind === "client" ? `We couldn't save your details: ${err.message}` : err.message;
+  }
+  return "We couldn't save your details. Please try again.";
+}
+
+const isSessionError = (err: unknown) => err instanceof ApiError && err.kind === "auth";
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { user, profile, completeOnboarding, loading } = useAuth();
+  const {
+    user,
+    profile,
+    profileStatus,
+    profileError,
+    refreshProfile,
+    completeOnboarding,
+    verifyLocation,
+    requestHood,
+    loading,
+  } = useAuth();
+  const neighbourhood = useNeighbourhood();
   const [step, setStep] = useState(1);
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
@@ -25,22 +66,105 @@ export default function OnboardingPage() {
     null,
   );
   const [detecting, setDetecting] = useState(false);
+  const [geocoding, setGeocoding] = useState(false);
   const [verifyingStatus, setVerifyingStatus] = useState(0);
   const [onboardingError, setOnboardingError] = useState<string | null>(null);
+  const [verificationOutcome, setVerificationOutcome] = useState<
+    "pending" | "success" | "unverified" | "nearby" | "error" | "requested"
+  >("pending");
+  // Outside every Hood but close to some: offered as "request to join".
+  const [nearbyHoods, setNearbyHoods] = useState<NearbyHood[]>([]);
+  const [selectedHoodId, setSelectedHoodId] = useState<string | null>(null);
+  const [requesting, setRequesting] = useState(false);
+  const [requestError, setRequestError] = useState<string | null>(null);
 
-  // Initialize name from Firebase user profile
+  // Signed out (or the session expired mid-way): back to login, then here.
   useEffect(() => {
-    if (user?.displayName && !name) {
+    if (!loading && !user) {
+      router.replace(`${ROUTES.login}?next=${encodeURIComponent(ROUTES.onboarding)}`);
+    }
+  }, [loading, user, router]);
+
+  // Restore this account's saved draft (typed earlier, then refreshed,
+  // skipped or closed), then fall back to whatever's already on the account
+  // (a previous onboarding attempt — someone retrying verification
+  // shouldn't have to retype their address), then the Firebase display name.
+  // Runs once, when the profile is known.
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    if (restoredRef.current || !user || profileStatus !== "ready") return;
+    restoredRef.current = true;
+    const draft = readOnboardingDraft(user.uid);
+    if (draft?.name || draft?.address) {
+      setName(draft.name);
+      setAddress(draft.address);
+      setCoords(draft.coords);
+      if (draft.step === 2 && draft.coords) setStep(2);
+    } else if (profile?.displayName || profile?.location?.address) {
+      setName(profile.displayName || user.displayName || "");
+      if (profile.location?.address) setAddress(profile.location.address);
+      if (
+        typeof profile.location?.lat === "number" &&
+        typeof profile.location?.lng === "number"
+      ) {
+        setCoords({ lat: profile.location.lat, lng: profile.location.lng });
+      }
+    } else if (user.displayName) {
       setName(user.displayName);
     }
-  }, [user, name]);
+  }, [user, profile, profileStatus]);
 
-  // If already onboarded on mount and not loading, redirect to dashboard
+  // Keep the draft current as they type, so a refresh or closed tab resumes
+  // where they were. Only after the restore above, so it can't overwrite a
+  // saved draft with the initial empty fields.
   useEffect(() => {
-    if (!loading && profile?.isOnboarded) {
-      router.push("/dashboard");
+    if (!restoredRef.current || !user || step > 2) return;
+    if (!name.trim() && !address.trim()) return;
+    saveOnboardingDraft(user.uid, { name, address, coords, step });
+  }, [user, name, address, coords, step]);
+
+  // Redirect away only if the person is fully done (onboarded *and*
+  // verified) when they first land here, and only check this once. It must
+  // not re-run on every `profile` change: completeOnboarding flips
+  // isOnboarded to true the moment step 3 saves, and if this kept reacting
+  // to that, it would immediately bounce everyone to the dashboard before
+  // they ever saw the outside-coverage/error screen below — and it would
+  // make "Verify location" from the dashboard unusable, since arriving back
+  // here with isOnboarded already true would bounce them straight back out.
+  // Waits for a loaded profile: an unknown/failed profile must neither bounce
+  // them nor be taken to mean they aren't onboarded.
+  const didCheckInitialOnboardedRef = useRef(false);
+  useEffect(() => {
+    if (didCheckInitialOnboardedRef.current || loading || profileStatus !== "ready") return;
+    didCheckInitialOnboardedRef.current = true;
+    if (profile?.isOnboarded && profile?.verificationStatus === "verified") {
+      router.push(DEFAULT_APP_ROUTE);
     }
-  }, [loading, profile, router]);
+  }, [loading, profile, profileStatus, router]);
+
+  // Sets coords + a placeholder address immediately, then replaces it with a
+  // real reverse-geocoded address once that resolves (left as-is if it fails).
+  const applyDetectedLocation = async (
+    lat: number,
+    lng: number,
+    approximate: boolean,
+  ) => {
+    setCoords({ lat, lng });
+    setAddress(
+      approximate
+        ? `Approximate location (Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)})`
+        : `Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)} (Detected Location)`,
+    );
+    try {
+      const res = await fetch(`/api/reverse-geocode?lat=${lat}&lng=${lng}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.address) setAddress(data.address);
+      }
+    } catch (err) {
+      console.error("Reverse geocoding failed", err);
+    }
+  };
 
   const handleDetectLocation = () => {
     if (!navigator.geolocation) {
@@ -50,38 +174,97 @@ export default function OnboardingPage() {
     setDetecting(true);
     setOnboardingError(null);
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        setCoords({ lat: latitude, lng: longitude });
-        setAddress(
-          `Lat: ${latitude.toFixed(4)}, Lng: ${longitude.toFixed(4)} (Detected Location)`,
+      async (position) => {
+        await applyDetectedLocation(
+          position.coords.latitude,
+          position.coords.longitude,
+          false,
         );
         setDetecting(false);
       },
-      (error) => {
+      async (error) => {
         console.error(error);
-        setOnboardingError(
-          "Unable to detect location. Please enter your address manually.",
-        );
+
+        // GPS failed — fall back to an approximate location derived from the
+        // request itself (hosting-platform geo headers, e.g. Vercel/
+        // Cloudflare, or an IP-address lookup as a last resort).
+        try {
+          const res = await fetch("/api/ip-location");
+          if (res.ok) {
+            const data = await res.json();
+            await applyDetectedLocation(data.lat, data.lng, true);
+            setOnboardingError(
+              "We couldn't get your exact GPS location, so we used your approximate network location instead. Please check the address below and adjust it if it's not quite right.",
+            );
+            setDetecting(false);
+            return;
+          }
+        } catch (ipErr) {
+          console.error("IP location fallback failed", ipErr);
+        }
+
+        if (error.code === error.PERMISSION_DENIED) {
+          setOnboardingError(
+            "Location permission was denied. Please allow location access for this site, or enter your address manually.",
+          );
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          setOnboardingError(
+            "Your device couldn't determine a location just now — check that Location Services are enabled for your browser in your system settings, or enter your address manually.",
+          );
+        } else {
+          setOnboardingError(
+            "Location detection timed out. Please enter your address manually.",
+          );
+        }
         setDetecting(false);
       },
       { timeout: 10000 },
     );
   };
 
-  const handleNextStep = () => {
+  const handleNextStep = async () => {
     if (step === 1) {
-      if (!name.trim()) {
+      const trimmedName = name.trim();
+      if (!trimmedName) {
         setOnboardingError("Please enter your name.");
+        return;
+      }
+      if (trimmedName.length < NAME_MIN) {
+        setOnboardingError(`Your name needs at least ${NAME_MIN} characters.`);
+        return;
+      }
+      if (trimmedName.length > NAME_MAX) {
+        setOnboardingError(`Please keep your name to ${NAME_MAX} characters or fewer.`);
         return;
       }
       if (!address.trim()) {
         setOnboardingError(
-          "Please enter your address or detect your location.",
+          "Add your home address, or use your current location.",
         );
         return;
       }
       setOnboardingError(null);
+
+      if (!coords) {
+        setGeocoding(true);
+        try {
+          const res = await fetch(
+            `/api/geocode?address=${encodeURIComponent(address)}`,
+          );
+          if (!res.ok) throw new Error("Address not found");
+          const data = await res.json();
+          setCoords({ lat: data.lat, lng: data.lng });
+        } catch (err) {
+          console.error("Geocoding failed", err);
+          setOnboardingError(
+            "We couldn't find that address. Add your area and city (e.g. “Admiralty Way, Lekki Phase 1, Lagos”), or use your current location.",
+          );
+          setGeocoding(false);
+          return;
+        }
+        setGeocoding(false);
+      }
+
       setStep(2);
     } else if (step === 2) {
       setStep(3);
@@ -89,401 +272,220 @@ export default function OnboardingPage() {
   };
 
   const handleSkip = () => {
-    router.push("/dashboard");
+    // No backend call here on purpose: completeOnboarding marks the account
+    // isOnboarded, and we haven't verified a location for this person yet.
+    // What they typed is already in their draft (saved as they type), so
+    // it's still there if they come back to finish onboarding later.
+    // Limited access until they verify: the app stops redirecting here, the
+    // feed shows a "finish joining" card and neighbour-only areas stay locked.
+    if (user) markOnboardingSkipped(user.uid);
+    router.push(DEFAULT_APP_ROUTE);
   };
 
-  // Step 3: Mock Verification Sequencer & Backend Completion
-  useEffect(() => {
-    if (step !== 3) return;
+  // Saves the onboarding profile first, then checks the location. Saving
+  // first means a failed save leaves nothing behind on the server (no
+  // half-finished match), and by the time the location check runs, "your
+  // details are saved" is true whatever it finds. Runs once when step 3
+  // mounts; "Try again" re-runs only the location check (saveDetails =
+  // false). verifyingStatus follows the real milestones (not a fixed timer),
+  // so the checklist stays in sync with how long the calls actually take.
+  const runVerification = useCallback(async (saveDetails = true) => {
+    setVerifyingStatus(1); // step 1: coordinates present — a real, instant local check
+    await new Promise((resolve) => setTimeout(resolve, LOCAL_CHECK_MIN_MS));
 
-    const timer1 = setTimeout(() => setVerifyingStatus(1), 1200);
-    const timer2 = setTimeout(() => setVerifyingStatus(2), 2400);
-    const timer3 = setTimeout(() => setVerifyingStatus(3), 3600);
-
-    const finalize = async () => {
+    if (saveDetails) {
+      setVerifyingStatus(2); // step 2: saving name + address
       try {
         await completeOnboarding({
-          displayName: name,
+          displayName: name.trim(),
           location: {
             address,
             lat: coords?.lat || 0,
             lng: coords?.lng || 0,
           },
         });
-        // Wait another moment for the success state, then route
-        setTimeout(() => {
-          router.push("/dashboard");
-        }, 1200);
       } catch (err) {
         console.error("Onboarding backend completion failed", err);
-        setOnboardingError(
-          "Verification could not be saved to backend. Please retry.",
-        );
+        // Session expired: AuthProvider signed them out and the effect above
+        // sends them to login.
+        if (isSessionError(err)) return;
+        setOnboardingError(saveErrorMessage(err));
         setStep(1);
+        return;
       }
-    };
+      if (user) clearOnboardingDraft(user.uid);
+      clearOnboardingSkipped();
+    }
 
-    const timer4 = setTimeout(finalize, 4800);
+    setVerifyingStatus(3); // step 3: the real location check starts now
+    let outcome: "success" | "unverified" | "nearby" | "error" = "success";
+    try {
+      const result = await verifyLocation({
+        lat: coords?.lat || 0,
+        lng: coords?.lng || 0,
+      });
+      if (result.verificationStatus === "unverified") {
+        const nearby = result.nearbyHoods ?? [];
+        setNearbyHoods(nearby);
+        setSelectedHoodId(nearby[0]?.id ?? null);
+        setRequestError(null);
+        outcome = nearby.length > 0 ? "nearby" : "unverified";
+      }
+    } catch (verifyErr) {
+      if (isSessionError(verifyErr)) return;
+      // A failed *check* (network blip, backend hiccup) is not the same as
+      // "outside coverage" — surface it distinctly instead of silently
+      // treating it as success, which used to send people straight to the
+      // dashboard with no idea verification never actually ran.
+      console.error("Location verification failed", verifyErr);
+      outcome = "error";
+    }
+    setVerifyingStatus(4); // location check settled
 
-    return () => {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
-      clearTimeout(timer3);
-      clearTimeout(timer4);
-    };
-  }, [step, name, address, coords, completeOnboarding, router]);
+    setVerificationOutcome(outcome);
+    if (outcome === "success") {
+      // Hold the "Welcome to <neighbourhood>" screen long enough to read, then route.
+      setTimeout(() => {
+        router.push(DEFAULT_APP_ROUTE);
+      }, 3000);
+    }
+    // The other outcomes stop here and wait for the user to choose what to
+    // do next — see the buttons rendered for each state below.
+  }, [coords, name, address, user, verifyLocation, completeOnboarding, router]);
 
-  if (loading) {
+  // runVerification's identity changes on every AuthProvider re-render
+  // (verifyLocation/completeOnboarding/router aren't stable references
+  // there), and calling it triggers exactly such a re-render (it calls
+  // refreshProfile). If the effect below depended on runVerification
+  // directly, that would re-arm it every time, which re-runs
+  // runVerification, which re-renders AuthProvider, forever — an infinite
+  // loop hammering the backend. A ref breaks that: the effect only depends
+  // on `step`, and always calls whatever the latest runVerification is.
+  const runVerificationRef = useRef(runVerification);
+  useEffect(() => {
+    runVerificationRef.current = runVerification;
+  }, [runVerification]);
+
+  // Step 3: kick off the real check as soon as this step is shown. The
+  // checklist below renders straight off verifyingStatus/verificationOutcome,
+  // so it reflects actual progress instead of a canned delay.
+  useEffect(() => {
+    if (step !== 3) return;
+    setVerificationOutcome("pending");
+    setVerifyingStatus(0);
+    void runVerificationRef.current();
+  }, [step]);
+
+  const handleRetryVerification = () => {
+    setVerificationOutcome("pending");
+    // Details were saved before the check failed; only re-check the location.
+    void runVerification(false);
+  };
+
+  const handleRequestHood = async () => {
+    if (!selectedHoodId) return;
+    setRequesting(true);
+    setRequestError(null);
+    try {
+      await requestHood(selectedHoodId);
+      setVerificationOutcome("requested");
+    } catch (err) {
+      console.error("Join request failed", err);
+      if (isSessionError(err)) return;
+      setRequestError(
+        err instanceof ApiError ? err.message : "We couldn't send your request. Please try again.",
+      );
+    } finally {
+      setRequesting(false);
+    }
+  };
+
+  const handleEditAddress = () => {
+    setVerificationOutcome("pending");
+    setStep(1);
+  };
+
+  const handleContinueToDashboard = () => {
+    router.push(DEFAULT_APP_ROUTE);
+  };
+
+  if (!loading && user && profileStatus === "error") {
     return (
-      <div className="min-h-screen flex flex-col bg-slate-50 text-foreground font-sans">
-        {/* Top Header Skeleton */}
-        <header className="w-full px-6 py-4 flex items-center justify-between border-b border-slate-100 bg-white">
-          <Skeleton className="h-8 w-28" />
-          <Skeleton className="h-6 w-12" />
-        </header>
-
-        {/* Main Content Skeleton */}
-        <main className="flex-1 flex items-center justify-center p-6">
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-xl overflow-hidden max-w-4xl w-full grid md:grid-cols-[280px_1fr] min-h-[500px]">
-            {/* Left Panel Step Progress Skeleton */}
-            <div className="bg-slate-50/50 p-8 border-r border-slate-100 space-y-8 hidden md:block">
-              {[1, 2, 3].map((s) => (
-                <div key={s} className="flex gap-4 items-start animate-pulse">
-                  <Skeleton className="size-8 rounded-full shrink-0" />
-                  <div className="space-y-2 flex-1">
-                    <Skeleton className="h-4 w-20" />
-                    <Skeleton className="h-3 w-28" />
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Right Panel Content Skeleton */}
-            <div className="p-8 md:p-12 flex flex-col justify-between">
-              <div className="space-y-6">
-                <div className="space-y-2">
-                  <Skeleton className="h-8 w-48" />
-                  <Skeleton className="h-4 w-72" />
-                </div>
-                <div className="space-y-4 pt-4">
-                  <div className="space-y-2">
-                    <Skeleton className="h-4 w-24" />
-                    <Skeleton className="h-10 w-full" />
-                  </div>
-                  <div className="space-y-2">
-                    <Skeleton className="h-4 w-24" />
-                    <Skeleton className="h-10 w-full" />
-                  </div>
-                </div>
-              </div>
-              <Skeleton className="h-10 w-full mt-8" />
-            </div>
-          </div>
-        </main>
-      </div>
+      <OnboardingShell step={1}>
+        <ProblemState
+          title="We couldn't load your account"
+          message={profileError?.message ?? "Something went wrong. Please try again."}
+          kind={profileError?.kind ?? null}
+          onRetry={() => void refreshProfile()}
+        />
+      </OnboardingShell>
     );
   }
 
-  const stepsList = [
-    { title: "Your details", desc: "Name & Address" },
-    { title: "Confirm location", desc: "Interactive Map" },
-    { title: "Verification", desc: "Neighborhood Check" },
-  ];
+  if (loading || !user || profileStatus !== "ready") {
+    return (
+      <OnboardingShell step={1}>
+        <div className="space-y-4" aria-busy aria-label="Loading">
+          <Skeleton className="h-9 w-3/4" />
+          <Skeleton className="h-5 w-full" />
+          <Skeleton className="h-72 w-full rounded-2xl" />
+          <Skeleton className="h-12 w-full rounded-xl" />
+        </div>
+      </OnboardingShell>
+    );
+  }
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 text-foreground font-sans">
-      {/* Top Header */}
-      <header className="w-full px-6 py-4 flex items-center justify-between border-b border-slate-100 bg-white">
-        <LogoFull size="md" />
-        <button
-          onClick={handleSkip}
-          className="text-xs font-bold text-muted-foreground uppercase tracking-widest hover:text-primary transition-colors"
-        >
-          Skip onboarding
-        </button>
-      </header>
-
-      <main className="flex-1 flex flex-col items-center justify-center p-6 md:p-12">
-        <div className="max-w-2xl w-full bg-white rounded-2xl shadow-sm border border-slate-100 p-8 md:p-12">
-          {/* Stepper Progress Bar */}
-          <div className="flex items-center justify-between mb-12 relative w-full px-4">
-            {/* Background Line */}
-            <div className="absolute top-4 left-10 right-10 h-0.5 bg-slate-100 -z-0"></div>
-            {/* Active Progress Line */}
-            <div
-              className="absolute top-4 left-10 h-0.5 bg-primary transition-all duration-300 -z-0"
-              style={{
-                width: `${step === 1 ? "0%" : step === 2 ? "50%" : "100%"}`,
-              }}
-            ></div>
-
-            {stepsList.map((item, idx) => {
-              const currentStep = idx + 1;
-              const isCompleted = step > currentStep;
-              const isActive = step === currentStep;
-
-              return (
-                <div
-                  key={idx}
-                  className="flex flex-col items-center relative z-10 text-center flex-1"
-                >
-                  {/* Step Node Icon/Bubble */}
-                  <div
-                    className={`size-9 rounded-full flex items-center justify-center border-2 transition-all duration-300 ${
-                      isCompleted
-                        ? "bg-primary border-primary text-white"
-                        : isActive
-                          ? "bg-white border-primary text-primary shadow-lg shadow-primary/10 ring-4 ring-primary/10"
-                          : "bg-white border-slate-200 text-slate-400"
-                    }`}
-                  >
-                    {isCompleted ? (
-                      <Check className="size-4" />
-                    ) : (
-                      <span className="text-xs font-bold">{currentStep}</span>
-                    )}
-                  </div>
-                  {/* Step Info */}
-                  <span
-                    className={`text-xs font-bold mt-3 block ${
-                      isActive ? "text-foreground" : "text-muted-foreground"
-                    }`}
-                  >
-                    {item.title}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground/60 hidden sm:block">
-                    {item.desc}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Stepper Body Forms */}
-          <div className="min-h-[250px]">
-            {onboardingError && (
-              <div className="mb-6 p-4 bg-destructive/10 text-destructive text-sm font-semibold rounded-xl flex items-center gap-2">
-                <MapPin className="size-5 shrink-0 stroke-destructive" />
-                <span>{onboardingError}</span>
-              </div>
-            )}
-
-            {/* STEP 1: Name and Location Form */}
-            {step === 1 && (
-              <div className="space-y-6">
-                <div>
-                  <h2 className="text-2xl font-black mb-2 tracking-tight">
-                    Tell us about yourself
-                  </h2>
-                  <p className="text-sm text-muted-foreground">
-                    Enter your name and address to find your local neighbourhood
-                    community.
-                  </p>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 px-1">
-                      Your Full Name
-                    </label>
-                    <Input
-                      type="text"
-                      placeholder="Jane Doe"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                    />
-                  </div>
-
-                  <div>
-                    <div className="flex justify-between items-center mb-2 px-1">
-                      <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                        Neighborhood Address
-                      </label>
-                      <button
-                        type="button"
-                        onClick={handleDetectLocation}
-                        disabled={detecting}
-                        className="text-xs font-extrabold text-primary hover:underline flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                      >
-                        <Navigation
-                          className={`size-3 ${detecting ? "animate-pulse" : ""}`}
-                        />
-                        {detecting ? "Detecting..." : "Use current location"}
-                      </button>
-                    </div>
-                    <Input
-                      type="text"
-                      placeholder="123 Neighborhood St, City"
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <Button className="w-full mt-4" onClick={handleNextStep}>
-                  Continue
-                  <ArrowRight className="size-4" />
-                </Button>
-              </div>
-            )}
-
-            {/* STEP 2: Mock map preview */}
-            {step === 2 && (
-              <div className="space-y-6">
-                <div>
-                  <h2 className="text-2xl font-black mb-2 tracking-tight">
-                    Confirm your neighborhood
-                  </h2>
-                  <p className="text-sm text-muted-foreground">
-                    We detected you belong in the local community map section
-                    below.
-                  </p>
-                </div>
-
-                {/* Styled CSS Mock Map */}
-                <div className="relative h-48 w-full bg-slate-100 rounded-xl overflow-hidden border border-slate-200 flex items-center justify-center">
-                  {/* Grid Lines Mock Map Background */}
-                  <div
-                    className="absolute inset-0 opacity-20"
-                    style={{
-                      backgroundImage: `
-                        radial-gradient(circle, #0D9488 1px, transparent 1px),
-                        linear-gradient(to right, #ccc 1px, transparent 1px),
-                        linear-gradient(to bottom, #ccc 1px, transparent 1px)
-                      `,
-                      backgroundSize: "20px 20px, 40px 40px, 40px 40px",
-                    }}
-                  ></div>
-
-                  {/* Circular Boundary Grid */}
-                  <div className="absolute size-36 border-2 border-dashed border-primary/20 rounded-full animate-pulse opacity-40"></div>
-
-                  {/* Pulsing Marker */}
-                  <div className="relative z-10 flex flex-col items-center">
-                    <span className="absolute -top-3 size-6 bg-primary/20 rounded-full animate-ping"></span>
-                    <MapPin className="size-8 text-primary fill-primary/30 relative z-10" />
-                  </div>
-
-                  {/* Coordinate Metadata Tag */}
-                  <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-lg border border-slate-200 text-[10px] font-bold text-slate-600 shadow-sm flex items-center gap-1.5">
-                    <Navigation className="size-3 text-primary animate-spin" />
-                    GPS Connected
-                  </div>
-                </div>
-
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex items-start gap-3">
-                  <MapPin className="size-5 text-primary shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="text-sm font-bold">Detected Address</h4>
-                    <p className="text-xs text-muted-foreground">{address}</p>
-                  </div>
-                </div>
-
-                <div className="flex gap-4">
-                  <Button
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => setStep(1)}
-                  >
-                    Back
-                  </Button>
-                  <Button className="flex-1" onClick={handleNextStep}>
-                    Verify Details
-                    <ArrowRight className="size-4" />
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* STEP 3: Verification Mocking Loader */}
-            {step === 3 && (
-              <div className="flex flex-col items-center justify-center py-10 space-y-6">
-                <div className="relative size-16 flex items-center justify-center">
-                  <div className="absolute inset-0 rounded-full border-4 border-slate-100"></div>
-                  <div className="absolute inset-0 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
-                  <ShieldCheck className="size-6 text-primary" />
-                </div>
-
-                <div className="text-center space-y-2 max-w-sm">
-                  <h3 className="text-lg font-black">
-                    Verifying Address Authenticity
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    Please stand by while we verify your address fits local
-                    neighborhood guidelines.
-                  </p>
-                </div>
-
-                {/* Sub-steps of verification */}
-                <div className="w-full max-w-xs space-y-3 bg-slate-50 p-5 rounded-xl border border-slate-100">
-                  <div className="flex items-center gap-3 text-xs">
-                    <div
-                      className={`size-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                        verifyingStatus >= 0
-                          ? "bg-primary text-white"
-                          : "bg-slate-200 text-slate-500"
-                      }`}
-                    >
-                      {verifyingStatus > 0 ? "✓" : "1"}
-                    </div>
-                    <span
-                      className={
-                        verifyingStatus >= 0
-                          ? "font-bold text-slate-800"
-                          : "text-slate-400"
-                      }
-                    >
-                      Checking address coordinates...
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-3 text-xs">
-                    <div
-                      className={`size-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                        verifyingStatus >= 1
-                          ? "bg-primary text-white"
-                          : "bg-slate-200 text-slate-500"
-                      }`}
-                    >
-                      {verifyingStatus > 1 ? "✓" : "2"}
-                    </div>
-                    <span
-                      className={
-                        verifyingStatus >= 1
-                          ? "font-bold text-slate-800"
-                          : "text-slate-400"
-                      }
-                    >
-                      Checking active sector boundary...
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-3 text-xs">
-                    <div
-                      className={`size-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                        verifyingStatus >= 2
-                          ? "bg-primary text-white"
-                          : "bg-slate-200 text-slate-500"
-                      }`}
-                    >
-                      {verifyingStatus > 2 ? "✓" : "3"}
-                    </div>
-                    <span
-                      className={
-                        verifyingStatus >= 2
-                          ? "font-bold text-slate-800"
-                          : "text-slate-400"
-                      }
-                    >
-                      Setting up neighborhood feed access...
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </main>
-    </div>
+    <OnboardingShell step={step} onSkip={step < 3 ? handleSkip : undefined}>
+      {step === 1 && (
+        <DetailsStep
+          name={name}
+          address={address}
+          hasCoords={!!coords}
+          detecting={detecting}
+          geocoding={geocoding}
+          error={onboardingError}
+          onName={setName}
+          onAddress={(value) => {
+            setAddress(value);
+            // Manual edits invalidate any previously detected coordinates.
+            setCoords(null);
+          }}
+          onDetect={handleDetectLocation}
+          onNext={() => void handleNextStep()}
+        />
+      )}
+      {step === 2 && (
+        <ConfirmStep address={address} coords={coords} onBack={() => setStep(1)} onNext={() => void handleNextStep()} />
+      )}
+      {step === 3 && verificationOutcome === "nearby" && (
+        <NearbyHoodsStep
+          hoods={nearbyHoods}
+          selectedId={selectedHoodId}
+          requesting={requesting}
+          error={requestError}
+          onSelect={setSelectedHoodId}
+          onRequest={() => void handleRequestHood()}
+          onEditAddress={handleEditAddress}
+          onNotNow={handleContinueToDashboard}
+        />
+      )}
+      {step === 3 && verificationOutcome === "requested" && (
+        <RequestSentStep
+          hoodName={nearbyHoods.find((h) => h.id === selectedHoodId)?.name ?? profile?.requestedHood?.name ?? "the neighbourhood"}
+          onContinue={handleContinueToDashboard}
+        />
+      )}
+      {step === 3 && verificationOutcome !== "nearby" && verificationOutcome !== "requested" && (
+        <VerifyStep
+          status={verifyingStatus}
+          outcome={verificationOutcome}
+          neighbourhoodName={neighbourhood?.name ?? null}
+          onRetry={handleRetryVerification}
+          onEditAddress={handleEditAddress}
+          onContinue={handleContinueToDashboard}
+        />
+      )}
+    </OnboardingShell>
   );
 }

@@ -1,12 +1,15 @@
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { Section } from "@myhoodora/ui/section";
+import { ExploreMore, type ExploreKey } from "@/components/marketing/explore-more";
 
 interface LegalPageProps {
   title: string;
   updatedAt: string;
   intro?: string;
   children: React.ReactNode;
+  /** Cross-links shown above the footer. */
+  explore?: ExploreKey[];
 }
 
 /**
@@ -14,14 +17,14 @@ interface LegalPageProps {
  * Guidelines, Terms, …): a centered prose column under the standard
  * header and footer.
  */
-export function LegalPage({ title, updatedAt, intro, children }: LegalPageProps) {
+export function LegalPage({ title, updatedAt, intro, children, explore = ["safety", "how-it-works", "about"] }: LegalPageProps) {
   return (
     <div className="min-h-screen flex flex-col font-sans text-foreground bg-background">
       <Header />
       <main className="flex-1">
         <Section className="py-16 lg:py-20">
           <div className="mx-auto max-w-3xl">
-            <h1 className="text-3xl font-black tracking-tight text-foreground sm:text-4xl">
+            <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
               {title}
             </h1>
             <p className="mt-3 text-sm text-muted-foreground">
@@ -35,6 +38,7 @@ export function LegalPage({ title, updatedAt, intro, children }: LegalPageProps)
             <div className="mt-10 space-y-10">{children}</div>
           </div>
         </Section>
+        <ExploreMore items={explore} className="border-t border-border bg-canvas" />
       </main>
       <Footer />
     </div>

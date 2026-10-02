@@ -1,7 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { HealthCheck, HealthCheckService, MongooseHealthIndicator } from '@nestjs/terminus';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
-import { Public } from './common/decorators/public.decorator';
+import { Public } from './shared/auth/public.decorator';
 
 @ApiTags('health')
 @Controller()

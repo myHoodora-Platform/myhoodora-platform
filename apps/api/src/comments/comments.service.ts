@@ -1,0 +1,142 @@
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException, OnModuleInit } from "@nestjs/common";
+import { InjectConnection, InjectModel } from "@nestjs/mongoose";
+import { Connection, Model, Types, type ClientSession } from "mongoose";
+import { ModerationRegistry } from "../moderation/moderation-registry";
+import { NotificationsService } from "../notifications/notifications.service";
+import { PostsService } from "../posts/posts.service";
+import type { Viewer } from "../shared/auth/viewer";
+import { withTransaction } from "../shared/db/transaction";
+import { RealtimeService } from "../realtime/realtime.service";
+import { UsersService } from "../users/users.service";
+import { Comment, CommentDocument } from "./comment.schema";
+
+export interface CommentView {
+  _id: string;
+  postId: string;
+  authorUid: string;
+  author: { uid: string; displayName: string; photoURL?: string };
+  content: string;
+  createdAt: string;
+  likes: string[];
+}
+
+@Injectable()
+export class CommentsService implements OnModuleInit {
+  constructor(
+    @InjectModel(Comment.name) private readonly comments: Model<CommentDocument>,
+    @InjectConnection() private readonly connection: Connection,
+    private readonly posts: PostsService,
+    private readonly users: UsersService,
+    private readonly notifications: NotificationsService,
+    private readonly registry: ModerationRegistry,
+    private readonly realtime: RealtimeService,
+  ) {}
+
+  onModuleInit() {
+    this.registry.register({
+      type: "comment",
+      load: async (id) => {
+        const c = Types.ObjectId.isValid(id) ? await this.comments.findById(id).lean<Comment>().exec() : null;
+        if (!c) return null;
+        const post = await this.posts.findRaw(c.postId);
+        return {
+          type: "comment",
+          id,
+          preview: c.content.slice(0, 200),
+          authorUid: c.authorUid,
+          hoodId: post?.neighborhoodId,
+          removed: Boolean(c.removedAt),
+          content: { kind: "comment", message: c.content, createdAt: c.createdAt?.toISOString(), onPost: { id: c.postId, message: post ? this.posts.read(post).message.slice(0, 200) : "" }, removed: Boolean(c.removedAt) },
+        };
+      },
+      setRemoved: async (id, removed, _actor, session) => {
+        const c = await this.comments.findById(id).session(session ?? null).exec();
+        if (!c || Boolean(c.removedAt) === removed) return;
+        c.removedAt = removed ? new Date() : null;
+        await c.save({ session });
+        if (!c.deletedAt) await this.posts.incCommentCount(c.postId, removed ? -1 : 1, session);
+      },
+      announce: async (id) => {
+        const c = Types.ObjectId.isValid(id) ? await this.comments.findById(id).lean<Comment>().exec() : null;
+        const post = c ? await this.posts.findRaw(c.postId) : null;
+        if (c && post) this.announce(post, c.removedAt || c.deletedAt ? "comment.deleted" : "comment.created", id);
+      },
+    });
+  }
+
+  async list(viewer: Viewer, postId: string): Promise<CommentView[]> {
+    await this.posts.loadVisible(viewer, postId);
+    const hidden = await this.users.hiddenAuthorsFor(viewer.uid);
+    const rows = await this.comments
+      .find({ postId, deletedAt: null, removedAt: null, ...(hidden.length && { authorUid: { $nin: hidden } }) })
+      .sort({ createdAt: 1 })
+      .limit(500)
+      .lean<(Comment & { _id: Types.ObjectId })[]>()
+      .exec();
+    return this.toViews(rows);
+  }
+
+  async create(viewer: Viewer, postId: string, content: string): Promise<CommentView> {
+    const post = await this.posts.loadVisible(viewer, postId);
+    if (post.commentsDisabled) throw new ForbiddenException("Comments are turned off for this post.");
+    const text = content.trim();
+    if (!text) throw new BadRequestException("Write a comment first.");
+    const created = await withTransaction(this.connection, async (session: ClientSession) => {
+      const [c] = await this.comments.create([{ postId, authorUid: viewer.uid, content: text }], { session });
+      await this.posts.incCommentCount(postId, 1, session);
+      return c!;
+    });
+    await this.notifications.notify({
+      uids: [post.authorUid],
+      type: "comment",
+      actorUid: viewer.uid,
+      title: `${viewer.displayName ?? "A neighbour"} commented on your post`,
+      body: text.slice(0, 140),
+      href: `/p/${postId}`,
+      category: "comments",
+    });
+    this.announce(post, "comment.created", String(created._id));
+    return (await this.toViews([created.toObject()]))[0]!;
+  }
+
+  /** Author, or staff (Hood Leads later). */
+  async delete(viewer: Viewer, id: string): Promise<void> {
+    const c = Types.ObjectId.isValid(id) ? await this.comments.findById(id).exec() : null;
+    if (!c || c.deletedAt) throw new NotFoundException("Comment not found.");
+    const post = await this.posts.loadVisible(viewer, c.postId);
+    if (c.authorUid !== viewer.uid && !viewer.capabilities.includes("moderation.act")) throw new ForbiddenException("You can only delete your own comments.");
+    await withTransaction(this.connection, async (session) => {
+      c.deletedAt = new Date();
+      await c.save({ session });
+      if (!c.removedAt) await this.posts.incCommentCount(c.postId, -1, session);
+    });
+    this.announce(post, "comment.deleted", id);
+  }
+
+  /** Live update for the post's thread, and its comment count on feed cards. */
+  private announce(post: { _id: unknown; neighborhoodId?: string | null }, type: "comment.created" | "comment.deleted", id: string): void {
+    this.realtime.toHood(post.neighborhoodId, type, { id, postId: String(post._id) });
+    this.posts.changed(post);
+  }
+
+  /** For admin post detail (includes removed). */
+  async allForPost(postId: string) {
+    return this.comments.find({ postId, deletedAt: null }).sort({ createdAt: 1 }).lean<(Comment & { _id: Types.ObjectId })[]>().exec();
+  }
+
+  private async toViews(rows: (Comment & { _id: unknown })[]): Promise<CommentView[]> {
+    const authors = await this.users.authorCards(rows.map((r) => r.authorUid));
+    return rows.map((r) => {
+      const a = authors.get(r.authorUid);
+      return {
+        _id: String(r._id),
+        postId: r.postId,
+        authorUid: r.authorUid,
+        author: { uid: r.authorUid, displayName: a?.displayName ?? "Neighbour", photoURL: a?.photoURL },
+        content: r.content,
+        createdAt: (r.createdAt ?? new Date()).toISOString(),
+        likes: [],
+      };
+    });
+  }
+}

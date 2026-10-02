@@ -1,3 +1,5 @@
+import { ApiError } from "@/lib/api/client";
+
 interface FirebaseErrorLike {
   code: string;
   message: string;
@@ -30,6 +32,20 @@ const AUTH_ERROR_MAP: Record<string, string> = {
     "Network error. Check your connection and try again.",
   "auth/user-not-found": "We couldn't find an account with those details.",
   "auth/user-disabled": "We couldn't find an account with those details.",
+  "auth/invalid-email": "That email address doesn't look right.",
+  "auth/missing-password": "Please enter your password.",
+  "auth/popup-blocked":
+    "Your browser blocked the sign-in window. Allow pop-ups and try again.",
+  "auth/account-exists-with-different-credential":
+    "An account with this email already exists. Try logging in another way.",
+  "auth/requires-recent-login":
+    "For your security, please log in again and retry.",
+  "auth/unauthorized-continue-uri":
+    "We couldn't send the reset email from this site yet. Please contact the team.",
+  "auth/expired-action-code":
+    "This link has expired. Please request a new one.",
+  "auth/invalid-action-code":
+    "This link is invalid or has already been used. Please request a new one.",
 };
 
 export function getAuthErrorMessage(error: unknown): {
@@ -41,6 +57,9 @@ export function getAuthErrorMessage(error: unknown): {
   if (process.env.NODE_ENV === "development") {
     console.error("[FirebaseAuthErrorDebug]:", error);
   }
+
+  // Signed in with Firebase, but our own session couldn't be set up: already a readable message.
+  if (error instanceof ApiError) return { message: error.message };
 
   let code: string | undefined;
 

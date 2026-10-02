@@ -11,7 +11,7 @@ const variantClasses: Record<ButtonVariant, string> = {
     "bg-brand-coral text-white hover:bg-brand-coral/90 shadow-lg shadow-brand-coral/30",
   outline: "bg-background border border-border text-foreground hover:bg-muted",
   ghost: "text-foreground hover:bg-primary/5",
-  secondary: "bg-background text-primary hover:bg-slate-100 shadow-xl",
+  secondary: "bg-background text-primary hover:bg-muted shadow-lg",
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
@@ -21,7 +21,7 @@ const sizeClasses: Record<ButtonSize, string> = {
 };
 
 const baseClasses =
-  "inline-flex items-center justify-center gap-2 font-bold transition-all border-0 active:scale-95 disabled:pointer-events-none disabled:opacity-50";
+  "inline-flex items-center justify-center gap-2 font-semibold transition-all border-0 active:scale-95 disabled:pointer-events-none disabled:opacity-50";
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;

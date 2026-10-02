@@ -26,11 +26,11 @@ export function OnboardingGatingModal() {
       ></div>
 
       {/* Modal Dialog Card */}
-      <div className="relative w-full max-w-md bg-white rounded-2xl border border-slate-100 shadow-xl p-6 relative z-10 animate-in zoom-in-95 duration-200">
+      <div className="relative w-full max-w-md bg-card rounded-2xl border border-border shadow-xl p-6 relative z-10 animate-in zoom-in-95 duration-200">
         {/* Close Button */}
         <button
           onClick={() => setIsGatingModalOpen(false)}
-          className="absolute top-4 right-4 p-1 rounded-full text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-colors"
+          className="absolute top-4 right-4 p-1 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
         >
           <X className="size-4" />
         </button>
@@ -43,7 +43,7 @@ export function OnboardingGatingModal() {
           </div>
 
           <div className="space-y-2">
-            <h3 className="text-xl font-black tracking-tight text-slate-800">
+            <h3 className="text-xl font-bold tracking-tight text-foreground">
               Complete Onboarding
             </h3>
             <p className="text-sm text-muted-foreground px-2">
@@ -56,7 +56,7 @@ export function OnboardingGatingModal() {
         {/* Action Buttons */}
         <div className="mt-6 flex flex-col gap-2">
           <Button className="w-full" onClick={handleGoToOnboarding}>
-            Verify neighborhood location
+            Verify neighbourhood location
           </Button>
           <Button
             variant="ghost"

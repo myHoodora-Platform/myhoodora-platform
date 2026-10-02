@@ -92,7 +92,7 @@ function ResetPasswordForm() {
     return (
       <div className="space-y-6">
         <div className="space-y-2">
-          <h1 className="text-3xl font-black tracking-tight text-foreground">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">
             Reset failed
           </h1>
           <p className="text-sm text-red-600 font-medium">
@@ -143,7 +143,7 @@ function ResetPasswordForm() {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <h1 className="text-3xl font-black tracking-tight text-foreground">
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">
           Set new password
         </h1>
         <p className="text-sm text-muted-foreground">
@@ -154,10 +154,12 @@ function ResetPasswordForm() {
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div>
-          <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 px-1">
+          <label htmlFor="reset-password" className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-1">
             New Password
           </label>
           <PasswordInput
+            id="reset-password"
+            autoComplete="new-password"
             placeholder="••••••••"
             error={errors.password?.message}
             {...register("password")}

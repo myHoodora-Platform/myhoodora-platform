@@ -6,6 +6,7 @@ import { Button } from "@myhoodora/ui/button";
 import { Skeleton } from "@myhoodora/ui/skeleton";
 import { cn } from "@myhoodora/ui/utils";
 import { LayoutDashboard } from "lucide-react";
+import { DEFAULT_APP_ROUTE } from "@/lib/routes";
 
 interface HeaderActionsProps {
   className?: string;
@@ -60,23 +61,24 @@ export function HeaderActions({
       >
         <div
           className={cn(
-            "flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-3 py-1.5 text-xs font-bold",
+            "flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-3 py-1.5 text-xs font-semibold",
             isStack && "w-full justify-center",
           )}
         >
-          <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-black text-primary-foreground">
+          <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
             {initial}
           </div>
           <span className="max-w-[140px] truncate">{name}</span>
         </div>
 
-        <Link href="/dashboard" className={isStack ? "w-full" : undefined}>
+        {/* No prefetch: until the session cookie is back the proxy answers with a redirect to /login, and that must not be cached. */}
+        <Link href={DEFAULT_APP_ROUTE} prefetch={false} className={isStack ? "w-full" : undefined}>
           <Button
             size="sm"
             className={cn("gap-2 font-semibold", isStack && "w-full")}
           >
             <LayoutDashboard className="size-4" />
-            <span>Dashboard</span>
+            <span>Open myHoodora</span>
           </Button>
         </Link>
       </div>

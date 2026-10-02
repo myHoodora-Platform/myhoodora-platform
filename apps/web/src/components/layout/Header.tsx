@@ -3,22 +3,47 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogoFull } from "@myhoodora/ui/logo";
+import { MascotWordmark } from "@myhoodora/ui/logo";
 import { Button } from "@myhoodora/ui/button";
 import { cn } from "@myhoodora/ui/utils";
-import { Menu, X } from "lucide-react";
+import { ChevronDown, Menu, X } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@myhoodora/ui/dropdown-menu";
 import { HeaderActions } from "./HeaderActions";
 
 interface NavLink {
   label: string;
   href: string;
+  description?: string;
+  /** Shows a small "Soon" pill for features that aren't live yet. */
+  soon?: boolean;
 }
 
-const MARKETING_NAV: NavLink[] = [
-  { label: "How It Works", href: "/how-it-works" },
-  { label: "Marketplace", href: "/coming-soon/marketplace" },
-  { label: "For Business", href: "/coming-soon/for-business" },
+/** "About" groups the pages that explain myHoodora itself. */
+const ABOUT_LINKS: NavLink[] = [
+  { label: "About us", href: "/about", description: "Our vision, mission and HOOD values" },
+  { label: "How it works", href: "/how-it-works", description: "Joining, verifying and what's inside" },
+  { label: "Safety & trust", href: "/safety", description: "How we keep neighbourhoods safe" },
 ];
+
+const MARKETING_NAV: NavLink[] = [
+  { label: "For business", href: "/business" },
+  { label: "Marketplace", href: "/coming-soon/marketplace", soon: true },
+];
+
+const ALL_MOBILE_LINKS: NavLink[] = [...ABOUT_LINKS, ...MARKETING_NAV];
+
+function SoonBadge() {
+  return (
+    <span className="rounded-full bg-brand-coral/15 px-1.5 py-0.5 text-[10px] leading-none font-bold tracking-wide text-brand-coral-ink uppercase">
+      Soon
+    </span>
+  );
+}
 
 interface AuthCta {
   hint?: string;
@@ -66,7 +91,7 @@ export function Header() {
     <header className="sticky top-0 z-50 border-b border-primary/10 bg-background/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         <Link href="/" aria-label="myHoodora home">
-          <LogoFull size="md" />
+          <MascotWordmark size="md" />
         </Link>
 
         {authCta ? (
@@ -89,6 +114,27 @@ export function Header() {
               aria-label="Main"
               className="hidden items-center gap-1 md:flex"
             >
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors outline-none hover:bg-muted/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40 data-[state=open]:bg-muted/60 data-[state=open]:text-foreground",
+                    ABOUT_LINKS.some((l) => l.href === pathname) && "bg-primary/10 text-primary",
+                  )}
+                >
+                  About
+                  <ChevronDown className="size-4" aria-hidden />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-72 p-2">
+                  {ABOUT_LINKS.map((item) => (
+                    <DropdownMenuItem key={item.href} asChild className="flex-col items-start gap-0.5 rounded-lg px-3 py-2.5">
+                      <Link href={item.href}>
+                        <span className="text-sm font-semibold text-foreground">{item.label}</span>
+                        <span className="text-xs font-normal text-muted-foreground">{item.description}</span>
+                      </Link>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
               {MARKETING_NAV.map((item) => {
                 const isActive = pathname === item.href;
                 return (
@@ -97,12 +143,13 @@ export function Header() {
                     href={item.href}
                     aria-current={isActive ? "page" : undefined}
                     className={cn(
-                      "rounded-lg px-3 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground",
+                      "inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground",
                       isActive &&
                         "bg-primary/10 text-primary hover:bg-primary/10 hover:text-primary",
                     )}
                   >
                     {item.label}
+                    {item.soon && <SoonBadge />}
                   </Link>
                 );
               })}
@@ -128,7 +175,7 @@ export function Header() {
       {!authCta && mobileOpen && (
         <div className="absolute inset-x-0 top-full border-b border-primary/10 bg-background shadow-lg animate-fade-in-down md:hidden">
           <nav aria-label="Main" className="flex flex-col gap-1 px-4 py-3">
-            {MARKETING_NAV.map((item) => {
+            {ALL_MOBILE_LINKS.map((item) => {
               const isActive = pathname === item.href;
               return (
                 <Link
@@ -137,11 +184,12 @@ export function Header() {
                   aria-current={isActive ? "page" : undefined}
                   onClick={() => setMobileOpen(false)}
                   className={cn(
-                    "rounded-lg px-3 py-2.5 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground",
+                    "flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground",
                     isActive && "bg-primary/10 text-primary",
                   )}
                 >
                   {item.label}
+                  {item.soon && <SoonBadge />}
                 </Link>
               );
             })}

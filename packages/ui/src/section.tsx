@@ -1,5 +1,6 @@
 import React from "react";
 import { cn } from "./utils";
+import { Kicker } from "./kicker";
 
 export interface SectionProps extends React.HTMLAttributes<HTMLElement> {
   id?: string;
@@ -12,7 +13,7 @@ export interface SectionProps extends React.HTMLAttributes<HTMLElement> {
  */
 export function Section({ className, children, ...props }: SectionProps) {
   return (
-    <section className={cn("px-6 lg:px-20", className)} {...props}>
+    <section className={cn("px-4 sm:px-6 lg:px-8", className)} {...props}>
       <div className="mx-auto w-full max-w-7xl">{children}</div>
     </section>
   );
@@ -46,17 +47,8 @@ export function SectionHeading({
       )}
       {...props}
     >
-      {kicker && (
-        <span
-          className={cn(
-            "inline-flex items-center gap-2 rounded-full bg-primary/10 px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider text-primary",
-            kickerClassName,
-          )}
-        >
-          {kicker}
-        </span>
-      )}
-      <h2 className="text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">
+      {kicker && <Kicker className={kickerClassName}>{kicker}</Kicker>}
+      <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
         {title}
       </h2>
       {description && (

@@ -11,7 +11,7 @@
  * entry of their array. To try a different candidate, change the index:
  *
  *     export const HERO_IMAGE  = HERO_IMAGES[1];  // switch to the Mile 12 market
- *     export const TRUST_IMAGE = TRUST_IMAGES[2]; // switch to "neighbors on a bench"
+ *     export const TRUST_IMAGE = TRUST_IMAGES[2]; // switch to "neighbours on a bench"
  *
  * All candidates are already downloaded locally, so switching is instant and
  * keeps the site free of external image dependencies.
@@ -27,6 +27,15 @@ export interface SiteImage {
   credit: string;
   /** Link to the photographer / source page. */
   creditUrl: string;
+  /** object-position focal point for object-cover crops (defaults to center). */
+  position?: string;
+  /** Device-specific framing for narrow (mobile) screens. */
+  mobile?: {
+    /** Tailwind aspect-ratio utility for the mobile container, e.g. "16/10". */
+    aspectRatio?: string;
+    /** Focal-point override for the mobile crop. */
+    position?: string;
+  };
 }
 
 /** Landing-page hero background. Order = preference. */
@@ -37,6 +46,8 @@ export const HERO_IMAGES: SiteImage[] = [
     label: "Busy Lagos street",
     credit: "Opeyemi Adisa",
     creditUrl: "https://unsplash.com/@niceyem",
+    position: "50% 45%",
+    mobile: { aspectRatio: "16/9", position: "50% 45%" },
   },
   {
     src: "/images/hero-market.webp",
@@ -89,7 +100,7 @@ export const TRUST_IMAGES: SiteImage[] = [
   {
     src: "/images/trust-neighbors.webp",
     alt: "Women in colorful clothes sitting together on a bench outdoors",
-    label: "Neighbors on a bench (current)",
+    label: "Neighbours on a bench (current)",
     credit: "Random Institute",
     creditUrl: "https://unsplash.com/@randominstitute",
   },
@@ -118,6 +129,50 @@ export const ABOUT_AERIAL: SiteImage = {
   creditUrl:
     "https://commons.wikimedia.org/wiki/File:Aerial_view_of_Lagos_Island.jpg",
 };
+
+/**
+ * About page banner. Uses an Unsplash photo (no attribution required) —
+ * the site shows no photo credits, so CC BY-SA images like ABOUT_AERIAL
+ * must not be displayed.
+ */
+export const ABOUT_IMAGE: SiteImage = HERO_IMAGES[2]!;
+
+/** For Business hero and teaser: Lagos skyline (Unsplash, no attribution required). */
+export const BUSINESS_IMAGE: SiteImage = HERO_IMAGES[3]!;
+
+/**
+ * Landing "For business" band: a busy Lagos market street from above —
+ * danfos, keke and traders' umbrellas (Unsplash, no attribution required).
+ */
+export const MARKET_IMAGE: SiteImage = {
+  src: "/images/market-street.webp",
+  alt: "A busy Lagos market street seen from above, with traders' umbrellas, yellow danfo buses and keke",
+  label: "Lagos market street",
+  credit: "Fahd Aminu",
+  creditUrl: "https://unsplash.com/photos/bustling-city-street-scene-with-numerous-vehicles-and-market-activity-RgDIV-QJTI8",
+};
+
+/** Contact hero background: friends laughing together (Unsplash). */
+export const CONTACT_IMAGE: SiteImage = {
+  src: "/images/contact-people.webp",
+  alt: "A group of friends laughing together outdoors under palm leaves",
+  label: "Friends laughing",
+  credit: "Ufoma Ojo",
+  creditUrl: "https://unsplash.com/photos/FYq7zbi7iRE",
+  position: "50% 30%",
+};
+
+/** Careers hero: colleagues working together in a co-working space (Unsplash). */
+export const CAREERS_IMAGE: SiteImage = {
+  src: "/images/careers-team.webp",
+  alt: "Two colleagues working together at a computer in a busy co-working space",
+  label: "Team at work",
+  credit: "Unsplash",
+  creditUrl: "https://unsplash.com/photos/IgUR1iX0mqM",
+};
+
+/** myHoodora AI product logo (brand asset). */
+export const HOODORA_AI_LOGO = "/images/hoodora-ai-logo.webp";
 
 /** Safe indexed access so the active image is always typed as defined. */
 function at<T>(list: T[], index: number): T {

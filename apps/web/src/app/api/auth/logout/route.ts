@@ -1,13 +1,17 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { SESSION_COOKIE, isSameOrigin, sessionCookieOptions } from "@/lib/auth/session-cookie";
 
-export async function POST() {
+/**
+ * Ends the server session in this browser only. Other devices keep theirs;
+ * ending those is "sign out everywhere" (API: POST /auth/logout-everywhere).
+ * Nothing to look up, so it is safe to call when already signed out.
+ */
+export async function POST(request: NextRequest) {
+  if (!isSameOrigin(request)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   const response = NextResponse.json({ success: true });
-  response.cookies.set("__session", "", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 0, // Immediately expire the cookie
-  });
+  response.headers.set("Cache-Control", "no-store");
+  response.cookies.set(SESSION_COOKIE, "", sessionCookieOptions(0));
   return response;
 }
