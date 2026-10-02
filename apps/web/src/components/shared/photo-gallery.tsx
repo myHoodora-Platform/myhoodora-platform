@@ -12,6 +12,15 @@ const FEED_SIZES = "(min-width: 768px) 560px, 100vw";
 /** The multi-photo grid is 4:3; tiles take their shape from the layout. */
 const GRID_ASPECT = 4 / 3;
 
+/**
+ * On a phone a 4:5 frame is about half the screen. In the wide desktop column
+ * it would be taller than the window, so single photos and videos are capped
+ * there, as Facebook, Instagram and Nextdoor do on the web. Nothing is cropped
+ * to fit: the media sits centred, whole, with its sides filled in. 640px is
+ * the column's own width, so square and landscape media are never affected.
+ */
+const FRAME_CAP = "max-h-[640px]";
+
 // Shapes learned from media that has loaded, for URLs the API sent no shape
 // for (pasted links, older clients). A card that re-mounts (back navigation,
 // a refreshed feed) is then framed correctly from its first paint.
@@ -100,15 +109,17 @@ function SinglePhoto({ url, aspectHint }: { url: string; aspectHint?: number | n
   const [cropTo, setCropTo] = useState<number | undefined>(needsCrop ? clampAspect(natural) : undefined);
 
   return (
-    <div className="relative w-full overflow-hidden" style={{ aspectRatio: aspect ?? 1 }}>
+    <div className={cn("relative w-full overflow-hidden", FRAME_CAP)} style={{ aspectRatio: aspect ?? 1 }}>
+      {/* Where the capped frame is wider than the photo, a soft blur of the photo itself fills the sides. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={imageUrl(url, { width: 64, aspect: cropTo })} alt="" aria-hidden className="absolute inset-0 size-full scale-125 object-cover opacity-70 blur-2xl" />
       <ImageWithFallback
         src={imageUrl(url, { width: 1080, aspect: cropTo })}
         srcSet={imageSrcSet(url, { aspect: cropTo })}
         sizes={FEED_SIZES}
         alt=""
         wrapperClassName="absolute inset-0"
-        className="size-full object-cover"
-        style={{ objectPosition: "50% 30%" }}
+        className="size-full object-contain"
         onLoaded={(img) => {
           if (cropTo || !img.naturalWidth) return;
           const loaded = img.naturalWidth / img.naturalHeight;
@@ -140,10 +151,7 @@ function VideoPlayer({ url, aspectHint, className }: { url: string; aspectHint?:
   }, []);
 
   return (
-    // On a phone a 4:5 frame is about half the screen. In the wide desktop column it
-    // would be taller than the window, so it is capped there (like Facebook and
-    // Instagram on the web) and a portrait clip sits centred between black bars.
-    <div className={cn("relative max-h-[min(70vh,600px)] w-full bg-black", className)} style={{ aspectRatio: aspect }}>
+    <div className={cn("relative w-full bg-black", FRAME_CAP, className)} style={{ aspectRatio: aspect }}>
       <video
         ref={ref}
         src={poster ? url : `${url}#t=0.1`}
