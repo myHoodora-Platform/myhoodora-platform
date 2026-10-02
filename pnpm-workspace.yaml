@@ -1,3 +1,6 @@
 packages:
   - "apps/*"
   - "packages/*"
+  # The mobile app is post-MVP (docs/roadmap.md). It is kept in the repo as its own npm project,
+  # outside this workspace, so it doesn't take part in install, lint, type-check, test or build.
+  - "!apps/mobile"
