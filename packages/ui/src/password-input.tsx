@@ -11,6 +11,7 @@ export const PasswordInput = React.forwardRef<
   PasswordInputProps
 >(({ className, error, ...props }, ref) => {
   const [showPassword, setShowPassword] = useState(false);
+  const errorId = React.useId();
 
   return (
     <div className="w-full flex flex-col gap-1.5">
@@ -19,16 +20,20 @@ export const PasswordInput = React.forwardRef<
           ref={ref}
           type={showPassword ? "text" : "password"}
           className={cn(
-            "w-full rounded-xl border-2 border-transparent bg-white pl-4 pr-12 py-3 text-foreground shadow-sm outline-none transition-all focus:border-primary focus:ring-0",
+            "w-full rounded-xl border-2 border-transparent bg-card pl-4 pr-12 py-3 text-foreground shadow-sm outline-none transition-all focus:border-primary focus:ring-0",
             error ? "border-destructive focus:border-destructive" : "",
             className,
           )}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? errorId : undefined}
           {...props}
         />
         <button
           type="button"
           onClick={() => setShowPassword((prev) => !prev)}
-          className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1 flex items-center justify-center outline-none"
+          aria-label={showPassword ? "Hide password" : "Show password"}
+          aria-pressed={showPassword}
+          className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1 flex items-center justify-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           {showPassword ? (
             <svg
@@ -38,6 +43,7 @@ export const PasswordInput = React.forwardRef<
               strokeWidth={2}
               stroke="currentColor"
               className="size-5"
+              aria-hidden
             >
               <path
                 strokeLinecap="round"
@@ -53,6 +59,7 @@ export const PasswordInput = React.forwardRef<
               strokeWidth={2}
               stroke="currentColor"
               className="size-5"
+              aria-hidden
             >
               <path
                 strokeLinecap="round"
@@ -69,7 +76,7 @@ export const PasswordInput = React.forwardRef<
         </button>
       </div>
       {error && (
-        <div className="flex items-center gap-1.5 text-xs font-semibold text-destructive px-1 animate-in fade-in slide-in-from-top-1 duration-200">
+        <div id={errorId} role="alert" className="flex items-center gap-1.5 text-xs font-semibold text-destructive px-1 animate-in fade-in slide-in-from-top-1 duration-200">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
@@ -77,6 +84,7 @@ export const PasswordInput = React.forwardRef<
             strokeWidth={2.5}
             stroke="currentColor"
             className="size-4 shrink-0"
+            aria-hidden
           >
             <path
               strokeLinecap="round"
