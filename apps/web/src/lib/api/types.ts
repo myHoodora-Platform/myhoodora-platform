@@ -47,6 +47,8 @@ export interface ApiPost {
   type: PostType;
   content: string;
   mediaUrls: string[];
+  /** width ÷ height of each `mediaUrls` entry, or null when the API doesn't know (a pasted link). Frames media before it loads. */
+  mediaAspects?: (number | null)[];
   /** @deprecated always [] from the live API; use reactionTotal / myReaction. */
   likes: string[];
   isActive: boolean;

@@ -12,6 +12,12 @@ const FEED_SIZES = "(min-width: 768px) 560px, 100vw";
 /** The multi-photo grid is 4:3; tiles take their shape from the layout. */
 const GRID_ASPECT = 4 / 3;
 
+// Shapes learned from media that has loaded, for URLs the API sent no shape
+// for (pasted links, older clients). A card that re-mounts (back navigation,
+// a refreshed feed) is then framed correctly from its first paint.
+const learnedAspects = new Map<string, number>();
+const knownAspect = (url: string, hint?: number | null) => hint ?? learnedAspects.get(url);
+
 /**
  * A post's media, framed like Instagram/Facebook/Nextdoor:
  * - one photo at its own shape, kept between 4:5 portrait and 1.91:1 landscape
@@ -19,13 +25,16 @@ const GRID_ASPECT = 4 / 3;
  * - 2–4+ photos as a 4:3 grid (1 large + 2 for three; "+N" beyond four);
  * - a video as an inline player (poster frame, tap to play, no autoplay).
  * Tapping a photo opens a full-screen viewer.
+ *
+ * `aspects` (width ÷ height per URL, from the API) sizes the frame before the
+ * media arrives, so the post doesn't start small and grow as it loads.
  */
-export function PhotoGallery({ urls, className }: { urls: string[]; className?: string }) {
+export function PhotoGallery({ urls, aspects, className }: { urls: string[]; aspects?: (number | null)[]; className?: string }) {
   const [open, setOpen] = useState<number | null>(null);
   if (!urls.length) return null;
 
-  const video = urls.find(isVideoUrl);
-  if (video) return <VideoPlayer url={video} className={className} />;
+  const videoIndex = urls.findIndex(isVideoUrl);
+  if (videoIndex >= 0) return <VideoPlayer url={urls[videoIndex]!} aspectHint={aspects?.[videoIndex]} className={className} />;
 
   const shown = urls.slice(0, 4);
   const extra = urls.length - shown.length;
@@ -34,7 +43,7 @@ export function PhotoGallery({ urls, className }: { urls: string[]; className?: 
     <>
       {urls.length === 1 ? (
         <button type="button" onClick={() => setOpen(0)} aria-label="View photo" className={cn("block w-full bg-muted", className)}>
-          <SinglePhoto url={urls[0]!} />
+          <SinglePhoto url={urls[0]!} aspectHint={aspects?.[0]} />
         </button>
       ) : (
         <div className={cn("grid gap-0.5", urls.length === 2 ? "grid-cols-2" : "grid-cols-2 grid-rows-2", className)} style={{ aspectRatio: GRID_ASPECT }}>
@@ -79,13 +88,16 @@ function tileAspect(count: number, i: number): number {
 }
 
 /**
- * One photo at its natural shape within the feed range. We only learn the
- * shape once it loads: in range → shown whole; out of range → the frame is
- * clamped and (for Cloudinary) a smart-cropped copy replaces the centre crop.
+ * One photo at its natural shape within the feed range: in range → shown
+ * whole; out of range → the frame is clamped and (for Cloudinary) a
+ * smart-cropped copy replaces the centre crop. With a known shape all of that
+ * is decided up front; without one we only learn it once the photo loads.
  */
-function SinglePhoto({ url }: { url: string }) {
-  const [aspect, setAspect] = useState<number | null>(null);
-  const [cropTo, setCropTo] = useState<number | undefined>(undefined);
+function SinglePhoto({ url, aspectHint }: { url: string; aspectHint?: number | null }) {
+  const natural = knownAspect(url, aspectHint);
+  const needsCrop = natural !== undefined && Math.abs(natural - clampAspect(natural)) > 0.02 && isCloudinaryUrl(url);
+  const [aspect, setAspect] = useState<number | null>(natural !== undefined ? clampAspect(natural) : null);
+  const [cropTo, setCropTo] = useState<number | undefined>(needsCrop ? clampAspect(natural) : undefined);
 
   return (
     <div className="relative w-full overflow-hidden" style={{ aspectRatio: aspect ?? 1 }}>
@@ -99,10 +111,11 @@ function SinglePhoto({ url }: { url: string }) {
         style={{ objectPosition: "50% 30%" }}
         onLoaded={(img) => {
           if (cropTo || !img.naturalWidth) return;
-          const natural = img.naturalWidth / img.naturalHeight;
-          const clamped = clampAspect(natural);
+          const loaded = img.naturalWidth / img.naturalHeight;
+          const clamped = clampAspect(loaded);
+          learnedAspects.set(url, loaded);
           setAspect(clamped);
-          if (Math.abs(natural - clamped) > 0.02 && isCloudinaryUrl(url)) setCropTo(clamped);
+          if (Math.abs(loaded - clamped) > 0.02 && isCloudinaryUrl(url)) setCropTo(clamped);
         }}
       />
     </div>
@@ -110,8 +123,9 @@ function SinglePhoto({ url }: { url: string }) {
 }
 
 /** Inline video: poster frame, native controls, plays in place on iOS, never autoplays with sound. */
-function VideoPlayer({ url, className }: { url: string; className?: string }) {
-  const [aspect, setAspect] = useState(16 / 9);
+function VideoPlayer({ url, aspectHint, className }: { url: string; aspectHint?: number | null; className?: string }) {
+  // Framed from what we already know about the clip; 16:9 only as a last resort.
+  const [aspect, setAspect] = useState(() => clampAspect(knownAspect(url, aspectHint) ?? 16 / 9));
   const [started, setStarted] = useState(false);
   const ref = useRef<HTMLVideoElement>(null);
   const poster = videoPoster(url);
@@ -126,7 +140,10 @@ function VideoPlayer({ url, className }: { url: string; className?: string }) {
   }, []);
 
   return (
-    <div className={cn("relative w-full bg-black", className)} style={{ aspectRatio: aspect }}>
+    // On a phone a 4:5 frame is about half the screen. In the wide desktop column it
+    // would be taller than the window, so it is capped there (like Facebook and
+    // Instagram on the web) and a portrait clip sits centred between black bars.
+    <div className={cn("relative max-h-[min(70vh,600px)] w-full bg-black", className)} style={{ aspectRatio: aspect }}>
       <video
         ref={ref}
         src={poster ? url : `${url}#t=0.1`}
@@ -137,7 +154,9 @@ function VideoPlayer({ url, className }: { url: string; className?: string }) {
         className="absolute inset-0 size-full object-contain"
         onLoadedMetadata={(e) => {
           const v = e.currentTarget;
-          if (v.videoWidth && v.videoHeight) setAspect(clampAspect(v.videoWidth / v.videoHeight));
+          if (!v.videoWidth || !v.videoHeight) return;
+          learnedAspects.set(url, v.videoWidth / v.videoHeight);
+          setAspect(clampAspect(v.videoWidth / v.videoHeight));
         }}
         onPlay={() => setStarted(true)}
       >

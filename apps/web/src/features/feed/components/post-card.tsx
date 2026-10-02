@@ -158,7 +158,7 @@ export function PostCard({ post, onReact, onDelete, variant = "feed" }: PostCard
         {meta.category === "poll" && <PollCard post={post} />}
       </div>
 
-      <PhotoGallery urls={post.mediaUrls} className="border-y border-border" />
+      <PhotoGallery urls={post.mediaUrls} aspects={post.mediaAspects} className="border-y border-border" />
 
       {/* Counts */}
       {(post.reactionTotal > 0 || post.commentCount > 0) && (

@@ -10,6 +10,7 @@ import { RealtimeService } from "../realtime/realtime.service";
 import type { Viewer } from "../shared/auth/viewer";
 import { searchRegex } from "../shared/http/pagination";
 import { mediaMixProblem } from "../storage/media-kind";
+import { StorageService } from "../storage/storage.service";
 import { UsersService } from "../users/users.service";
 import { eventDateProblem } from "./domain/event-time";
 import { decodePostContent, encodePostContent, postTypeFor, type PostMeta } from "./domain/post-meta";
@@ -39,6 +40,8 @@ export interface PostView {
   pollResults?: PollResults;
   visibility: FeedPost["visibility"];
   mediaUrls: string[];
+  /** width ÷ height of each `mediaUrls` entry (same order), or null when unknown (a pasted link). Lets the feed frame media before it loads. */
+  mediaAspects: (number | null)[];
   /** @deprecated use reactionCounts / myReaction. Kept empty for old clients. */
   likes: string[];
   reactionCounts: Partial<Record<ReactionType, number>>;
@@ -73,6 +76,7 @@ export class PostsService implements OnModuleInit {
     private readonly notifications: NotificationsService,
     private readonly registry: ModerationRegistry,
     private readonly realtime: RealtimeService,
+    private readonly storage: StorageService,
   ) {}
 
   onModuleInit() {
@@ -332,10 +336,11 @@ export class PostsService implements OnModuleInit {
   async toViews(docs: (FeedPost & { _id?: unknown })[], viewer: Viewer): Promise<PostView[]> {
     if (!docs.length) return [];
     const ids = docs.map((d) => String(d._id));
-    const [authors, mine, polls] = await Promise.all([
+    const [authors, mine, polls, aspects] = await Promise.all([
       this.users.authorCards(docs.map((d) => d.authorUid)),
       this.reactions.find({ postId: { $in: ids }, uid: viewer.uid }).lean<Reaction[]>().exec(),
       this.pollResultsFor(docs.filter((d) => d.poll), viewer.uid),
+      this.storage.aspectRatios(docs.flatMap((d) => d.mediaUrls ?? [])),
     ]);
     const hoods = await this.hoods.findManyByIds([...new Set([...authors.values()].map((a) => a.neighborhoodId).filter(Boolean) as string[])]);
     const myReaction = new Map(mine.map((r) => [r.postId, r.type]));
@@ -364,6 +369,7 @@ export class PostsService implements OnModuleInit {
         pollResults: polls.get(id),
         visibility: meta.visibility ?? "neighbourhood",
         mediaUrls: d.mediaUrls ?? [],
+        mediaAspects: (d.mediaUrls ?? []).map((url) => aspects.get(url) ?? null),
         likes: [],
         reactionCounts: counts,
         reactionTotal: Object.values(counts).reduce((n, c) => n + (c ?? 0), 0),

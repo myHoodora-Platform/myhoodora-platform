@@ -258,6 +258,20 @@ export class StorageService {
     }
   }
 
+  /**
+   * Shape (width ÷ height) of files we stored, by URL, so a client can frame a
+   * photo or video before it has loaded instead of jumping when it does. One
+   * query for the whole page; URLs we didn't store (pasted links) are absent.
+   */
+  async aspectRatios(urls: string[]): Promise<Map<string, number>> {
+    if (!urls.length) return new Map();
+    const rows = await this.assets
+      .find({ url: { $in: [...new Set(urls)] }, width: { $gt: 0 }, height: { $gt: 0 } }, { url: 1, width: 1, height: 1 })
+      .lean<Pick<MediaAsset, "url" | "width" | "height">[]>()
+      .exec();
+    return new Map(rows.map((r) => [r.url, Number((r.width! / r.height!).toFixed(4))]));
+  }
+
   /** Delivery URL for a stored file (e.g. after changing delivery settings). */
   getUrl(asset: Pick<MediaAsset, "providerId" | "resourceType">): string {
     return this.requireProvider().url(asset.providerId, asset.resourceType);

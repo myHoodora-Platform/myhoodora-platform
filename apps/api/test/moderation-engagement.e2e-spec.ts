@@ -19,6 +19,21 @@ describe("Moderation & engagement", () => {
   const feedIds = async (uid: string) =>
     ((await t.http.get(`/api/posts/neighborhood/${lekki}`).set(t.auth(uid)).expect(200)).body as { _id: string }[]).map((p) => p._id);
 
+  it("posts carry each media item's shape, so the feed can frame it before it loads", async () => {
+    const portraitVideo = "https://res.cloudinary.com/demo/video/upload/v1/myhoodora/test/post/clip.mp4";
+    await t.model("MediaAsset").create({ ownerUid: "ada", provider: "cloudinary", providerId: "myhoodora/test/post/clip", resourceType: "video", purpose: "post", url: portraitVideo, bytes: 10, width: 1080, height: 1920 });
+    const video = await t.http.post("/api/posts").set(t.auth("ada")).send({ message: "A clip", mediaUrls: [portraitVideo] }).expect(201);
+    expect(video.body.mediaAspects).toEqual([0.5625]);
+
+    // A pasted link we never stored: shape unknown, the client measures it on load.
+    const pasted = await t.http.post("/api/posts").set(t.auth("ada")).send({ message: "A photo", mediaUrls: ["https://images.unsplash.com/photo-1.jpg"] }).expect(201);
+    expect(pasted.body.mediaAspects).toEqual([null]);
+
+    const feed = (await t.http.get(`/api/posts/neighborhood/${lekki}`).set(t.auth("bola")).expect(200)).body as { _id: string; mediaAspects: unknown }[];
+    expect(feed.find((p) => p._id === video.body._id)?.mediaAspects).toEqual([0.5625]);
+    expect((await t.post("ada", { message: "No media" }) as unknown as { mediaAspects: unknown }).mediaAspects).toEqual([]);
+  });
+
   describe("report → case → decision", () => {
     let postId: string;
     let caseId: string;
