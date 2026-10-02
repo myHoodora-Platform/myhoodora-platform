@@ -8,6 +8,7 @@ import {
 import { Reflector } from "@nestjs/core";
 import { Request } from "express";
 import type { DecodedIdToken } from "firebase-admin/auth";
+import { SessionRevocationService } from "../../auth/session-revocation.service";
 import { getFirebaseAdmin } from "../../config/firebase.config";
 import { IS_PUBLIC_KEY } from "./public.decorator";
 import { SESSION_COOKIE_AUTH_KEY } from "./session-cookie-auth.decorator";
@@ -25,7 +26,10 @@ export function extractBearerToken(request: Request): string | null {
 export class FirebaseAuthGuard implements CanActivate {
   private readonly logger = new Logger(FirebaseAuthGuard.name);
 
-  constructor(private readonly reflector: Reflector) {}
+  constructor(
+    private readonly reflector: Reflector,
+    private readonly revocations: SessionRevocationService,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     // Allow routes marked with @Public()
@@ -51,9 +55,12 @@ export class FirebaseAuthGuard implements CanActivate {
 
     try {
       const auth = getFirebaseAdmin().auth();
-      const decodedToken = viaSessionCookie
-        ? await auth.verifySessionCookie(token, /** checkRevoked */ true)
-        : await auth.verifyIdToken(token, /** checkRevoked */ true);
+      // Signature, issuer, audience and expiry: checked locally, no network.
+      const decodedToken = viaSessionCookie ? await auth.verifySessionCookie(token) : await auth.verifyIdToken(token);
+      // Revoked, disabled or deleted: checked against Firebase, remembered briefly (SessionRevocationService).
+      if (await this.revocations.isRevoked(decodedToken)) {
+        throw Object.assign(new Error("revoked"), { code: viaSessionCookie ? "auth/session-cookie-revoked" : "auth/id-token-revoked" });
+      }
 
       // Attach the decoded token so controllers can access it via @CurrentUser()
       const firebaseRequest = request as FirebaseRequest;

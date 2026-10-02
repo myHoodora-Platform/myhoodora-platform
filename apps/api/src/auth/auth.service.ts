@@ -1,6 +1,10 @@
 import { Injectable, UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { InjectModel } from "@nestjs/mongoose";
+import { Model } from "mongoose";
 import { getFirebaseAdmin } from "../config/firebase.config";
+import { User, UserDocument } from "../users/schemas/user.schema";
+import { SessionRevocationService } from "./session-revocation.service";
 
 export interface WebSession {
   /** Firebase session cookie. The web server stores it HttpOnly; it never reaches browser JavaScript. */
@@ -11,7 +15,11 @@ export interface WebSession {
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly revocations: SessionRevocationService,
+    @InjectModel(User.name) private readonly users: Model<UserDocument>,
+  ) {}
 
   /** Exchanges an ID token the guard has already verified (signature, expiry, revocation) for a session cookie. */
   async createSession(idToken: string): Promise<WebSession> {
@@ -29,6 +37,13 @@ export class AuthService {
 
   /** "Sign out everywhere": revokes every refresh token, which also invalidates every session cookie. */
   async revokeTokens(uid: string): Promise<void> {
+    // Whole seconds, like the tokens' own sign-in time, and taken first so a sign-in a moment later is never caught.
+    const revokedAt = new Date(Math.floor(Date.now() / 1000) * 1000);
+    // Firebase: no device can refresh its token any more…
     await getFirebaseAdmin().auth().revokeRefreshTokens(uid);
+    // …and ours: every token already issued is refused from now, on every API instance, without waiting
+    // for anything to be re-checked with Firebase (AccountGuard reads this on each request).
+    await this.users.updateOne({ uid }, { $set: { sessionsRevokedAt: revokedAt } }).exec();
+    this.revocations.forget(uid);
   }
 }

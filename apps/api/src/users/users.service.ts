@@ -98,17 +98,27 @@ export class UsersService {
    * Later calls — every sign-in — just return the profile.
    */
   async getOrCreateMe(token: DecodedIdToken): Promise<MeResponse> {
+    // A provider like Google has already proven the address is theirs.
+    const providerVerified = token.email_verified === true && token.firebase?.sign_in_provider !== "password";
     const existing = await this.findByUid(token.uid);
     if (existing) {
+      // An existing account is never recreated or overwritten by signing in, whichever method is used:
+      // name, photo, Hood, role and onboarding stay exactly as they are. Only two things can change here.
+      let changed = false;
       if (existing.deactivatedAt) {
         // Logging back in within 30 days restores the account (contract §10).
         existing.deactivatedAt = null;
-        await existing.save();
+        changed = true;
       }
+      if (!existing.emailVerifiedAt && providerVerified) {
+        // They signed up with a password and now use Google with the same address: no need to ask them to confirm it.
+        existing.emailVerifiedAt = new Date();
+        changed = true;
+      }
+      if (changed) await existing.save();
       return toMe(existing);
     }
 
-    const providerVerified = token.email_verified === true && token.firebase?.sign_in_provider !== "password";
     let rawToken: string | undefined;
     let created: UserDocument;
     try {
@@ -192,7 +202,6 @@ export class UsersService {
    * attempt (last 10) so staff can review failures in the verification queue.
    * Outside every Hood, offers the close ones to ask to join (contract §16).
    */
-  // TODO: Allow user to join nearest when there is no hood match for their location.
   async verifyLocation(viewer: Viewer, dto: VerifyLocationDto) {
     const user = await this.findByUid(viewer.uid);
     if (!user) throw new NotFoundException("Profile not found.");

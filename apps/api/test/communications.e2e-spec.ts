@@ -19,6 +19,33 @@ describe("Email verification & communications", () => {
   beforeEach(() => t.resetThrottle());
 
   describe("registration", () => {
+    it("Google sign-in to an account that already exists keeps it exactly as it was (no overwrite, no second account)", async () => {
+      const hood = await t.hood("Surulere", 3.3569, 6.5, 1500);
+      await t.member("zainab", hood, { displayName: "Zainab Bello", bio: "Baker on Adeniran Ogunsanya", isOnboarded: true, role: "moderator", provider: "password" } as never);
+      const before = await t.users.findOne({ uid: "zainab" }).lean();
+      const emailsBefore = t.outbox.length;
+
+      // The same person (same Firebase uid) now arrives through Google. The token carries Google's name for them.
+      const google = t.auth("zainab", { emailVerified: true, provider: "google.com" });
+      const me = (await t.http.get("/api/users/me").set(google).expect(200)).body;
+      expect(me).toMatchObject({ uid: "zainab", displayName: "Zainab Bello", bio: "Baker on Adeniran Ogunsanya", isOnboarded: true, role: "moderator", neighborhoodId: hood, verificationStatus: "verified" });
+      await t.http.get("/api/users/me").set(google).expect(200);
+
+      const after = await t.users.findOne({ uid: "zainab" }).lean();
+      expect(await t.users.countDocuments({ uid: "zainab" })).toBe(1);
+      expect(await t.users.countDocuments({ email: "zainab@test.dev" })).toBe(1);
+      expect(String(after!._id)).toBe(String(before!._id));
+      expect(after).toMatchObject({ displayName: "Zainab Bello", provider: "password", role: "moderator", neighborhoodId: hood, isOnboarded: true });
+      expect((after as { createdAt?: Date }).createdAt).toEqual((before as { createdAt?: Date }).createdAt);
+      // No welcome email for a returning neighbour. The one thing Google adds: the address counts as confirmed.
+      expect(t.outbox.length).toBe(emailsBefore);
+      expect(me.emailVerified).toBe(true);
+
+      // Going back to the password afterwards changes nothing either.
+      const again = (await t.http.get("/api/users/me").set(t.auth("zainab")).expect(200)).body;
+      expect(again).toMatchObject({ displayName: "Zainab Bello", isOnboarded: true, emailVerified: true });
+    });
+
     it("sends exactly one welcome email with a verify link, never on later sign-ins", async () => {
       await t.http.get("/api/users/me").set(t.auth("kemi")).expect(200);
       await t.http.get("/api/users/me").set(t.auth("kemi")).expect(200);

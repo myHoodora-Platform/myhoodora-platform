@@ -30,6 +30,8 @@ export const MAX_UPLOAD_BYTES = MAX_BYTES.video;
 export const MAX_DIRECT_BYTES = MAX_BYTES;
 /** How long a direct-upload ticket stays claimable. */
 const DIRECT_TICKET_TTL_MS = 2 * 60 * 60 * 1000;
+/** The web gives up on a direct upload after 20 minutes, so a ticket still pending after an hour was abandoned. */
+const DIRECT_ABANDONED_AFTER_MS = 60 * 60 * 1000;
 
 const ACCEPTED: Record<string, StorageResourceType> = {
   "image/jpeg": "image",
@@ -224,6 +226,33 @@ export class StorageService {
     Object.assign(asset, { ...stored, status: "ready", expiresAt: undefined });
     await asset.save();
     return toView(asset);
+  }
+
+  /**
+   * Direct uploads the browser started but never completed (tab closed, connection lost). The
+   * pending row would expire on its own, but the file may already be in storage with nothing
+   * pointing at it: delete that first, then the row. Runs hourly (StorageModule); returns the count.
+   */
+  async sweepAbandonedDirectUploads(olderThanMs = DIRECT_ABANDONED_AFTER_MS): Promise<number> {
+    const provider = this.provider;
+    if (!provider) return 0;
+    const abandoned = await this.assets
+      .find({ status: "pending", provider: provider.name, createdAt: { $lt: new Date(Date.now() - olderThanMs) } })
+      .limit(200)
+      .exec();
+    let removed = 0;
+    for (const asset of abandoned) {
+      try {
+        // Deleting a file that never arrived is a no-op at the provider.
+        await provider.delete(asset.providerId, asset.resourceType);
+        await asset.deleteOne();
+        removed++;
+      } catch (err) {
+        // Leave the row for the next sweep (or its own expiry) rather than orphan the file silently.
+        this.logger.warn(`Couldn't clean up an abandoned upload: ${(err as Error).message}`);
+      }
+    }
+    return removed;
   }
 
   /** Owner deletes a file (e.g. removed from a draft, or a replaced profile photo). */

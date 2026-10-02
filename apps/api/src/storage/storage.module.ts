@@ -41,9 +41,18 @@ export function createStorageProvider(config: ConfigService, logger = new Logger
 export class StorageModule implements OnModuleInit, OnModuleDestroy {
   private sweeper?: NodeJS.Timeout;
 
-  /** Clear temp files a previous process left behind, then keep sweeping hourly. */
+  constructor(private readonly storage: StorageService) {}
+
+  /** Clear temp files a previous process left behind and direct uploads nobody finished, then keep sweeping hourly. */
   onModuleInit() {
-    const sweep = () => void sweepStaleTemps().then((n) => n && new Logger("Storage").log(`Removed ${n} stale upload temp file(s).`));
+    const log = new Logger("Storage");
+    const sweep = () => {
+      void sweepStaleTemps().then((n) => n && log.log(`Removed ${n} stale upload temp file(s).`));
+      void this.storage
+        .sweepAbandonedDirectUploads()
+        .then((n) => n && log.log(`Removed ${n} abandoned direct upload(s).`))
+        .catch((err: Error) => log.warn(`Abandoned-upload sweep failed: ${err.message}`));
+    };
     sweep();
     this.sweeper = setInterval(sweep, 60 * 60 * 1000);
     this.sweeper.unref();

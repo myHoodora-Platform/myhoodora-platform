@@ -42,6 +42,13 @@ export class Notification {
   @Prop()
   groupKey?: string;
 
+  /**
+   * Set when the same notification could be written twice (a broadcast batch retried after a
+   * restart): the unique index below makes the second write a no-op. Unset for everything else.
+   */
+  @Prop()
+  dedupeKey?: string;
+
   @Prop({ type: Date, default: null })
   readAt?: Date | null;
 
@@ -51,5 +58,6 @@ export class Notification {
 export const NotificationSchema = SchemaFactory.createForClass(Notification);
 NotificationSchema.index({ uid: 1, createdAt: -1 });
 NotificationSchema.index({ uid: 1, groupKey: 1, readAt: 1 });
+NotificationSchema.index({ dedupeKey: 1 }, { unique: true, partialFilterExpression: { dedupeKey: { $type: "string" } } });
 // Keep notifications for 90 days.
 NotificationSchema.index({ createdAt: 1 }, { expireAfterSeconds: 90 * 24 * 3600 });

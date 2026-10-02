@@ -217,6 +217,49 @@ describe("StorageService", () => {
     });
   });
 
+  describe("abandoned direct uploads", () => {
+    const pendingModel = (rows: { ageMinutes: number; provider?: string }[]) => {
+      const docs = rows.map((r, i) => ({
+        _id: new Types.ObjectId(),
+        status: "pending",
+        provider: r.provider ?? "fake",
+        providerId: `myhoodora/test/post/p${i}`,
+        resourceType: "video",
+        createdAt: new Date(Date.now() - r.ageMinutes * 60_000),
+        deleteOne: jest.fn(async () => undefined),
+      }));
+      const find = jest.fn((q: { provider: string; createdAt: { $lt: Date } }) => ({
+        limit: () => ({ exec: async () => docs.filter((d) => d.provider === q.provider && d.createdAt < q.createdAt.$lt) }),
+      }));
+      return { docs, model: { ...fakeModel(), find } };
+    };
+
+    it("deletes the stored file and the pending row for tickets nobody finished within the hour", async () => {
+      const provider = fakeProvider();
+      const { docs, model } = pendingModel([{ ageMinutes: 90 }, { ageMinutes: 10 }, { ageMinutes: 200, provider: "old-provider" }]);
+      const { service } = make(provider, model as never);
+      expect(await service.sweepAbandonedDirectUploads()).toBe(1);
+      expect(provider.delete).toHaveBeenCalledTimes(1);
+      expect(provider.delete).toHaveBeenCalledWith("myhoodora/test/post/p0", "video");
+      expect(docs[0]!.deleteOne).toHaveBeenCalled();
+      // An upload still in progress, and a file held by another provider, are left alone.
+      expect(docs[1]!.deleteOne).not.toHaveBeenCalled();
+      expect(docs[2]!.deleteOne).not.toHaveBeenCalled();
+    });
+
+    it("keeps the row when the provider can't delete, so the next sweep tries again", async () => {
+      const provider = fakeProvider({ delete: jest.fn(async () => { throw new StorageError("unavailable", "down"); }) });
+      const { docs, model } = pendingModel([{ ageMinutes: 90 }]);
+      const { service } = make(provider, model as never);
+      expect(await service.sweepAbandonedDirectUploads()).toBe(0);
+      expect(docs[0]!.deleteOne).not.toHaveBeenCalled();
+    });
+
+    it("does nothing without a storage provider", async () => {
+      expect(await make(null).service.sweepAbandonedDirectUploads()).toBe(0);
+    });
+  });
+
   describe("UploadGate", () => {
     it("runs at most N at once, queues a few more, and turns the rest away with 503", async () => {
       const { UploadGate } = await import("./storage.service");

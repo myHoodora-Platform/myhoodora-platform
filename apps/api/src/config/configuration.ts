@@ -10,6 +10,12 @@ function sessionTtlMs(days: string | undefined): number {
   return Math.min(Math.max(requested, 5 * 60_000), 14 * DAY_MS);
 }
 
+/** Seconds → ms, 30 s by default, never negative and never more than 5 minutes. */
+function revocationCacheMs(seconds: string | undefined): number {
+  const requested = seconds === undefined || seconds.trim() === "" ? 30 : Number(seconds);
+  return Math.min(Math.max(Number.isFinite(requested) ? requested : 30, 0), 300) * 1000;
+}
+
 export default () => ({
   port: parseInt(process.env.PORT ?? "3000", 10),
   nodeEnv: process.env.NODE_ENV ?? "development",
@@ -32,6 +38,12 @@ export default () => ({
    */
   auth: {
     sessionTtlMs: sessionTtlMs(process.env.SESSION_COOKIE_TTL_DAYS),
+    /**
+     * How long the API trusts what Firebase last said about a user's sessions before asking again
+     * (auth/session-revocation.service.ts). 30 s by default; 0 asks Google on every request.
+     * AUTH_REVOCATION_CACHE_SECONDS.
+     */
+    revocationCacheMs: revocationCacheMs(process.env.AUTH_REVOCATION_CACHE_SECONDS),
   },
 
   cors: {
@@ -98,6 +110,12 @@ export function validateEnv(env: Record<string, unknown>): Record<string, unknow
   if (env.NODE_ENV === "production") {
     const required = ["MONGODB_URI", "APP_URL", "CORS_ORIGIN", "RESEND_API_KEY", "RESEND_WEBHOOK_SECRET", "MAIL_FROM"];
     const missing = required.filter((k) => !env[k]);
+    // Every request is authenticated with Firebase Admin, so its credentials are required too:
+    // either the three FIREBASE_* values, or a service-account file via GOOGLE_APPLICATION_CREDENTIALS.
+    const firebaseVars = ["FIREBASE_PROJECT_ID", "FIREBASE_CLIENT_EMAIL", "FIREBASE_PRIVATE_KEY"];
+    if (!env.GOOGLE_APPLICATION_CREDENTIALS && !firebaseVars.every((k) => env[k])) {
+      missing.push(`${firebaseVars.filter((k) => !env[k]).join(" + ")} (or GOOGLE_APPLICATION_CREDENTIALS)`);
+    }
     if (missing.length) throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
     if (!env.REDIS_URL) {
       console.warn("REDIS_URL is not set: live updates will use MongoDB change streams, or in-memory delivery (single instance only).");

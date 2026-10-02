@@ -59,6 +59,13 @@ export class User {
   @Prop({ type: Date, default: null })
   deactivatedAt?: Date | null;
 
+  /**
+   * When they last chose "sign out everywhere". Any token or session cookie from a sign-in before
+   * this moment is refused (AccountGuard), on every API instance, at once.
+   */
+  @Prop({ type: Date, default: null })
+  sessionsRevokedAt?: Date | null;
+
   @Prop({ type: Object, default: () => structuredClone(DEFAULT_PREFERENCES) })
   preferences!: Preferences;
 

@@ -1,3 +1,5 @@
+import compression from 'compression';
+import helmet from 'helmet';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe, Logger } from '@nestjs/common';
@@ -9,7 +11,8 @@ import { API_DESCRIPTION, API_TAGS, ErrorResponse } from './shared/http/api-docs
 
 async function bootstrap() {
   // rawBody: webhook signatures (Resend/Svix) must be verified on the exact bytes received.
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
+  // forceCloseConnections: on shutdown, don't wait for idle keep-alive sockets (or open event streams) to end by themselves.
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true, forceCloseConnections: true });
   const config = app.get(ConfigService);
   const logger = new Logger('Bootstrap');
 
@@ -19,6 +22,27 @@ async function bootstrap() {
 
   // Behind a hosting proxy, use the client IP for rate limits.
   if (config.get<string>('nodeEnv') === 'production') app.set('trust proxy', 1);
+
+  // SIGTERM from the host (a deploy): stop accepting requests, let modules clean up (timers, Redis, Mongo), then exit.
+  app.enableShutdownHooks();
+
+  // ── Security headers + compression ────────────────────────────────────────
+  // Off in production unless SWAGGER_ENABLED=true (the spec reveals every route, not secrets).
+  const swaggerOn = config.get<string>('nodeEnv') !== 'production' || process.env.SWAGGER_ENABLED === 'true';
+  app.use(
+    helmet({
+      // This API is called from the web app's origin, so its responses must be readable cross-origin (CORS still decides by whom).
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+      // JSON responses need no CSP; the Swagger page (when on) needs its inline script, so it is only relaxed there.
+      contentSecurityPolicy: swaggerOn ? false : undefined,
+    }),
+  );
+  app.use(
+    compression({
+      // Never compress the live event stream: compression buffers, and events must arrive as they happen.
+      filter: (req, res) => !String(res.getHeader('Content-Type') ?? '').includes('text/event-stream') && compression.filter(req, res),
+    }),
+  );
 
   // ── Global pipes ──────────────────────────────────────────────────────────
   app.useGlobalPipes(
@@ -39,8 +63,6 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
 
   // ── Swagger ───────────────────────────────────────────────────────────────
-  // Off in production unless SWAGGER_ENABLED=true (the spec reveals every route, not secrets).
-  const swaggerOn = config.get<string>('nodeEnv') !== 'production' || process.env.SWAGGER_ENABLED === 'true';
   if (swaggerOn) {
     const builder = new DocumentBuilder()
       .setTitle('myHoodora API')

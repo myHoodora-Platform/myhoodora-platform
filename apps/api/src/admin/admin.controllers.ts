@@ -314,6 +314,14 @@ export class AdminController {
     return this.broadcasts.send(v, { title: body.title, body: body.body, audience: toAudience(body.audience) });
   }
 
+  @Post("broadcasts/:id/retry")
+  @ApiOperation({ summary: "Retry a failed broadcast (nobody is notified twice)" })
+  @ApiNotFound("Broadcast")
+  @Can("broadcasts.send")
+  retryBroadcast(@CurrentViewer() v: Viewer, @Param("id", ParseObjectIdPipe) id: string) {
+    return this.broadcasts.retry(v, id);
+  }
+
   // ── 13.9 Insights, team, settings ──────────────────────────────────────────
 
   @Get("insights")

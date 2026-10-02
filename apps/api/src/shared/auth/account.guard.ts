@@ -1,4 +1,4 @@
-import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from "@nestjs/common";
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { InjectModel } from "@nestjs/mongoose";
 import type { DecodedIdToken } from "firebase-admin/auth";
@@ -26,6 +26,11 @@ export class AccountGuard implements CanActivate {
     if (!req.user) return true; // FirebaseAuthGuard already rejected unauthenticated requests.
 
     const doc = await this.users.findOne({ uid: req.user.uid }).lean<User>().exec();
+    // "Sign out everywhere": refused here from our own record, so it takes effect on every instance
+    // at once without waiting for anything to be re-checked with Firebase.
+    if (doc?.sessionsRevokedAt && req.user.auth_time * 1000 < doc.sessionsRevokedAt.getTime()) {
+      throw new UnauthorizedException("Invalid or expired token");
+    }
     const subject = {
       role: doc?.role ?? "member",
       accountStatus: doc?.accountStatus ?? "active",

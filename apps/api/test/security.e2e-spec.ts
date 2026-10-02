@@ -1,4 +1,6 @@
+import { SessionRevocationService } from "../src/auth/session-revocation.service";
 import { createTestApp, type TestApp } from "./helpers/app";
+import { firebaseState } from "./helpers/firebase-mock";
 jest.mock("../src/config/firebase.config", () => jest.requireActual("./helpers/firebase-mock").firebaseMock);
 
 describe("Security & authorization (audit findings)", () => {
@@ -164,6 +166,57 @@ describe("Security & authorization (audit findings)", () => {
       await t.http.get("/api/auth/session").set(session("mod2")).expect(401);
       await t.http.get("/api/auth/session/staff").set(session("mod2")).expect(401);
       await t.http.post("/api/auth/logout-everywhere").set(t.auth("susp")).expect(204);
+    });
+  });
+
+  describe("revocation: checked without a call to Firebase on every request", () => {
+    const service = () => t.app.get(SessionRevocationService);
+    // These fire many requests in quick succession; this is about revocation, not the rate limit.
+    beforeEach(() => t.resetThrottle());
+
+    it("asks Firebase about a user once, not once per request", async () => {
+      await t.member("fola", lekki);
+      service().forget("fola");
+      const before = firebaseState.getUserCalls;
+      for (let i = 0; i < 6; i++) await t.http.get("/api/users/me").set(t.auth("fola")).expect(200);
+      expect(firebaseState.getUserCalls - before).toBe(1);
+    });
+
+    it("sign out everywhere is immediate, even while Firebase's answer is still remembered; a new sign-in works", async () => {
+      await t.member("gbenga", lekki);
+      await t.http.get("/api/users/me").set(t.auth("gbenga")).expect(200); // "not revoked" is now remembered
+      await t.http.post("/api/auth/logout-everywhere").set(t.auth("gbenga")).expect(204);
+
+      // Refused from our own record. Put the remembered "not revoked" back to prove Firebase isn't what refuses it.
+      const calls = firebaseState.getUserCalls;
+      await t.http.get("/api/users/me").set(t.auth("gbenga")).expect(401);
+      await t.http.post("/api/posts").set(t.auth("gbenga")).send({ message: "still here?" }).expect(401);
+      await t.http.get("/api/auth/session").set({ Authorization: "Bearer s:gbenga" }).expect(401);
+      expect(firebaseState.getUserCalls - calls).toBeLessThanOrEqual(1);
+      expect((await t.users.findOne({ uid: "gbenga" }).lean())?.sessionsRevokedAt).toBeInstanceOf(Date);
+
+      // Signing in again gives a token from after the revocation.
+      const fresh = { Authorization: "Bearer t:gbenga:u:password:fresh" };
+      await t.http.get("/api/users/me").set(fresh).expect(200);
+      await t.http.get("/api/auth/session").set({ Authorization: "Bearer s:gbenga:fresh" }).expect(204);
+    });
+
+    it("an account disabled or deleted directly in Firebase is refused once the short memory lapses", async () => {
+      await t.member("halima", lekki);
+      await t.http.get("/api/users/me").set(t.auth("halima")).expect(200);
+      firebaseState.disabled.add("halima");
+      // Inside the window the last answer still stands…
+      await t.http.get("/api/users/me").set(t.auth("halima")).expect(200);
+      // …and when it lapses (forget() stands in for 30 seconds passing), they are out.
+      service().forget("halima");
+      await t.http.get("/api/users/me").set(t.auth("halima")).expect(401);
+      firebaseState.disabled.delete("halima");
+
+      await t.member("idris", lekki);
+      firebaseState.deleted.add("idris");
+      service().forget("idris");
+      await t.http.get("/api/users/me").set(t.auth("idris")).expect(401);
+      firebaseState.deleted.delete("idris");
     });
   });
 

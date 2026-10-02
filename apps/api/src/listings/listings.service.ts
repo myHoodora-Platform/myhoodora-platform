@@ -7,6 +7,7 @@ import { RealtimeService } from "../realtime/realtime.service";
 import type { Viewer } from "../shared/auth/viewer";
 import { searchRegex, type Page, type PageQuery } from "../shared/http/pagination";
 import { UsersService } from "../users/users.service";
+import { StorageService } from "../storage/storage.service";
 import type { CreateListingDto, ListingQuery } from "./listings.dto";
 import { Listing, ListingDocument, type ListingStatus } from "./listing.schema";
 
@@ -23,6 +24,8 @@ export interface ListingView {
   category: Listing["category"];
   condition: Listing["condition"];
   photos: string[];
+  /** width ÷ height of each `photos` entry (same order), or null when unknown. Lets the web frame a photo before it loads. */
+  photoAspects: (number | null)[];
   status: ListingStatus;
   createdAt: string;
 }
@@ -50,6 +53,7 @@ export class ListingsService implements OnModuleInit {
     @InjectModel(Listing.name) private readonly listings: Model<ListingDocument>,
     private readonly users: UsersService,
     private readonly hoods: HoodsService,
+    private readonly storage: StorageService,
     private readonly registry: ModerationRegistry,
     private readonly realtime: RealtimeService,
   ) {}
@@ -165,7 +169,10 @@ export class ListingsService implements OnModuleInit {
   }
 
   private async toViews(rows: Row[]): Promise<ListingView[]> {
-    const cards = await this.users.authorCards(rows.map((r) => r.sellerUid));
+    const [cards, aspects] = await Promise.all([
+      this.users.authorCards(rows.map((r) => r.sellerUid)),
+      this.storage.aspectRatios(rows.flatMap((r) => r.photos ?? [])),
+    ]);
     return rows.map((l) => {
       const c = cards.get(l.sellerUid);
       return {
@@ -180,6 +187,7 @@ export class ListingsService implements OnModuleInit {
         category: l.category,
         condition: l.condition,
         photos: l.photos,
+        photoAspects: (l.photos ?? []).map((url) => aspects.get(url) ?? null),
         status: l.status,
         createdAt: (l.createdAt ?? new Date()).toISOString(),
       };

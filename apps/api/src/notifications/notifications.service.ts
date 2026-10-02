@@ -88,6 +88,27 @@ export class NotificationsService {
     return recipients.length;
   }
 
+  /**
+   * The same in-app notification for many people in one write (broadcasts). No email, no
+   * per-person queries. `dedupeKey(uid)` makes it safe to run twice: rows that already exist
+   * are skipped, never duplicated. Returns how many were newly written.
+   */
+  async notifyBulk(input: { uids: string[]; type: NotificationType; title: string; body?: string; href: string; dedupeKey: (uid: string) => string }): Promise<number> {
+    if (!input.uids.length) return 0;
+    const rows = input.uids.map((uid) => ({ uid, type: input.type, title: input.title, body: input.body, href: input.href, dedupeKey: input.dedupeKey(uid) }));
+    let written = rows.length;
+    try {
+      await this.notifications.insertMany(rows, { ordered: false });
+    } catch (err) {
+      // ordered:false keeps going past duplicates; anything else is a real failure.
+      const failures = (err as { writeErrors?: { code?: number; err?: { code?: number } }[] }).writeErrors;
+      if (!failures?.length || failures.some((f) => (f.code ?? f.err?.code) !== 11000)) throw err;
+      written -= failures.length;
+    }
+    this.realtime.toUsers(input.uids, "notification.created");
+    return written;
+  }
+
   async list(uid: string, limit = 50): Promise<AppNotification[]> {
     const rows = await this.notifications.find({ uid }).sort({ createdAt: -1 }).limit(Math.min(limit, 100)).lean().exec();
     return rows.map(toApp);
