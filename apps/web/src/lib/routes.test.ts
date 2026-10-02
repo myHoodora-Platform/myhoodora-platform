@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { isGuestOnlyPath, isPublicPath, legacyRedirectFor } from "./routes";
-import { safeNextPath } from "./safe-redirect";
+import { describe, expect, it, vi } from "vitest";
+import { isGuestOnlyPath, isPublicPath, isSessionOnlyPath, legacyRedirectFor } from "./routes";
+import { enterApp, safeNextPath } from "./safe-redirect";
 
 const params = (q = "") => new URLSearchParams(q);
 
@@ -24,6 +24,12 @@ describe("legacyRedirectFor", () => {
 });
 
 describe("route access", () => {
+  it("knows the pages the proxy only serves with a session (so a cookie must exist there)", () => {
+    for (const path of ["/news-feed", "/p/abc", "/onboarding", "/admin", "/admin/team", "/settings/account"]) expect(isSessionOnlyPath(path)).toBe(true);
+    // Public and auth pages are served to anonymous visitors: being there proves nothing.
+    for (const path of ["/", "/about", "/privacy", "/business/claim", "/login", "/register", "/forgot-password"]) expect(isSessionOnlyPath(path)).toBe(false);
+  });
+
   it("treats marketing pages as public and app pages as protected", () => {
     expect(isPublicPath("/")).toBe(true);
     expect(isPublicPath("/about")).toBe(true);
@@ -53,5 +59,15 @@ describe("safeNextPath", () => {
     for (const bad of [null, "", "//evil.com", "https://evil.com", "/\\evil.com", "/login", "/", "/api/auth/session"]) {
       expect(safeNextPath(bad)).toBe("/news-feed");
     }
+  });
+});
+
+describe("enterApp", () => {
+  it("does a full navigation, and only ever to a page inside the app", () => {
+    const assign = vi.fn();
+    vi.stubGlobal("window", { location: { assign } });
+    for (const path of ["/p/abc?x=1", "/onboarding", "/admin/team", "https://evil.com", "//evil.com", "/login", "/"]) enterApp(path);
+    expect(assign.mock.calls.map(([to]) => to)).toEqual(["/p/abc?x=1", "/onboarding", "/admin/team", "/news-feed", "/news-feed", "/news-feed", "/news-feed"]);
+    vi.unstubAllGlobals();
   });
 });

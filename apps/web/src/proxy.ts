@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { createRemoteJWKSet, jwtVerify } from "jose";
 import { safeNextPath } from "@/lib/safe-redirect";
-import { isLive } from "@/lib/api/config";
-import { staffVerdict } from "@/lib/auth/staff-gate";
+import { USE_MOCKS, isLive } from "@/lib/api/config";
+import { SESSION_COOKIE, sessionCookieOptions, verifySessionCookie } from "@/lib/auth/session-cookie";
+import { sessionVerdict, staffVerdict } from "@/lib/auth/session-gate";
 import {
   DEFAULT_APP_ROUTE,
   isGuestOnlyPath,
@@ -11,28 +11,28 @@ import {
   legacyRedirectFor,
 } from "@/lib/routes";
 
-const JWKS = createRemoteJWKSet(
-  new URL(
-    "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com",
-  ),
-);
+/**
+ * - none: no session cookie.
+ * - rejected: a cookie that must not count. Forged, expired, from another
+ *   project, or revoked since it was issued (the API says so; see session-gate).
+ * - valid: genuine and still live.
+ *
+ * Having a cookie is never enough. This still only decides which page to
+ * serve: what the person may see or do is the API's call on every request.
+ */
+type SessionState = "none" | "valid" | "rejected";
 
-const PROJECT_ID =
-  process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "myhoodora-e9ba5";
+async function sessionState(request: NextRequest): Promise<SessionState> {
+  const cookie = request.cookies.get(SESSION_COOKIE)?.value;
+  if (!cookie) return "none";
+  if (!(await verifySessionCookie(cookie))) return "rejected";
+  return (await sessionVerdict(cookie)) === "revoked" ? "rejected" : "valid";
+}
 
-async function hasValidSession(request: NextRequest): Promise<boolean> {
-  const sessionCookie = request.cookies.get("__session")?.value;
-  if (!sessionCookie) return false;
-  try {
-    await jwtVerify(sessionCookie, JWKS, {
-      issuer: `https://securetoken.google.com/${PROJECT_ID}`,
-      audience: PROJECT_ID,
-    });
-    return true;
-  } catch (err) {
-    console.warn("Session verification failed inside proxy interceptor:", err);
-    return false;
-  }
+/** A rejected cookie leaves with the response: it is judged once, and /login can't mistake it for a session. */
+function dropSession(response: NextResponse): NextResponse {
+  response.cookies.set(SESSION_COOKIE, "", sessionCookieOptions(0));
+  return response;
 }
 
 function isAdminPath(pathname: string): boolean {
@@ -54,41 +54,45 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL(legacyTarget, request.url), 308);
   }
 
-  // Signed-in neighbours skip the marketing landing page and go to their feed.
-  if (pathname === "/") {
-    if (!(await hasValidSession(request))) return NextResponse.next();
-    return noStoreRedirect(new URL(DEFAULT_APP_ROUTE, request.url));
-  }
+  // Mock mode has no API, so nothing can mint or check a session cookie:
+  // there is no server session and no server-side gate. Signed-out visitors
+  // are turned away by the pages themselves (AppShell, AdminShell, onboarding),
+  // which is enough for a build that only ever shows in-browser sample data.
+  if (USE_MOCKS) return NextResponse.next();
 
-  // Other public pages (about, privacy, guidelines…) stay readable when
-  // signed in and never need the (network-backed) JWT check.
-  if (isPublicPath(pathname)) return NextResponse.next();
+  // Costs nothing for visitors without a cookie; with one, it is checked
+  // wherever they land, so a rejected cookie never lingers.
+  const session = await sessionState(request);
+  const settle = (response: NextResponse) => (session === "rejected" ? dropSession(response) : response);
 
-  const isValidSession = await hasValidSession(request);
+  // Public pages (about, privacy, guidelines…) are readable either way.
+  const isLanding = pathname === "/";
+  if (!isLanding && isPublicPath(pathname)) return settle(NextResponse.next());
 
-  if (isGuestOnlyPath(pathname)) {
-    if (!isValidSession) return NextResponse.next();
-    return noStoreRedirect(
-      new URL(safeNextPath(searchParams.get("next")), request.url),
-    );
+  // Signed-in neighbours skip the marketing landing page and the auth pages.
+  if (isLanding || isGuestOnlyPath(pathname)) {
+    if (session !== "valid") return settle(NextResponse.next());
+    const target = isLanding ? DEFAULT_APP_ROUTE : safeNextPath(searchParams.get("next"));
+    return noStoreRedirect(new URL(target, request.url));
   }
 
   // Default-deny: everything else is part of the signed-in app.
-  if (!isValidSession) {
+  if (session !== "valid") {
     const redirectUrl = new URL("/login", request.url);
     // Remember the deep link (e.g. /p/abc) so login can return to it.
     const wanted = pathname + request.nextUrl.search;
     if (wanted !== DEFAULT_APP_ROUTE) redirectUrl.searchParams.set("next", wanted);
-    return noStoreRedirect(redirectUrl);
+    return settle(noStoreRedirect(redirectUrl));
   }
 
   // Admin portal: staff only. Checked here, before anything renders, so
   // non-staff get the ordinary 404 page (same body as a made-up URL) and
   // never receive admin code. The API still authorises every admin call.
   if (isAdminPath(pathname) && isLive("admin.session")) {
-    const verdict = await staffVerdict(request.cookies.get("__session")!.value);
+    const verdict = await staffVerdict(request.cookies.get(SESSION_COOKIE)!.value);
     if (verdict === "expired") {
-      return noStoreRedirect(new URL(`/login?next=${encodeURIComponent(pathname + request.nextUrl.search)}`, request.url));
+      // Revoked in the moment since the check above.
+      return dropSession(noStoreRedirect(new URL(`/login?next=${encodeURIComponent(pathname + request.nextUrl.search)}`, request.url)));
     }
     if (verdict === "not_staff") {
       return NextResponse.rewrite(new URL("/__not-found", request.url), { status: 404 });

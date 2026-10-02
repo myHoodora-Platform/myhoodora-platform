@@ -2,7 +2,6 @@
 
 import React, { useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Input } from "@myhoodora/ui/input";
@@ -17,13 +16,14 @@ import {
   routeAfterSignIn,
 } from "@/lib/firebase/auth";
 import { DEFAULT_APP_ROUTE, ROUTES } from "@/lib/routes";
+import { requireServerSession } from "@/lib/auth/session-sync";
+import { enterApp } from "@/lib/safe-redirect";
 import { getAuthErrorMessage } from "@/lib/firebase/errors";
 import { SocialAuthButtons } from "@/components/shared/social-auth-buttons";
 import { useRedirectIfSignedIn } from "@/hooks/use-redirect-if-signed-in";
 import { toast } from "sonner";
 
 export default function RegisterPage() {
-  const router = useRouter();
   const [googleLoading, setGoogleLoading] = useState(false);
   const [appleLoading, setAppleLoading] = useState(false);
   // Blocks a second sign-up from a fast double submit (see login page).
@@ -45,11 +45,13 @@ export default function RegisterPage() {
     if (submittingRef.current) return;
     submittingRef.current = true;
     try {
-      await signUpUser(data.email, data.password);
+      const user = await signUpUser(data.email, data.password);
+      // Onboarding is behind the proxy: the server session has to exist first.
+      await requireServerSession(user);
       // A brand-new account always starts onboarding. The onboarding page
       // waits for the profile (created by GET /users/me) and shows an error
       // with Retry if that fails.
-      router.push(ROUTES.onboarding);
+      enterApp(ROUTES.onboarding);
     } catch (err: unknown) {
       const { code, message, silent } = getAuthErrorMessage(err);
       if (process.env.NODE_ENV === "development" && code) {
@@ -69,7 +71,7 @@ export default function RegisterPage() {
       // Google may sign in an existing account: only new or unfinished
       // accounts go to onboarding.
       const user = await signInWithGoogle();
-      router.push(await routeAfterSignIn(user, DEFAULT_APP_ROUTE));
+      enterApp(await routeAfterSignIn(user, DEFAULT_APP_ROUTE));
     } catch (err: unknown) {
       const { code, message, silent } = getAuthErrorMessage(err);
       if (process.env.NODE_ENV === "development" && code) {
@@ -87,7 +89,7 @@ export default function RegisterPage() {
     setAppleLoading(true);
     try {
       const user = await signInWithApple();
-      router.push(await routeAfterSignIn(user, DEFAULT_APP_ROUTE));
+      enterApp(await routeAfterSignIn(user, DEFAULT_APP_ROUTE));
     } catch (err: unknown) {
       const { code, message, silent } = getAuthErrorMessage(err);
       if (process.env.NODE_ENV === "development" && code) {

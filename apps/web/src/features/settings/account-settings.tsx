@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@myhoodora/ui/button";
 import { Badge } from "@myhoodora/ui/badge";
@@ -11,6 +12,7 @@ import { useAuth } from "@/context/AuthContext";
 import { errorMessage } from "@/lib/api/client";
 import { resetUserPassword } from "@/lib/firebase/auth";
 import { DEACTIVATION_REASONS, deactivateAccount, type DeactivationReason } from "@/lib/api/settings";
+import { ROUTES } from "@/lib/routes";
 import { SettingsRow, SettingsSection } from "./ui";
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -83,10 +85,47 @@ function DeactivateDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
   );
 }
 
+function SignOutEverywhereDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+  const router = useRouter();
+  const { logoutEverywhere } = useAuth();
+  const [busy, setBusy] = useState(false);
+
+  const confirm = async () => {
+    setBusy(true);
+    try {
+      await logoutEverywhere();
+      toast.success("You're signed out on every device.");
+      router.push(ROUTES.login);
+    } catch (err) {
+      toast.error(errorMessage(err, "Couldn't sign you out everywhere. Please try again."));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <ResponsiveModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Sign out everywhere?"
+      description="You'll be signed out of myHoodora on every phone, tablet and computer, including this one. Other devices can take up to a minute. You can log back in straight away."
+    >
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>
+          Cancel
+        </Button>
+        <Button onClick={confirm} loading={busy} className="bg-destructive shadow-none hover:bg-destructive/90">
+          Sign out everywhere
+        </Button>
+      </div>
+    </ResponsiveModal>
+  );
+}
+
 export function AccountSettings() {
   const { user } = useAuth();
   const [sending, setSending] = useState(false);
   const [deactivating, setDeactivating] = useState(false);
+  const [signingOutEverywhere, setSigningOutEverywhere] = useState(false);
   if (!user) return null;
 
   const providers = user.providerData.map((p) => p.providerId);
@@ -130,6 +169,14 @@ export function AccountSettings() {
         </SettingsRow>
       </SettingsSection>
 
+      <SettingsSection title="Signed-in devices" description="Lost a phone or used a shared computer? End every session at once.">
+        <SettingsRow label="Sign out everywhere" description="Signs you out on all your devices, including this one.">
+          <Button variant="outline" size="sm" onClick={() => setSigningOutEverywhere(true)}>
+            Sign out everywhere
+          </Button>
+        </SettingsRow>
+      </SettingsSection>
+
       <SettingsSection title="Deactivate account" tone="danger">
         <SettingsRow label="Leave myHoodora" description="Hide your profile and posts. You can come back within 30 days.">
           <Button variant="outline" size="sm" className="border-destructive/40 text-destructive hover:bg-destructive/5" onClick={() => setDeactivating(true)}>
@@ -137,6 +184,7 @@ export function AccountSettings() {
           </Button>
         </SettingsRow>
       </SettingsSection>
+      <SignOutEverywhereDialog open={signingOutEverywhere} onOpenChange={setSigningOutEverywhere} />
       <DeactivateDialog open={deactivating} onOpenChange={setDeactivating} />
     </div>
   );

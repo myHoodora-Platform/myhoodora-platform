@@ -2,7 +2,6 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowLeft, Mail } from "lucide-react";
@@ -18,6 +17,8 @@ import { routeAfterSignIn, signInWithApple, signInWithGoogle, signUpUser } from 
 import { getAuthErrorMessage } from "@/lib/firebase/errors";
 import { registerSchema, type RegisterInput } from "@/lib/validation/auth";
 import { DEFAULT_APP_ROUTE, ROUTES } from "@/lib/routes";
+import { requireServerSession } from "@/lib/auth/session-sync";
+import { enterApp } from "@/lib/safe-redirect";
 import type { User } from "firebase/auth";
 
 function reportAuthError(err: unknown) {
@@ -31,7 +32,6 @@ function reportAuthError(err: unknown) {
  * Frosted glass over the hero photo; email sign-up expands in place.
  */
 export function SignupCard({ className }: { className?: string }) {
-  const router = useRouter();
   const [emailMode, setEmailMode] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [appleLoading, setAppleLoading] = useState(false);
@@ -51,8 +51,10 @@ export function SignupCard({ className }: { className?: string }) {
     if (submittingRef.current) return;
     submittingRef.current = true;
     try {
-      await signUpUser(data.email, data.password);
-      router.push(ROUTES.onboarding);
+      const user = await signUpUser(data.email, data.password);
+      // Onboarding is behind the proxy: the server session has to exist first.
+      await requireServerSession(user);
+      enterApp(ROUTES.onboarding);
     } catch (err) {
       reportAuthError(err);
     } finally {
@@ -66,7 +68,7 @@ export function SignupCard({ className }: { className?: string }) {
     setLoading(true);
     try {
       const user = await signIn();
-      router.push(await routeAfterSignIn(user, DEFAULT_APP_ROUTE));
+      enterApp(await routeAfterSignIn(user, DEFAULT_APP_ROUTE));
     } catch (err) {
       reportAuthError(err);
     } finally {

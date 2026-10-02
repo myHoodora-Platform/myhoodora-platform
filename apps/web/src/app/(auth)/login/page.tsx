@@ -2,14 +2,13 @@
 
 import React, { useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Input } from "@myhoodora/ui/input";
 import { PasswordInput } from "@myhoodora/ui/password-input";
 import { Button } from "@myhoodora/ui/button";
 import { Divider } from "@myhoodora/ui/divider";
-import { safeNextPath } from "@/lib/safe-redirect";
+import { enterApp, safeNextPath } from "@/lib/safe-redirect";
 import { loginSchema, type LoginInput } from "@/lib/validation/auth";
 import {
   signInUser,
@@ -27,7 +26,6 @@ const nextPath = () =>
   safeNextPath(new URLSearchParams(window.location.search).get("next"));
 
 export default function LoginPage() {
-  const router = useRouter();
   const [googleLoading, setGoogleLoading] = useState(false);
   const [appleLoading, setAppleLoading] = useState(false);
   // isSubmitting only disables the button after a re-render, so a fast
@@ -48,7 +46,7 @@ export default function LoginPage() {
     submittingRef.current = true;
     try {
       const user = await signInUser(data.email, data.password);
-      router.push(await routeAfterSignIn(user, nextPath()));
+      enterApp(await routeAfterSignIn(user, nextPath()));
     } catch (err: unknown) {
       const { code, message, silent } = getAuthErrorMessage(err);
       if (process.env.NODE_ENV === "development" && code) {
@@ -66,7 +64,7 @@ export default function LoginPage() {
     setGoogleLoading(true);
     try {
       const user = await signInWithGoogle();
-      router.push(await routeAfterSignIn(user, nextPath()));
+      enterApp(await routeAfterSignIn(user, nextPath()));
     } catch (err: unknown) {
       const { code, message, silent } = getAuthErrorMessage(err);
       if (process.env.NODE_ENV === "development" && code) {
@@ -84,7 +82,7 @@ export default function LoginPage() {
     setAppleLoading(true);
     try {
       const user = await signInWithApple();
-      router.push(await routeAfterSignIn(user, nextPath()));
+      enterApp(await routeAfterSignIn(user, nextPath()));
     } catch (err: unknown) {
       const { code, message, silent } = getAuthErrorMessage(err);
       if (process.env.NODE_ENV === "development" && code) {

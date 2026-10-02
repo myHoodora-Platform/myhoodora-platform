@@ -18,6 +18,7 @@ import { MOCK_HOOD_RADIUS_M, MOCK_NEARBY_HOODS, MOCK_NEARBY_LIMIT_M, MOCK_NEIGHB
 import { hasSkippedOnboarding } from "@/features/onboarding/draft";
 import { isStaff } from "@/lib/auth/profile";
 import { DEFAULT_APP_ROUTE, ROUTES } from "@/lib/routes";
+import { requireServerSession } from "@/lib/auth/session-sync";
 
 // ── Mock mode (NEXT_PUBLIC_USE_MOCKS=true) ──────────────────────────────────
 // Firebase sign-in stays real; everything our API would return is served
@@ -57,16 +58,22 @@ function updateMockProfile(user: User, patch: Record<string, unknown>) {
  * person is still signed in, so send them on to `fallback`: the app shell
  * shows a "couldn't load your account" state with Retry, rather than guessing
  * they're new and sending them through onboarding.
+ *
+ * Every destination is behind the proxy, so this also waits for the server
+ * session. Without one it throws (a readable ApiError) instead of returning
+ * a page that would only bounce them back to login.
  */
 export async function routeAfterSignIn(user: User, fallback: string): Promise<string> {
-  try {
-    const profile = (await fetchUserProfile(user)) as { isOnboarded?: boolean; role?: string } | null;
-    if (profile && profile.isOnboarded === false) {
-      if (isStaff(profile.role)) return fallback === DEFAULT_APP_ROUTE ? ROUTES.admin : fallback;
-      if (!hasSkippedOnboarding(user.uid)) return ROUTES.onboarding;
-    }
-  } catch (err) {
-    console.error("Couldn't load profile after sign-in:", err);
+  const [, profile] = await Promise.all([
+    requireServerSession(user),
+    (fetchUserProfile(user) as Promise<{ isOnboarded?: boolean; role?: string } | null>).catch((err) => {
+      console.error("Couldn't load profile after sign-in:", err);
+      return null;
+    }),
+  ]);
+  if (profile && profile.isOnboarded === false) {
+    if (isStaff(profile.role)) return fallback === DEFAULT_APP_ROUTE ? ROUTES.admin : fallback;
+    if (!hasSkippedOnboarding(user.uid)) return ROUTES.onboarding;
   }
   return fallback;
 }
@@ -206,11 +213,14 @@ export async function updateProfileApi(
   return apiFetch<unknown>(user, "/users/me", { method: "PATCH", json: payload });
 }
 
-// Revokes the user's Firebase refresh tokens server-side. Must be called
-// with a still-valid bearer token, before signOut() discards it.
-export async function revokeBackendSession(user: User): Promise<void> {
+/**
+ * "Sign out everywhere": the API revokes every refresh token, which ends the
+ * account's sessions on all devices (ID tokens and session cookies alike).
+ * Needs a still-valid ID token, so call it before signing out here.
+ */
+export async function revokeAllSessionsApi(user: User): Promise<void> {
   if (USE_MOCKS) return;
-  await apiFetch<void>(user, "/auth/logout", { method: "POST" });
+  await apiFetch<void>(user, "/auth/logout-everywhere", { method: "POST" });
 }
 
 export interface NeighborhoodSummary {

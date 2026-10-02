@@ -81,6 +81,15 @@ export function isGuestOnlyPath(pathname: string): boolean {
 }
 
 /**
+ * Pages the proxy only serves to someone *with* a valid session cookie:
+ * the signed-in app, onboarding and the admin. Being on one proves the
+ * cookie exists.
+ */
+export function isSessionOnlyPath(pathname: string): boolean {
+  return !isPublicPath(pathname) && !isGuestOnlyPath(pathname);
+}
+
+/**
  * Old /dashboard URLs → new routes, so links people already shared keep
  * working. `/dashboard?post=<id>` is handled separately (→ /p/<id>).
  */
