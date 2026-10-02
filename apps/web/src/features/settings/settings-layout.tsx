@@ -36,7 +36,7 @@ interface Section {
   icon: LucideIcon;
 }
 
-/** Nextdoor-style settings sections (docs/nextdoor-research.md). */
+/** Nextdoor-style settings sections (docs/product/nextdoor-research.md). */
 export const SETTINGS_SECTIONS: Section[] = [
   { label: "Profile", description: "Photo, name and bio", href: ROUTES.settingsProfile, icon: User },
   { label: "Account", description: "Email, password and sign-in", href: ROUTES.settingsAccount, icon: KeyRound },

@@ -23,7 +23,7 @@ export function FinishJoiningCard() {
 
   return (
     <section className="overflow-hidden rounded-2xl border border-border bg-card">
-      <div className="relative bg-primary px-6 py-8 text-primary-foreground sm:px-8">
+      <div className="relative bg-brand-teal px-6 py-8 text-white sm:px-8">
         <span aria-hidden className="absolute -top-12 -right-12 size-44 rounded-full bg-white/10" />
         <span className="flex size-12 items-center justify-center rounded-2xl bg-white/15">
           {pendingHood ? <Hourglass className="size-6" aria-hidden /> : <MapPin className="size-6" aria-hidden />}
@@ -31,14 +31,14 @@ export function FinishJoiningCard() {
         <h1 className="mt-4 text-2xl font-bold tracking-tight">
           {pendingHood ? `Request pending for ${pendingHood}` : "Finish joining your neighbourhood"}
         </h1>
-        <p className="mt-1 max-w-md text-primary-foreground/85">
+        <p className="mt-1 max-w-md text-white/95">
           {pendingHood
             ? `Our team is reviewing your request to join ${pendingHood}. Your neighbourhood feed appears here as soon as you're approved.`
             : "Confirm where you live to see what neighbours are sharing, and to post, comment and message. It takes about a minute."}
         </p>
         <Link
           href={pendingHood ? ROUTES.settingsNeighbourhood : ROUTES.onboarding}
-          className="mt-5 inline-flex h-11 items-center gap-2 rounded-full bg-white px-5 font-bold text-primary transition-colors hover:bg-white/90"
+          className="mt-5 inline-flex h-11 items-center gap-2 rounded-full bg-white px-5 font-bold text-brand-teal transition-colors hover:bg-white/90"
         >
           {pendingHood ? "View request" : "Find my neighbourhood"} <ArrowRight className="size-4" aria-hidden />
         </Link>

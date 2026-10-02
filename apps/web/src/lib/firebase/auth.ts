@@ -3,6 +3,7 @@ import {
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
   signInWithPopup,
+  signInWithCredential,
   GoogleAuthProvider,
   OAuthProvider,
   signOut,
@@ -118,11 +119,21 @@ export async function resetUserPassword(email: string): Promise<void> {
 }
 
 export async function signInWithGoogle(): Promise<User> {
+  // Default scopes only (name, email, photo): we ask Google who they are, never for access to their data.
   const provider = new GoogleAuthProvider();
+  // Always let them pick the account, instead of silently reusing whichever Google session the browser has.
+  provider.setCustomParameters({ prompt: "select_account" });
   const credential = await signInWithPopup(auth, provider);
   return credential.user;
 }
 
+/** Google One Tap hands us a Google ID token; Firebase turns it into the same account and session as the pop-up. */
+export async function signInWithGoogleCredential(googleIdToken: string): Promise<User> {
+  const credential = await signInWithCredential(auth, GoogleAuthProvider.credential(googleIdToken));
+  return credential.user;
+}
+
+/** Not offered yet (APPLE_SIGN_IN_ENABLED in social-auth-buttons.tsx); kept so enabling it is a one-line change. */
 export async function signInWithApple(): Promise<User> {
   const provider = new OAuthProvider("apple.com");
   const credential = await signInWithPopup(auth, provider);
@@ -131,11 +142,23 @@ export async function signInWithApple(): Promise<User> {
 
 export async function logoutUser(): Promise<void> {
   await signOut(auth);
+  // If Google's One Tap script is on the page, stop it offering to sign the same person straight back in.
+  if (typeof window !== "undefined") window.google?.accounts.id.disableAutoSelect();
 }
+
+// Right after sign-in two callers want the profile at the same moment (AuthProvider, and the form deciding
+// where to go next): they share one request. Nothing is kept once it answers, so every later call is fresh.
+const profileRequests = new Map<string, Promise<unknown>>();
 
 export async function fetchUserProfile(user: User): Promise<unknown> {
   if (USE_MOCKS) return mockProfile(user);
-  return apiFetch<unknown>(user, "/users/me");
+  const running = profileRequests.get(user.uid);
+  if (running) return running;
+  const request = apiFetch<unknown>(user, "/users/me").finally(() => {
+    if (profileRequests.get(user.uid) === request) profileRequests.delete(user.uid);
+  });
+  profileRequests.set(user.uid, request);
+  return request;
 }
 
 /** Mock of the API's nearby-Hood search: open Hoods close to a point, nearest first. */
