@@ -1,10 +1,14 @@
 @import "tailwindcss";
 @source "../../../../packages/ui/src/**/*.tsx";
 
-:root {
+:root,
+.theme-light {
+  color-scheme: light;
   /* Brand palette — source of truth: brand/myhoodora_brand_system/08_Guidelines/myhoodora_palette.css */
   --brand-teal: #147c73;
   --brand-coral: #ff6b5b;
+  /* Coral for text: the brand coral is too light to read as small text (2.5:1 on a coral tint); this is 6:1. */
+  --brand-coral-ink: #a62c1d;
   --brand-gray: #f2f2f2;
   --brand-ink: #1b2b29;
 
@@ -14,19 +18,76 @@
   --card-foreground: #171717;
   --popover: #ffffff;
   --popover-foreground: #171717;
-  --primary: #147c73;
+  /* The UI's teal is a shade deeper than the brand teal above, so small teal text passes WCAG AA (4.5:1)
+     on the pale teal tints it often sits on (bg-primary/10). --brand-teal itself is unchanged. */
+  --primary: #11706a;
   --primary-foreground: #ffffff;
   --secondary: #f2f2f2;
   --secondary-foreground: #171717;
   --muted: #f2f2f2;
-  --muted-foreground: #737373;
+  /* 4.5:1 or better on white, the canvas and the muted grey. */
+  --muted-foreground: #696969;
   --accent: #f2f2f2;
   --accent-foreground: #171717;
-  --destructive: #ef4444;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  /* Status colours — alert categories, verification, toasts. */
+  --success: #15803d;
+  --success-soft: #dcfce7;
+  --warning: #b45309;
+  --warning-soft: #fef3c7;
+  --info: #1d4ed8;
+  --info-soft: #dbeafe;
+  --danger-soft: #fee2e2;
+  /* App canvas behind cards (brand off-white). */
+  --canvas: #f4f5f4;
   --border: #e5e7eb;
   --input: #e5e7eb;
-  --ring: #147c73;
+  --ring: #11706a;
 }
+
+/*
+ * Dark theme. Applied by the `dark` class on <html> (lib/theme.ts decides when):
+ * the signed-in app, onboarding and the admin follow the person's choice in
+ * Settings → Account (System / Light / Dark). The marketing, legal and sign-in
+ * pages are designed around photography and stay light.
+ *
+ * Primary becomes a lighter teal with dark text on it, so links and filled
+ * buttons both keep AA contrast on dark surfaces; --brand-teal stays the deep
+ * brand colour for the few panels that are always teal with white text.
+ */
+.dark {
+  color-scheme: dark;
+  --background: #0f1514;
+  --foreground: #e8eeec;
+  --card: #171e1d;
+  --card-foreground: #e8eeec;
+  --popover: #1b2322;
+  --popover-foreground: #e8eeec;
+  --primary: #3ebdb0;
+  --primary-foreground: #052b27;
+  --secondary: #222b2a;
+  --secondary-foreground: #e8eeec;
+  --muted: #222b2a;
+  --muted-foreground: #a3b0ad;
+  --accent: #26302e;
+  --accent-foreground: #e8eeec;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --success: #4ade80;
+  --success-soft: #12301f;
+  --warning: #fbbf24;
+  --warning-soft: #3a2a0b;
+  --info: #7fb0ff;
+  --info-soft: #16264a;
+  --danger-soft: #3b1717;
+  --canvas: #0b100f;
+  --border: #2b3533;
+  --input: #2b3533;
+  --ring: #3ebdb0;
+}
+
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme inline {
   /* Semantic type weights (Outfit): h1 / h2 = 700, h3 / buttons / labels = 600, body = 400. */
@@ -53,11 +114,21 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-danger-soft: var(--danger-soft);
+  --color-canvas: var(--canvas);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-brand-teal: var(--brand-teal);
   --color-brand-coral: var(--brand-coral);
+  --color-brand-coral-ink: var(--brand-coral-ink);
   --color-brand-gray: var(--brand-gray);
   --color-brand-ink: var(--brand-ink);
   --font-sans: var(--font-outfit);
@@ -108,3 +179,28 @@ h6,
     transform: translateY(0);
   }
 }
+
+/* Marketing phone mockup: the feed drifts slowly like someone browsing. */
+@keyframes phone-feed-scroll {
+  0%,
+  12% {
+    transform: translateY(0);
+  }
+  88%,
+  100% {
+    transform: translateY(-560px);
+  }
+}
+
+/* People who ask their device for less motion get none of ours: no drifting mockups, pulses or slide-ins. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+

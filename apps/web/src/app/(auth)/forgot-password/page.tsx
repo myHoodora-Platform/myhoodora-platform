@@ -14,9 +14,11 @@ import {
 import { resetUserPassword } from "@/lib/firebase/auth";
 import { getAuthErrorMessage } from "@/lib/firebase/errors";
 import { toast } from "sonner";
+import { useRedirectIfSignedIn } from "@/hooks/use-redirect-if-signed-in";
 
 export default function ForgotPasswordPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  useRedirectIfSignedIn();
 
   const {
     register,
@@ -93,10 +95,12 @@ export default function ForgotPasswordPage() {
       ) : (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-1">
+            <label htmlFor="forgot-email" className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-1">
               Email Address
             </label>
             <Input
+              id="forgot-email"
+              autoComplete="email"
               type="email"
               placeholder="name@example.com"
               error={errors.email?.message}

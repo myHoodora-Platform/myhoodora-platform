@@ -126,7 +126,7 @@ export const SidebarProvider = forwardRef<
             } as React.CSSProperties
           }
           className={cn(
-            "flex min-h-screen w-full text-slate-800 bg-slate-50 font-sans",
+            "flex min-h-screen w-full text-foreground bg-canvas font-sans",
             className,
           )}
           {...props}
@@ -168,7 +168,7 @@ export const Sidebar = forwardRef<
           ref={ref}
           style={{ width: SIDEBAR_WIDTH_MOBILE }}
           className={cn(
-            "fixed bottom-0 top-0 z-50 flex h-full flex-col bg-white border-r border-slate-100 shadow-xl transition-transform duration-300 ease-in-out",
+            "fixed bottom-0 top-0 z-50 flex h-full flex-col bg-card border-r border-border shadow-xl transition-transform duration-300 ease-in-out",
             side === "left" ? "left-0" : "right-0",
             openMobile
               ? "translate-x-0"
@@ -197,7 +197,7 @@ export const Sidebar = forwardRef<
       <aside
         ref={ref}
         className={cn(
-          "fixed bottom-0 top-0 z-20 flex h-full flex-col bg-white border-r border-slate-100 transition-[width] duration-300 ease-in-out",
+          "fixed bottom-0 top-0 z-20 flex h-full flex-col bg-card border-r border-border transition-[width] duration-300 ease-in-out",
           side === "left" ? "left-0" : "right-0",
           state === "expanded"
             ? "w-[var(--sidebar-width)]"
@@ -224,7 +224,7 @@ export const SidebarTrigger = forwardRef<
       ref={ref}
       data-sidebar="trigger"
       className={cn(
-        "inline-flex items-center justify-center rounded-lg p-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-2",
+        "inline-flex items-center justify-center rounded-lg p-2.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-2",
         className,
       )}
       onClick={(event) => {
@@ -251,7 +251,7 @@ export const SidebarHeader = forwardRef<
   <div
     ref={ref}
     data-sidebar="header"
-    className={cn("flex flex-col p-4 border-b border-slate-100", className)}
+    className={cn("flex flex-col p-4 border-b border-border", className)}
     {...props}
   />
 ));
@@ -281,7 +281,7 @@ export const SidebarFooter = forwardRef<
     ref={ref}
     data-sidebar="footer"
     className={cn(
-      "flex flex-col p-4 border-t border-slate-100 mt-auto",
+      "flex flex-col p-4 border-t border-border mt-auto",
       className,
     )}
     {...props}
@@ -314,7 +314,7 @@ export const SidebarGroupLabel = forwardRef<
       ref={ref}
       data-sidebar="group-label"
       className={cn(
-        "px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400 select-none",
+        "px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground select-none",
         className,
       )}
       {...props}
@@ -378,7 +378,7 @@ export const SidebarMenuButton = forwardRef<
       data-sidebar="menu-button"
       data-active={isActive}
       className={cn(
-        "flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:text-primary transition-all duration-200 outline-none select-none text-left relative",
+        "flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-foreground hover:bg-muted hover:text-primary transition-all duration-200 outline-none select-none text-left relative",
         isActive && "bg-primary/5 text-primary hover:bg-primary/5",
         isCollapsed ? "justify-center px-0 py-3" : "justify-start",
         className,

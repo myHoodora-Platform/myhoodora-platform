@@ -1,72 +1,47 @@
-# MyHoodora Web Application
+# myHoodora web
 
-The frontend web application for the MyHoodora platform, built with [Next.js](https://nextjs.org/).
+The Next.js app: the marketing site, the signed-in app for residents, and the staff admin at `/admin`.
 
-## Purpose
+Project documentation is in [`/docs`](../../docs/README.md). The most relevant pages: [architecture](../../docs/architecture.md), [authentication](../../docs/authentication.md), [environment](../../docs/environment.md), [testing](../../docs/testing.md).
 
-The web application serves as the primary interface for MyHoodora users. It allows community members to interact, access local services, and manage their neighborhood profiles.
-
-## Tech Stack
-
-- **Framework**: Next.js (App Router)
-- **Library**: React 19
-- **Authentication**: Firebase Auth
-- **Styling**: CSS Modules (Planned for Tailwind/Shadcn)
-- **UI Components**: Internal `@myhoodora/ui` package
-- **Data Fetching**: React Server Components & Client-side hooks
-
-## Setup & Local Development
-
-### Prerequisites
-
-Ensure you have followed the root setup instructions in the [main README](../../README.md).
-
-### Running Locally
-
-To run the web application in development mode:
+## Run
 
 ```bash
-pnpm dev
+cp .env.example .env.local     # Firebase web config, API URL
+pnpm --filter web dev          # http://localhost:3000
 ```
 
-Or, from the root, targeting only the web app:
+The API must be running too (`pnpm dev` from the root starts both), or use mock mode: `NEXT_PUBLIC_USE_MOCKS=true pnpm --filter web dev` runs the UI on in-browser sample data.
 
-```bash
-pnpm --filter web dev
+## Scripts
+
+| Script | Does |
+| --- | --- |
+| `dev` · `build` · `start` | Develop · production build · serve the build |
+| `lint` | ESLint, zero warnings allowed |
+| `check-types` | Next type generation + TypeScript |
+| `test` | Unit tests (Vitest, `src/**/*.test.ts`) |
+| `test:e2e` | Browser tests (Playwright, `e2e/`). The signed-in tests need the API and a test account |
+| `test:e2e:public` | The signed-out browser tests only (no API needed) |
+
+## Layout
+
+```text
+src/
+  proxy.ts        page gate: who may see which page
+  app/            routes: public pages, (auth), (app), onboarding, admin, api/auth
+  features/       one folder per product area
+  components/     app shell, marketing layout, shared pieces
+  context/        AuthContext (user, profile, server session)
+  lib/            API client (+ mock backend), auth, firebase, realtime, routes, theme
+e2e/              Playwright tests
 ```
 
-The application will be available at [http://localhost:3000](http://localhost:3000).
+Stack: Next.js 16 (App Router), React 19, Tailwind CSS 4, components from `@myhoodora/ui`, Firebase Auth, react-hook-form + zod.
 
-### Environment Variables
+## Things that will bite you
 
-Create a `.env.local` file in this directory based on `.env.example`:
-
-```bash
-cp .env.example .env.local
-```
-
-| Variable              | Description              | Default                 |
-| :-------------------- | :----------------------- | :---------------------- |
-| `NEXT_PUBLIC_API_URL` | URL of the MyHoodora API | `http://localhost:3333` |
-
-## Available Scripts
-
-| Command            | Description                          |
-| :----------------- | :----------------------------------- |
-| `pnpm build`       | Create an optimized production build |
-| `pnpm dev`         | Start the development server         |
-| `pnpm start`       | Start the production server          |
-| `pnpm lint`        | Run ESLint checks                    |
-| `pnpm check-types` | Run TypeScript type-checking         |
-
-## Project Structure
-
-- `app/`: Next.js App Router (pages, layouts, and components)
-- `public/`: Static assets (images, fonts, etc.)
-- `components/`: Shared UI components specific to the web app
-- `hooks/`: Custom React hooks
-- `lib/`: Utility functions and external service configurations
-
----
-
-For broader project information, architecture, and contribution guidelines, please refer to the [Root README](../../README.md).
+- A new page is **protected by default**. To make it public, add it to `PUBLIC_PATHS` in `src/lib/routes.ts` (and to `src/app/sitemap.ts`).
+- A new third-party script, frame or API called from the browser must be added to the content policy in `next.config.js`.
+- Use colour tokens (`bg-card`, `text-foreground`…), not fixed colours, or dark mode breaks.
+- `NEXT_PUBLIC_*` variables are fixed at build time.

@@ -130,6 +130,50 @@ export const ABOUT_AERIAL: SiteImage = {
     "https://commons.wikimedia.org/wiki/File:Aerial_view_of_Lagos_Island.jpg",
 };
 
+/**
+ * About page banner. Uses an Unsplash photo (no attribution required) —
+ * the site shows no photo credits, so CC BY-SA images like ABOUT_AERIAL
+ * must not be displayed.
+ */
+export const ABOUT_IMAGE: SiteImage = HERO_IMAGES[2]!;
+
+/** For Business hero and teaser: Lagos skyline (Unsplash, no attribution required). */
+export const BUSINESS_IMAGE: SiteImage = HERO_IMAGES[3]!;
+
+/**
+ * Landing "For business" band: a busy Lagos market street from above —
+ * danfos, keke and traders' umbrellas (Unsplash, no attribution required).
+ */
+export const MARKET_IMAGE: SiteImage = {
+  src: "/images/market-street.webp",
+  alt: "A busy Lagos market street seen from above, with traders' umbrellas, yellow danfo buses and keke",
+  label: "Lagos market street",
+  credit: "Fahd Aminu",
+  creditUrl: "https://unsplash.com/photos/bustling-city-street-scene-with-numerous-vehicles-and-market-activity-RgDIV-QJTI8",
+};
+
+/** Contact hero background: friends laughing together (Unsplash). */
+export const CONTACT_IMAGE: SiteImage = {
+  src: "/images/contact-people.webp",
+  alt: "A group of friends laughing together outdoors under palm leaves",
+  label: "Friends laughing",
+  credit: "Ufoma Ojo",
+  creditUrl: "https://unsplash.com/photos/FYq7zbi7iRE",
+  position: "50% 30%",
+};
+
+/** Careers hero: colleagues working together in a co-working space (Unsplash). */
+export const CAREERS_IMAGE: SiteImage = {
+  src: "/images/careers-team.webp",
+  alt: "Two colleagues working together at a computer in a busy co-working space",
+  label: "Team at work",
+  credit: "Unsplash",
+  creditUrl: "https://unsplash.com/photos/IgUR1iX0mqM",
+};
+
+/** myHoodora AI product logo (brand asset). */
+export const HOODORA_AI_LOGO = "/images/hoodora-ai-logo.webp";
+
 /** Safe indexed access so the active image is always typed as defined. */
 function at<T>(list: T[], index: number): T {
   const item = list[index] ?? list[0];

@@ -8,6 +8,15 @@ interface ImageWithFallbackProps {
   src: string;
   alt: string;
   className?: string;
+  /** Sizing for the wrapper, e.g. "absolute inset-0" inside a fixed-size tile. */
+  wrapperClassName?: string;
+  srcSet?: string;
+  sizes?: string;
+  style?: React.CSSProperties;
+  /** Called with the loaded element (natural size, for smart framing). */
+  onLoaded?: (img: HTMLImageElement) => void;
+  /** Shown instead of the explanatory error box when the image can't load (small tiles have no room for it). */
+  errorFallback?: React.ReactNode;
 }
 
 /**
@@ -20,6 +29,12 @@ export function ImageWithFallback({
   src,
   alt,
   className,
+  wrapperClassName,
+  srcSet,
+  sizes,
+  style,
+  onLoaded,
+  errorFallback,
 }: ImageWithFallbackProps) {
   const [status, setStatus] = useState<"loading" | "loaded" | "error">(
     "loading",
@@ -29,16 +44,19 @@ export function ImageWithFallback({
     setStatus("loading");
   }, [src]);
 
+  if (status === "error" && errorFallback !== undefined) return <>{errorFallback}</>;
+
   if (status === "error") {
     return (
       <div
         className={cn(
-          "flex flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-200 bg-slate-50 p-6 text-center",
+          "flex flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-border bg-muted p-6 text-center",
           className,
+          wrapperClassName,
         )}
       >
-        <ImageOff className="size-5 text-slate-400" />
-        <p className="text-xs font-semibold text-slate-500">
+        <ImageOff className="size-5 text-muted-foreground" />
+        <p className="text-xs font-semibold text-muted-foreground">
           Couldn&apos;t load this image
         </p>
         <p className="text-[11px] text-muted-foreground">
@@ -49,22 +67,29 @@ export function ImageWithFallback({
   }
 
   return (
-    <div className="relative">
+    <div className={cn("relative", wrapperClassName)}>
       {status === "loading" && (
         <div
           className={cn(
-            "absolute inset-0 flex items-center justify-center rounded-lg bg-slate-50",
+            "absolute inset-0 flex items-center justify-center rounded-lg bg-muted",
             className,
           )}
         >
-          <Loader2 className="size-5 animate-spin text-slate-400" />
+          <Loader2 className="size-5 animate-spin text-muted-foreground" />
         </div>
       )}
       {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary user-provided/uploaded remote URL */}
       <img
         src={src}
+        srcSet={srcSet}
+        sizes={sizes}
         alt={alt}
-        onLoad={() => setStatus("loaded")}
+        style={style}
+        decoding="async"
+        onLoad={(e) => {
+          setStatus("loaded");
+          onLoaded?.(e.currentTarget);
+        }}
         onError={() => setStatus("error")}
         className={cn(className, status === "loading" && "opacity-0")}
       />

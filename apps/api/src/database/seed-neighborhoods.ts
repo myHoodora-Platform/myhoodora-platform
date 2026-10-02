@@ -1,8 +1,8 @@
 import { Logger } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "../app.module";
-import { NeighborhoodsService } from "../neighborhoods/neighborhoods.service";
-import { neighborhoodSeeds } from "../neighborhoods/seeds/neighborhoods.seed-data";
+import { HoodsService } from "../hoods/hoods.service";
+import { neighborhoodSeeds } from "../hoods/seeds/neighborhoods.seed-data";
 
 const logger = new Logger("SeedNeighborhoods");
 
@@ -12,7 +12,7 @@ async function bootstrap() {
   });
 
   try {
-    const neighborhoodsService = app.get(NeighborhoodsService);
+    const neighborhoodsService = app.get(HoodsService);
 
     for (const seed of neighborhoodSeeds) {
       const hood = await neighborhoodsService.upsertByName(seed);

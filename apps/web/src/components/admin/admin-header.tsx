@@ -1,81 +1,47 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { SidebarTrigger, useSidebar } from "@myhoodora/ui/sidebar";
-import { Search } from "lucide-react";
-import { useAdminData } from "@/context/AdminDataContext";
+import { RealtimeStatusChip } from "@/components/shared/realtime-status";
+import { FlaskConical } from "lucide-react";
+import { useAdminSession } from "@/features/admin/session";
+import { setPreviewRole } from "@/lib/api/admin/session";
+import type { AdminRole } from "@/lib/api/admin/types";
 
-interface AdminHeaderProps {
-  /** Page title shown on the left, next to the sidebar trigger. */
-  title: string;
-}
-
-export function AdminHeader({ title }: AdminHeaderProps) {
-  const router = useRouter();
+/**
+ * Slim top bar: menu trigger on small screens and, in preview (mock) mode,
+ * a clearly labelled role switch so both staff experiences can be reviewed.
+ * Page titles and breadcrumbs live in each page's header.
+ */
+export function AdminHeader() {
   const { state } = useSidebar();
+  const { session, reload } = useAdminSession();
   const isCollapsed = state === "collapsed";
-  const { users } = useAdminData();
-  const [query, setQuery] = useState("");
-  const [showResults, setShowResults] = useState(false);
-
-  const trimmed = query.trim().toLowerCase();
-  const results = trimmed
-    ? users
-        .filter((u) =>
-          `${u.displayName} ${u.email}`.toLowerCase().includes(trimmed),
-        )
-        .slice(0, 5)
-    : [];
-
-  const goToUser = (uid: string) => {
-    router.push(`/admin/users?uid=${uid}`);
-    setQuery("");
-    setShowResults(false);
-  };
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-3 border-b border-slate-200/60 bg-white/80 px-4 backdrop-blur-md sm:px-6">
+    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background/85 px-4 backdrop-blur-md sm:px-6">
       <SidebarTrigger className="lg:hidden" />
       {isCollapsed && <SidebarTrigger className="hidden lg:inline-flex" />}
+      <p className="text-sm font-semibold text-muted-foreground lg:hidden">myHoodora Admin</p>
+      <RealtimeStatusChip className="ml-auto" />
 
-      <h1 className="truncate text-base font-bold tracking-tight text-slate-900 sm:text-lg">
-        {title}
-      </h1>
-
-      <div className="relative ml-auto hidden max-w-xs flex-1 sm:block">
-        <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
-        <input
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setShowResults(true);
-          }}
-          onFocus={() => setShowResults(true)}
-          onBlur={() => setTimeout(() => setShowResults(false), 150)}
-          placeholder="Search users..."
-          className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm outline-none focus:border-primary focus:bg-white"
-        />
-        {showResults && results.length > 0 && (
-          <div className="absolute top-full mt-1.5 w-full rounded-xl border border-slate-100 bg-white p-1.5 shadow-xl">
-            {results.map((u) => (
-              <button
-                key={u.uid}
-                type="button"
-                onClick={() => goToUser(u.uid)}
-                className="flex w-full flex-col items-start rounded-lg px-2.5 py-2 text-left hover:bg-slate-50"
-              >
-                <span className="truncate text-sm font-semibold text-slate-800">
-                  {u.displayName}
-                </span>
-                <span className="truncate text-xs text-muted-foreground">
-                  {u.email}
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      {session?.preview && (
+        <div className="ml-auto flex items-center gap-2 rounded-full border border-info/30 bg-info-soft/60 py-1 pr-1 pl-3 text-xs font-semibold text-info">
+          <FlaskConical className="size-3.5" aria-hidden />
+          <span className="hidden sm:inline">Preview data · viewing as</span>
+          <select
+            aria-label="Preview as role"
+            value={session.role}
+            onChange={(e) => {
+              setPreviewRole(e.target.value as AdminRole);
+              reload();
+            }}
+            className="rounded-full border border-info/30 bg-card px-2 py-0.5 text-xs font-bold text-foreground outline-none"
+          >
+            <option value="admin">Admin</option>
+            <option value="moderator">Moderator</option>
+          </select>
+        </div>
+      )}
     </header>
   );
 }

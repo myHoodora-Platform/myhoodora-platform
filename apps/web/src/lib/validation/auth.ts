@@ -9,7 +9,7 @@ export const registerSchema = z.object({
   email: z.string().min(1, "Email is required").email("Invalid email address"),
   password: z.string().min(8, "Password must be at least 8 characters long"),
   agreeToTerms: z.boolean().refine((val) => val === true, {
-    message: "You must agree to the Terms of Service and Privacy Policy",
+    message: "You must agree to the Terms of Use and Privacy Policy",
   }),
 });
 

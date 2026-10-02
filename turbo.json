@@ -12,28 +12,72 @@
     "MONGODB_URI",
     "FIREBASE_CLIENT_EMAIL",
     "FIREBASE_PRIVATE_KEY",
-    "JWT_SECRET",
-    "JWT_EXPIRES_IN",
-    "GEOCODE_MAPS_CO_API_KEY"
+    "GEOCODE_MAPS_CO_API_KEY",
+    "FIREBASE_PROJECT_ID",
+    "CORS_ORIGIN",
+    "APP_URL",
+    "RESEND_API_KEY",
+    "RESEND_WEBHOOK_SECRET",
+    "MAIL_FROM",
+    "MAIL_REPLY_TO",
+    "TEST_MONGO_URI",
+    "MONGO_AUTO_INDEX",
+    "SWAGGER_ENABLED",
+    "REDIS_URL",
+    "REALTIME_BUS",
+    "REALTIME_ENV",
+    "NEARBY_BUFFER_M",
+    "STORAGE_PROVIDER",
+    "CLOUDINARY_URL",
+    "STORAGE_DIRECT_UPLOADS",
+    "STORAGE_MAX_CONCURRENT_UPLOADS",
+    "EVENT_REMINDERS_ENABLED",
+    "SESSION_COOKIE_TTL_DAYS",
+    "NEXT_PUBLIC_API_URL",
+    "NEXT_PUBLIC_USE_MOCKS",
+    "NEXT_PUBLIC_GOOGLE_CLIENT_ID",
+    "GOOGLE_APPLICATION_CREDENTIALS",
+    "CI",
+    "E2E_BASE_URL",
+    "E2E_EMAIL",
+    "E2E_PASSWORD",
+    "AUTH_REVOCATION_CACHE_SECONDS"
   ],
   "ui": "tui",
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": [".next/**", "dist/**", "!.next/cache/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        ".env*"
+      ],
+      "outputs": [
+        ".next/**",
+        "dist/**",
+        "!.next/cache/**"
+      ]
     },
     "lint": {
-      "dependsOn": ["^lint"]
+      "dependsOn": [
+        "^lint"
+      ]
     },
     "check-types": {
-      "dependsOn": ["^check-types"]
+      "dependsOn": [
+        "^check-types"
+      ]
     },
     "test": {
-      "dependsOn": ["^test"]
+      "dependsOn": [
+        "^test"
+      ]
     },
     "dev": {
-      "env": ["PORT"],
+      "env": [
+        "PORT"
+      ],
       "cache": false,
       "persistent": true
     }

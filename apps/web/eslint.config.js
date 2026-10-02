@@ -4,8 +4,8 @@ import { nextJsConfig } from "@myhoodora/eslint-config/next-js";
 export default [
   ...nextJsConfig,
   {
-    // Node scripts (e.g. the image-fetch pipeline) run outside the browser.
-    files: ["scripts/**/*.mjs"],
+    // Node scripts (e.g. the image-fetch pipeline) and the Next config run outside the browser.
+    files: ["scripts/**/*.mjs", "next.config.js", "playwright.config.ts"],
     languageOptions: {
       globals: {
         Buffer: "readonly",

@@ -1,15 +1,24 @@
-import { Module } from '@nestjs/common';
-import { MongooseModule } from '@nestjs/mongoose';
-import { PostsController } from './posts.controller';
-import { PostsService } from './posts.service';
-import { Update, PostSchema } from './schemas/post.schema';
+import { Module } from "@nestjs/common";
+import { MongooseModule } from "@nestjs/mongoose";
+import { HoodsModule } from "../hoods/hoods.module";
+import { EngagementService } from "./engagement.service";
+import { EventRemindersService } from "./event-reminders.service";
+import { PostsController } from "./posts.controller";
+import { PostsService } from "./posts.service";
+import { FeedPost, PollVote, PollVoteSchema, PostSchema, Reaction, ReactionSchema, Rsvp, RsvpSchema } from "./schemas/post.schema";
 
 @Module({
-    imports: [
-        MongooseModule.forFeature([{ name: Update.name, schema: PostSchema }]),
-    ],
-    controllers: [PostsController],
-    providers: [PostsService],
-    exports: [PostsService],
+  imports: [
+    MongooseModule.forFeature([
+      { name: FeedPost.name, schema: PostSchema },
+      { name: Reaction.name, schema: ReactionSchema },
+      { name: PollVote.name, schema: PollVoteSchema },
+      { name: Rsvp.name, schema: RsvpSchema },
+    ]),
+    HoodsModule,
+  ],
+  controllers: [PostsController],
+  providers: [PostsService, EngagementService, EventRemindersService],
+  exports: [PostsService, MongooseModule],
 })
-export class PostsModule { }
+export class PostsModule {}
