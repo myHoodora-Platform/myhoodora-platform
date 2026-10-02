@@ -346,6 +346,10 @@ export interface Broadcast {
   reach: number;
   sentAt: string;
   sentBy: string;
+  /** Delivery runs after the request, in batches. Absent (older rows, preview) means sent. */
+  status?: "sending" | "sent" | "failed";
+  /** Notifications written so far (equals `reach` once sent). */
+  delivered?: number;
 }
 
 // ── Insights, team, settings ────────────────────────────────────────────────

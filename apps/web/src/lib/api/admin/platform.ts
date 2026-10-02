@@ -87,7 +87,7 @@ export async function getInsights(user: User): Promise<Insights> {
         .slice(0, 8),
       reportsByReason: [...reasons.entries()].map(([reason, count]) => ({ reason, count })).sort((a, b) => b.count - a.count),
       medianResolveHours: medianResolveHours(30, 0) || null,
-      // planned: kindness-check telemetry isn't collected yet.
+      // Preview mode doesn't simulate kindness-check telemetry; the live API reports it.
       kindnessPrompts: null,
     };
   });

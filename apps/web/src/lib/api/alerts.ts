@@ -6,14 +6,14 @@ import { seedAlertResolutions } from "./mock/seed";
 
 const KEY = "alert-resolved";
 
-/** Sync map postId → resolvedAt for hydrating posts (preview). planned: `resolvedAt` on the post. */
+/** Sync map postId → resolvedAt for hydrating posts (preview). The live API sends `resolvedAt` on the post itself. */
 export function alertResolutions(): Record<string, string> {
   if (typeof window === "undefined" || isLive("alerts")) return {};
   return load<Record<string, string>>(KEY, seedAlertResolutions);
 }
 
 /**
- * planned: PATCH /posts/:id/alert { resolved: true } → { resolvedAt }.
+ * live: PATCH /posts/:id/alert { resolved: true } → { resolvedAt }.
  * Author (or a neighbourhood lead) marks an alert as over, e.g. power back,
  * road cleared. Resolved alerts leave the active list immediately.
  */

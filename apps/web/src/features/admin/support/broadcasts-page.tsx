@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
+import { errorMessage } from "@/lib/api/client";
 import { Check, Loader2, Megaphone, RefreshCw, User as UserIcon, Users } from "lucide-react";
 import { Button } from "@myhoodora/ui/button";
 import { cn } from "@myhoodora/ui/utils";
@@ -15,7 +16,7 @@ import { dateTimeLabel, timeAgo } from "@/components/admin/format";
 import { Field, fieldInputClass } from "@/components/shared/field";
 import { useAuth } from "@/context/AuthContext";
 import { getNeighbour, listHoods } from "@/lib/api/admin/community";
-import { estimateReach, listBroadcasts, sendBroadcast } from "@/lib/api/admin/support";
+import { estimateReach, listBroadcasts, retryBroadcast, sendBroadcast } from "@/lib/api/admin/support";
 import type { AdminHood, BroadcastAudience } from "@/lib/api/admin/types";
 import { useAdminSession } from "../session";
 import { PeoplePicker, type Person } from "../people-picker";
@@ -53,6 +54,14 @@ export function BroadcastsPage() {
   const { user } = useAuth();
   const { role, can } = useAdminSession();
   const history = useAdminQuery(listBroadcasts, "broadcasts");
+  // Delivery happens after the request: keep the progress line moving until it's done.
+  const sending = history.data?.some((b) => b.status === "sending") ?? false;
+  const refetchHistory = history.refetch;
+  useEffect(() => {
+    if (!sending) return;
+    const timer = setInterval(() => void refetchHistory(), 3000);
+    return () => clearInterval(timer);
+  }, [sending, refetchHistory]);
   const hoods = useAdminQuery((u) => listHoods(u, { pageSize: HOODS_PAGE, sort: "name:asc" }), "bc-hoods");
   // /admin/broadcasts?to=<uid> (e.g. "Send a notice" on a neighbour's page) starts with that person.
   const preselectUid = useSearchParams().get("to");
@@ -235,6 +244,32 @@ export function BroadcastsPage() {
                 <p className="mt-1 text-xs font-semibold text-primary">
                   {b.audienceLabel} · {b.reach.toLocaleString()} {b.reach === 1 ? "neighbour" : "neighbours"}
                 </p>
+                {b.status === "sending" && (
+                  <p className="mt-1 text-xs text-muted-foreground" role="status">
+                    Sending… {(b.delivered ?? 0).toLocaleString()} of {b.reach.toLocaleString()} delivered
+                  </p>
+                )}
+                {b.status === "failed" && (
+                  <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-destructive" role="status">
+                    Stopped after {(b.delivered ?? 0).toLocaleString()} of {b.reach.toLocaleString()}.
+                    <button
+                      type="button"
+                      className="font-semibold underline underline-offset-2"
+                      onClick={async () => {
+                        if (!user) return;
+                        try {
+                          await retryBroadcast(user, b.id);
+                          toast.success("Sending the rest. Nobody gets it twice.");
+                        } catch (err) {
+                          toast.error(errorMessage(err, "Couldn't retry this broadcast."));
+                        }
+                        void history.refetch();
+                      }}
+                    >
+                      Send to the rest
+                    </button>
+                  </p>
+                )}
               </li>
             ))}
           </ul>
@@ -263,7 +298,7 @@ export function BroadcastsPage() {
           onConfirm={async () => {
             if (!user) return;
             await sendBroadcast(user, { title: title.trim(), body: body.trim(), audience }, role);
-            toast.success("Broadcast sent");
+            toast.success("Broadcast on its way");
             setTitle("");
             setBody("");
             setHoodIds([]);

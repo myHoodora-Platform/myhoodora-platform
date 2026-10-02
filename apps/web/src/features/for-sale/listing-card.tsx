@@ -15,7 +15,7 @@ export function ListingCard({ listing }: { listing: Listing }) {
       className="group block overflow-hidden rounded-2xl border border-border bg-card transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
     >
       <div className="relative">
-        <ListingPhoto listing={listing} className="aspect-square" />
+        <ListingPhoto listing={listing} />
         {listing.status !== "available" && (
           <span className={cn("absolute top-2 left-2 rounded-full px-2.5 py-1 text-xs font-bold shadow-sm", listingStatusTone(listing.status, free))}>
             {listingStatusLabel(listing.status, free)}

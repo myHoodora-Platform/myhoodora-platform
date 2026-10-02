@@ -1,6 +1,7 @@
 /**
  * Neighbourhoods myHoodora is live in. Mirrors the seed data in
- * apps/api/src/neighborhoods/seeds — planned: GET /neighborhoods/coverage.
+ * apps/api/src/hoods/seeds, and is kept in step with it by hand (the marketing pages
+ * that use it are static). Update both when a city or area launches.
  */
 export const COVERAGE = [
   {

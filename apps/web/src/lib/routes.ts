@@ -1,7 +1,7 @@
 /**
  * Single source of truth for app URLs. Structure mirrors Nextdoor's flat,
  * noun-based routes (/news_feed, /p/{id}, /for_sale_and_free, /g/{id}) —
- * see docs/nextdoor-research.md.
+ * see docs/product/nextdoor-research.md.
  */
 export const ROUTES = {
   home: "/",

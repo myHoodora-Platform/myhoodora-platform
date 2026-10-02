@@ -76,9 +76,10 @@ export interface ApiPost {
 }
 
 /**
- * Fields the Post schema doesn't have yet. Until it does, they round-trip
- * inside `content` behind a machine-readable prefix (lib/api/post-meta.ts);
- * planned: first-class fields on the Post document.
+ * A post's typed fields (category, event date, poll…). The API stores and
+ * returns them as first-class fields; the web still *sends* them inside
+ * `content` behind a machine-readable prefix (lib/api/post-meta.ts), which
+ * the API parses on the way in.
  */
 export interface PostMeta {
   category: PostCategory;
@@ -140,7 +141,7 @@ export interface CreatePostInput {
 
 // ── People ──────────────────────────────────────────────────────────────────
 
-/** planned: GET /users/:uid/public */
+/** live: GET /users/:uid/public */
 export interface PublicProfile {
   uid: string;
   displayName: string;
@@ -194,6 +195,8 @@ export interface Listing {
   category: ListingCategory;
   condition: ListingCondition;
   photos: string[];
+  /** width ÷ height of each photo, or null when the API doesn't know (a pasted link). Frames a photo before it loads. */
+  photoAspects?: (number | null)[];
   status: ListingStatus;
   createdAt: string;
   /** Embedded by the live API. */

@@ -48,14 +48,14 @@ export const DEFAULT_PREFERENCES: Preferences = {
 
 const prefsKey = (uid: string) => `prefs:${uid}`;
 
-/** planned: GET /users/me/preferences */
+/** live: GET /users/me/preferences */
 export async function getPreferences(user: User): Promise<Preferences> {
   if (isLive("settings")) return apiFetch<Preferences>(user, "/users/me/preferences");
   await latency(150);
   return load(prefsKey(user.uid), () => DEFAULT_PREFERENCES);
 }
 
-/** planned: PATCH /users/me/preferences (deep-merged) → Preferences */
+/** live: PATCH /users/me/preferences (deep-merged) → Preferences */
 export async function updatePreferences(user: User, next: Preferences): Promise<Preferences> {
   if (isLive("settings")) {
     return apiFetch<Preferences>(user, "/users/me/preferences", { method: "PATCH", json: next });
@@ -100,14 +100,14 @@ export function blockedUids(uid: string): string[] {
   return load<string[]>(blocksKey(uid), () => []);
 }
 
-/** planned: GET /users/me/blocks → string[] (uids) */
+/** live: GET /users/me/blocks → string[] (uids) */
 export async function listBlocked(user: User): Promise<string[]> {
   if (isLive("settings")) return apiFetch<string[]>(user, "/users/me/blocks");
   await latency(120);
   return blockedUids(user.uid);
 }
 
-/** planned: POST /users/me/blocks { uid } — they can't message you or see your posts; you won't see theirs. */
+/** live: POST /users/me/blocks { uid } — they can't message you or see your posts; you won't see theirs. */
 export async function blockUser(user: User, uid: string): Promise<void> {
   if (isLive("settings")) {
     await apiFetch<void>(user, "/users/me/blocks", { method: "POST", json: { uid } });
@@ -117,7 +117,7 @@ export async function blockUser(user: User, uid: string): Promise<void> {
   save(blocksKey(user.uid), Array.from(new Set([...blockedUids(user.uid), uid])));
 }
 
-/** planned: DELETE /users/me/blocks/:uid */
+/** live: DELETE /users/me/blocks/:uid */
 export async function unblockUser(user: User, uid: string): Promise<void> {
   if (isLive("settings")) {
     await apiFetch<void>(user, `/users/me/blocks/${uid}`, { method: "DELETE" });
@@ -136,7 +136,7 @@ export interface FeedbackInput {
   path?: string;
 }
 
-/** planned: POST /feedback */
+/** live: POST /feedback */
 export async function submitFeedback(user: User, input: FeedbackInput): Promise<void> {
   if (isLive("feedback")) {
     await apiFetch<void>(user, "/feedback", { method: "POST", json: input });
@@ -161,7 +161,7 @@ export const DEACTIVATION_REASONS = [
 export type DeactivationReason = (typeof DEACTIVATION_REASONS)[number]["id"];
 
 /**
- * planned: POST /users/me/deactivate { reason, details } — hides the profile
+ * live: POST /users/me/deactivate { reason, details } — hides the profile
  * and posts; the account can be restored by logging in again within 30 days.
  * Returns whether the account was really deactivated (false in preview).
  */

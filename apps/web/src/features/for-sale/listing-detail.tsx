@@ -130,7 +130,8 @@ export function ListingDetail({ id }: { id: string }) {
       <div className="grid gap-6 md:grid-cols-2">
         {/* self-start: the photo card keeps its own height instead of stretching to the details column. */}
         <div className="relative self-start overflow-hidden rounded-2xl border border-border bg-card">
-          {listing.photos.length > 1 ? <PhotoGallery urls={listing.photos} /> : <ListingPhoto listing={listing} className="aspect-square" />}
+          {/* Photos keep their own shape (and open full-screen); only a listing without one gets the square placeholder. */}
+          {listing.photos.length > 0 ? <PhotoGallery urls={listing.photos} aspects={listing.photoAspects} /> : <ListingPhoto listing={listing} />}
           {listing.status !== "available" && (
             <span className={cn("absolute top-3 left-3 rounded-full px-3 py-1 text-sm font-bold shadow-sm", listingStatusTone(listing.status, isFree))}>
               {listingStatusLabel(listing.status, isFree)}

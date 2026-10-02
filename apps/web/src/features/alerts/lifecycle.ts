@@ -4,7 +4,8 @@ import type { AlertCategory, Post } from "@/lib/api/types";
  * How long an alert stays "active" (pinned in the feed's Active alerts card,
  * counted in badges) before it becomes an ordinary post. Tuned per type:
  * traffic clears fast, scams stay relevant for days.
- * planned: the API returns `activeUntil` so this lives server-side.
+ * The live API sends `activeUntil` on each alert (staff can edit the windows in the admin);
+ * these values are what preview mode uses, and the fallback for a post without one.
  */
 export const ALERT_ACTIVE_HOURS: Record<AlertCategory, number> = {
   traffic: 3,

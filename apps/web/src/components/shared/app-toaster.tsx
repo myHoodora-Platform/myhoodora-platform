@@ -1,6 +1,7 @@
 "use client";
 
 import { Toaster } from "sonner";
+import { useIsDark } from "./theme-sync";
 
 /**
  * Toasts slide down from the top-centre, just under the app header (so they
@@ -9,8 +10,10 @@ import { Toaster } from "sonner";
  * ~4s. Only 3 stack at once.
  */
 export function AppToaster() {
+  const dark = useIsDark();
   return (
     <Toaster
+      theme={dark ? "dark" : "light"}
       position="top-center"
       richColors
       closeButton

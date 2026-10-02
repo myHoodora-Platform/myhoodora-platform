@@ -1,7 +1,7 @@
 /**
  * Content hidden by moderators, shared between the admin and the app in
  * mock mode — so removing a post in /admin/moderation hides it in the feed,
- * exactly as the real backend will (planned: isActive=false + removal record).
+ * as the real backend does (it marks the item removed and records the decision).
  */
 import { load, save } from "./store";
 

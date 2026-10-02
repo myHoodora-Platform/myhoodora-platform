@@ -5,7 +5,7 @@ import { latency, load, save } from "./mock/store";
 import type { ReportInput } from "./types";
 
 /**
- * planned: POST /reports { targetType, targetId, reason, details }.
+ * live: POST /reports { targetType, targetId, reason, details }.
  * Reports go to Neighbourhood Leads / admins for review (Nextdoor model).
  */
 export async function submitReport(user: User, input: ReportInput): Promise<void> {

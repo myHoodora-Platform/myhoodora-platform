@@ -35,7 +35,7 @@ export interface AdminNavSection {
   items: AdminNavItem[];
 }
 
-/** Information architecture — docs/admin/ADMIN_TARGET_ARCHITECTURE.md §3. */
+/** Information architecture — docs/archive/2026-09-29-admin-target-architecture.md §3. */
 export const ADMIN_NAV: AdminNavSection[] = [
   { label: "", items: [{ title: "Overview", href: "/admin", icon: LayoutDashboard }] },
   {
