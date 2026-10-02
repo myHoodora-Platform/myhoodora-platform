@@ -69,5 +69,7 @@ expo-env.d.ts
 apps/api/serviceAccountKey.json
 *.firebase-adminsdk*.json
 
-# Documentation
-docs/
+
+# Playwright
+test-results/
+playwright-report/
