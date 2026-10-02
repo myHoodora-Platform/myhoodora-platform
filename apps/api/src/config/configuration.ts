@@ -2,6 +2,14 @@
  * Typed configuration. Secrets live only in apps/api/.env (never in Next.js).
  * `validateEnv` fails fast in production when something essential is missing.
  */
+const DAY_MS = 24 * 60 * 60_000;
+
+/** Firebase accepts session cookies of 5 minutes to 2 weeks; anything else falls back to / is clamped into that range. */
+function sessionTtlMs(days: string | undefined): number {
+  const requested = Number(days) > 0 ? Number(days) * DAY_MS : 7 * DAY_MS;
+  return Math.min(Math.max(requested, 5 * 60_000), 14 * DAY_MS);
+}
+
 export default () => ({
   port: parseInt(process.env.PORT ?? "3000", 10),
   nodeEnv: process.env.NODE_ENV ?? "development",
@@ -15,6 +23,15 @@ export default () => ({
     clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
     // Replace escaped newlines that come from .env files
     privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+  },
+
+  /**
+   * The web app's session cookie (docs/api-contract.md §24). It only gates page routing; every API call still
+   * needs a Firebase ID token. 7 days keeps weekly visitors signed in at the page gate without holding the
+   * maximum (14); the web renews it past half-life while the Firebase session is alive. SESSION_COOKIE_TTL_DAYS.
+   */
+  auth: {
+    sessionTtlMs: sessionTtlMs(process.env.SESSION_COOKIE_TTL_DAYS),
   },
 
   cors: {

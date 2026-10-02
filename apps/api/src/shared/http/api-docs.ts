@@ -30,10 +30,13 @@ REST API for **myHoodora**, the hyper-local network for Nigerian neighbourhoods.
 ### Authentication
 Send a **Firebase ID token**: \`Authorization: Bearer <idToken>\`. Routes marked *public* need no token.
 Call \`GET /users/me\` once after sign-in: it creates your account on first use.
+The web app's page gate is a Firebase **session cookie**: \`POST /auth/session\` mints one from your ID token, and
+\`GET /auth/session\` (still live, i.e. not revoked?) and \`GET /auth/session/staff\` are the only routes that accept it.
+All three are called by the web server, never by a browser.
 
 ### Who can do what
 Access comes from your **role** (member < moderator < admin < owner) **and** account state:
-suspended accounts can only call \`GET /users/me\` and \`POST /auth/logout\`; restricted or unverified neighbours
+suspended accounts can only call \`GET /users/me\`, \`POST /auth/session\` and \`POST /auth/logout-everywhere\`; restricted or unverified neighbours
 can read but not post (restricted ones can still message). Everything is scoped to **your own Hood**: other Hoods' content returns 404.
 
 ### Errors

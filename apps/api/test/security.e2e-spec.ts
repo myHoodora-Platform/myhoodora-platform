@@ -65,7 +65,8 @@ describe("Security & authorization (audit findings)", () => {
     });
 
     it("accepts the current web payload (encoded content) and reads its fields", async () => {
-      const content = '<!--mh:{"category":"event","eventDate":"2030-01-01T10:00:00.000Z","eventLocation":"Road 12 park"}-->\nSanitation day';
+      const eventDate = new Date(Date.now() + 7 * 86_400_000).toISOString();
+      const content = `<!--mh:{"category":"event","eventDate":"${eventDate}","eventLocation":"Road 12 park"}-->\nSanitation day`;
       const res = await t.http.post("/api/posts").set(t.auth("ada")).send({ content, type: "event" }).expect(201);
       expect(res.body).toMatchObject({ category: "event", message: "Sanitation day", eventLocation: "Road 12 park" });
     });
@@ -92,10 +93,78 @@ describe("Security & authorization (audit findings)", () => {
     });
   });
 
-  it("suspended accounts are blocked except /users/me and logout", async () => {
+  it("suspended accounts are blocked except /users/me, their session and logout", async () => {
     await t.http.get(`/api/posts/neighborhood/${lekki}`).set(t.auth("susp")).expect(403);
     const me = await t.http.get("/api/users/me").set(t.auth("susp")).expect(200);
     expect(me.body.accountStatus).toBe("suspended");
+  });
+
+  describe("web session cookie", () => {
+    const session = (uid: string) => ({ Authorization: `Bearer s:${uid}` });
+
+    it("POST /auth/session exchanges an ID token for a session cookie with the configured lifetime", async () => {
+      const res = await t.http.post("/api/auth/session").set(t.auth("ada")).expect(200);
+      expect(res.body).toEqual({ sessionCookie: "s:ada", expiresIn: 7 * 24 * 60 * 60 });
+      expect(res.headers["cache-control"]).toBe("no-store");
+    });
+
+    it("needs a valid ID token: none, garbage and a session cookie are all 401", async () => {
+      await t.http.post("/api/auth/session").expect(401);
+      await t.http.post("/api/auth/session").set({ Authorization: "Bearer nonsense" }).expect(401);
+      await t.http.post("/api/auth/session").set(session("ada")).expect(401);
+    });
+
+    it("suspended people still get a session (to reach the page that explains it)", async () => {
+      await t.http.post("/api/auth/session").set(t.auth("susp")).expect(200);
+    });
+
+    it("a session cookie is not accepted on data routes", async () => {
+      await t.http.get("/api/users/me").set(session("ada")).expect(401);
+      await t.http.get("/api/admin/me").set(session("admin1")).expect(401);
+    });
+
+    it("GET /auth/session/staff: 204 for staff, 403 for members, 401 for anything but a valid session cookie", async () => {
+      for (const uid of ["mod1", "admin1", "owner1"]) await t.http.get("/api/auth/session/staff").set(session(uid)).expect(204);
+      await t.http.get("/api/auth/session/staff").set(session("ada")).expect(403);
+      await t.http.get("/api/auth/session/staff").expect(401);
+      await t.http.get("/api/auth/session/staff").set(t.auth("admin1")).expect(401);
+      await t.http.get("/api/auth/session/staff").set({ Authorization: "Bearer nonsense" }).expect(401);
+    });
+
+    it("GET /auth/session: 204 for a live session cookie (suspended included), 401 for anything else", async () => {
+      await t.http.get("/api/auth/session").set(session("ada")).expect(204);
+      await t.http.get("/api/auth/session").set(session("susp")).expect(204);
+      await t.http.get("/api/auth/session").expect(401);
+      await t.http.get("/api/auth/session").set(t.auth("ada")).expect(401);
+      await t.http.get("/api/auth/session").set({ Authorization: "Bearer nonsense" }).expect(401);
+    });
+
+    it("suspended staff are refused at the gate", async () => {
+      await t.member("suspmod", lekki, { role: "moderator", accountStatus: "suspended" });
+      await t.http.get("/api/auth/session/staff").set(session("suspmod")).expect(403);
+    });
+
+    it("the session routes are rate-limited per credential, not per IP (the web server calls them for everyone)", async () => {
+      t.resetThrottle();
+      await t.member("busy", lekki);
+      const statuses: number[] = [];
+      for (let i = 0; i < 7; i++) statuses.push((await t.http.post("/api/auth/session").set(t.auth("busy"))).status);
+      expect(statuses.filter((s) => s === 429).length).toBeGreaterThan(0);
+      // Someone else, same IP, same second: unaffected.
+      await t.http.post("/api/auth/session").set(t.auth("ada")).expect(200);
+      t.resetThrottle();
+    });
+
+    it("logout-everywhere revokes the session cookie; there is no revoke-on-logout route any more", async () => {
+      await t.member("mod2", lekki, { role: "moderator" });
+      await t.http.get("/api/auth/session/staff").set(session("mod2")).expect(204);
+      await t.http.post("/api/auth/logout").set(t.auth("mod2")).expect(404);
+      await t.http.get("/api/auth/session").set(session("mod2")).expect(204);
+      await t.http.post("/api/auth/logout-everywhere").set(t.auth("mod2")).expect(204);
+      await t.http.get("/api/auth/session").set(session("mod2")).expect(401);
+      await t.http.get("/api/auth/session/staff").set(session("mod2")).expect(401);
+      await t.http.post("/api/auth/logout-everywhere").set(t.auth("susp")).expect(204);
+    });
   });
 
   it("deleting someone else's post is 403, your own is 204", async () => {
