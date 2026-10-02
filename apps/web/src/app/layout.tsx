@@ -4,6 +4,9 @@ import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { RealtimeProvider } from "@/lib/realtime/realtime-provider";
 import { AppToaster } from "@/components/shared/app-toaster";
+import { ThemeSync } from "@/components/shared/theme-sync";
+import { SITE_URL } from "@/lib/site";
+import { THEME_BOOT_SCRIPT } from "@/lib/theme";
 
 const outfit = Outfit({
   variable: "--font-outfit",
@@ -20,6 +23,10 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  // Makes every relative URL below (and in page metadata) absolute: link previews need full URLs.
+  metadataBase: new URL(SITE_URL),
+  // Each page is its own canonical URL (no query strings, no duplicate hosts).
+  alternates: { canonical: "./" },
   title: "myHoodora",
   description:
     "myHoodora connects neighbours to share updates, stay informed, and support local businesses in their community.",
@@ -39,8 +46,7 @@ export const metadata: Metadata = {
 
   openGraph: {
     type: "website",
-    locale: "en_US",
-    url: "https://www.myhoodora.com",
+    locale: "en_NG",
     siteName: "myHoodora",
     title: "myHoodora — Your neighbourhood, connected",
     description:
@@ -70,9 +76,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Sets the theme before anything is painted (no white flash on a dark page). */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+      </head>
       <body
         className={`${outfit.variable} ${jetbrainsMono.variable} antialiased bg-background text-foreground`}
       >
+        <ThemeSync />
         <AuthProvider>
           <RealtimeProvider>
             {children}
