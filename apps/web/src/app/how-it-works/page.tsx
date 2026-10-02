@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { publicPageMetadata } from "@/lib/site";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -18,10 +19,10 @@ import { MarketingPage, PageIntro } from "@/components/marketing/marketing-page"
 import { ExploreMore } from "@/components/marketing/explore-more";
 import { PhoneAppScreen } from "@/components/marketing/phone-app-screen";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = publicPageMetadata("/how-it-works", {
   title: "How myHoodora works",
   description: "Join, confirm your neighbourhood and connect with verified neighbours. Here's how myHoodora works and how we keep it safe.",
-};
+});
 
 const STEPS = [
   {
@@ -158,7 +159,7 @@ export default function HowItWorksPage() {
               className="absolute top-10 left-2 hidden max-w-[230px] rounded-2xl bg-card p-3 text-foreground shadow-xl sm:block lg:top-24 lg:-left-6"
             >
               <div className="flex items-center gap-2">
-                <span className="flex size-8 items-center justify-center rounded-full bg-brand-coral text-xs font-bold text-white">CE</span>
+                <span className="flex size-8 items-center justify-center rounded-full bg-brand-coral text-xs font-bold text-brand-ink">CE</span>
                 <span>
                   <span className="block text-xs font-bold">Chidinma Eze</span>
                   <span className="block text-[11px] text-muted-foreground">Lekki Phase 1 · 2 min</span>

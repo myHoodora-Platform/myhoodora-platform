@@ -300,9 +300,8 @@ export function BusinessTeaser() {
     // the same treatment as the closing CTA on /business.
     <section
       className="relative isolate mt-10 overflow-hidden bg-cover bg-center text-white lg:mt-16 lg:bg-fixed"
+      // The photo is decoration. (role="img" here would hide the heading and buttons inside from screen readers.)
       style={{ backgroundImage: `url(${MARKET_IMAGE.src})` }}
-      role="img"
-      aria-label={MARKET_IMAGE.alt}
     >
       <div aria-hidden className="absolute inset-0 -z-10 bg-[#0b1716]/70" />
       <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-b from-[#0b1716]/40 via-transparent to-[#0b1716]/60" />

@@ -8,7 +8,7 @@ import { BackButton } from "@/components/shared/BackButton";
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen flex flex-col font-sans text-foreground bg-background">
+    <div className="theme-light min-h-screen flex flex-col font-sans text-foreground bg-background">
       <Header />
       <main className="flex-1 flex flex-col items-center justify-center px-6 py-16 text-center space-y-8">
         <div className="space-y-6 flex flex-col items-center max-w-lg mx-auto">

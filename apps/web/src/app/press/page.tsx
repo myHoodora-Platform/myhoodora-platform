@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { publicPageMetadata } from "@/lib/site";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, ArrowUpRight, Download, Mail, Newspaper, Palette } from "lucide-react";
@@ -11,10 +12,10 @@ import { COVERAGE_COUNT } from "@/lib/coverage";
 import { ANNOUNCEMENTS } from "@/lib/press";
 import { HOODORA_AI_LOGO } from "@/lib/site-images";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = publicPageMetadata("/press", {
   title: "Press & media | myHoodora",
   description: "News, fast facts, logos and product imagery for journalists and partners writing about myHoodora.",
-};
+});
 
 const container = "mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8";
 
@@ -131,7 +132,7 @@ export default function PressPage() {
                     href={a.href}
                     className="group flex h-full flex-col rounded-3xl border border-border bg-card p-6 transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg"
                   >
-                    <span className="w-fit rounded-full bg-brand-coral/10 px-3 py-1 text-xs font-bold tracking-wide text-brand-coral uppercase">{a.tag}</span>
+                    <span className="w-fit rounded-full bg-brand-coral/10 px-3 py-1 text-xs font-bold tracking-wide text-brand-coral-ink uppercase">{a.tag}</span>
                     <h3 className="mt-3 text-xl font-bold tracking-tight">{a.title}</h3>
                     <p className="mt-1 flex-1 text-muted-foreground">{a.summary}</p>
                     <span className="mt-4 inline-flex items-center gap-1 text-sm font-bold text-primary">

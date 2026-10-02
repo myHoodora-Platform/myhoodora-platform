@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
+import { publicPageMetadata } from "@/lib/site";
 import { LegalPage } from "@/components/legal/legal-page";
 import { TermsContent } from "@/components/legal/terms";
 
-export const metadata: Metadata = {
-  title: "Terms of Use",
+export const metadata: Metadata = publicPageMetadata("/terms", {
+  title: "Terms of Use | myHoodora",
   description: "The terms for using myHoodora, the neighbourhood network for Nigeria.",
-};
+});
 
 export default function Page() {
   return (

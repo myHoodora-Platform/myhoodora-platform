@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
+import { publicPageMetadata } from "@/lib/site";
 import { LegalPage } from "@/components/legal/legal-page";
 import { CommunityGuidelinesContent } from "@/components/legal/community-guidelines";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = publicPageMetadata("/guidelines", {
   title: "Community Guidelines",
   description:
     "The guidelines that keep myHoodora neighbourhoods welcoming, safe, and useful for everyone.",
-};
+});
 
 export default function Page() {
   return (

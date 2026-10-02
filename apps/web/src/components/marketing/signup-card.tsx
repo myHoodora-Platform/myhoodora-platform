@@ -13,13 +13,12 @@ import { MascotLockup } from "@myhoodora/ui/logo";
 import { PasswordInput } from "@myhoodora/ui/password-input";
 import { cn } from "@myhoodora/ui/utils";
 import { SocialAuthButtons } from "@/components/shared/social-auth-buttons";
-import { routeAfterSignIn, signInWithApple, signInWithGoogle, signUpUser } from "@/lib/firebase/auth";
+import { signUpUser } from "@/lib/firebase/auth";
 import { getAuthErrorMessage } from "@/lib/firebase/errors";
 import { registerSchema, type RegisterInput } from "@/lib/validation/auth";
-import { DEFAULT_APP_ROUTE, ROUTES } from "@/lib/routes";
+import { ROUTES } from "@/lib/routes";
 import { requireServerSession } from "@/lib/auth/session-sync";
 import { enterApp } from "@/lib/safe-redirect";
-import type { User } from "firebase/auth";
 
 function reportAuthError(err: unknown) {
   const { code, message, silent } = getAuthErrorMessage(err);
@@ -33,8 +32,6 @@ function reportAuthError(err: unknown) {
  */
 export function SignupCard({ className }: { className?: string }) {
   const [emailMode, setEmailMode] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const [appleLoading, setAppleLoading] = useState(false);
   // Blocks a second sign-up from a fast double submit.
   const submittingRef = useRef(false);
 
@@ -59,20 +56,6 @@ export function SignupCard({ className }: { className?: string }) {
       reportAuthError(err);
     } finally {
       submittingRef.current = false;
-    }
-  };
-
-  // Google/Apple may sign in an existing account: only new or unfinished
-  // accounts go to onboarding.
-  const withProvider = (signIn: () => Promise<User>, setLoading: (v: boolean) => void) => async () => {
-    setLoading(true);
-    try {
-      const user = await signIn();
-      enterApp(await routeAfterSignIn(user, DEFAULT_APP_ROUTE));
-    } catch (err) {
-      reportAuthError(err);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -139,12 +122,7 @@ export function SignupCard({ className }: { className?: string }) {
             </div>
           </div>
           <div className="space-y-3">
-            <SocialAuthButtons
-              onGoogleClick={withProvider(signInWithGoogle, setGoogleLoading)}
-              onAppleClick={withProvider(signInWithApple, setAppleLoading)}
-              googleLoading={googleLoading}
-              appleLoading={appleLoading}
-            />
+            <SocialAuthButtons />
             <Divider label="or" className="py-1" />
             <Button size="lg" className="w-full rounded-full" onClick={() => setEmailMode(true)}>
               <Mail className="size-4" aria-hidden /> Sign up with email

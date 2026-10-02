@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { publicPageMetadata } from "@/lib/site";
 import Link from "next/link";
 import { SmartImage } from "@myhoodora/ui/image";
 import {
@@ -22,10 +23,10 @@ import { OPEN_ROLES, type OpenRole } from "@/lib/careers";
 import { COVERAGE_COUNT } from "@/lib/coverage";
 import { CAREERS_IMAGE } from "@/lib/site-images";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = publicPageMetadata("/careers", {
   title: "Careers | myHoodora",
   description: "Help build stronger hoods across Nigeria. See open roles at myHoodora, or join our talent network.",
-};
+});
 
 const container = "mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8";
 
@@ -105,7 +106,7 @@ export default function CareersPage() {
         <ul className={`${container} grid gap-8 md:grid-cols-3`}>
           {WHY_NOW.map((w) => (
             <li key={w.title} className="flex gap-4">
-              <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-brand-coral/10 text-brand-coral">
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-brand-coral/10 text-brand-coral-ink">
                 <w.icon className="size-5" aria-hidden />
               </span>
               <span>

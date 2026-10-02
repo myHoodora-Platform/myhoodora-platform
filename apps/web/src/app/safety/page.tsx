@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { publicPageMetadata } from "@/lib/site";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -15,11 +16,11 @@ import { ExploreMore } from "@/components/marketing/explore-more";
 import { MarketingPage, PageIntro } from "@/components/marketing/marketing-page";
 import { TRUST_IMAGE } from "@/lib/site-images";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = publicPageMetadata("/safety", {
   title: "Safety & trust | myHoodora",
   description:
     "Verified neighbours, a private address, kindness reminders and easy reporting. Here's how myHoodora keeps your neighbourhood safe.",
-};
+});
 
 const PROMISES = [
   { icon: UserCheck, title: "Real, verified neighbours", body: "Everyone confirms where they live, so you're talking to people from your area, not strangers." },
