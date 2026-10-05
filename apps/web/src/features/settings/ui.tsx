@@ -33,7 +33,7 @@ export function SettingsSection({
   );
 }
 
-/** One row: label + description on the left, control on the right. */
+/** One row: label + description on the left, control on the right. On a phone a wide control wraps below the text. */
 export function SettingsRow({
   label,
   description,
@@ -48,7 +48,7 @@ export function SettingsRow({
   const Label = htmlFor ? "label" : "p";
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 sm:px-5">
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 basis-56">
         <Label {...(htmlFor ? { htmlFor } : {})} className="block text-[15px] font-semibold text-foreground">
           {label}
         </Label>
