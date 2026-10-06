@@ -51,5 +51,7 @@ export class MediaAsset {
 }
 
 export const MediaAssetSchema = SchemaFactory.createForClass(MediaAsset);
+// A person's uploads over the last day (StorageService's daily allowance).
+MediaAssetSchema.index({ ownerUid: 1, createdAt: -1 });
 // Abandoned direct-upload tickets disappear on their own; ready files never expire.
 MediaAssetSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0, partialFilterExpression: { status: "pending" } });

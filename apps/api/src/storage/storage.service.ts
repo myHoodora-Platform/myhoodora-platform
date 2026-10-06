@@ -1,5 +1,7 @@
 import {
   BadRequestException,
+  HttpException,
+  HttpStatus,
   Inject,
   Injectable,
   Logger,
@@ -20,6 +22,7 @@ import { fetchRemoteFile, RemoteFileError } from "./remote-file";
 import { removeTemp } from "./temp-files";
 
 const MB = 1024 * 1024;
+const DAY_MS = 24 * 60 * 60 * 1000;
 export const REMOTE_FILE_FETCHER = Symbol("REMOTE_FILE_FETCHER");
 /** Files stream to disk, then to storage in chunks, so videos can be as big as the provider's free plan allows. */
 export const MAX_BYTES: Record<StorageResourceType, number> = { image: 10 * MB, video: 100 * MB };
@@ -106,6 +109,8 @@ export class StorageService {
   private readonly folder: string;
   private readonly directUploads: boolean;
   private readonly gate: UploadGate;
+  private readonly dailyUploads: number;
+  private readonly dailyUploadBytes: number;
   private readonly logger = new Logger(StorageService.name);
 
   constructor(
@@ -118,6 +123,26 @@ export class StorageService {
     this.folder = config.get<string>("storage.folder") ?? "myhoodora/development";
     this.directUploads = config.get<boolean>("storage.directUploads") ?? false;
     this.gate = new UploadGate(config.get<number>("storage.maxConcurrentUploads") ?? 4, 20);
+    this.dailyUploads = config.get<number>("storage.dailyUploads") ?? 200;
+    this.dailyUploadBytes = config.get<number>("storage.dailyUploadBytes") ?? 1024 * MB;
+  }
+
+  /**
+   * Refuses (429) a file that would take this person past their allowance for any 24 hours: a number
+   * of files and a total size, counted from what they still have stored. Checked before anything is
+   * downloaded or sent to the provider. Two uploads at the same moment can both pass and overshoot
+   * by one file; the next is refused.
+   */
+  private async assertWithinAllowance(ownerUid: string, incomingBytes: number): Promise<void> {
+    const [used] = await this.assets
+      .aggregate<{ files: number; bytes: number }>([
+        { $match: { ownerUid, createdAt: { $gte: new Date(Date.now() - DAY_MS) } } },
+        { $group: { _id: null, files: { $sum: 1 }, bytes: { $sum: "$bytes" } } },
+      ])
+      .exec();
+    if ((used?.files ?? 0) + 1 > this.dailyUploads || (used?.bytes ?? 0) + incomingBytes > this.dailyUploadBytes) {
+      throw new HttpException("You've reached today's upload limit. Try again tomorrow.", HttpStatus.TOO_MANY_REQUESTS);
+    }
   }
 
   get enabled(): boolean {
@@ -131,6 +156,7 @@ export class StorageService {
     assertSize(resourceType, file.size, MAX_BYTES);
 
     const provider = this.requireProvider();
+    await this.assertWithinAllowance(ownerUid, file.size);
     const source = file.path ? { path: file.path } : { buffer: file.buffer ?? Buffer.alloc(0) };
     let stored;
     try {
@@ -151,6 +177,8 @@ export class StorageService {
    */
   async importFromUrl(ownerUid: string, url: string, purpose: MediaPurpose): Promise<MediaAssetView> {
     this.requireProvider();
+    // Before the download: someone out of allowance must not be able to keep the server fetching files.
+    await this.assertWithinAllowance(ownerUid, 0);
     let remote;
     try {
       remote = await this.fetchRemote(url, { maxBytes: MAX_UPLOAD_BYTES });
@@ -177,6 +205,7 @@ export class StorageService {
   ): Promise<{ id: string | null; upload: DirectUploadTicket | null }> {
     const provider = this.requireProvider();
     const resourceType = this.resourceTypeFor(input.mimetype, input.purpose);
+    await this.assertWithinAllowance(ownerUid, input.size);
     // Off by default (STORAGE_DIRECT_UPLOADS): each completion costs a Cloudinary Admin API call, which the free plan rate-limits.
     if (!this.directUploads || resourceType !== "video" || !provider.createDirectUpload || !provider.describe) return { id: null, upload: null };
     assertSize(resourceType, input.size, MAX_DIRECT_BYTES);

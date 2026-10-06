@@ -1,11 +1,12 @@
-import { BadRequestException, NotFoundException, PayloadTooLargeException, ServiceUnavailableException } from "@nestjs/common";
+import { BadRequestException, HttpException, NotFoundException, PayloadTooLargeException, ServiceUnavailableException } from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
 import { Types } from "mongoose";
 import { StorageError, type StorageProvider } from "./providers/storage-provider";
 import { StorageService } from "./storage.service";
 
 const settings: Record<string, unknown> = { "storage.folder": "myhoodora/test", "storage.directUploads": true, "storage.maxConcurrentUploads": 4 };
-const config = { get: (k: string) => settings[k] } as unknown as ConfigService;
+const configWith = (extra: Record<string, unknown> = {}) => ({ get: (k: string) => ({ ...settings, ...extra })[k] }) as unknown as ConfigService;
+const config = configWith();
 /** Real leading bytes per type, since the service reads the type from the file, not the label. */
 const MAGIC: Record<string, Buffer> = {
   "image/jpeg": Buffer.from([0xff, 0xd8, 0xff, 0xe0]),
@@ -25,11 +26,18 @@ function fakeProvider(overrides: Partial<StorageProvider> = {}): jest.Mocked<Sto
   } as jest.Mocked<StorageProvider>;
 }
 
-/** Just enough of the Mongoose model: create + findOne(...).exec() + deleteOne. */
+/** Just enough of the Mongoose model: create + findOne(...).exec() + deleteOne, and the day's usage per owner. */
 function fakeModel() {
   const rows: Record<string, unknown>[] = [];
   return {
     rows,
+    // The daily-allowance query: everything here was "uploaded today".
+    aggregate: jest.fn((pipeline: [{ $match: { ownerUid: string } }, unknown]) => ({
+      exec: async () => {
+        const mine = rows.filter((r) => r.ownerUid === pipeline[0].$match.ownerUid);
+        return mine.length ? [{ files: mine.length, bytes: mine.reduce((n, r) => n + Number(r.bytes ?? 0), 0) }] : [];
+      },
+    })),
     create: jest.fn(async (data: Record<string, unknown>) => {
       const doc: Record<string, unknown> = { _id: new Types.ObjectId(), status: "ready", url: "", bytes: 0, ...data };
       doc.deleteOne = jest.fn(async () => void rows.splice(rows.indexOf(doc), 1));
@@ -43,9 +51,54 @@ function fakeModel() {
   };
 }
 
-const make = (provider: StorageProvider | null, model = fakeModel()) => ({ model, service: new StorageService(provider, model as never, config) });
+const make = (provider: StorageProvider | null, model = fakeModel(), extra?: Record<string, unknown>) => ({ model, service: new StorageService(provider, model as never, extra ? configWith(extra) : config) });
 
 describe("StorageService", () => {
+  // Audit B12: nothing limited how much one account could store.
+  describe("each person's allowance for any 24 hours", () => {
+    const tooMany = (p: Promise<unknown>) => expect(p).rejects.toMatchObject({ status: 429, message: expect.stringMatching(/upload limit/i) });
+
+    it("refuses the file after the last one allowed, before anything is sent to storage", async () => {
+      const provider = fakeProvider();
+      const { service } = make(provider, fakeModel(), { "storage.dailyUploads": 2 });
+      await service.upload("u1", file("image/jpeg"), "post");
+      await service.upload("u1", file("image/jpeg"), "post");
+      await tooMany(service.upload("u1", file("image/jpeg"), "post"));
+      expect(provider.upload).toHaveBeenCalledTimes(2);
+      // Someone else's allowance is their own.
+      await expect(service.upload("u2", file("image/jpeg"), "post")).resolves.toMatchObject({ bytes: 1000 });
+    });
+
+    it("refuses a file that would take the day's total size past the limit, and allows one that exactly fills it", async () => {
+      // The fake provider stores every file as 1,000 bytes.
+      const { service } = make(fakeProvider(), fakeModel(), { "storage.dailyUploadBytes": 2500 });
+      await service.upload("u1", file("image/jpeg", 1000), "post");
+      await service.upload("u1", file("image/jpeg", 1000), "post");
+      await tooMany(service.upload("u1", file("image/jpeg", 501), "post"));
+      await expect(service.upload("u1", file("image/jpeg", 500), "post")).resolves.toBeDefined();
+    });
+
+    it("applies to a direct upload's stated size, and to a link before the server fetches it", async () => {
+      const provider = fakeProvider({ createDirectUpload: jest.fn(() => ({ url: "https://up.test", fields: {}, fileField: "file", expiresAt: "soon" })), describe: jest.fn() });
+      const fetchRemote = jest.fn();
+      const model = fakeModel();
+      const service = new StorageService(provider, model as never, configWith({ "storage.dailyUploads": 1 }), fetchRemote as never);
+      await service.upload("u1", file("image/jpeg"), "post");
+      await tooMany(service.createDirectUpload("u1", { purpose: "post", mimetype: "video/mp4", size: 5_000_000 }));
+      await tooMany(service.importFromUrl("u1", "https://example.com/a.jpg", "post"));
+      expect(fetchRemote).not.toHaveBeenCalled();
+      expect(provider.createDirectUpload).not.toHaveBeenCalled();
+    });
+
+    it("is a 429 with our own words, like the other daily limits, so the app shows them", async () => {
+      const { service } = make(fakeProvider(), fakeModel(), { "storage.dailyUploads": 1 });
+      await service.upload("u1", file("image/jpeg"), "post");
+      const err = await service.upload("u1", file("image/jpeg"), "post").catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(HttpException);
+      expect((err as HttpException).message).toBe("You've reached today's upload limit. Try again tomorrow.");
+    });
+  });
+
   it("stores a photo under the environment + purpose folder and records the owner", async () => {
     const provider = fakeProvider();
     const { service, model } = make(provider);
