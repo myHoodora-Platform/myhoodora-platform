@@ -58,7 +58,7 @@ function EventCard({ post }: { post: Post }) {
         </div>
       </Link>
       <div className="border-t border-border px-4 py-3 sm:px-5">
-        <RsvpButtons postId={post._id} eventDate={post.meta.eventDate} calendar={calendarFor(post)} />
+        <RsvpButtons postId={post._id} summary={post.rsvp} eventDate={post.meta.eventDate} calendar={calendarFor(post)} />
       </div>
     </article>
   );

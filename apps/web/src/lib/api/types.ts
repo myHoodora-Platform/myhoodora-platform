@@ -65,6 +65,8 @@ export interface ApiPost {
   priceNaira?: number | null;
   poll?: PollDefinition;
   pollResults?: PollResults;
+  /** Events: RSVP counts and your own answer, sent with the post so a list needs no request per card. */
+  rsvp?: EventRsvpSummary;
   visibility?: PostVisibility;
   reactionCounts?: Partial<Record<ReactionType, number>>;
   reactionTotal?: number;
@@ -137,6 +139,11 @@ export interface CreatePostInput {
   meta: PostMeta;
   /** Up to 10 photo URLs (from POST /media or pasted). */
   mediaUrls?: string[];
+  /**
+   * Makes a retry safe: the same id again returns the post created the first
+   * time instead of a second one (see lib/api/submission-id.ts).
+   */
+  clientId?: string;
 }
 
 // ── People ──────────────────────────────────────────────────────────────────

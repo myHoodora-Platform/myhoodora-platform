@@ -10,6 +10,7 @@ export type ApiErrorKind =
   | "forbidden" // 403
   | "not_found" // 404
   | "server" // 5xx
+  | "rate_limited" // 429 from the rate limiter: too many requests, try again shortly
   | "client"; // other 4xx (validation etc.) — message comes from the API
 
 /** A non-2xx response (or network failure) from our API, with a readable message. */
@@ -19,6 +20,8 @@ export class ApiError extends Error {
     /** HTTP status; 0 means the request never got a response. */
     readonly status: number,
     readonly kind: ApiErrorKind,
+    /** Rate-limited only: how long the API asked us to wait before trying again. */
+    readonly retryAfterMs?: number,
   ) {
     super(message);
     this.name = "ApiError";
@@ -30,7 +33,7 @@ export class ApiError extends Error {
 
   /** Worth retrying automatically (transient). */
   get isRetryable() {
-    return this.isNetworkError || this.kind === "server";
+    return this.isNetworkError || this.kind === "server" || this.kind === "rate_limited";
   }
 }
 
@@ -42,21 +45,43 @@ export const FRIENDLY_MESSAGES: Record<ApiErrorKind, string> = {
   forbidden: "You don't have access to this.",
   not_found: "We couldn't find what you were looking for.",
   server: "Something went wrong on our side. Please try again in a moment.",
+  rate_limited: "You're doing that a lot. Give it a moment and try again.",
   client: "That didn't work. Please check and try again.",
 };
 
 const REQUEST_TIMEOUT_MS = 15_000;
+/** The longest withRetry will wait because the API said so; asked to wait longer, it gives up and says why. */
+const MAX_RETRY_AFTER_MS = 10_000;
 
-function kindForStatus(status: number): ApiErrorKind {
+/**
+ * The API's rate limiter says how long to wait (Retry-After, in seconds). That header is also what
+ * tells its 429 from the API's own rules that use the same status and carry a message worth showing
+ * ("You can post one urgent alert every 6 hours"): those have no Retry-After and stay "client".
+ */
+function retryAfterMs(status: number, header: string | null): number | undefined {
+  if (status !== 429 || header === null) return undefined;
+  const seconds = Number(header);
+  return Number.isFinite(seconds) && seconds >= 0 ? seconds * 1000 : 0;
+}
+
+function kindForStatus(status: number, rateLimited = false): ApiErrorKind {
   if (status === 401) return "auth";
   if (status === 403) return "forbidden";
   if (status === 404) return "not_found";
   if (status >= 500) return "server";
+  if (rateLimited) return "rate_limited";
   return "client";
 }
 
-async function messageFrom(response: Response, kind: ApiErrorKind): Promise<string> {
-  return messageFromText(await response.text().catch(() => ""), kind);
+/** The typed error for a non-2xx response, given its body text and Retry-After header. */
+function errorFor(status: number, text: string, retryAfterHeader: string | null): ApiError {
+  const wait = retryAfterMs(status, retryAfterHeader);
+  const kind = kindForStatus(status, wait !== undefined);
+  return new ApiError(messageFromText(text, kind), status, kind, wait);
+}
+
+async function errorFrom(response: Response): Promise<ApiError> {
+  return errorFor(response.status, await response.text().catch(() => ""), response.headers.get("Retry-After"));
 }
 
 function messageFromText(text: string, kind: ApiErrorKind): string {
@@ -108,10 +133,7 @@ export async function apiFetch<T>(
     throw new ApiError(FRIENDLY_MESSAGES[kind], 0, kind);
   }
 
-  if (!response.ok) {
-    const kind = kindForStatus(response.status);
-    throw new ApiError(await messageFrom(response, kind), response.status, kind);
-  }
+  if (!response.ok) throw await errorFrom(response);
   if (response.status === 204) return undefined as T;
   const text = await response.text();
   try {
@@ -147,8 +169,7 @@ export async function apiUpload<T>(
     xhr.onerror = () => reject(new ApiError(FRIENDLY_MESSAGES.network, 0, "network"));
     xhr.onload = () => {
       if (xhr.status < 200 || xhr.status >= 300) {
-        const kind = kindForStatus(xhr.status);
-        return reject(new ApiError(messageFromText(xhr.responseText, kind), xhr.status, kind));
+        return reject(errorFor(xhr.status, xhr.responseText, xhr.getResponseHeader("Retry-After")));
       }
       try {
         resolve((xhr.responseText ? JSON.parse(xhr.responseText) : undefined) as T);
@@ -161,9 +182,9 @@ export async function apiUpload<T>(
 }
 
 /**
- * POST to a public (no account) endpoint. Validation (400/422) and rate
- * limit (429) messages from the API are shown as-is; anything else gets
- * the friendly wording.
+ * POST to a public (no account) endpoint. Validation (400/422) messages
+ * from the API are shown as-is; anything else, including the rate limiter's
+ * 429, gets the friendly wording.
  */
 export async function publicPost<T>(path: string, body: unknown): Promise<T> {
   let res: Response;
@@ -178,16 +199,15 @@ export async function publicPost<T>(path: string, body: unknown): Promise<T> {
     if (err instanceof DOMException && err.name === "TimeoutError") throw new ApiError(FRIENDLY_MESSAGES.timeout, 0, "timeout");
     throw new ApiError(FRIENDLY_MESSAGES.network, 0, "network");
   }
-  if (!res.ok) {
-    const kind = kindForStatus(res.status);
-    throw new ApiError(await messageFrom(res, kind), res.status, kind);
-  }
+  if (!res.ok) throw await errorFrom(res);
   return (await res.json()) as T;
 }
 
 /**
- * Retry a read once or twice on transient failures (network, timeout, 5xx),
- * with a short backoff. Never retries 4xx — those won't fix themselves.
+ * Retry a read once or twice on transient failures (network, timeout, 5xx,
+ * the rate limiter), with a short backoff. Never retries other 4xx: those
+ * won't fix themselves. When rate-limited it waits as long as the API asked,
+ * unless that is longer than someone should be left looking at a spinner.
  */
 export async function withRetry<T>(fn: () => Promise<T>, retries = 1, delayMs = 1000): Promise<T> {
   try {
@@ -195,7 +215,9 @@ export async function withRetry<T>(fn: () => Promise<T>, retries = 1, delayMs = 
   } catch (err) {
     const retryable = err instanceof ApiError ? err.isRetryable && err.kind !== "offline" : false;
     if (!retryable || retries <= 0) throw err;
-    await new Promise((r) => setTimeout(r, delayMs));
+    const asked = (err as ApiError).retryAfterMs ?? 0;
+    if (asked > MAX_RETRY_AFTER_MS) throw err;
+    await new Promise((r) => setTimeout(r, Math.max(delayMs, asked)));
     return withRetry(fn, retries - 1, delayMs * 2);
   }
 }

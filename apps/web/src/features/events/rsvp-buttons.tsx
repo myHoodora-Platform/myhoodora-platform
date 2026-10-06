@@ -13,6 +13,11 @@ import { eventPhase } from "./event-time";
 
 interface RsvpButtonsProps {
   postId: string;
+  /**
+   * What the post already says about its RSVPs (`post.rsvp`). When present nothing is fetched:
+   * a page of events used to make one request per card just to draw these buttons.
+   */
+  summary?: EventRsvpSummary;
   compact?: boolean;
   /** Closes RSVPs once the event is over (the API refuses them too). */
   eventDate?: string;
@@ -20,14 +25,21 @@ interface RsvpButtonsProps {
   calendar?: CalendarEvent | null;
 }
 
-export function RsvpButtons({ postId, compact, eventDate, calendar }: RsvpButtonsProps) {
+export function RsvpButtons({ postId, summary, compact, eventDate, calendar }: RsvpButtonsProps) {
   const { user, runGatedAction } = useAuth();
-  const [rsvp, setState] = useState<EventRsvpSummary | null>(null);
+  const [rsvp, setState] = useState<EventRsvpSummary | null>(summary ?? null);
   const [busy, setBusy] = useState(false);
 
+  // The post is refetched when someone else RSVPs (a live update): show what it says now.
   useEffect(() => {
-    if (user) void getRsvp(user, postId).then(setState).catch(() => undefined);
-  }, [user, postId]);
+    if (summary) setState(summary);
+  }, [summary]);
+
+  // Only when the post didn't bring its RSVPs along (the mock store, or an older API).
+  const hasSummary = summary !== undefined;
+  useEffect(() => {
+    if (user && !hasSummary) void getRsvp(user, postId).then(setState).catch(() => undefined);
+  }, [user, postId, hasSummary]);
 
   const ended = rsvp?.ended ?? eventPhase(eventDate) === "ended";
 
