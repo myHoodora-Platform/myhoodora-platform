@@ -18,6 +18,7 @@ import type { Conversation, Message } from "@/lib/api/types";
 import { ChatComposer, ChatMessageList, localId, type ChatItem } from "./chat-ui";
 import { createMemoryCache } from "@/lib/memory-cache";
 import { otherParticipant } from "./conversation-list";
+import { MESSAGE_PAGE, mergeMessages } from "./message-pages";
 import { useTypingIndicator, useTypingSignal } from "./use-typing";
 
 // Reopening a thread shows its last messages at once, then refreshes.
@@ -41,6 +42,9 @@ export function ConversationThread({ id }: { id: string }) {
   const [convo, setConvo] = useState<Conversation | null | undefined>(() => threadCache.get(cacheKey)?.convo);
   const [messages, setMessages] = useState<Message[]>(() => threadCache.get(cacheKey)?.messages ?? []);
   const [pending, setPending] = useState<Pending[]>([]);
+  // A full page came back, so the conversation may go back further than what is on screen.
+  const [hasEarlier, setHasEarlier] = useState(false);
+  const [loadingEarlier, setLoadingEarlier] = useState(false);
   const [draft, setDraft] = useState(() => params.get("draft") ?? "");
   const [reporting, setReporting] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -50,7 +54,9 @@ export function ConversationThread({ id }: { id: string }) {
     try {
       const [c, m] = await Promise.all([getConversation(user, id), listMessages(user, id)]);
       setConvo(c);
-      setMessages(m);
+      // The newest page, added to what is on screen: a refetch must not drop earlier pages already loaded.
+      setMessages((prev) => (prev.some((x) => x.conversationId !== id) ? m : mergeMessages(prev, m)));
+      if (m.length >= MESSAGE_PAGE) setHasEarlier(true);
       if (c) threadCache.set(`${user.uid}:${id}`, { convo: c, messages: m });
     } catch {
       setConvo((prev) => (prev === undefined ? null : prev));
@@ -60,6 +66,21 @@ export function ConversationThread({ id }: { id: string }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const loadEarlier = async () => {
+    const oldest = messages[0];
+    if (!user || !oldest || loadingEarlier) return;
+    setLoadingEarlier(true);
+    try {
+      const earlier = await listMessages(user, id, { before: oldest._id });
+      setMessages((prev) => mergeMessages(prev, earlier));
+      setHasEarlier(earlier.length >= MESSAGE_PAGE);
+    } catch {
+      // Leave the button in place: pressing it again retries.
+    } finally {
+      setLoadingEarlier(false);
+    }
+  };
 
   // Live: a new message or read receipt in this thread → refetch (the API
   // is the source of truth; the event only says "something changed").
@@ -170,6 +191,20 @@ export function ConversationThread({ id }: { id: string }) {
 
       <ChatMessageList
         items={items}
+        header={
+          hasEarlier && (
+            <div className="pb-2 text-center">
+              <button
+                type="button"
+                onClick={() => void loadEarlier()}
+                disabled={loadingEarlier}
+                className="rounded-full border border-border bg-card px-4 py-1.5 text-sm font-semibold text-foreground hover:bg-muted disabled:opacity-60"
+              >
+                {loadingEarlier ? "Loading…" : "Load earlier messages"}
+              </button>
+            </div>
+          )
+        }
         seenAt={seenAt}
         onRetry={retry}
         typing={otherTyping ? other.displayName.split(" ")[0] : null}

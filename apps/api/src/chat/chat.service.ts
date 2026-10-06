@@ -1,12 +1,13 @@
 import { BadRequestException, ForbiddenException, HttpException, HttpStatus, Injectable, NotFoundException, OnModuleInit } from "@nestjs/common";
 import { InjectConnection, InjectModel } from "@nestjs/mongoose";
-import { Connection, Model, Types } from "mongoose";
+import { Connection, Model, Types, type QueryFilter } from "mongoose";
 import { ListingsService } from "../listings/listings.service";
 import { ModerationRegistry } from "../moderation/moderation-registry";
 import { RealtimeService, TYPING_SIGNAL_MS } from "../realtime/realtime.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import type { Viewer } from "../shared/auth/viewer";
 import { withTransaction } from "../shared/db/transaction";
+import { THREAD_PAGE_MAX, type ThreadPageQuery } from "../shared/http/pagination";
 import { User, UserDocument } from "../users/schemas/user.schema";
 import { UsersService } from "../users/users.service";
 import type { StartConversationDto } from "./chat.dto";
@@ -61,8 +62,8 @@ export class ChatService implements OnModuleInit {
           type: "message",
           id,
           preview: recent[0]?.body.slice(0, 200) ?? "Conversation",
-          // The reported party is whoever didn't file the report; moderation shows both.
-          authorUid: c.startedBy,
+          // No single author: the reported party is whoever didn't file the report (ModerationService.fileReport).
+          participantUids: c.participantUids,
           removed: Boolean(c.removedAt),
           content: {
             kind: "conversation",
@@ -161,10 +162,29 @@ export class ChatService implements OnModuleInit {
     }
   }
 
-  /** Oldest first; marks the thread read for the caller. */
-  async listMessages(viewer: Viewer, id: string): Promise<MessageView[]> {
+  /**
+   * A page of the thread, oldest first: the newest messages, or with `before` the ones just earlier
+   * than that message. (It used to be the oldest 500 with no way past them, so in a long thread
+   * new messages were stored and never shown.) Opening the newest page marks the thread read for the caller.
+   */
+  async listMessages(viewer: Viewer, id: string, q: ThreadPageQuery = {}): Promise<MessageView[]> {
     const c = await this.load(viewer, id);
-    const rows = await this.messages.find({ conversationId: id }).sort({ createdAt: 1 }).limit(500).lean<(Message & { _id: Types.ObjectId })[]>().exec();
+    const filter: QueryFilter<Message> = { conversationId: id };
+    if (q.before) {
+      const cursor = await this.messages.findOne({ _id: q.before, conversationId: id }).select({ createdAt: 1 }).lean<Pick<Message, "createdAt"> & { _id: Types.ObjectId }>().exec();
+      // Not a message of this thread: there is nothing "before" it here.
+      if (!cursor) return [];
+      filter.$or = [{ createdAt: { $lt: cursor.createdAt } }, { createdAt: cursor.createdAt, _id: { $lt: cursor._id } }];
+    }
+    const newestFirst = await this.messages
+      .find(filter)
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(q.limit ?? THREAD_PAGE_MAX)
+      .lean<(Message & { _id: Types.ObjectId })[]>()
+      .exec();
+    const rows = newestFirst.reverse();
+    // Reading back through earlier messages is not reading the new ones.
+    if (q.before) return rows.map(toMessage);
     // Only when there was something unread: announcing every open would make
     // two open threads refetch each other forever.
     const read = await this.conversations
