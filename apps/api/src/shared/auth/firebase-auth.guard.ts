@@ -2,14 +2,16 @@ import {
   CanActivate,
   ExecutionContext,
   Injectable,
+  ServiceUnavailableException,
   UnauthorizedException,
   Logger,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { Request } from "express";
 import type { DecodedIdToken } from "firebase-admin/auth";
-import { SessionRevocationService } from "../../auth/session-revocation.service";
+import { RevocationLookupUnavailable, SessionRevocationService } from "../../auth/session-revocation.service";
 import { getFirebaseAdmin } from "../../config/firebase.config";
+import { isKeyFetchFailure } from "./firebase-outage";
 import { IS_PUBLIC_KEY } from "./public.decorator";
 import { SESSION_COOKIE_AUTH_KEY } from "./session-cookie-auth.decorator";
 
@@ -53,23 +55,44 @@ export class FirebaseAuthGuard implements CanActivate {
       context.getClass(),
     ]);
 
+    // Two different failures, two different answers. A bad, expired or revoked credential is 401:
+    // the web app then signs the person out. Not being able to find out (Google unreachable) is 503:
+    // the web app retries and leaves them signed in. An outage must never read as a sign-out.
+    const auth = getFirebaseAdmin().auth();
+    let decodedToken: DecodedIdToken;
     try {
-      const auth = getFirebaseAdmin().auth();
-      // Signature, issuer, audience and expiry: checked locally, no network.
-      const decodedToken = viaSessionCookie ? await auth.verifySessionCookie(token) : await auth.verifyIdToken(token);
-      // Revoked, disabled or deleted: checked against Firebase, remembered briefly (SessionRevocationService).
-      if (await this.revocations.isRevoked(decodedToken)) {
-        throw Object.assign(new Error("revoked"), { code: viaSessionCookie ? "auth/session-cookie-revoked" : "auth/id-token-revoked" });
-      }
-
-      // Attach the decoded token so controllers can access it via @CurrentUser()
-      const firebaseRequest = request as FirebaseRequest;
-      firebaseRequest.user = decodedToken;
-      return true;
+      // Signature, issuer, audience and expiry: checked locally, with Google's signing keys (fetched now and then, and cached).
+      decodedToken = viaSessionCookie ? await auth.verifySessionCookie(token) : await auth.verifyIdToken(token);
     } catch (err: unknown) {
-      // Log the error code only — never the token or its contents.
-      this.logger.warn(`Firebase token rejected: ${(err as { code?: string }).code ?? "unknown"}`);
-      throw new UnauthorizedException("Invalid or expired token");
+      if (isKeyFetchFailure(err)) throw this.unavailable("Google's signing keys could not be fetched");
+      throw this.rejected((err as { code?: string }).code);
     }
+
+    let revoked: boolean;
+    try {
+      // Revoked, disabled or deleted: checked against Firebase, remembered briefly (SessionRevocationService).
+      revoked = await this.revocations.isRevoked(decodedToken);
+    } catch (err: unknown) {
+      if (err instanceof RevocationLookupUnavailable) throw this.unavailable(err.message);
+      throw err;
+    }
+    if (revoked) throw this.rejected(viaSessionCookie ? "auth/session-cookie-revoked" : "auth/id-token-revoked");
+
+    // Attach the decoded token so controllers can access it via @CurrentUser()
+    const firebaseRequest = request as FirebaseRequest;
+    firebaseRequest.user = decodedToken;
+    return true;
+  }
+
+  private rejected(code: string | undefined): UnauthorizedException {
+    // Log the error code only — never the token or its contents.
+    this.logger.warn(`Firebase token rejected: ${code ?? "unknown"}`);
+    return new UnauthorizedException("Invalid or expired token");
+  }
+
+  private unavailable(why: string): ServiceUnavailableException {
+    // The exception filter logs the 503 itself; this adds the reason, which never reaches the client.
+    this.logger.warn(`Sign-in could not be checked: ${why}`);
+    return new ServiceUnavailableException("We can't check your sign-in right now. Please try again in a moment.");
   }
 }
