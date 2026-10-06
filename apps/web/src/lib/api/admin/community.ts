@@ -1,4 +1,5 @@
 import type { User } from "firebase/auth";
+import type { BulkNeighbourResult } from "./bulk-outcome";
 import { distanceMeters as haversine } from "@/lib/geo";
 import { ApiError, apiFetch } from "../client";
 import { isLive } from "../config";
@@ -136,10 +137,11 @@ export async function actOnNeighbour(user: User, uid: string, input: NeighbourAc
   return getNeighbour(user, uid);
 }
 
-/** live: POST /admin/neighbours/bulk */
-export async function bulkNeighbours(user: User, uids: string[], input: NeighbourActionInput, role: AdminRole): Promise<void> {
-  if (isLive("admin.neighbours")) return adminSend(user, "/neighbours/bulk", { uids, ...input });
+/** live: POST /admin/neighbours/bulk → who was changed and who wasn't (one failure doesn't stop the rest). */
+export async function bulkNeighbours(user: User, uids: string[], input: NeighbourActionInput, role: AdminRole): Promise<BulkNeighbourResult> {
+  if (isLive("admin.neighbours")) return adminSend<BulkNeighbourResult>(user, "/neighbours/bulk", { uids, ...input });
   for (const uid of uids) await actOnNeighbour(user, uid, input, role);
+  return { updated: uids.length, results: uids.map((uid) => ({ uid, ok: true })) };
 }
 
 // ── Verification ────────────────────────────────────────────────────────────
