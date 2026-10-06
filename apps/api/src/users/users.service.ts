@@ -14,11 +14,15 @@ import type { Viewer } from "../shared/auth/viewer";
 import { withTransaction } from "../shared/db/transaction";
 import { EmailVerificationService } from "../verification/email-verification.service";
 import { mergePreferences, type Preferences } from "./domain/preferences";
+import { AccountLifecycle } from "./account-lifecycle";
 import type { DeactivateDto, OnboardingDto, PreferencesDto, UpdateMeDto, VerifyLocationDto } from "./dto/users.dto";
 import { User, UserDocument } from "./schemas/user.schema";
 
 const MAX_BLOCKS = 500;
+/** The name shown in place of someone who has deactivated their account. */
+export const FORMER_NEIGHBOUR = "Former neighbour";
 const MAX_ATTEMPTS_KEPT = 10;
+const DAY_MS = 86_400_000;
 
 export interface MeResponse {
   uid: string;
@@ -86,6 +90,7 @@ export class UsersService {
     private readonly realtime: RealtimeService,
     private readonly config: ConfigService,
     private readonly storage: StorageService,
+    private readonly lifecycle: AccountLifecycle,
   ) {}
 
   findByUid(uid: string): Promise<UserDocument | null> {
@@ -106,8 +111,11 @@ export class UsersService {
       // name, photo, Hood, role and onboarding stay exactly as they are. Only two things can change here.
       let changed = false;
       if (existing.deactivatedAt) {
-        // Logging back in within 30 days restores the account (contract §10).
+        // Logging back in within 30 days restores the account (contract §10). Their content comes back
+        // first: if that fails they are still deactivated, and the next sign-in tries again.
+        await this.lifecycle.unhide(existing.uid);
         existing.deactivatedAt = null;
+        existing.deactivation = null;
         changed = true;
       }
       if (!existing.emailVerifiedAt && providerVerified) {
@@ -201,6 +209,11 @@ export class UsersService {
    * Address verification: match the point to an open Hood. Records every
    * attempt (last 10) so staff can review failures in the verification queue.
    * Outside every Hood, offers the close ones to ask to join (contract §16).
+   *
+   * The coordinates come from the caller, so this is only as strong as their honesty. It must at least
+   * not let a verified neighbour walk from Hood to Hood: a point in a *different* Hood moves them only
+   * once `verifiedAt` is older than the cooldown (90 days by default), and every such move is audited.
+   * Sooner than that it is 409 and they stay where they are; staff can still move them (change_hood).
    */
   async verifyLocation(viewer: Viewer, dto: VerifyLocationDto) {
     const user = await this.findByUid(viewer.uid);
@@ -209,11 +222,26 @@ export class UsersService {
       throw new ForbiddenException("Your address couldn't be verified. Contact support if you think that's wrong.");
     }
     const match = await this.hoods.findVerifiedMatch(dto.lng, dto.lat);
-    const attempt = { at: new Date(), lat: dto.lat, lng: dto.lng, address: dto.address, result: match ? ("matched" as const) : ("outside_coverage" as const) };
+    // Already a verified neighbour somewhere else: this check would move them.
+    const movingFrom = match && user.verificationStatus === "verified" && user.neighborhoodId && user.neighborhoodId !== match.neighborhoodId ? user.neighborhoodId : undefined;
+    const cooldownDays = this.config.get<number>("verification.hoodChangeCooldownDays") ?? 90;
+    const tooSoon =
+      Boolean(movingFrom) &&
+      this.config.get<boolean>("verification.strictHoodAccess") !== false &&
+      Date.now() - (user.verifiedAt?.getTime() ?? 0) < cooldownDays * DAY_MS;
+
+    const result = !match ? ("outside_coverage" as const) : tooSoon ? ("mismatch" as const) : ("matched" as const);
+    const attempt = { at: new Date(), lat: dto.lat, lng: dto.lng, address: dto.address, result };
     const attempts = [...(user.verificationAttempts ?? []), attempt].slice(-MAX_ATTEMPTS_KEPT);
 
-    if (!match) {
+    if (!match || tooSoon) {
       await this.users.updateOne({ uid: viewer.uid }, { $set: { lastKnownLocation: { lat: dto.lat, lng: dto.lng }, verificationAttempts: attempts } }).exec();
+      if (tooSoon) {
+        const current = (await this.hoods.findManyByIds([movingFrom!])).get(movingFrom!);
+        throw new ConflictException(
+          `You're a verified neighbour in ${current?.name ?? "another neighbourhood"}, and you can change neighbourhood once every ${cooldownDays} days. If you've moved, contact support and we'll help.`,
+        );
+      }
       return {
         verificationStatus: user.verificationStatus === "verified" ? "verified" : "unverified",
         reason: "outside_coverage" as const,
@@ -222,21 +250,33 @@ export class UsersService {
     }
 
     const changedHood = user.neighborhoodId !== match.neighborhoodId;
-    await this.users
-      .updateOne(
-        { uid: viewer.uid },
-        {
-          $set: {
-            neighborhoodId: match.neighborhoodId,
-            verificationStatus: "verified",
-            verifiedAt: changedHood || !user.verifiedAt ? new Date() : user.verifiedAt,
-            lastKnownLocation: { lat: dto.lat, lng: dto.lng },
-            verificationAttempts: attempts,
-            requestedHood: null,
-          },
-        },
-      )
-      .exec();
+    const update = {
+      $set: {
+        neighborhoodId: match.neighborhoodId,
+        verificationStatus: "verified" as const,
+        verifiedAt: changedHood || !user.verifiedAt ? new Date() : user.verifiedAt,
+        lastKnownLocation: { lat: dto.lat, lng: dto.lng },
+        verificationAttempts: attempts,
+        requestedHood: null,
+      },
+    };
+    if (movingFrom) {
+      // A neighbour moving themselves is recorded with the move, so staff can see it (and a pattern of it).
+      const hoods = await this.hoods.findManyByIds([movingFrom, match.neighborhoodId]);
+      const from = hoods.get(movingFrom)?.name ?? "another Hood";
+      await withTransaction(this.connection, async (s) => {
+        await this.users.updateOne({ uid: viewer.uid }, update, { session: s }).exec();
+        await this.audit.record(
+          viewer,
+          "hood_self_change",
+          { type: "user", id: viewer.uid, label: hoods.get(match.neighborhoodId)?.name ?? "another Hood" },
+          { reason: dto.address ? `From ${from} · ${dto.address}` : `From ${from}` },
+          s,
+        );
+      });
+    } else {
+      await this.users.updateOne({ uid: viewer.uid }, update).exec();
+    }
     if (user.verificationStatus !== "verified") {
       await this.notifications.notify({ uids: [viewer.uid], type: "verification", title: "You're a verified neighbour", body: "Welcome to your Hood.", href: "/news-feed" });
     }
@@ -391,9 +431,18 @@ export class UsersService {
     await this.users.updateOne({ uid }, { $pull: { blockedUids: target } }).exec();
   }
 
-  /** Hide the account and sign out everywhere; restored by signing in within 30 days. */
+  /**
+   * Hide the account and everything it posted, and sign out everywhere; restored by signing in
+   * within 30 days. Their posts and listings are hidden outright; what they wrote in other people's
+   * threads stays, without their name or photo (authorCards). Safe to repeat: if hiding fails the
+   * request fails with the sessions still live, so the app can simply try again.
+   */
   async deactivate(uid: string, dto: DeactivateDto): Promise<void> {
-    await this.users.updateOne({ uid }, { $set: { deactivatedAt: new Date() } }).exec();
+    const deactivation = { reason: dto.reason, ...(dto.details?.trim() && { details: dto.details.trim() }) };
+    // The first time only: deactivating again must not restart the 30 days.
+    await this.users.updateOne({ uid, deactivatedAt: null }, { $set: { deactivatedAt: new Date() } }).exec();
+    await this.users.updateOne({ uid }, { $set: { deactivation } }).exec();
+    await this.lifecycle.hide(uid);
     this.logger.log(`Account deactivated (reason: ${dto.reason})`);
     await this.auth.revokeTokens(uid).catch(() => undefined);
   }
@@ -407,10 +456,14 @@ export class UsersService {
     return [...new Set([...(me?.blockedUids ?? []), ...blockers.map((b) => b.uid)])];
   }
 
-  /** Active, verified members of a Hood (for Hood-wide notifications). */
-  async membersOfHood(hoodId: string, limit = 5000): Promise<string[]> {
+  /**
+   * Active, verified members of a Hood, a page at a time in uid order (for Hood-wide notifications).
+   * Pass the last uid of one page as `afterUid` for the next; "" starts from the beginning.
+   */
+  async membersOfHoodPage(hoodId: string, afterUid: string, limit: number): Promise<string[]> {
     const rows = await this.users
-      .find({ neighborhoodId: hoodId, verificationStatus: "verified", deactivatedAt: null, accountStatus: { $ne: "suspended" } })
+      .find({ neighborhoodId: hoodId, verificationStatus: "verified", deactivatedAt: null, accountStatus: { $ne: "suspended" }, uid: { $gt: afterUid } })
+      .sort({ uid: 1 })
       .select({ uid: 1 })
       .limit(limit)
       .lean<Pick<User, "uid">[]>()
@@ -418,13 +471,26 @@ export class UsersService {
     return rows.map((r) => r.uid);
   }
 
-  /** Small author cards embedded on posts/comments (contract §3, avoids N+1). */
-  async authorCards(uids: string[]): Promise<Map<string, { uid: string; displayName: string; photoURL?: string; neighborhoodId?: string }>> {
+  /**
+   * Small author cards embedded on posts/comments (contract §3, avoids N+1).
+   *
+   * Someone who has deactivated is "Former neighbour" with no photo and no Hood: what they wrote in
+   * other people's threads, groups and conversations stays readable, but not under their name.
+   * `forStaff` keeps the real name, for admin screens where moderation has to know who it is.
+   */
+  async authorCards(uids: string[], opts: { forStaff?: boolean } = {}): Promise<Map<string, { uid: string; displayName: string; photoURL?: string; neighborhoodId?: string }>> {
     const rows = await this.users
       .find({ uid: { $in: [...new Set(uids)] } })
-      .select({ uid: 1, displayName: 1, photoURL: 1, neighborhoodId: 1 })
-      .lean<Pick<User, "uid" | "displayName" | "photoURL" | "neighborhoodId">[]>()
+      .select({ uid: 1, displayName: 1, photoURL: 1, neighborhoodId: 1, deactivatedAt: 1 })
+      .lean<Pick<User, "uid" | "displayName" | "photoURL" | "neighborhoodId" | "deactivatedAt">[]>()
       .exec();
-    return new Map(rows.map((r) => [r.uid, { uid: r.uid, displayName: r.displayName ?? "Neighbour", photoURL: r.photoURL, neighborhoodId: r.neighborhoodId }]));
+    return new Map(
+      rows.map((r) => [
+        r.uid,
+        r.deactivatedAt && !opts.forStaff
+          ? { uid: r.uid, displayName: FORMER_NEIGHBOUR }
+          : { uid: r.uid, displayName: r.displayName ?? "Neighbour", photoURL: r.photoURL, neighborhoodId: r.neighborhoodId },
+      ]),
+    );
   }
 }

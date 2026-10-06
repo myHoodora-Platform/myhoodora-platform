@@ -1,4 +1,5 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { Reflector } from "@nestjs/core";
 import { InjectModel } from "@nestjs/mongoose";
 import type { DecodedIdToken } from "firebase-admin/auth";
@@ -12,13 +13,22 @@ import { ALLOW_SUSPENDED_KEY, type Viewer } from "./viewer";
  * Runs after FirebaseAuthGuard. Loads our user record once per request and
  * attaches `request.viewer` (role, account state, Hood, capabilities).
  * Suspended accounts are blocked everywhere except @AllowSuspended routes.
+ *
+ * `viewer.hoodId` is what every Hood-scoped read checks, so this is where "who may read a Hood" is
+ * decided: only a verified neighbour has one. A Hood left on the record of someone unverified,
+ * pending or rejected grants nothing (HOOD_ACCESS_STRICT=false restores the old rule: any Hood on record).
  */
 @Injectable()
 export class AccountGuard implements CanActivate {
+  private readonly strictHoodAccess: boolean;
+
   constructor(
     private readonly reflector: Reflector,
     @InjectModel(User.name) private readonly users: Model<UserDocument>,
-  ) {}
+    config: ConfigService,
+  ) {
+    this.strictHoodAccess = config.get<boolean>("verification.strictHoodAccess") !== false;
+  }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     if (this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [context.getHandler(), context.getClass()])) return true;
@@ -31,11 +41,12 @@ export class AccountGuard implements CanActivate {
     if (doc?.sessionsRevokedAt && req.user.auth_time * 1000 < doc.sessionsRevokedAt.getTime()) {
       throw new UnauthorizedException("Invalid or expired token");
     }
+    const verificationStatus = doc?.verificationStatus ?? "unverified";
     const subject = {
       role: doc?.role ?? "member",
       accountStatus: doc?.accountStatus ?? "active",
-      verificationStatus: doc?.verificationStatus ?? "unverified",
-      hoodId: doc?.neighborhoodId ?? null,
+      verificationStatus,
+      hoodId: (verificationStatus === "verified" || !this.strictHoodAccess ? doc?.neighborhoodId : null) || null,
       restrictedUntil: doc?.restrictedUntil ?? null,
     } as const;
 

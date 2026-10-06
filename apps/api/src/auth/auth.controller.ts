@@ -10,6 +10,7 @@ import { SessionCookieAuth } from "../shared/auth/session-cookie-auth.decorator"
 import { AllowSuspended, CurrentViewer, type Viewer } from "../shared/auth/viewer";
 import { EmailVerificationService } from "../verification/email-verification.service";
 import { Can } from "../shared/authz/can.decorator";
+import { FLOOD } from "../shared/throttle/throttle.guards";
 import { AuthService, type WebSession } from "./auth.service";
 import { ApiStandardErrors } from "../shared/http/api-docs";
 
@@ -17,6 +18,7 @@ import { ApiStandardErrors } from "../shared/http/api-docs";
  * The session routes are called by the web server for every visitor, so they all arrive from one IP.
  * Rate-limit them per credential instead (hashed: the limiter never stores a token). No hourly window:
  * its counters would outlive a flood of made-up credentials by an hour; these last a minute at most.
+ * For the same reason they are outside the per-address flood limit (SESSION_SKIP).
  */
 const perCredential = (req: Record<string, unknown>) =>
   createHash("sha256").update(extractBearerToken(req as unknown as Request) ?? String(req.ip)).digest("base64url");
@@ -24,6 +26,7 @@ const SESSION_THROTTLE = {
   short: { limit: 5, ttl: 1_000, getTracker: perCredential },
   medium: { limit: 30, ttl: 60_000, getTracker: perCredential },
 };
+const SESSION_SKIP = { long: true, [FLOOD]: true };
 
 class ConfirmEmailDto {
   @IsString()
@@ -48,7 +51,7 @@ export class AuthController {
   @Post("session")
   @AllowSuspended()
   @Throttle(SESSION_THROTTLE)
-  @SkipThrottle({ long: true })
+  @SkipThrottle(SESSION_SKIP)
   @HttpCode(HttpStatus.OK)
   @Header("Cache-Control", "no-store")
   @ApiOperation({ summary: "Exchange your ID token for a web session cookie (called by the web server)" })
@@ -65,7 +68,7 @@ export class AuthController {
   @SessionCookieAuth()
   @AllowSuspended()
   @Throttle(SESSION_THROTTLE)
-  @SkipThrottle({ long: true })
+  @SkipThrottle(SESSION_SKIP)
   @HttpCode(HttpStatus.NO_CONTENT)
   @Header("Cache-Control", "no-store")
   @ApiOperation({ summary: "Is this session cookie still live, i.e. not revoked? (called by the web server)" })
@@ -76,7 +79,7 @@ export class AuthController {
   @SessionCookieAuth()
   @Can("admin.access")
   @Throttle(SESSION_THROTTLE)
-  @SkipThrottle({ long: true })
+  @SkipThrottle(SESSION_SKIP)
   @HttpCode(HttpStatus.NO_CONTENT)
   @Header("Cache-Control", "no-store")
   @ApiOperation({ summary: "Is this session cookie's owner staff? (called by the web server)" })
