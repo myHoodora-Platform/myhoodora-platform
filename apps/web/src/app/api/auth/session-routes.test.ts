@@ -4,19 +4,26 @@ import { NextRequest } from "next/server";
 // The Admin SDK's verifiers are the only stubs: "id:<uid>[:<signIn>]" is a good ID token,
 // "sc:<uid>:<issuedAgoSeconds>[:<signIn>]" a good 7-day session cookie. Anything else is refused.
 // <signIn> stands for auth_time: which sign-in the token belongs to (1 unless given).
+// `google.keysDown` makes Google's signing keys unfetchable, failing the way the SDK reports it.
 const WEEK = 7 * 24 * 60 * 60;
 const now = () => Math.floor(Date.now() / 1000);
 const refuse = () => {
   throw Object.assign(new Error("bad"), { code: "auth/argument-error" });
 };
+const google = vi.hoisted(() => ({ keysDown: false }));
+const checkKeys = () => {
+  if (google.keysDown) throw Object.assign(new Error("Error while making request: connect ETIMEDOUT. Error code: ETIMEDOUT"), { code: "auth/argument-error" });
+};
 vi.mock("firebase-admin/app", () => ({ getApps: () => [], initializeApp: () => ({ name: "session-verifier" }) }));
 vi.mock("firebase-admin/auth", () => ({
   getAuth: () => ({
     verifyIdToken: async (t: string) => {
+      checkKeys();
       const [kind, uid, signIn] = t.split(":");
       return kind === "id" && uid ? { uid, auth_time: Number(signIn ?? 1), iat: now() - 60, exp: now() + 3540 } : refuse();
     },
     verifySessionCookie: async (c: string) => {
+      checkKeys();
       const [kind, uid, age, signIn] = c.split(":");
       return kind === "sc" && uid ? { uid, auth_time: Number(signIn ?? 1), iat: now() - Number(age), exp: now() - Number(age) + WEEK } : refuse();
     },
@@ -47,7 +54,10 @@ const apiMints = (cookie = "sc:ada:0") =>
 const api = () => vi.mocked(globalThis.fetch);
 
 beforeEach(() => apiMints());
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  google.keysDown = false;
+});
 
 describe("POST /api/auth/session", () => {
   it("exchanges an ID token for an HttpOnly session cookie minted by the API", async () => {
@@ -125,6 +135,21 @@ describe("POST /api/auth/session", () => {
     const other = await session(post("/api/auth/session", { idToken: "id:tunde" }, { cookie: "sc:ada:60" }));
     expect(other.status).toBe(503);
     expect(setCookie(other)).toMatch(/__session=;.*Max-Age=0/);
+  });
+
+  // Audit B2: a 401 here makes the browser sign out of Firebase. Not being able to check is not a 401.
+  it("Google's signing keys unfetchable: 503, and the cookie is left alone (nothing is known to be wrong)", async () => {
+    google.keysDown = true;
+    for (const cookie of [undefined, "sc:ada:60", "sc:tunde:60"]) {
+      const res = await session(post("/api/auth/session", { idToken: "id:ada" }, { cookie }));
+      expect(res.status).toBe(503);
+      expect(setCookie(res)).toBeNull();
+      expect(res.headers.get("cache-control")).toBe("no-store");
+    }
+    expect(api()).not.toHaveBeenCalled();
+    // Back up: the same request works again.
+    google.keysDown = false;
+    expect((await session(post("/api/auth/session", { idToken: "id:ada" }))).status).toBe(200);
   });
 
   it("a malformed API answer is treated as unavailable, never stored", async () => {
