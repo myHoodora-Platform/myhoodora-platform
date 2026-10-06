@@ -25,6 +25,8 @@ export class Listing {
   @Prop({ type: String, required: true, enum: LISTING_STATUSES, default: "available" }) status!: ListingStatus;
   @Prop({ type: Date, default: null }) removedAt!: Date | null;
   @Prop({ type: Date, default: null }) deletedAt!: Date | null;
+  /** The seller has deactivated their account: hidden from neighbours until they come back (AccountLifecycle). */
+  @Prop() sellerDeactivated?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }

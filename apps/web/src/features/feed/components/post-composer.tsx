@@ -13,6 +13,7 @@ import { Field, fieldAria, fieldInputClass } from "@/components/shared/field";
 import { PhotoPicker } from "@/components/shared/image-picker";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { errorMessage } from "@/lib/api/client";
+import { submissionIds } from "@/lib/api/submission-id";
 import type { AlertCategory, Post, PostCategory } from "@/lib/api/types";
 import { ALERT_CATEGORIES, POST_CATEGORIES, categoryDef } from "../categories";
 import { checkKindness, kindnessHint, type KindnessReason } from "@/lib/api/kindness";
@@ -98,6 +99,9 @@ export function PostComposer({ initialCategory, onDone, onCancel, onSell }: Post
   const [kindnessReasons, setKindnessReasons] = useState<KindnessReason[]>([]);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const messageEl = useRef<HTMLTextAreaElement | null>(null);
+  // A failed "Post" may still have reached the server (a timeout on a slow connection). Pressing it
+  // again with the same draft sends the same id, so that is one post, and one alert to the Hood.
+  const submissions = useRef(submissionIds());
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -139,6 +143,7 @@ export function PostComposer({ initialCategory, onDone, onCancel, onSell }: Post
         .filter(Boolean)
         .map((text, i) => ({ id: `o${i + 1}`, text }));
       const post = await createPost({
+        clientId: submissions.current.for({ values, mediaUrls }),
         message: values.message,
         mediaUrls: values.category === "poll" ? [] : mediaUrls,
         meta: {

@@ -15,6 +15,7 @@ import {
   IsString,
   IsUrl,
   Length,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -59,6 +60,14 @@ class PointDto {
  */
 export class CreatePostDto {
   @IsOptional() @IsMongoId() neighborhoodId?: string;
+
+  /**
+   * Makes a retry safe. Generate one id per submission (a UUID is ideal) and send the same one if the
+   * request has to be repeated, for example after a timeout: you get the post that was created the
+   * first time, not a second one. Scoped to you; the rest of a repeated request is ignored.
+   * @example 3f1c2a9e-5b7d-4e21-9a40-6c8f0d2b7e15
+   */
+  @IsOptional() @IsString() @Matches(/^[A-Za-z0-9_-]{8,64}$/, { message: "clientId must be 8 to 64 letters, digits, hyphens or underscores" }) clientId?: string;
 
   /** Legacy: message with optional `<!--mh:{…}-->` prefix. */
   @IsOptional() @IsString() @Length(1, 9000) content?: string;

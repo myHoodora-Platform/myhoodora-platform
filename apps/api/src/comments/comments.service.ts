@@ -1,11 +1,12 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException, OnModuleInit } from "@nestjs/common";
 import { InjectConnection, InjectModel } from "@nestjs/mongoose";
-import { Connection, Model, Types, type ClientSession } from "mongoose";
+import { Connection, Model, Types, type ClientSession, type QueryFilter } from "mongoose";
 import { ModerationRegistry } from "../moderation/moderation-registry";
 import { NotificationsService } from "../notifications/notifications.service";
 import { PostsService } from "../posts/posts.service";
 import type { Viewer } from "../shared/auth/viewer";
 import { withTransaction } from "../shared/db/transaction";
+import { THREAD_PAGE_MAX, type ThreadPageQuery } from "../shared/http/pagination";
 import { RealtimeService } from "../realtime/realtime.service";
 import { UsersService } from "../users/users.service";
 import { Comment, CommentDocument } from "./comment.schema";
@@ -64,16 +65,28 @@ export class CommentsService implements OnModuleInit {
     });
   }
 
-  async list(viewer: Viewer, postId: string): Promise<CommentView[]> {
+  /**
+   * A page of the thread, oldest first: the newest comments, or with `before` the ones just earlier
+   * than that comment. (It used to be the oldest 500 with no way past them, so on a busy post new
+   * comments were stored and never shown.)
+   */
+  async list(viewer: Viewer, postId: string, q: ThreadPageQuery = {}): Promise<CommentView[]> {
     await this.posts.loadVisible(viewer, postId);
     const hidden = await this.users.hiddenAuthorsFor(viewer.uid);
-    const rows = await this.comments
-      .find({ postId, deletedAt: null, removedAt: null, ...(hidden.length && { authorUid: { $nin: hidden } }) })
-      .sort({ createdAt: 1 })
-      .limit(500)
+    const filter: QueryFilter<Comment> = { postId, deletedAt: null, removedAt: null, ...(hidden.length && { authorUid: { $nin: hidden } }) };
+    if (q.before) {
+      // The cursor may since have been deleted or removed: it still marks a place in the thread.
+      const cursor = await this.comments.findOne({ _id: q.before, postId }).select({ createdAt: 1 }).lean<Pick<Comment, "createdAt"> & { _id: Types.ObjectId }>().exec();
+      if (!cursor) return [];
+      filter.$or = [{ createdAt: { $lt: cursor.createdAt } }, { createdAt: cursor.createdAt, _id: { $lt: cursor._id } }];
+    }
+    const newestFirst = await this.comments
+      .find(filter)
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(q.limit ?? THREAD_PAGE_MAX)
       .lean<(Comment & { _id: Types.ObjectId })[]>()
       .exec();
-    return this.toViews(rows);
+    return this.toViews(newestFirst.reverse());
   }
 
   async create(viewer: Viewer, postId: string, content: string): Promise<CommentView> {

@@ -85,6 +85,15 @@ export class FeedPost {
 
   @Prop() removedBy?: string;
 
+  /** The author has deactivated their account: hidden from neighbours until they come back (AccountLifecycle). */
+  @Prop() authorDeactivated?: boolean;
+
+  /**
+   * An id the client made up for this submission. Sending the same one again (a retry after a
+   * timeout) returns this post instead of creating another: see the unique index below.
+   */
+  @Prop() clientId?: string;
+
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -94,6 +103,8 @@ PostSchema.index({ neighborhoodId: 1, isActive: 1, createdAt: -1 });
 PostSchema.index({ neighborhoodId: 1, category: 1, createdAt: -1 });
 // The reminder scheduler scans events by date.
 PostSchema.index({ category: 1, eventDate: 1 });
+// One post per author per client-made id. Partial: posts without an id (older clients) are not constrained.
+PostSchema.index({ authorUid: 1, clientId: 1 }, { unique: true, partialFilterExpression: { clientId: { $type: "string" } } });
 
 /** One reaction per person per post (unique), replaces the unbounded likes[] array. */
 @Schema({ timestamps: true, collection: "reactions" })
