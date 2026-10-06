@@ -123,7 +123,9 @@ export class GroupsService implements OnModuleInit {
     const g = await this.raw(id);
     if (!g || g.archivedAt) throw new NotFoundException("This group doesn't exist any more.");
     if (inviteToken && sameToken(inviteToken, g.inviteToken)) return g;
-    if (await this.members.exists({ groupId: id, uid: viewer.uid }).exec()) return g;
+    // Membership opens a group only to someone who is (still) a verified neighbour: without a Hood,
+    // `reach` below answers 404, so a membership can't outlive a rejected verification.
+    if (viewer.hoodId && (await this.members.exists({ groupId: id, uid: viewer.uid }).exec())) return g;
     if (!this.inReach(g, await this.reach(viewer))) throw new NotFoundException("This group doesn't exist any more.");
     return g;
   }
@@ -276,7 +278,13 @@ export class GroupsService implements OnModuleInit {
     }
     await withTransaction(this.connection, async (session) => {
       const res = await this.members.deleteOne({ groupId: id, uid: viewer.uid }, { session }).exec();
-      if (res.deletedCount) await this.groups.updateOne({ _id: id }, { $inc: { memberCount: -1 } }, { session }).exec();
+      if (!res.deletedCount) return;
+      await this.groups.updateOne({ _id: id }, { $inc: { memberCount: -1 } }, { session }).exec();
+      // Nobody left: a group that stayed listed would take new members as plain members, with no admin
+      // to run it. Archived rather than deleted, so what former members posted isn't destroyed; like a
+      // group staff removed, it is hidden from everyone and keeps its name.
+      const remaining = await this.members.countDocuments({ groupId: id }).session(session).exec();
+      if (remaining === 0) await this.groups.updateOne({ _id: id }, { $set: { archivedAt: new Date() } }, { session }).exec();
     });
   }
 

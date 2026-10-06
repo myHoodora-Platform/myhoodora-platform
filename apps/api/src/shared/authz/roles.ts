@@ -28,6 +28,8 @@ export type Capability =
   | "moderation.act"
   | "moderation.suspend"
   | "verification.review"
+  /** See a neighbour's home address on their staff profile (contract §13.3: admins only). */
+  | "neighbours.address"
   | "hoods.manage"
   | "businesses.review"
   | "broadcasts.send"
@@ -43,6 +45,7 @@ const STAFF: Record<Exclude<Role, "member">, Capability[]> = {
     "moderation.act",
     "moderation.suspend",
     "verification.review",
+    "neighbours.address",
     "hoods.manage",
     "businesses.review",
     "broadcasts.send",
@@ -54,6 +57,7 @@ const STAFF: Record<Exclude<Role, "member">, Capability[]> = {
     "moderation.act",
     "moderation.suspend",
     "verification.review",
+    "neighbours.address",
     "hoods.manage",
     "businesses.review",
     "broadcasts.send",

@@ -38,6 +38,9 @@ describe("capabilitiesOf", () => {
     expect(can(member({ role: "moderator" }), "moderation.act")).toBe(true);
     expect(can(member({ role: "moderator" }), "moderation.suspend")).toBe(false);
     expect(can(member({ role: "admin" }), "moderation.suspend")).toBe(true);
+    expect(can(member({ role: "moderator" }), "neighbours.address")).toBe(false);
+    expect(can(member({ role: "admin" }), "neighbours.address")).toBe(true);
+    expect(can(member({ role: "owner" }), "neighbours.address")).toBe(true);
     expect(can(member({ role: "admin" }), "team.manage.admins")).toBe(false);
     expect(can(member({ role: "owner" }), "team.manage.admins")).toBe(true);
   });
