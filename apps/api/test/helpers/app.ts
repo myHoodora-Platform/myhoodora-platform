@@ -88,7 +88,7 @@ export class TestApp {
     return res.body as { _id: string };
   }
 
-  /** Rate limits are per IP and every test request shares one; call between cases that hit strict routes. */
+  /** Limits are per person, but per address on public routes, and every test request comes from one address; call between cases that hit strict routes. */
   resetThrottle() {
     const limiter = this.app.get(ThrottlerStorage) as unknown as { storage: Map<string, unknown>; timeoutIds: Map<string, NodeJS.Timeout[]> };
     // Cancel the expiry timers along with the counters they belong to, or they fire later against entries that are gone.
