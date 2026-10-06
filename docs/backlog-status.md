@@ -30,7 +30,7 @@ _As of 2 October 2026. Each line was checked against the code or by running it; 
 | Item | Status | Detail |
 | --- | --- | --- |
 | Fix `security.e2e-spec` event-date test | ✅ | Already corrected in the repository (uses a date 7 days ahead); the suite passes |
-| Run unit and e2e tests in CI | ✅ written · 🟡 first run | `.github/workflows/ci.yml` now runs lint, types, unit tests, API integration tests, the build, and the signed-out browser tests. It has not run on GitHub yet: watch the first run |
+| Run unit and e2e tests in CI | ✅ written · 🟡 first run | `.github/workflows/ci.yml` now runs lint, types, unit tests, API integration tests, the build, and the signed-out browser tests. It has not run on GitHub yet: watch the first run. On 6 October 2026 its push trigger was corrected from `develop` (a branch that does not exist) to `development`, it was moved to Node 24, and a secret-scanning job (gitleaks, over the commits each push or pull request adds) was added; none of that has run on GitHub either |
 | Stop `--fix` in the API lint script | ✅ | `lint` reports only; `lint:fix` fixes |
 | e2e for `/media`, `/search`, `/realtime` | ✅ | `test/media-search-realtime.e2e-spec.ts` (14 tests) |
 | Browser e2e (Playwright) for core flows | ✅ auth, session, admin, accessibility · ❌ resident flows | 39 tests pass. Posting, commenting, uploading and searching as a **verified resident** are not browser-tested: no verified test account exists. They are covered by API integration tests |

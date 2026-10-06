@@ -24,6 +24,8 @@ In production the API refuses to start if a **Required** variable is missing (`v
 | `CLOUDINARY_URL` | needed for uploads | `cloudinary://<key>:<secret>@<cloud>`. Without it `POST /media` answers 503. Its shape is checked at startup and it is never logged |
 | `STORAGE_PROVIDER` | no (default `cloudinary`) | Which storage adapter to use |
 | `STORAGE_MAX_CONCURRENT_UPLOADS` | no (default 4) | Uploads one instance sends to storage at once |
+| `STORAGE_DAILY_UPLOADS` | no (default 200) | Files one person may upload in any 24 hours (counted from the files they still have stored) |
+| `STORAGE_DAILY_UPLOAD_MB` | no (default 1024) | Total size, in MB, one person may upload in any 24 hours |
 | `STORAGE_DIRECT_UPLOADS` | no (default off) | `true` lets browsers upload videos straight to storage |
 | `REDIS_URL` | recommended with more than one instance | Live updates across instances. Without it: MongoDB change streams, then in-memory |
 | `REALTIME_BUS` | no (default `auto`) | `auto` \| `redis` \| `mongo` \| `memory` |
@@ -31,6 +33,8 @@ In production the API refuses to start if a **Required** variable is missing (`v
 | `SESSION_COOKIE_TTL_DAYS` | no (default 7) | Lifetime of the web session cookie; clamped to Firebase's 5 minutes–14 days |
 | `AUTH_REVOCATION_CACHE_SECONDS` | no (default 30, max 300) | How long the API trusts Firebase's last answer about a user's sessions. `0` asks Google on every request |
 | `NEARBY_BUFFER_M` | no (default 3000) | How far outside a Hood an address can be and still ask to join |
+| `HOOD_CHANGE_COOLDOWN_DAYS` | no (default 90) | Days a verified neighbour must wait before an address check can move them to a different Hood. `0` removes the wait |
+| `HOOD_ACCESS_STRICT` | no (default on) | Rollback switch for the Hood access rules (see [security.md](./security.md)). `false` restores the behaviour before October 2026. Temporary: remove once the rules have bedded in |
 | `EVENT_REMINDERS_ENABLED` | no (default on) | `false` pauses the reminder scheduler |
 | `MONGO_AUTO_INDEX` | no (default on) | `false` once indexes are managed in Atlas |
 | `SWAGGER_ENABLED` | no | `true` exposes `/api/docs` in production |

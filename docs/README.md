@@ -14,6 +14,10 @@ This directory is the project's documentation of record. If a README or a commen
 | [deployment.md](./deployment.md) | The release runbook: API first, then web, with checks and rollback |
 | [roadmap.md](./roadmap.md) | What comes next, and what is explicitly post-MVP |
 | [backlog-status.md](./backlog-status.md) | The outstanding-work list, item by item, with its real status |
+| [codebase-audit.md](./codebase-audit.md) | The October 2026 technical audit: every finding, its severity and status, the fix order and the implementation plan |
+| [implementation-summary.md](./implementation-summary.md) | What was implemented from that audit, what was not and why, and what to do next. Start here for the audit work |
+| [implementation-progress.md](./implementation-progress.md) | The audit, item by item: status, what was built, how it was tested |
+| [IMPLEMENTATION_NOTES.md](./IMPLEMENTATION_NOTES.md) | Decisions still needed, where the audit's plan was changed, and problems found along the way |
 | [api-contract.md](./api-contract.md) | Every API route and shape the web app relies on |
 | [product/](./product/) | Product research that shaped the design (Nextdoor study) |
 | [archive/](./archive/) | Old plans, audits and worklogs, kept for history. **Not current.** |
