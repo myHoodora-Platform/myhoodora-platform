@@ -1,8 +1,8 @@
 import { cn } from "@myhoodora/ui/utils";
 
-/** Bordered input style for in-app forms (auth pages keep their own look). */
+/** Bordered input style for in-app forms (auth pages keep their own look). 16px on phones: iOS zooms in on anything smaller. */
 export const fieldInputClass =
-  "w-full rounded-xl border border-input bg-card px-3.5 py-2.5 text-[15px] text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-ring/20 disabled:opacity-50 aria-[invalid=true]:border-destructive";
+  "w-full rounded-xl border border-input bg-card px-3.5 py-2.5 text-base text-foreground sm:text-[15px] outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-ring/20 disabled:opacity-50 aria-[invalid=true]:border-destructive";
 
 interface FieldProps {
   label: string;
