@@ -15,6 +15,8 @@ export const firebaseState = {
   getUserCalls: 0,
   /** Google's user lookup can't be reached: getUser fails as the Admin SDK does on a network error. */
   lookupDown: false,
+  /** Deleting a user fails (Firebase unreachable), until this is cleared. */
+  deleteDown: false,
   /** Google's signing keys can't be fetched: verification fails as the Admin SDK reports it (same code as a bad token; only the message differs). */
   keysDown: false,
 };
@@ -55,6 +57,11 @@ export const firebaseMock = {
       },
       revokeRefreshTokens: async (uid: string) => void revokedAt.set(uid, Math.floor(Date.now() / 1000) * 1000),
       updateUser: async () => undefined,
+      deleteUser: async (uid: string) => {
+        if (firebaseState.deleteDown) throw Object.assign(new Error("Error while making request: read ECONNRESET. Error code: ECONNRESET"), { code: "app/network-error" });
+        if (firebaseState.deleted.has(uid)) throw Object.assign(new Error("no such user"), { code: "auth/user-not-found" });
+        firebaseState.deleted.add(uid);
+      },
     }),
   }),
   initializeFirebase: () => undefined,

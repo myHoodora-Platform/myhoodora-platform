@@ -78,8 +78,9 @@ export class TestApp {
     return uid;
   }
 
+  /** A neighbour in full standing: address verified and email confirmed (pass `emailVerifiedAt: null` for one who hasn't). */
   async member(uid: string, hoodId: string, patch: Partial<User> = {}): Promise<string> {
-    return this.user(uid, { neighborhoodId: hoodId, verificationStatus: "verified", verifiedAt: new Date(), ...patch });
+    return this.user(uid, { neighborhoodId: hoodId, verificationStatus: "verified", verifiedAt: new Date(), emailVerifiedAt: new Date(), ...patch });
   }
 
   async post(uid: string, body: Record<string, unknown> = { message: "Hello neighbours" }) {
