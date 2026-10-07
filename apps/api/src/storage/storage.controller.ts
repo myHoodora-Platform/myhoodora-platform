@@ -4,6 +4,7 @@ import { ApiBody, ApiConsumes, ApiBearerAuth, ApiCreatedResponse, ApiNoContentRe
 import { Throttle } from "@nestjs/throttler";
 import { IsIn, IsInt, IsString, IsUrl, MaxLength, Min } from "class-validator";
 import { CurrentViewer, type Viewer } from "../shared/auth/viewer";
+import { whyNoWriting } from "../shared/authz/can.decorator";
 import { ApiNotFound, ApiStandardErrors, ErrorResponse } from "../shared/http/api-docs";
 import { ParseObjectIdPipe } from "../shared/http/pagination";
 import { MEDIA_PURPOSES, type MediaPurpose } from "./schemas/media-asset.schema";
@@ -18,8 +19,8 @@ import { removeTemp, UPLOAD_TMP_DIR } from "./temp-files";
  */
 function assertMayUpload(viewer: Viewer, purpose: MediaPurpose): void {
   if (viewer.capabilities.includes(purpose === "avatar" ? "profile.manage" : "content.create")) return;
-  // The same words CapabilityGuard uses for content.create, so the app's "verify first" prompt works here too.
-  throw new ForbiddenException(viewer.accountStatus !== "active" ? "Your account is restricted from posting right now." : "Verify your address to join your neighbourhood first.");
+  // The same words CapabilityGuard uses for content.create.
+  throw new ForbiddenException(whyNoWriting(viewer));
 }
 
 export class DirectUploadDto {

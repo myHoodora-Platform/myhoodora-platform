@@ -10,6 +10,12 @@ function sessionTtlMs(days: string | undefined): number {
   return Math.min(Math.max(requested, 5 * 60_000), 14 * DAY_MS);
 }
 
+/** off | dry-run | live. Anything else (including unset) is "dry-run": the safe reading of a typo is "don't delete". */
+function deletionMode(value: string | undefined): "off" | "dry-run" | "live" {
+  const mode = value?.trim().toLowerCase();
+  return mode === "off" || mode === "live" ? mode : "dry-run";
+}
+
 /** A whole number of 1 or more; anything else falls back to the default. */
 function positiveInt(value: string | undefined, fallback: number): number {
   const requested = Number(value);
@@ -85,6 +91,12 @@ export default () => ({
      * a deploy while it beds in, to be removed afterwards.
      */
     strictHoodAccess: process.env.HOOD_ACCESS_STRICT !== "false",
+    /**
+     * Posting and messaging need a confirmed email address as well as a verified address (decided
+     * 7 October 2026). On by default. EMAIL_CONFIRMATION_REQUIRED=false turns it off: needed wherever
+     * verification emails can't be delivered yet, or nobody who signed up with a password could post.
+     */
+    requireConfirmedEmail: process.env.EMAIL_CONFIRMATION_REQUIRED !== "false",
     /** Days after being verified before an address check may move a neighbour to a different Hood. 0 = no wait. HOOD_CHANGE_COOLDOWN_DAYS. */
     hoodChangeCooldownDays: days(process.env.HOOD_CHANGE_COOLDOWN_DAYS, 90),
   },
@@ -116,6 +128,16 @@ export default () => ({
      */
     dailyUploads: positiveInt(process.env.STORAGE_DAILY_UPLOADS, 200),
     dailyUploadBytes: positiveInt(process.env.STORAGE_DAILY_UPLOAD_MB, 1024) * 1024 * 1024,
+  },
+
+  /**
+   * Permanent deletion: accounts 30 days after they were deactivated (users/account-deletion.service.ts)
+   * and stored files that nothing uses any more (StorageService.sweepUnreferenced). Neither can be undone.
+   * DATA_DELETION_MODE: "dry-run" (default) finds what is due and logs it, changing nothing;
+   * "live" deletes; "off" does neither.
+   */
+  deletion: {
+    mode: deletionMode(process.env.DATA_DELETION_MODE),
   },
 
   /** Live updates across API instances (docs/api-contract.md §19). */

@@ -47,10 +47,16 @@ export class MediaAsset {
   @Prop() height?: number;
   @Prop() durationSeconds?: number;
 
+  /** When the unused-file sweep last looked at this file and found it still in use (StorageService.sweepUnreferenced). */
+  @Prop({ type: Date })
+  referenceCheckedAt?: Date;
+
   createdAt?: Date;
 }
 
 export const MediaAssetSchema = SchemaFactory.createForClass(MediaAsset);
+// The unused-file sweep takes the files it has gone longest without checking.
+MediaAssetSchema.index({ referenceCheckedAt: 1 });
 // A person's uploads over the last day (StorageService's daily allowance).
 MediaAssetSchema.index({ ownerUid: 1, createdAt: -1 });
 // Abandoned direct-upload tickets disappear on their own; ready files never expire.
