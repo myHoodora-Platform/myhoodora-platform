@@ -13,9 +13,9 @@ _As of 2 October 2026. Each line was checked against the code or by running it; 
 
 | Item | Status | Detail |
 | --- | --- | --- |
-| Rotate Cloudinary key | 🟡 | The real key was committed in `apps/api/.env.example` (commits `532fc3c`, `a8fa360`); the file is clean now but history is not. Generate a new key in the Cloudinary console, delete the old one, update the API host and local `.env`. Do this before pushing those commits anywhere |
-| Rotate MongoDB password | 🟡 | Atlas → Database Access → new password → update `MONGODB_URI` on the API host and locally |
-| Verify Resend sending domain | 🟡 | Add Resend's DNS records for the sending domain; create a sending-only key and the webhook. Until then mail only reaches the Resend account owner |
+| Rotate Cloudinary key | ✅ reported | **Reported rotated by the owner on 7 October 2026.** Not checkable from the repository: confirm the old key is refused by Cloudinary. Background: the real key was committed in `apps/api/.env.example` (commits `532fc3c`, `a8fa360`); the file is clean now but history is not. Generate a new key in the Cloudinary console, delete the old one, update the API host and local `.env`. Do this before pushing those commits anywhere |
+| Rotate MongoDB password | ✅ reported | **Reported changed by the owner on 7 October 2026.** Not checkable from the repository. (Atlas → Database Access → new password → update `MONGODB_URI` on the API host and locally) |
+| Verify Resend sending domain | 🟡 | Add Resend's DNS records for the sending domain; create a sending-only key and the webhook. Until then mail only reaches the Resend account owner. **Now blocks posting:** since 7 October 2026 posting and messaging need a confirmed email, and the confirmation link is sent by email. Until this is done, deploy the API with `EMAIL_CONFIRMATION_REQUIRED=false` |
 | Set production env on the API host | 🟡 | List in `environment.md`. The API now refuses to start in production if a required variable is missing, including Firebase credentials |
 | Run `pnpm migrate` in production | 🟡 | `migrate:dry` first. Idempotent (`migrations.e2e-spec`) |
 | Disable QA staff accounts at launch | 🟡 | Firebase console → disable; role → `member` |

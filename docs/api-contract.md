@@ -467,7 +467,7 @@ Body `{ reason, details? }`, where `reason` is one of `moved | not_useful | priv
 - Hide the profile, posts and listings. ✅ Posts and listings disappear for neighbours (staff still see them); what the person wrote in other people's threads, groups and conversations stays, under "Former neighbour" with no photo.
 - Revoke sessions. ✅
 - Restore everything if the user logs in. ✅ `reason` and `details` are kept on the account until then.
-- Purge after 30 days. ❌ **Not built.** Nothing is deleted or anonymised yet, and signing in restores the account however long it has been (see `codebase-audit.md`, B5).
+- Purge after 30 days. ✅ Built (§27). It runs only with `DATA_DELETION_MODE=live`; the default, `dry-run`, deletes nothing. Once live, signing in after 30 days answers `410` and no longer restores the account.
 
 ### Feedback: `POST /feedback`
 Body `{ kind: "idea" | "problem" | "praise" | "other", message (5–2000), path? }`. Goes to the team's inbox or admin queue.
@@ -779,7 +779,7 @@ Changes the backend made while implementing this contract. The web is already up
 - The link is `${APP_URL}/verify-email?token=…`. The token is 32 random bytes, stored only as a SHA-256 hash, valid 24 h and single use. Any newer link invalidates older ones.
 - `POST /auth/email-verification/confirm` `{ token }` → 204. Public and throttled. Invalid, used and expired tokens all get the **same** generic 400. On success we also mark the Firebase user `emailVerified` (best-effort).
 - `POST /auth/email-verification/resend` → 202. **429** after 3 links in an hour.
-- The web page `/verify-email` strips the token from the address bar, sends `Referrer-Policy: no-referrer` and never sends a token twice. Email verification is a nudge (banner), not a gate. Posting depends on address verification.
+- The web page `/verify-email` strips the token from the address bar, sends `Referrer-Policy: no-referrer` and never sends a token twice. Email verification was a nudge (banner), not a gate, until 2026-10-07: posting and messaging now need it as well as address verification (§27).
 
 **Webhooks:** `POST /api/webhooks/resend` receives Resend delivery events (Svix/Standard Webhooks signature on the raw body, 5-minute replay window, idempotent per `svix-id`, status never moves backwards). It returns 503 until `RESEND_WEBHOOK_SECRET` is set. It isn't used by the web.
 
@@ -1251,7 +1251,7 @@ The web server's own checks follow the same rule: `POST /api/auth/session` answe
 - `HOOD_ACCESS_STRICT=false` turns all five off (a temporary rollback switch).
 
 ### Neighbour detail: address for admins (B15)
-`GET /admin/neighbours/:uid` (and the same view returned by `POST …/actions`) includes `location` only for admins and owners, as §13.3 always said. Moderators get the rest unchanged, including `verificationAttempts`.
+`GET /admin/neighbours/:uid` (and the same view returned by `POST …/actions`) includes `location` only for admins and owners, as §13.3 always said. Moderators get the rest unchanged, including `verificationAttempts`. (Confirmed on 2026-10-07: moderators may see the addresses in verification attempts and in the verification queue; they need them to review address checks.)
 
 ### `POST /posts`: `clientId`, and alerts announced afterwards (B6)
 - New optional field `clientId` (8 to 64 letters, digits, `-` or `_`; a UUID is ideal). Send the same value when repeating a request (after a timeout): the response is the post created the first time, `201` again, and nothing is created or announced twice. Scoped to the author. Never returned.
@@ -1292,3 +1292,43 @@ See §10. `author` / `seller` / `participants[]` cards for someone who has deact
 
 ### Notifications
 A `title` over 140 characters or a `body` over 280 is shortened with "…", never refused (B18).
+
+## 27. Decisions of 7 October 2026
+
+The questions the audit left open, as the owner answered them, and what the API now does.
+
+### Posting and messaging need a confirmed email (audit B3)
+- `content.create` (posts, comments, listings, groups, group posts, media for any of them) and `messages.send` (starting a conversation, sending a message) need a confirmed email address as well as a verified address. Confirmed means our emailed link was followed, or the person signs in with a provider that has proved the address (Google).
+- Without it: `403 "Confirm your email address first. We sent you a link when you signed up; you can ask for a new one at the top of the app."` `GET /users/me` already reports `emailVerified`.
+- Unaffected: reading, reactions, RSVPs, reports, a profile photo, preferences, `POST /auth/email-verification/resend`. Staff capabilities do not depend on it.
+- `EMAIL_CONFIRMATION_REQUIRED=false` turns it off. **Needed wherever verification emails cannot be delivered yet.**
+
+### Privacy settings take effect (audit B23)
+- `privacy.profileVisibility: "nearby"` opens `GET /users/:uid/public` to verified neighbours of Hoods whose centre is within 5 km of the profile owner's, as well as their own Hood. `"neighbourhood"` (the default) is unchanged. Blocks still apply. It is the profile owner's setting that counts, not the viewer's.
+- `privacy.messaging: "contacts"` ("Only people I've messaged") lets someone start a new conversation only if the recipient has sent them a message before, in any conversation between the two. It used to refuse everyone, like `"nobody"`. Existing conversations carry on under every setting, as before.
+
+### Account deletion, 30 days after deactivation (audit B5)
+Runs as a background job per account, only when `DATA_DELETION_MODE=live` (`dry-run`, the default, logs what would go and changes nothing).
+
+| What | What happens to it |
+| --- | --- |
+| Posts, listings, comments, group posts | Deleted (comment counts adjusted) |
+| Uploaded files | Deleted from storage |
+| Group memberships and join requests | Removed. A group they alone ran passes to its longest-standing member, or is archived if nobody is left |
+| Hood Lead role, notifications, email-confirmation links, other people's blocks on them | Removed |
+| Firebase sign-in | Deleted |
+| The user record | Emptied of everything personal and marked `purgedAt`. The uid remains |
+| Conversations | **Kept for the other person, both sides.** The deleted person's uid is replaced, in `participantUids`, `members`, `startedBy`, `lastMessage` and every message's `senderUid`, by the stand-in `"deleted-user"`, whose card is `{ uid: "deleted-user", displayName: "Deleted User" }`. `POST /conversations/:id/messages` to such a conversation is `403 "This person has deleted their account, so they can't receive messages."` |
+| Moderation cases, reports, audit events | Kept, with the bare uid |
+
+- `GET /users/me` for a deleted account: `410 "This account has been deleted."` For an account deactivated more than 30 days ago while deletion is live: `410 "This account was deactivated more than 30 days ago and can no longer be restored."` In `dry-run` and `off`, signing in still restores the account however long it has been.
+- Author cards for a deleted account are `{ uid, displayName: "Deleted User" }`.
+- The only owner is never deleted: an error is logged until the role is handed on.
+
+### Media is deleted with its content (audit B13)
+An hourly sweep deletes stored files that nothing uses, in the same `DATA_DELETION_MODE`. A file counts as in use while a live post, listing or group, or someone's profile, has its URL; for one hour after its post or listing is deleted by its author; and for 31 days after staff remove the content (the appeal window). An upload never attached to anything is kept for 24 hours. Content restored after its window comes back without its media.
+
+### Left as they are
+- **Rate limits** keep the numbers in §26 (10/s, 60/min, 500/h), per person.
+- **The IP lookup** behind `/api/ip-location` (ip-api.com) stays.
+- **Moderators** may see the addresses in verification attempts and the verification queue. The profile `location` on `GET /admin/neighbours/:uid` remains admins-only, as §13.3 says.

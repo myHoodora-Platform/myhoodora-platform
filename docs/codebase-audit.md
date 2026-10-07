@@ -2,7 +2,7 @@
 
 _Audited 5 October 2026 against `development` at commit `c1a1811`. Nothing in this page has been fixed yet unless the status table says so._
 
-_Implementation began on 6 October 2026. The status table below reflects it; the detail (what was built, how it was tested, what was verified and what was not) is in [implementation-progress.md](./implementation-progress.md), and things found along the way, including four places where this page's recommendation was changed, are in [IMPLEMENTATION_NOTES.md](./IMPLEMENTATION_NOTES.md). "Implemented, not yet merged" means the change and its tests are in the working tree and pass locally: there is no pull request number to record yet._
+_Implementation ran on 6 and 7 October 2026. The status table below reflects it; the detail (what was built, how it was tested, what was verified and what was not) is in [implementation-progress.md](./implementation-progress.md), and the owner's decisions, the places where this page's recommendation was changed, and new findings are in [IMPLEMENTATION_NOTES.md](./IMPLEMENTATION_NOTES.md). Work from 6 October is on `development`; work from 7 October is in the working tree, not yet committed._
 
 This page records a technical audit of the repository: what is wrong, how serious it is, in what order to fix it, and how. It is written for engineers and coding agents who were not part of the audit, so every finding names its files and says how it was established.
 
@@ -45,34 +45,34 @@ Skimmed or not read: `inbound.service.ts`, `businesses.service.ts`, `admin-read.
 
 ## Status table
 
-Statuses: Open · In progress · Implemented, not yet merged · Fixed (PR #) · No longer applies · Won't fix (reason).
+Statuses: Open · In progress · Implemented, not yet committed · Merged to `development` (commits) · No longer applies · Won't fix (reason).
 
 | ID | Sev | Title | Confidence | Status |
 | --- | --- | --- | --- | --- |
-| [B1](#b1) | P0 | Storage credential in remote git history, rotation outstanding | Confirmed (rotation state unknown) | Open: rotation outstanding (needs the account owner). Secret scanning added to CI |
-| [B2](#b2) | P1 | A failed Firebase lookup signs everyone out | Confirmed | Implemented, not yet merged |
-| [B3](#b3) | P1 | Hood membership is self-asserted and unlimited | Confirmed | Implemented in part, not yet merged. Open: confirmed email (a decision) |
-| [B4](#b4) | P1 | Rejecting a verification does not remove Hood read access | Confirmed | Implemented, not yet merged |
-| [B5](#b5) | P1 | Deactivation leaves posts visible and never deletes anything | Confirmed | In progress: hiding implemented, not yet merged. Deletion not started (irreversible; awaits a decision) |
-| [B6](#b6) | P1 | Alert notifications are sent inside the POST request | Confirmed (threshold unmeasured) | Implemented, not yet merged |
-| [B7](#b7) | P1 | Per-IP rate limits versus direct browser traffic | Likely | Implemented in part, not yet merged. Deferred: Redis counters. Open: measured limits |
-| [B8](#b8) | P2 | Reports on an already-decided case are swallowed | Confirmed | Implemented, not yet merged |
-| [B9](#b9) | P2 | Suspended users cannot appeal their suspension | Confirmed | Implemented, not yet merged |
-| [B10](#b10) | P2 | Conversations stop showing new messages after 500 | Confirmed | Implemented, not yet merged (default page stays 500; see notes) |
-| [B11](#b11) | P2 | The person who started a conversation cannot report it | Confirmed | Implemented, not yet merged |
-| [B12](#b12) | P2 | Uploads need no capability and have no per-user quota | Confirmed | Implemented, not yet merged |
-| [B13](#b13) | P2 | Media is never deleted with its content | Confirmed | Open: deferred with the B5 deletion job |
-| [B14](#b14) | P2 | Unauthenticated geocoding proxies on the web server | Confirmed | Implemented, not yet merged. Open: IP lookup licence (a decision) |
-| [B15](#b15) | P2 | Moderators receive home addresses the contract reserves for admins | Confirmed | Implemented, not yet merged (contract as written). Open: addresses in verification attempts (a decision) |
-| [B16](#b16) | P2 | CI does not run on pushes to the working branch | Confirmed | Implemented, not yet merged. Needs a green run on GitHub |
-| [B17](#b17) | P2 | Node 20 is past end of life | Confirmed | Implemented, not yet merged. Not run on Node 24; hosts still to move |
-| [B18](#b18) | P3 | Group notifications can exceed length limits after the action committed | Confirmed | Implemented, not yet merged |
-| [B19](#b19) | P3 | A group can be left with no members and no admin | Confirmed | Implemented, not yet merged |
-| [B20](#b20) | P3 | Overturning a "keep" removes content without telling the author | Confirmed | Implemented, not yet merged |
-| [B21](#b21) | P3 | Bulk neighbour actions stop midway with no per-item result | Confirmed | Implemented, not yet merged |
-| [B22](#b22) | P3 | Hood resize skips the overlap check; legacy Hood writes are unaudited | Confirmed | Implemented, not yet merged |
-| [B23](#b23) | P3 | "Profile visibility" setting has no effect | Confirmed | Open: needs a decision (implement or remove the controls) |
-| [B24](#b24) | P3 | Some staff actions write their audit record outside the transaction | Confirmed | Implemented, not yet merged |
+| [B1](#b1) | P0 | Storage credential in remote git history, rotation outstanding | Confirmed (rotation state unknown) | Reported rotated by the owner, 7 October 2026 (not checkable from the repository). Secret scanning merged to `development` |
+| [B2](#b2) | P1 | A failed Firebase lookup signs everyone out | Confirmed | Merged to `development` (commits `f023ebc`..`f346439`) |
+| [B3](#b3) | P1 | Hood membership is self-asserted and unlimited | Confirmed | Merged to `development` (commits `f023ebc`..`f346439`). The confirmed-email rule (decided 7 October 2026) is implemented, not yet committed |
+| [B4](#b4) | P1 | Rejecting a verification does not remove Hood read access | Confirmed | Merged to `development` (commits `f023ebc`..`f346439`) |
+| [B5](#b5) | P1 | Deactivation leaves posts visible and never deletes anything | Confirmed | Hiding: merged to `development` (commits `f023ebc`..`f346439`). Deletion: implemented, not yet committed; it runs only with `DATA_DELETION_MODE=live` (default: dry run) |
+| [B6](#b6) | P1 | Alert notifications are sent inside the POST request | Confirmed (threshold unmeasured) | Merged to `development` (commits `f023ebc`..`f346439`) |
+| [B7](#b7) | P1 | Per-IP rate limits versus direct browser traffic | Likely | Merged to `development` (commits `f023ebc`..`f346439`). Limits kept at the old numbers, per person, as decided. Deferred: Redis counters |
+| [B8](#b8) | P2 | Reports on an already-decided case are swallowed | Confirmed | Merged to `development` (commits `f023ebc`..`f346439`) |
+| [B9](#b9) | P2 | Suspended users cannot appeal their suspension | Confirmed | Merged to `development` (commits `f023ebc`..`f346439`) |
+| [B10](#b10) | P2 | Conversations stop showing new messages after 500 | Confirmed | Merged to `development` (commits `f023ebc`..`f346439`) (default page stays 500; see notes) |
+| [B11](#b11) | P2 | The person who started a conversation cannot report it | Confirmed | Merged to `development` (commits `f023ebc`..`f346439`) |
+| [B12](#b12) | P2 | Uploads need no capability and have no per-user quota | Confirmed | Merged to `development` (commits `f023ebc`..`f346439`) |
+| [B13](#b13) | P2 | Media is never deleted with its content | Confirmed | Implemented, not yet committed (same deletion switch as B5) |
+| [B14](#b14) | P2 | Unauthenticated geocoding proxies on the web server | Confirmed | Merged to `development` (commits `f023ebc`..`f346439`). IP lookup kept as it is, as decided |
+| [B15](#b15) | P2 | Moderators receive home addresses the contract reserves for admins | Confirmed | Merged to `development` (commits `f023ebc`..`f346439`). Profile address for admins; moderators keep verification-attempt addresses, as decided |
+| [B16](#b16) | P2 | CI does not run on pushes to the working branch | Confirmed | Merged to `development` (commits `f023ebc`..`f346439`). Confirm the workflow ran green on GitHub |
+| [B17](#b17) | P2 | Node 20 is past end of life | Confirmed | Merged to `development` (commits `f023ebc`..`f346439`). Confirm CI passed on Node 24; hosts still to move |
+| [B18](#b18) | P3 | Group notifications can exceed length limits after the action committed | Confirmed | Merged to `development` (commits `f023ebc`..`f346439`) |
+| [B19](#b19) | P3 | A group can be left with no members and no admin | Confirmed | Merged to `development` (commits `f023ebc`..`f346439`) |
+| [B20](#b20) | P3 | Overturning a "keep" removes content without telling the author | Confirmed | Merged to `development` (commits `f023ebc`..`f346439`) |
+| [B21](#b21) | P3 | Bulk neighbour actions stop midway with no per-item result | Confirmed | Merged to `development` (commits `f023ebc`..`f346439`) |
+| [B22](#b22) | P3 | Hood resize skips the overlap check; legacy Hood writes are unaudited | Confirmed | Merged to `development` (commits `f023ebc`..`f346439`) |
+| [B23](#b23) | P3 | "Profile visibility" setting has no effect | Confirmed | Implemented, not yet committed |
+| [B24](#b24) | P3 | Some staff actions write their audit record outside the transaction | Confirmed | Merged to `development` (commits `f023ebc`..`f346439`) |
 | [B25](#b25) | P3 | Express 5 declared, Express 4 running | Suspected hazard | Open: deferred to the hardening phase |
 
 ## Architecture as audited

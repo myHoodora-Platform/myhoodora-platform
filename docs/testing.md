@@ -27,6 +27,9 @@ They boot the real `AppModule` against `mongodb-memory-server` in replica-set mo
 | `deactivation` | Deactivating hides posts, listings and the person's name; signing in restores them |
 | `moderation-fixes` | Reopening a decided case, appeals by a suspended account, reporting a conversation, overturning a "keep" |
 | `paging` | Messages and comments past 500: newest page first, `before` and `limit` |
+| `email-confirmation` | Posting and messaging need a confirmed email; reading, reacting and reporting don't; the off switch |
+| `privacy-settings` | "Who can see your full profile" and "Only people I've messaged" doing what they say |
+| `account-deletion` | Deletion 30 days after deactivation, in live, dry-run and off modes: what goes, what stays, conversations kept with "Deleted User", retries; and the sweep that deletes stored files nothing uses |
 | `staff-and-groups` | Bulk neighbour actions per neighbour, Hood resize overlap, audited legacy Hood routes, staff actions atomic with their audit record, the last member leaving a group |
 | `media-search-realtime` | Upload, ownership and deletion of media; search scoping and validation; the live event stream |
 | `broadcasts` | Batched delivery, no duplicates on re-run, the double-send guard, failure and retry, resume after restart |

@@ -1,181 +1,178 @@
 # Audit implementation summary
 
-_What was done on 6 October 2026 to implement [codebase-audit.md](./codebase-audit.md), on `development` at commit `c1a1811`. Item-by-item detail is in [implementation-progress.md](./implementation-progress.md); decisions still needed, changes to the audit's plan and new findings are in [IMPLEMENTATION_NOTES.md](./IMPLEMENTATION_NOTES.md)._
+_What was done on 6 and 7 October 2026 to implement [codebase-audit.md](./codebase-audit.md). Item-by-item detail is in [implementation-progress.md](./implementation-progress.md); the owner's decisions, changes to the audit's plan and new findings are in [IMPLEMENTATION_NOTES.md](./IMPLEMENTATION_NOTES.md)._
 
 ## Executive summary
 
-Twenty of the audit's 25 findings are implemented, plus the first half of a twenty-first (B5) and the two pieces of groundwork they needed (a background job runner and a missing database index). Eighteen of the twenty are verified locally by regression tests; the other two (B16 and B17) are configuration changes that only a CI run can confirm. The full API and web suites, type-check, lint and production build pass with everything in place.
+Twenty-three of the audit's 25 findings are now implemented and tested. One more (B1, the exposed credentials) was reported rotated by the owner, and one (B25) is deferred. Redis-backed rate-limit counters, part of B7, are also deferred. The full API and web suites, type-check, lint and production build pass with everything in place.
 
-Read these four points before relying on that:
+The work came in two rounds:
 
-1. **Nothing is committed, deployed or run in CI.** The work is in the working tree for review. It was verified on one Windows workstation running Node 25, with Firebase stubbed and MongoDB in memory. It has not met real Firebase, Atlas, Cloudinary or a browser.
-2. **The P0 is still open.** The exposed Cloudinary key and MongoDB password (B1) can only be replaced by whoever holds those accounts. This should happen before anything else.
-3. **The privacy policy is still untrue.** Deactivating an account now hides the person and their posts, as the settings dialog promises. Deleting their data after 30 days, which the privacy policy promises, is not built. It was left out on purpose: it is irreversible, the audit says to ship it separately in dry-run mode, and it waits on a legal decision.
-4. **Seven questions need an owner's answer.** They are listed in the notes. In each case the code does the cautious thing in the meantime.
+- **6 October:** twenty findings and the groundwork they needed. This is committed and pushed to `development` (commits `f023ebc`..`f346439`).
+- **7 October:** the owner's answers to the seven open decisions: a confirmed email to post or message, the privacy settings, account deletion 30 days after deactivation, and deleting media with its content. This is in the working tree, not yet committed.
 
-Six places where the audit's recommendation was not followed as written are explained in the notes. The most important: the audit said the web app needed no change for B2, but the web server had the same sign-everyone-out flaw in its own token check, and that was fixed too.
+Three things must happen outside the code before this is safe to deploy:
+
+1. **Set `EMAIL_CONFIRMATION_REQUIRED=false` on the API host until verification emails can be delivered.** Posting now needs a confirmed email, the confirmation link goes by email, and the Resend sending domain is still unverified. Deployed as it stands, nobody who signed up with a password could post or message.
+2. **Deletion starts as a dry run.** `DATA_DELETION_MODE` defaults to `dry-run`: it logs what it would delete and deletes nothing. The privacy policy's 30-day promise is kept only once it is set to `live`, which cannot be undone.
+3. **Count the accounts the access changes affect** before deploying: those with a Hood on record but no verification (B4), and verified accounts with no confirmed email (B3).
+
+Everything was verified on one Windows workstation running Node 25, with Firebase stubbed and MongoDB in memory. It has not met real Firebase, Atlas, Cloudinary or a browser, and whether CI has run could not be checked from here.
 
 ## Completed audit items
 
 "Verified" means locally, as described above.
 
-| ID | Sev | What changed | Status |
+| ID | Sev | What changed | Round |
 | --- | --- | --- | --- |
-| B2 | P1 | When Google is unreachable the API answers 503, never 401, and reuses a user's last known session state for up to 5 minutes. The web server's own token check got the same fix | Verified |
-| B3 | P1 | A verified neighbour can move Hood by address check once every 90 days, and the move is audited. Hood centres and radii go only to staff and a Hood's own members | Verified, except requiring a confirmed email (a decision) |
-| B4 | P1 | Only verified neighbours read a Hood. Rejecting a verification removes the Hood. Group membership no longer outlives it | Verified |
-| B5 (hide) | P1 | Deactivating hides the person's posts and listings and replaces their name with "Former neighbour" elsewhere. Signing in restores everything | Verified. Deletion: see Deferred |
-| B6 | P1 | Alerts are announced by a background job after the response, in batches, each neighbour once. A retried post with the same `clientId` is the same post | Verified |
-| B7 | P1 | Rate limits are per person once signed in. Event posts carry their RSVPs. The web handles 429 properly | Verified, except Redis-backed counters (deferred) and measured limits (a decision) |
-| B8 | P2 | A new report reopens a decided case when the content is still up | Verified |
-| B9 | P2 | A suspended account can read its decisions and notifications and file an appeal | Verified |
-| B10 | P2 | Messages and comments return the newest page, with a cursor for earlier ones. The chat thread has "Load earlier messages" | Verified |
-| B11 | P2 | Either person in a conversation can report it; nobody else can | Verified |
-| B12 | P2 | Uploading media for content needs the standing to post. Each person has a daily upload allowance | Verified |
-| B14 | P2 | The web server's three lookup routes need a session, are limited per person, validate input and time out | Verified |
-| B15 | P2 | A neighbour's profile address goes to admins only, as the contract says | Verified |
-| B16 | P2 | CI triggers on `development` | Implemented; needs a green run on GitHub |
-| B17 | P2 | The repository pins Node 24 | Implemented; not run on Node 24 |
-| B18 | P3 | Over-long notification titles and bodies are shortened, not refused | Verified |
-| B19 | P3 | A group whose last member leaves is archived | Verified |
-| B20 | P3 | Overturning a "keep" records the removal and tells the author, who can appeal | Verified |
-| B21 | P3 | Bulk neighbour actions report on each neighbour and don't stop at the first failure | Verified |
-| B22 | P3 | Growing a Hood into its neighbour is refused. The old Hood write routes are audited | Verified |
-| B24 | P3 | Staff actions commit together with their audit record | Verified |
-| — | — | Job runner (`apps/api/src/jobs`) and the `blockedUids` index | Verified |
+| B1 | P0 | Reported rotated by the owner (not checkable from the repository). Secret scanning added to CI | 1, 2 |
+| B2 | P1 | A Google outage is 503, never 401; a user's last known session state is reused for up to 5 minutes. The web server's own token check got the same fix | 1 |
+| B3 | P1 | A verified neighbour can move Hood by address check once every 90 days, audited. Hood boundaries go only to staff and a Hood's own members. Posting and messaging need a confirmed email | 1, 2 |
+| B4 | P1 | Only verified neighbours read a Hood. Rejecting a verification removes the Hood | 1 |
+| B5 | P1 | Deactivating hides the person and their posts. Thirty days later the account is deleted; the other person keeps each conversation, with "Deleted User" in place of the name and no id pointing at anyone | 1, 2 |
+| B6 | P1 | Alerts are announced by a background job after the response, in batches, each neighbour once. A retried post with the same `clientId` is the same post | 1 |
+| B7 | P1 | Rate limits are per person once signed in, at the existing numbers. Event posts carry their RSVPs. The web handles 429 properly | 1 |
+| B8 | P2 | A new report reopens a decided case when the content is still up | 1 |
+| B9 | P2 | A suspended account can read its decisions and notifications and file an appeal | 1 |
+| B10 | P2 | Messages and comments return the newest page, with a cursor for earlier ones | 1 |
+| B11 | P2 | Either person in a conversation can report it; nobody else can | 1 |
+| B12 | P2 | Uploading media for content needs the standing to post. Each person has a daily upload allowance | 1 |
+| B13 | P2 | Stored files nothing uses are deleted: an hour after a post or listing is deleted, 31 days after staff remove content | 2 |
+| B14 | P2 | The web server's three lookup routes need a session, are limited per person, validate input and time out | 1 |
+| B15 | P2 | A neighbour's profile address goes to admins only, as the contract says | 1 |
+| B16 | P2 | CI triggers on `development` | 1 |
+| B17 | P2 | The repository pins Node 24 | 1 |
+| B18 | P3 | Over-long notification titles and bodies are shortened, not refused | 1 |
+| B19 | P3 | A group whose last member leaves is archived | 1 |
+| B20 | P3 | Overturning a "keep" records the removal and tells the author, who can appeal | 1 |
+| B21 | P3 | Bulk neighbour actions report on each neighbour and don't stop at the first failure | 1 |
+| B22 | P3 | Growing a Hood into its neighbour is refused. The old Hood write routes are audited | 1 |
+| B23 | P3 | "Who can see your full profile" and "Only people I've messaged" now do what they say | 2 |
+| B24 | P3 | Staff actions commit together with their audit record | 1 |
+| — | — | Job runner (`apps/api/src/jobs`) and the `blockedUids` index | 1 |
+
+## The seven decisions
+
+| # | Decision | What was done |
+| --- | --- | --- |
+| 1 | Mark the credentials as rotated | Recorded in the audit, `security.md` and `backlog-status.md` as reported rotated on 7 October 2026 |
+| 2 | Posting requires a confirmed email | Built for posting **and messaging**, as the audit's item proposed. Say if messaging should be left out |
+| 3 | Moderators may see addresses | No code change: they keep the addresses in verification attempts and the queue. The profile `location` on the neighbour page stays admins-only, as the contract says. Say if that should open too |
+| 4 | Deletion clears the person's id from conversations; the other side is kept and shows "Deleted User" | Built that way, as part of the full deletion job |
+| 5 | Leave the IP lookup | Unchanged |
+| 6 | Keep the rate-limit numbers, per person | Unchanged |
+| 7 | Implement profile visibility | Built, with the messaging option the same audit entry covers |
 
 ## Deferred items
 
-| ID | Sev | Why it was not done | What it needs |
+| ID | Sev | Why | What it needs |
 | --- | --- | --- | --- |
-| B1 | P0 | Rotating credentials happens in the Cloudinary and Atlas consoles | The account owner. Secret scanning for new commits was added to CI |
-| B5 (delete) | P1 | Irreversible. The audit says not to combine it with hiding, to run it in dry-run mode for a week first, and to confirm with a lawyer what happens to other people's copies of conversations and to moderation records | That decision, then the job, built on the new job runner |
-| B13 | P2 | The audit ties media deletion to the B5 deletion job ("one discard mechanism") | Ships with B5 deletion |
 | B7, part 2 | P1 | Redis-backed rate-limit counters only matter when the API runs as more than one instance | A decision to scale out |
-| B3, part 4 | P1 | Requiring a confirmed email before posting locks out existing unconfirmed accounts | A product decision |
-| B23 | P3 | "Implement the settings or remove the controls" is a product choice | A product decision |
 | B25 | P3 | A dependency alignment the audit places in its hardening phase; no defect found | Its own change, with a full test run |
 
-The audit's improvement lists and product enhancements were not started, apart from the two pieces of groundwork above.
+The audit's improvement lists and product enhancements were not started, apart from the job runner and the index.
 
 ## Files changed
 
-114 files: 83 modified and 31 new, of which 17 are test files. In the modified files, code and configuration account for about 1,600 added lines and 300 removed.
+Round 1 is in git history (commits `f023ebc`..`f346439`). Round 2, uncommitted: 41 files modified and 4 new.
 
-| Area | Significant changes |
+| Area | Round 2 changes |
 | --- | --- |
-| API, authentication | `firebase-auth.guard.ts` splits "bad token" (401) from "couldn't check" (503). `session-revocation.service.ts` has the typed error and the bounded reuse of old answers. New `firebase-outage.ts` |
-| API, access | `account.guard.ts` gives a Hood only to verified neighbours. `users.service.ts` (cooldown, deactivation), `staff-users.service.ts`, `hoods.controller.ts` (boundaries), `groups.service.ts`. New `users/account-lifecycle.ts` |
-| API, throughput | New `jobs/` module. `notifications.service.ts` writes in batches. `posts.service.ts` (fan-out job, `clientId`, embedded RSVPs). New `shared/throttle/throttle.guards.ts`; `app.module.ts` now has five global guards |
-| API, storage | `storage.controller.ts` (capability per purpose), `storage.service.ts` (daily allowance) |
-| API, moderation and staff | `moderation.service.ts`, `appeals.service.ts`, `moderation.controller.ts`, `chat.service.ts`, `admin.controllers.ts`, `content-actions.service.ts`, `hoods.service.ts`, `leads-roster.service.ts` |
-| API, threads | `chat.service.ts`, `comments.service.ts`, `shared/http/pagination.ts` |
-| Web | `lib/auth/session-cookie.ts`, `proxy.ts`, the session route (B2). `lib/api/client.ts` (429). New `lib/auth/lookup-guard.ts` and the three lookup routes (B14). Composer `clientId`, RSVP buttons, chat "load earlier", the admin bulk dialog |
-| Configuration | `.github/workflows/ci.yml` (branch, Node 24, secret scan), `package.json` (`engines`), `turbo.json` and `.env.example` (four new variables) |
-| Docs | `api-contract.md` (new §26 and corrections), `security.md`, `testing.md`, `environment.md`, `current-state.md`, `backlog-status.md`, the audit's status table, and three new pages |
+| Confirmed email | `shared/authz/roles.ts` (the rule), `account.guard.ts`, `can.decorator.ts` (one place decides what to tell someone who may not write), `storage.controller.ts`; the web's email banner |
+| Privacy settings | `users.service.ts` (`publicProfile`), `hoods.service.ts` (`nearbyHoodIds`), `chat.service.ts` |
+| Deletion | New `users/account-deletion.service.ts`. `users/account-lifecycle.ts` gained `purge`; posts, listings, comments, groups, chat, Hood Leads, notifications, email verification and storage each register their part. `users.service.ts` refuses to restore a deleted or expired account |
+| Media clean-up | `storage.service.ts` (`sweepUnreferenced`, reference sources), `storage.module.ts` (hourly timer); posts, listings, groups and users declare what they still use |
+| Web | `conversation-thread.tsx` and `lib/api/users.ts` show "Deleted User" with no profile link and no composer |
+| Configuration and docs | Two new variables; `api-contract.md` §27; `security.md`, `testing.md`, `environment.md`, `backlog-status.md`, `current-state.md`, the audit's status table and the three implementation pages |
 
-One test helper was changed for a reason unrelated to the audit: `test/helpers/web-contract.ts` assumed LF line endings, which made a whole suite fail on Windows checkouts.
-
-**Suggested commits**, since the audit asks for some of these to ship apart: (1) CI branch and secret scan; (2) Node 24, alone; (3) B2; (4) the index; (5) B4, B3 and B15; (6) the job runner; (7) B6; (8) B7; (9) B12; (10) B5 hiding; (11) B8, B9, B11, B20; (12) B10; (13) B14; (14) B18, B19, B21, B22, B24; (15) docs.
+**Suggested commits for round 2:** (1) confirmed email; (2) privacy settings; (3) account deletion with media clean-up; (4) docs.
 
 ## Database changes
 
-All additive. There is no migration script, and no existing data is rewritten.
+All additive, in both rounds. No migration script; no existing data is rewritten by deploying.
 
-| Collection | Change |
-| --- | --- |
-| `users` | New index on `blockedUids`. New optional fields `lastNeighborhoodId` and `deactivation` |
-| `posts` | New optional fields `clientId` and `authorDeactivated`. New unique index on `(authorUid, clientId)`, partial: it applies only to posts that have a `clientId`, and no existing post does |
-| `listings` | New optional field `sellerDeactivated` |
-| `media_assets` | New index on `(ownerUid, createdAt)` |
-| `reports`, `moderation_cases` | New optional fields `reportedUid` and `reopenedAt` |
-| `jobs` | New collection, with indexes on `(status, runAt)`, a unique partial index on `dedupeKey`, and a 7-day expiry for finished jobs |
+| Collection | Round 1 | Round 2 |
+| --- | --- | --- |
+| `users` | Index on `blockedUids`; fields `lastNeighborhoodId`, `deactivation` | Field `purgedAt` |
+| `posts` | Fields `clientId`, `authorDeactivated`; unique partial index on `(authorUid, clientId)` | Index on `mediaUrls` |
+| `listings` | Field `sellerDeactivated` | Index on `photos` |
+| `media_assets` | Index on `(ownerUid, createdAt)` | Field `referenceCheckedAt` and an index on it |
+| `reports`, `moderation_cases` | Fields `reportedUid`, `reopenedAt` | — |
+| `jobs` | New collection | New job type `account.purge` |
 
-**Before deploying:**
+**Data that changes at run time:**
 
-- Take an Atlas backup.
-- Count the accounts B4 affects (they have a Hood on record but are not verified, and will stop reading it). The query is in the audit under B4.
-- The new indexes are built at start-up by `autoIndex`. On large collections build them in Atlas first, as the audit advises.
+- Rejecting a verification clears `neighborhoodId` (kept in `lastNeighborhoodId`).
+- Deactivating flags the person's posts and listings; signing in removes the flags.
+- **With `DATA_DELETION_MODE=live` only:** accounts deactivated more than 30 days ago are deleted, and stored files nothing uses are deleted. Neither can be reversed except from a backup.
 
-**Data that changes at run time:** rejecting a verification now clears `neighborhoodId` (the old value is kept in `lastNeighborhoodId`). Deactivating flags the person's posts and listings; signing in removes the flags.
+**Before deploying:** take an Atlas backup; run the two count queries (in the audit under B4, and in the notes under finding 12); build the new indexes in Atlas first if the collections are large.
 
-**Rollback:** every schema change is additive, so the previous build runs against the same data. `HOOD_ACCESS_STRICT=false` turns the B3 and B4 rules off without a deploy.
+**Rollback:** the previous build runs against the same data. `HOOD_ACCESS_STRICT=false`, `EMAIL_CONFIRMATION_REQUIRED=false` and `DATA_DELETION_MODE=off` each turn one change off without a deploy.
 
 ## API changes
 
-Full detail is in `api-contract.md` §26. All are compatible with the web build that is live today except where marked.
+Full detail is in `api-contract.md` §26 (round 1) and §27 (round 2). Round 2:
 
-- **New status codes on existing routes:** 503 from any authenticated route when Google is unreachable (was 401). 409 from `POST /users/me/verify-location` inside the cooldown. 403 and 429 from the upload routes. 400 from `change_hood` on an unverified neighbour. 409 from a Hood resize that overlaps.
-- **Narrower responses:** `GET /neighborhoods*` omits centre and radius for most callers (**breaking** for a client that used other Hoods' geometry; the web does not). `GET /admin/neighbours/:uid` omits `location` for moderators. Unverified accounts get 404 from Hood-scoped routes.
-- **New optional inputs:** `clientId` on `POST /posts`. `before` and `limit` on the messages and comments lists.
-- **New response fields:** `rsvp` on event posts. `results` on the bulk neighbour action. `reopenedAt` on reports, and `reported` on each report in the detail view.
-- **Changed defaults:** messages and comments return the newest 500, not the oldest 500. Rate limits count per person. A rate-limiter 429 has a friendlier message and a `Retry-After` header.
-- **Opened to suspended accounts:** their decisions, appeals, and notifications.
-- **Web server routes:** `/api/geocode`, `/api/reverse-geocode` and `/api/ip-location` now need a session cookie.
+- **403 on writing without a confirmed email:** posts, comments, listings, groups, content uploads, starting a conversation, sending a message. The message says to confirm the email.
+- **`GET /users/:uid/public`** answers for verified neighbours of a nearby Hood when the profile's owner chose "Nearby neighbourhoods too".
+- **`POST /conversations`** with the recipient set to "Only people I've messaged" succeeds for someone they have written to.
+- **410 from `GET /users/me`** for a deleted account, and for one deactivated more than 30 days ago once deletion is live.
+- **Conversations with a deleted person** carry the stand-in uid `"deleted-user"` and the card `{ displayName: "Deleted User" }`; sending to one is 403.
+- **Author cards** for a deleted account are `{ uid, displayName: "Deleted User" }`.
 
 ## Tests added and modified
 
-| | Before | After |
-| --- | --- | --- |
-| API integration | 11 suites, 118 tests | 20 suites, 230 tests |
-| API unit | 18 suites, 115 tests | 19 suites, 128 tests |
-| Web unit | 32 files, 177 tests | 39 files, 238 tests |
+| | Before the audit work | After round 1 | Now |
+| --- | --- | --- | --- |
+| API integration | 11 suites, 118 tests | 20 suites, 230 tests | 23 suites, 271 tests |
+| API unit | 18 suites, 115 tests | 19 suites, 128 tests | 19 suites, 129 tests |
+| Web unit | 32 files, 177 tests | 39 files, 238 tests | 39 files, 238 tests |
 
-- **Nine new API integration suites:** `hood-access`, `jobs`, `alert-fanout`, `rate-limits`, `upload-rules`, `deactivation`, `moderation-fixes`, `paging`, `staff-and-groups`. `security` and `moderation-engagement` were extended.
-- **The Firebase stub can now fail** the way the real SDK does, which is what made B2 invisible before.
-- **Two contract tests run the real `firebase-admin` SDK** with its network blocked, one per app. The outage detection matches on the SDK's message text, so these fail if an upgrade rewords it.
-- **No existing test was weakened or deleted.** One existing unit spec (`storage.service.spec.ts`) needed its stand-in model extended, because the service now makes a query it did not make before; this was caught by running the full unit suite.
-- **Not covered:** the CORS `exposedHeaders` line; anything rendered in a browser (the web has no component-test setup); the CI workflow itself.
+- **Three new suites in round 2:** `email-confirmation` (8), `privacy-settings` (8), `account-deletion` (25: deletion in live, dry-run and off modes, and the media sweep).
+- **The test harness's "member" now has a confirmed email**, because a member is someone who can post. Tests that need an unconfirmed neighbour ask for one.
+- **The Firebase stub can delete a user**, and can fail to.
+- **No existing test was weakened or deleted.**
+- **Not covered:** anything rendered in a browser, including the "Deleted User" conversation screen; the CI workflow; the CORS `exposedHeaders` line.
 
 ## Verification results
 
-Run on 6 October 2026, Windows 10, Node v25.2.1, pnpm 9.15.9.
+Run on 7 October 2026, Windows 10, Node v25.2.1, pnpm 9.15.9, against the current tree (round 1 as merged, plus round 2).
 
 | Command | Result |
 | --- | --- |
-| `pnpm --filter @myhoodora/api test:e2e` | Pass: 20 suites, 230 tests |
-| `pnpm --filter @myhoodora/api test` | Pass: 19 suites, 128 tests |
+| `pnpm --filter @myhoodora/api test:e2e` | Pass: 23 suites, 271 tests |
+| `pnpm --filter @myhoodora/api test` | Pass: 19 suites, 129 tests |
 | `pnpm --filter web test` | Pass: 39 files, 238 tests |
-| `pnpm run lint` (root, all packages) | Pass |
-| `pnpm run check-types` (root, all packages) | Pass |
+| `pnpm run lint` (root) | Pass |
+| `pnpm run check-types` (root) | Pass |
 | `pnpm run build` (root: API and web production builds) | Pass |
 | Playwright browser tests | **Not run** |
 | The same on Node 24 | **Not run**: no Node 24 on this machine |
-| GitHub Actions | **Not run**: nothing was pushed |
-| Secret scan job | **Not run**: needs GitHub Actions |
-
-Checked against the final diff:
-
-1. Every item marked Verified has a test that exercises the fixed behaviour.
-2. No P0 to P2 item was skipped silently: each is implemented, or listed above with its reason.
-3. The changed-file list contains only files these fixes needed; the build left no tracked file modified.
-4. The application builds.
-5. The docs named in the audit's "Definition of done" were updated with the behaviour.
+| GitHub Actions | **Not checked**: the GitHub CLI is not installed here |
 
 ## Remaining risks
 
 | Risk | Why it matters | What reduces it |
 | --- | --- | --- |
-| Credentials are still exposed (B1) | Anyone with repository access can read or delete all stored media, and reach the database | Rotate both now |
-| The privacy policy promises deletion that does not happen | A legal exposure that grows with each deactivation | Build the deletion job, or correct the policy until it exists |
-| B4 changes who can read | Accounts with a Hood on record but no verification lose access on deploy | Count them first. `HOOD_ACCESS_STRICT=false` reverses it without a deploy |
-| Nothing ran on Node 24 or in CI | The pinned runtime and the workflow edits are untested | Push to a branch and watch the first run before merging behaviour changes |
-| Rate-limit numbers are unmeasured | 60 a minute per person may be too tight for a busy page, or too loose | Measure a feed and an events page load, as the audit asks |
-| Limits and job polling are per instance | With several API instances the effective rate limit multiplies | Redis-backed counters before scaling out. Jobs are already safe across instances |
-| Jobs can run more than once | A handler that is not safe to repeat would duplicate its effect | The one handler today is. Keep the rule for new ones (it is documented on `JobsService`) |
-| Outage detection matches SDK message text | A `firebase-admin` upgrade could reword it | The two contract tests fail if it does |
-| The web changes were not seen in a browser | "Load earlier messages", the RSVP buttons, the bulk-action toast and the composer were type-checked and unit-tested only | Click through them before release |
-| A suspended person has no screen leading to their appeal | B9 opened the route, not the path to it | Finding 4 in the notes |
+| Confirmed email with undeliverable email | Nobody with a password sign-up could post or message | `EMAIL_CONFIRMATION_REQUIRED=false` until the Resend domain is verified and a real link arrives |
+| Deletion is irreversible | A wrong deletion can only be undone from a backup | It starts as a dry run; read a week of logs and back up before `live` |
+| Deletion is off until someone turns it on | Until then the privacy policy's promise is not kept | Schedule the switch to `live` |
+| The media sweep trusts each module to say what it uses | A place that stores a file's URL without declaring it would have its files deleted | Four sources exist today (posts, listings, groups, profile photos) and the sweep refuses to run if any is missing. A new place that stores upload URLs must register |
+| Two decisions were read narrowly | Messaging was included in the email rule; the profile address stays admins-only | Both are marked in the notes and are small to change |
+| What deletion leaves | The bare uid stays on moderation history, reactions, votes and RSVPs. Business applications and support threads were not examined | Finding 13 in the notes; a question for the lawyer review |
+| A deletion job that keeps failing stops being retried | That account stays undeleted until someone looks | Alert on failed `account.purge` jobs (finding 14) |
+| B4 changes who can read | Accounts with a Hood on record but no verification lose access on deploy | Count them first. `HOOD_ACCESS_STRICT=false` reverses it |
+| Nothing ran on Node 24 here; CI not checked | The pinned runtime and the workflow edits are unconfirmed | Look at the Actions runs for the pushes already made |
+| Rate-limit counters and job polling are per instance | With several API instances the effective limit multiplies | Redis-backed counters before scaling out |
+| The web changes were not seen in a browser | Type-checked and unit-tested only | Click through them before release |
 
 ## Recommended next steps
 
-In order:
-
-1. **Rotate the Cloudinary key and the Atlas password** (B1).
-2. **Review and commit this work** in the groups suggested above, push to a branch, and get a green CI run on Node 24.
-3. **Answer the seven decisions** in the notes. Decision 4 (deletion) unblocks the largest remaining item.
-4. **Build the B5 deletion job with B13**, in dry-run mode first, on the job runner. Correct the privacy policy in the meantime if this will take more than a few days.
-5. **Before deploying:** back up, count the accounts B4 affects, build the new indexes, and deploy the API before the web.
-6. **Click through the changed web screens**, and add the suspended-account screen (finding 4).
-7. **Measure page loads and set the rate limits**; add Redis-backed counters before running more than one API instance.
-8. **Then the audit's later phases:** the shared visibility predicate (it would have prevented B4), generated API types, observability, and the hardening list, including B25 and restricting remote image URLs.
+1. **Set `EMAIL_CONFIRMATION_REQUIRED=false` on the API host**, then verify the Resend sending domain and remove it.
+2. **Review and commit round 2**, and check the Actions runs for round 1 (this settles B16 and B17).
+3. **Before deploying:** back up, run the two count queries, build the new indexes, deploy the API before the web.
+4. **Run deletion as a dry run for a week**, read the log lines, back up, then set `DATA_DELETION_MODE=live`.
+5. **Confirm the two narrow readings** (messaging under the email rule; the profile address for moderators).
+6. **Click through the changed web screens**, and add a suspended-account screen and a clean sign-out on 410 (findings 4 and 15).
+7. **Then the audit's later phases:** the shared visibility predicate, generated API types, observability, and the hardening list, including B25 and Redis-backed counters.

@@ -4,21 +4,23 @@ _Things found while implementing [codebase-audit.md](./codebase-audit.md) that t
 
 Three kinds of entry:
 
-- **[Decisions still needed](#decisions-still-needed)**: questions only the owner can answer. Each says what was done in the meantime.
+- **[Decisions](#decisions)**: the questions only the owner could answer, how they were answered, and how each answer was read.
 - **[Corrections to the audit](#corrections-to-the-audit)**: where the audit's recommendation did not match the code, what was done instead, and why.
 - **[New findings](#new-findings)**: problems outside the task in hand. Recorded and, unless stated, not fixed, so that each change stays reviewable.
 
-## Decisions still needed
+## Decisions
 
-| # | Question | Audit item | What the code does now |
-| --- | --- | --- | --- |
-| 1 | Has the Cloudinary key been replaced and the Atlas password changed? | B1 | Nothing in the repository can do this. Secret scanning was added to CI for new commits |
-| 2 | Should posting and messaging need a confirmed email? It would lock out existing accounts that never confirmed | B3, part 4 | Not required, as before |
-| 3 | May moderators see the address a neighbour typed during an address check? They need it for the verification queue, but the contract says addresses are for admins | B15 | The profile address (`location`) is admins-only, as the contract says. Verification attempts are unchanged and still carry the typed address |
-| 4 | When an account is deleted, what happens to the other person's copy of a conversation, and may moderation records keep the uid? The audit asks for a lawyer's answer | B5, deletion | Deletion is not implemented (see the progress page). Deactivation hides the person; nothing is ever deleted |
-| 5 | Replace or license ip-api.com? Its free tier is HTTP-only and for non-commercial use | B14 | Still used as the last fallback when GPS fails and the host provides no location headers. It is now behind sign-in, a per-person limit, input validation and a timeout |
-| 6 | What should the per-person rate limits be? The audit asks for a browser measurement of a feed and an events page load first | B7 | The old numbers (10 a second, 60 a minute, 500 an hour), now per person instead of per address |
-| 7 | Implement "profile visibility" and the "contacts" messaging option, or remove the controls? | B23 | Unchanged: the controls are stored and have no effect |
+All seven were answered by the owner on 7 October 2026. Two answers were read narrowly; those readings are marked, so they can be corrected.
+
+| # | Question | Audit item | Answer | What the code does now |
+| --- | --- | --- | --- | --- |
+| 1 | Have the Cloudinary key and the Atlas password been replaced? | B1 | Mark them as rotated | Recorded as reported rotated. Nothing in the repository can confirm it: check once that the old Cloudinary key is refused |
+| 2 | Should posting need a confirmed email? | B3, part 4 | Yes | Posting **and messaging** need one, as the audit proposed (`content.create` and `messages.send`). **Reading of the answer:** it said "posting"; messaging was included because the audit's item covers both. `EMAIL_CONFIRMATION_REQUIRED=false` turns the whole rule off. **It must stay off until verification emails can be delivered** (see finding 12) |
+| 3 | May moderators see addresses? | B15 | Yes | Moderators keep the addresses in verification attempts and the verification queue. **Reading of the answer:** the question asked was about those. The profile `location` on the neighbour page is still admins-only, as the contract says; opening it too is a one-line change |
+| 4 | What does deleting an account do to conversations? | B5, deletion | The other person keeps the conversation; the deleted person's id is cleared and shown as "Deleted User" | Built that way. Moderation cases and audit events keep the bare uid, which the answer did not cover: that is the audit's own default |
+| 5 | Replace or license ip-api.com? | B14 | Leave it | Unchanged. Its free tier is HTTP-only and for non-commercial use; that remains true |
+| 6 | What should the rate limits be? | B7 | The current numbers, per person | Unchanged: 10 a second, 60 a minute, 500 an hour, per person |
+| 7 | Implement "profile visibility", or remove it? | B23 | Implement | Implemented, along with the "Only people I've messaged" option the same audit entry covers |
 
 ## Corrections to the audit
 
@@ -134,12 +136,12 @@ Severity uses the audit's scale.
 - **Severity:** P3. Comments now return the newest 500, so a post with more shows "500".
 - **Recommended action:** take the count from the post (`commentCount`), then add "load earlier" using the `before` cursor the API now accepts.
 
-### 10. The privacy policy still promises deletion after 30 days
+### 10. The privacy policy's 30-day promise depends on a switch
 
-- **Problem:** the policy says that 30 days after deactivation "we delete or anonymise your personal data". Nothing does. This is B5's second step, deferred here because it is irreversible and waiting on decision 4.
-- **Location:** `apps/web/src/components/legal/privacy-policy.tsx`, `apps/api/src/users/users.service.ts`.
-- **Severity:** P1 (the audit's own rating for B5).
-- **Recommended action:** implement the deletion job in dry-run mode, as the audit's roadmap describes, as soon as decision 4 is made. Until then the policy text is inaccurate.
+- **Problem:** the policy says that 30 days after deactivation "we delete or anonymise your personal data". The job that does it now exists, but `DATA_DELETION_MODE` starts at `dry-run`, as the audit asked, so nothing is deleted until someone sets it to `live`.
+- **Location:** `apps/api/src/users/account-deletion.service.ts`, `apps/api/src/config/configuration.ts`.
+- **Severity:** P1 until it is live.
+- **Recommended action:** deploy, read a week of `[dry run]` log lines, take an Atlas backup, set `DATA_DELETION_MODE=live`.
 
 ### 11. Running the integration tests downloads a 600 MB MongoDB archive
 
@@ -147,3 +149,31 @@ Severity uses the audit's scale.
 - **Location:** `apps/api/test/setup/global-setup.ts` (`mongodb-memory-server` defaults).
 - **Severity:** P3 (developer experience; slow or metered connections).
 - **Recommended action:** pin the download directory (`MONGOMS_DOWNLOAD_DIR`) so every package shares one copy, and cache it in CI.
+
+### 12. Requiring a confirmed email depends on email that is not yet deliverable
+
+- **Problem:** `backlog-status.md` lists "Verify Resend sending domain" as outstanding: until it is done, mail reaches only the Resend account owner. The confirmation link is sent by email, so with the new rule on, nobody who signed up with a password could confirm, and so nobody could post or message. People who sign in with Google are unaffected.
+- **Location:** `apps/api/src/shared/authz/roles.ts`, `apps/api/src/verification/email-verification.service.ts`.
+- **Severity:** P0 for a deploy that leaves the rule on before the domain is verified.
+- **Recommended action:** set `EMAIL_CONFIRMATION_REQUIRED=false` on the API host now. Verify the sending domain, confirm a real verification email arrives, then remove the variable. Before that, count the accounts it will affect: `db.users.countDocuments({ verificationStatus: "verified", emailVerifiedAt: null, deactivatedAt: null })`.
+
+### 13. What account deletion leaves behind
+
+- **Problem:** after deletion the uid, and nothing else about the person, remains on: moderation cases, reports and audit events (deliberately); their reactions, poll votes and RSVPs (so counts stay right); the email delivery log (`communications`, which holds no address or body); and business applications and support threads, which were not examined in the audit or here.
+- **Location:** `apps/api/src/users/account-deletion.service.ts` and the modules registered with `AccountLifecycle`.
+- **Severity:** P2. A uid with no record behind it identifies nobody, but business applications and support threads hold names, emails and message text typed by the person.
+- **Recommended action:** have the lawyer review confirm the retained items, and decide what deletion should do to business applications and support threads.
+
+### 14. A deletion that keeps failing stops being retried
+
+- **Problem:** a deletion job that fails five times is kept as `failed` and logged as an error. That account is then not queued again, so it stays undeleted until someone looks.
+- **Location:** `apps/api/src/jobs/jobs.service.ts`, `apps/api/src/users/account-deletion.service.ts`.
+- **Severity:** P2 (a deletion that silently never happens is the failure the job exists to prevent).
+- **Recommended action:** alert on `failed` jobs of type `account.purge`. The same applies to the only-owner case, which is logged hourly and deletes nothing.
+
+### 15. A deleted or expired account is left on an error screen
+
+- **Problem:** `GET /users/me` answers 410 for a deleted account, and for one past its 30 days once deletion is live. The web shows its generic "couldn't load your account" state and leaves the person signed in to Firebase.
+- **Location:** `apps/web/src/context/AuthContext.tsx`.
+- **Severity:** P3.
+- **Recommended action:** on 410, sign out and show the message the API sent.
