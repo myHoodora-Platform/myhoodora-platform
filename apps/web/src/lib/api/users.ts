@@ -32,7 +32,15 @@ export function rememberAuthor(card: { uid: string; displayName: string; photoUR
  * remembered as posts/comments load; seeded neighbours resolve in preview;
  * anyone else shows as "Neighbour" (detail screens fetch GET /users/:uid/public).
  */
+/**
+ * What the API puts where a deleted person's id used to be, in conversations
+ * the other person keeps (docs/api-contract.md §27). It points at nobody:
+ * there is no profile behind it and nothing can be sent to it.
+ */
+export const DELETED_USER_UID = "deleted-user";
+
 export function resolveAuthor(uid: string, viewer: Viewer): PublicProfile {
+  if (uid === DELETED_USER_UID) return { uid, displayName: "Deleted User", verified: false };
   if (viewer.user && uid === viewer.user.uid) {
     const extras = myProfileExtras(uid);
     return {

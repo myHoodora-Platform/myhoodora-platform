@@ -1,4 +1,4 @@
-import { BadRequestException, HttpException, HttpStatus, Injectable, Logger } from "@nestjs/common";
+import { BadRequestException, HttpException, HttpStatus, Injectable, Logger, type OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { InjectModel } from "@nestjs/mongoose";
 import { createHash, randomBytes } from "node:crypto";
@@ -6,6 +6,7 @@ import { Model, type ClientSession } from "mongoose";
 import { CommunicationsService } from "../communications/communications.service";
 import { verifyEmail, welcomeVerifyEmail } from "../communications/templates/email-templates";
 import { getFirebaseAdmin } from "../config/firebase.config";
+import { AccountLifecycle } from "../users/account-lifecycle";
 import { User, UserDocument } from "../users/schemas/user.schema";
 import { EmailVerification, EmailVerificationDocument } from "./email-verification.schema";
 
@@ -25,7 +26,7 @@ export function hashToken(raw: string): string {
  * resend, generic failure message, raw token never logged or stored.
  */
 @Injectable()
-export class EmailVerificationService {
+export class EmailVerificationService implements OnModuleInit {
   private readonly logger = new Logger(EmailVerificationService.name);
 
   constructor(
@@ -33,7 +34,15 @@ export class EmailVerificationService {
     @InjectModel(User.name) private readonly users: Model<UserDocument>,
     private readonly comms: CommunicationsService,
     private readonly config: ConfigService,
+    private readonly accounts: AccountLifecycle,
   ) {}
+
+  onModuleInit() {
+    this.accounts.register({
+      name: "email-verification",
+      purge: async (uid, dryRun) => ({ emailLinks: dryRun ? await this.tokens.countDocuments({ uid }).exec() : (await this.tokens.deleteMany({ uid }).exec()).deletedCount }),
+    });
+  }
 
   /** Create a token (inside the registration transaction). Returns the raw token for the email only. */
   async issue(uid: string, session?: ClientSession): Promise<string> {

@@ -21,6 +21,7 @@ import { ALLOW_SUSPENDED_KEY, type Viewer } from "./viewer";
 @Injectable()
 export class AccountGuard implements CanActivate {
   private readonly strictHoodAccess: boolean;
+  private readonly requireConfirmedEmail: boolean;
 
   constructor(
     private readonly reflector: Reflector,
@@ -28,6 +29,7 @@ export class AccountGuard implements CanActivate {
     config: ConfigService,
   ) {
     this.strictHoodAccess = config.get<boolean>("verification.strictHoodAccess") !== false;
+    this.requireConfirmedEmail = config.get<boolean>("verification.requireConfirmedEmail") !== false;
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -42,18 +44,21 @@ export class AccountGuard implements CanActivate {
       throw new UnauthorizedException("Invalid or expired token");
     }
     const verificationStatus = doc?.verificationStatus ?? "unverified";
+    // Confirmed with us (our emailed link), or already proved by the sign-in provider (Google).
+    const emailVerified = Boolean(doc?.emailVerifiedAt) || req.user.email_verified === true;
     const subject = {
       role: doc?.role ?? "member",
       accountStatus: doc?.accountStatus ?? "active",
       verificationStatus,
       hoodId: (verificationStatus === "verified" || !this.strictHoodAccess ? doc?.neighborhoodId : null) || null,
       restrictedUntil: doc?.restrictedUntil ?? null,
+      emailConfirmed: emailVerified || !this.requireConfirmedEmail,
     } as const;
 
     const viewer: Viewer = {
       uid: req.user.uid,
       email: doc?.email ?? req.user.email,
-      emailVerified: Boolean(doc?.emailVerifiedAt) || req.user.email_verified === true,
+      emailVerified,
       displayName: doc?.displayName,
       role: subject.role,
       accountStatus: effectiveAccountStatus(subject),
