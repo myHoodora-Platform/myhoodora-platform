@@ -9,6 +9,7 @@ import type { Viewer } from "../shared/auth/viewer";
 import { withTransaction } from "../shared/db/transaction";
 import { THREAD_PAGE_MAX, type ThreadPageQuery } from "../shared/http/pagination";
 import { User, UserDocument } from "../users/schemas/user.schema";
+import { AccountLifecycle, DELETED_USER_UID } from "../users/account-lifecycle";
 import { UsersService } from "../users/users.service";
 import type { StartConversationDto } from "./chat.dto";
 import { Conversation, ConversationDocument, Message, type ChatContext } from "./chat.schemas";
@@ -48,10 +49,12 @@ export class ChatService implements OnModuleInit {
     private readonly notifications: NotificationsService,
     private readonly registry: ModerationRegistry,
     private readonly realtime: RealtimeService,
+    private readonly accounts: AccountLifecycle,
   ) {}
 
   /** Reports use targetType "message" with the conversation id (contract §5). */
   onModuleInit() {
+    this.accounts.register({ name: "chat", purge: (uid, dryRun) => this.purgeParticipant(uid, dryRun) });
     this.registry.register({
       type: "message",
       load: async (id) => {
@@ -83,6 +86,48 @@ export class ChatService implements OnModuleInit {
     const c = Types.ObjectId.isValid(id) ? await this.conversations.findById(id).lean<ConvRow>().exec() : null;
     if (!c || c.removedAt || !c.participantUids.includes(viewer.uid)) throw new NotFoundException("Conversation not found.");
     return c;
+  }
+
+  /**
+   * An account is being deleted. The other person keeps every conversation, with both sides of it:
+   * it is their correspondence too. What goes is the deleted person's id, replaced everywhere by a
+   * stand-in that clients show as "Deleted User" and that points at nobody.
+   */
+  private async purgeParticipant(uid: string, dryRun: boolean): Promise<Record<string, number>> {
+    const theirs = await this.conversations.find({ participantUids: uid }).lean<ConvRow[]>().exec();
+    const ids = theirs.map((c) => String(c._id));
+    const sent = { conversationId: { $in: ids }, senderUid: uid };
+    const counts = { conversations: ids.length, messages: ids.length ? await this.messages.countDocuments(sent).exec() : 0 };
+    if (dryRun || !ids.length) return counts;
+    const swap = (u: string) => (u === uid ? DELETED_USER_UID : u);
+    await this.messages.updateMany(sent, { $set: { senderUid: DELETED_USER_UID } }).exec();
+    for (const c of theirs) {
+      await this.conversations
+        .updateOne(
+          { _id: c._id },
+          {
+            $set: {
+              participantUids: c.participantUids.map(swap),
+              members: c.members.map((m) => ({ ...m, uid: swap(m.uid) })),
+              startedBy: swap(c.startedBy),
+              // The key was built from both uids. Nobody can start a conversation with the stand-in, so it only has to stay unique.
+              threadKey: `deleted:${String(c._id)}`,
+              ...(c.lastMessage && { lastMessage: { ...c.lastMessage, senderUid: swap(c.lastMessage.senderUid) } }),
+            },
+          },
+          // Not "activity": the other person's inbox keeps its order.
+          { timestamps: false },
+        )
+        .exec();
+    }
+    return counts;
+  }
+
+  /** Has `from` ever sent `to` a message, in any conversation the two share? */
+  private async hasWrittenTo(from: string, to: string): Promise<boolean> {
+    const shared = await this.conversations.find({ participantUids: { $all: [from, to] } }).select({ _id: 1 }).lean<{ _id: Types.ObjectId }[]>().exec();
+    if (!shared.length) return false;
+    return Boolean(await this.messages.exists({ conversationId: { $in: shared.map((c) => String(c._id)) }, senderUid: from }).exec());
   }
 
   private async blockedBetween(a: string, b: string): Promise<boolean> {
@@ -139,7 +184,9 @@ export class ChatService implements OnModuleInit {
 
     // New thread: respect the recipient's messaging preference (contract §10).
     const pref = recipient.preferences?.privacy?.messaging ?? "neighbourhood";
-    if (pref === "nobody" || pref === "contacts") throw new ForbiddenException(`${recipient.displayName ?? "This neighbour"} isn't accepting new messages.`);
+    // "Only people I've messaged": someone the recipient has themselves written to, in any conversation between the two.
+    const closed = pref === "nobody" || (pref === "contacts" && !(await this.hasWrittenTo(recipient.uid, viewer.uid)));
+    if (closed) throw new ForbiddenException(`${recipient.displayName ?? "This neighbour"} isn't accepting new messages.`);
     if (pref === "neighbourhood" && recipient.neighborhoodId !== viewer.hoodId && !context) {
       throw new ForbiddenException(`${recipient.displayName ?? "This neighbour"} only accepts messages from their neighbourhood.`);
     }
@@ -214,6 +261,8 @@ export class ChatService implements OnModuleInit {
     const text = body.trim();
     if (!text) throw new BadRequestException("Write a message first.");
     const others = c.participantUids.filter((u) => u !== viewer.uid);
+    // They can still read it; there is nobody left to write to.
+    if (others.includes(DELETED_USER_UID)) throw new ForbiddenException("This person has deleted their account, so they can't receive messages.");
     if (await this.blockedBetween(viewer.uid, others[0]!)) throw new ForbiddenException("You can't message this neighbour.");
 
     const msg = await withTransaction(this.connection, async (session) => {

@@ -10,7 +10,7 @@ import { UserAvatar } from "@/components/shared/user-avatar";
 import { useAuth } from "@/context/AuthContext";
 import { useViewer } from "@/hooks/use-neighbourhood";
 import { getConversation, listMessages, sendMessage, sendTyping } from "@/lib/api/chat";
-import { resolveAuthor } from "@/lib/api/users";
+import { DELETED_USER_UID, resolveAuthor } from "@/lib/api/users";
 import { formatNaira } from "@/lib/format";
 import { useRealtime, useRealtimeResync } from "@/lib/realtime/use-realtime";
 import { ROUTES } from "@/lib/routes";
@@ -146,6 +146,8 @@ export function ConversationThread({ id }: { id: string }) {
 
   const otherUid = otherParticipant(convo, user.uid);
   const other = resolveAuthor(otherUid, viewer);
+  // They deleted their account. The conversation is still ours to read; there is nobody to write to or to visit.
+  const otherDeleted = otherUid === DELETED_USER_UID;
 
   const items: ChatItem[] = [
     ...messages.map((m) => ({ id: m._id, mine: m.senderUid === user.uid, body: m.body, at: m.createdAt })),
@@ -160,21 +162,30 @@ export function ConversationThread({ id }: { id: string }) {
         <Link href={ROUTES.inbox} aria-label="Back to messages" className="flex size-10 items-center justify-center rounded-full hover:bg-muted lg:hidden">
           <ArrowLeft className="size-5" />
         </Link>
-        <Link href={ROUTES.profile(otherUid)} className="flex min-w-0 flex-1 items-center gap-3">
-          <UserAvatar person={other} />
-          <div className="min-w-0">
-            <p className="truncate font-bold">{other.displayName}</p>
-            {other.neighborhoodName && <p className="truncate text-xs text-muted-foreground">{other.neighborhoodName}</p>}
+        {otherDeleted ? (
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <UserAvatar person={other} />
+            <p className="truncate font-bold text-muted-foreground">{other.displayName}</p>
           </div>
-        </Link>
-        <button
-          type="button"
-          onClick={() => setReporting(true)}
-          aria-label="Report this conversation"
-          className="flex size-10 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"
-        >
-          <Flag className="size-4" />
-        </button>
+        ) : (
+          <Link href={ROUTES.profile(otherUid)} className="flex min-w-0 flex-1 items-center gap-3">
+            <UserAvatar person={other} />
+            <div className="min-w-0">
+              <p className="truncate font-bold">{other.displayName}</p>
+              {other.neighborhoodName && <p className="truncate text-xs text-muted-foreground">{other.neighborhoodName}</p>}
+            </div>
+          </Link>
+        )}
+        {!otherDeleted && (
+          <button
+            type="button"
+            onClick={() => setReporting(true)}
+            aria-label="Report this conversation"
+            className="flex size-10 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"
+          >
+            <Flag className="size-4" />
+          </button>
+        )}
       </div>
 
       {/* What the chat is about */}
@@ -215,7 +226,13 @@ export function ConversationThread({ id }: { id: string }) {
         }
       />
 
-      <ChatComposer value={draft} onChange={setDraft} onSend={send} label={`Message ${other.displayName}`} inputRef={inputRef} />
+      {otherDeleted ? (
+        <p className="border-t border-border p-4 text-center text-sm text-muted-foreground">
+          This person has deleted their account. You can still read your conversation, but you can&apos;t send new messages.
+        </p>
+      ) : (
+        <ChatComposer value={draft} onChange={setDraft} onSend={send} label={`Message ${other.displayName}`} inputRef={inputRef} />
+      )}
 
       <ReportDialog open={reporting} onOpenChange={setReporting} target={{ targetType: "message", targetId: id }} />
     </>
