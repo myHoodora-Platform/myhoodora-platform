@@ -103,6 +103,8 @@ PostSchema.index({ neighborhoodId: 1, isActive: 1, createdAt: -1 });
 PostSchema.index({ neighborhoodId: 1, category: 1, createdAt: -1 });
 // The reminder scheduler scans events by date.
 PostSchema.index({ category: 1, eventDate: 1 });
+// "Is this stored file still used by a post?" (StorageService.sweepUnreferenced).
+PostSchema.index({ mediaUrls: 1 });
 // One post per author per client-made id. Partial: posts without an id (older clients) are not constrained.
 PostSchema.index({ authorUid: 1, clientId: 1 }, { unique: true, partialFilterExpression: { clientId: { $type: "string" } } });
 

@@ -33,3 +33,5 @@ export class Listing {
 
 export const ListingSchema = SchemaFactory.createForClass(Listing);
 ListingSchema.index({ neighborhoodId: 1, deletedAt: 1, removedAt: 1, createdAt: -1 });
+// "Is this stored file still used by a listing?" (StorageService.sweepUnreferenced).
+ListingSchema.index({ photos: 1 });

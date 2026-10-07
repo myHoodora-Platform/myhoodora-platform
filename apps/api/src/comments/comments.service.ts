@@ -8,6 +8,7 @@ import type { Viewer } from "../shared/auth/viewer";
 import { withTransaction } from "../shared/db/transaction";
 import { THREAD_PAGE_MAX, type ThreadPageQuery } from "../shared/http/pagination";
 import { RealtimeService } from "../realtime/realtime.service";
+import { AccountLifecycle } from "../users/account-lifecycle";
 import { UsersService } from "../users/users.service";
 import { Comment, CommentDocument } from "./comment.schema";
 
@@ -31,9 +32,11 @@ export class CommentsService implements OnModuleInit {
     private readonly notifications: NotificationsService,
     private readonly registry: ModerationRegistry,
     private readonly realtime: RealtimeService,
+    private readonly accounts: AccountLifecycle,
   ) {}
 
   onModuleInit() {
+    this.accounts.register({ name: "comments", purge: (uid, dryRun) => this.purgeAuthor(uid, dryRun) });
     this.registry.register({
       type: "comment",
       load: async (id) => {
@@ -124,6 +127,25 @@ export class CommentsService implements OnModuleInit {
       if (!c.removedAt) await this.posts.incCommentCount(c.postId, -1, session);
     });
     this.announce(post, "comment.deleted", id);
+  }
+
+  /**
+   * An account is being deleted: their comments are deleted as if they had deleted each one, and
+   * every post's comment count comes down by the ones that were still showing. One transaction, so
+   * a retry can't take the counts down twice.
+   */
+  private async purgeAuthor(uid: string, dryRun: boolean): Promise<Record<string, number>> {
+    const theirs = { authorUid: uid, deletedAt: null };
+    if (dryRun) return { comments: await this.comments.countDocuments(theirs).exec() };
+    return withTransaction(this.connection, async (session) => {
+      const showing = await this.comments
+        .aggregate<{ _id: string; n: number }>([{ $match: { ...theirs, removedAt: null } }, { $group: { _id: "$postId", n: { $sum: 1 } } }])
+        .session(session)
+        .exec();
+      const res = await this.comments.updateMany(theirs, { $set: { deletedAt: new Date() } }, { session }).exec();
+      for (const post of showing) await this.posts.incCommentCount(post._id, -post.n, session);
+      return { comments: res.modifiedCount };
+    });
   }
 
   /** Live update for the post's thread, and its comment count on feed cards. */

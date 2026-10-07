@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable, type OnModuleInit } from "@nestjs/common";
 import { InjectConnection, InjectModel } from "@nestjs/mongoose";
 import { Connection, Model } from "mongoose";
 import { AuditService } from "../audit/audit.service";
@@ -6,6 +6,7 @@ import { HoodsService } from "../hoods/hoods.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import type { Viewer } from "../shared/auth/viewer";
 import { withTransaction } from "../shared/db/transaction";
+import { AccountLifecycle } from "../users/account-lifecycle";
 import { User, UserDocument } from "../users/schemas/user.schema";
 import { HoodRole } from "./moderation.schemas";
 
@@ -22,7 +23,7 @@ export interface LeadCard {
 
 /** Who leads which Hood. No dependency on the rest of moderation. */
 @Injectable()
-export class LeadsRosterService {
+export class LeadsRosterService implements OnModuleInit {
   constructor(
     @InjectModel(HoodRole.name) private readonly roles: Model<HoodRole>,
     @InjectModel(User.name) private readonly users: Model<UserDocument>,
@@ -30,7 +31,15 @@ export class LeadsRosterService {
     private readonly hoods: HoodsService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
+    private readonly accounts: AccountLifecycle,
   ) {}
+
+  onModuleInit() {
+    this.accounts.register({
+      name: "hood-leads",
+      purge: async (uid, dryRun) => ({ hoodLeadRoles: dryRun ? await this.roles.countDocuments({ uid }).exec() : (await this.roles.deleteMany({ uid }).exec()).deletedCount }),
+    });
+  }
 
   /** Leads who can still act (verified, active, still in that Hood). */
   private async activeLeadUids(hoodId: string): Promise<string[]> {

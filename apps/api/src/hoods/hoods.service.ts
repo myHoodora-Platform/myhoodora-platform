@@ -23,6 +23,9 @@ export interface NearbyHood {
   distanceMeters: number;
 }
 
+/** How close two Hoods' centres must be for them to count as "nearby" each other (groups, profile visibility). */
+export const NEARBY_HOOD_METERS = 5_000;
+
 /** Rows written before migration 002 still have isActive instead of status. */
 const OPEN: QueryFilter<Neighborhood> = { $or: [{ status: "active" }, { status: { $exists: false }, isActive: { $ne: false } }] };
 
@@ -147,6 +150,14 @@ export class HoodsService {
     return this.hoods
       .find({ ...OPEN, location: { $near: { $geometry: { type: "Point", coordinates: [lng, lat] }, $maxDistance: maxDistanceMeters } } })
       .exec();
+  }
+
+  /** The open Hoods that count as nearby this one, itself included. Empty if the Hood has no centre on record. */
+  async nearbyHoodIds(hoodId: string): Promise<string[]> {
+    const hood = Types.ObjectId.isValid(hoodId) ? await this.hoods.findById(hoodId).exec() : null;
+    const point = hood?.location?.coordinates;
+    if (!point) return [];
+    return (await this.findNearby(point[0], point[1], NEARBY_HOOD_METERS)).map((h) => String(h._id));
   }
 
   /** Nearest open Hood whose own radius covers the point. */

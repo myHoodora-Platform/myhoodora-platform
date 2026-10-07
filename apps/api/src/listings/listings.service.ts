@@ -8,7 +8,7 @@ import type { Viewer } from "../shared/auth/viewer";
 import { searchRegex, type Page, type PageQuery } from "../shared/http/pagination";
 import { AccountLifecycle } from "../users/account-lifecycle";
 import { UsersService } from "../users/users.service";
-import { StorageService } from "../storage/storage.service";
+import { DELETED_MEDIA_KEPT_MS, REMOVED_MEDIA_KEPT_MS, StorageService } from "../storage/storage.service";
 import type { CreateListingDto, ListingQuery } from "./listings.dto";
 import { Listing, ListingDocument, type ListingStatus } from "./listing.schema";
 
@@ -65,6 +65,30 @@ export class ListingsService implements OnModuleInit {
       name: "listings",
       hide: async (uid) => void (await this.listings.updateMany({ sellerUid: uid }, { $set: { sellerDeactivated: true } }).exec()),
       unhide: async (uid) => void (await this.listings.updateMany({ sellerUid: uid, sellerDeactivated: true }, { $unset: { sellerDeactivated: 1 } }).exec()),
+      purge: async (uid, dryRun) => {
+        const theirs = { sellerUid: uid, deletedAt: null };
+        if (dryRun) return { listings: await this.listings.countDocuments(theirs).exec() };
+        return { listings: (await this.listings.updateMany(theirs, { $set: { deletedAt: new Date() } }).exec()).modifiedCount };
+      },
+    });
+    // The same windows as a post's media (see PostsService).
+    this.storage.registerReferenceSource({
+      name: "listings",
+      inUse: async (urls, now) => {
+        const rows = await this.listings
+          .find({
+            photos: { $in: urls },
+            $or: [
+              { deletedAt: null, removedAt: null },
+              { removedAt: { $gte: new Date(now.getTime() - REMOVED_MEDIA_KEPT_MS) } },
+              { deletedAt: { $gte: new Date(now.getTime() - DELETED_MEDIA_KEPT_MS) } },
+            ],
+          })
+          .select({ photos: 1 })
+          .lean<Pick<Listing, "photos">[]>()
+          .exec();
+        return rows.flatMap((r) => r.photos ?? []);
+      },
     });
     this.registry.register({
       type: "listing",

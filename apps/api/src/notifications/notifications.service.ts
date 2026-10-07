@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, NotFoundException, type OnModuleInit } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import { CommunicationsService } from "../communications/communications.service";
 import { RealtimeService } from "../realtime/realtime.service";
 import type { RenderedEmail } from "../communications/templates/email-templates";
+import { AccountLifecycle } from "../users/account-lifecycle";
 import { User, UserDocument } from "../users/schemas/user.schema";
 import type { NotificationCategory } from "../users/domain/preferences";
 import { Notification, NotificationDocument, type NotificationKind, type NotificationType } from "./notification.schema";
@@ -60,13 +61,22 @@ function clip(text: string, max: number): string {
  * preferences). Push/SMS plug in here later.
  */
 @Injectable()
-export class NotificationsService {
+export class NotificationsService implements OnModuleInit {
   constructor(
     @InjectModel(Notification.name) private readonly notifications: Model<NotificationDocument>,
     @InjectModel(User.name) private readonly users: Model<UserDocument>,
     private readonly comms: CommunicationsService,
     private readonly realtime: RealtimeService,
+    private readonly accounts: AccountLifecycle,
   ) {}
+
+  onModuleInit() {
+    // The notifications addressed to them. Ones they caused for other people are those people's.
+    this.accounts.register({
+      name: "notifications",
+      purge: async (uid, dryRun) => ({ notifications: dryRun ? await this.notifications.countDocuments({ uid }).exec() : (await this.notifications.deleteMany({ uid }).exec()).deletedCount }),
+    });
+  }
 
   async notify(input: NotifyInput): Promise<number> {
     const uids = [...new Set(input.uids)].filter((u) => u && u !== input.actorUid);

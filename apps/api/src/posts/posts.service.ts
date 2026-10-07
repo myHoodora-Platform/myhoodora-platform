@@ -11,7 +11,7 @@ import { RealtimeService } from "../realtime/realtime.service";
 import type { Viewer } from "../shared/auth/viewer";
 import { searchRegex } from "../shared/http/pagination";
 import { mediaMixProblem } from "../storage/media-kind";
-import { StorageService } from "../storage/storage.service";
+import { DELETED_MEDIA_KEPT_MS, REMOVED_MEDIA_KEPT_MS, StorageService } from "../storage/storage.service";
 import { AccountLifecycle } from "../users/account-lifecycle";
 import { UsersService } from "../users/users.service";
 import { eventDateProblem, hasEnded } from "./domain/event-time";
@@ -107,6 +107,32 @@ export class PostsService implements OnModuleInit {
       name: "posts",
       hide: async (uid) => void (await this.posts.updateMany({ authorUid: uid }, { $set: { authorDeactivated: true } }).exec()),
       unhide: async (uid) => void (await this.posts.updateMany({ authorUid: uid, authorDeactivated: true }, { $unset: { authorDeactivated: 1 } }).exec()),
+      // Deleted like the author deleting each one: gone from every view, and its media no longer in use (swept by storage).
+      purge: async (uid, dryRun) => {
+        const theirs = { authorUid: uid, isActive: true };
+        if (dryRun) return { posts: await this.posts.countDocuments(theirs).exec() };
+        return { posts: (await this.posts.updateMany(theirs, { $set: { isActive: false } }).exec()).modifiedCount };
+      },
+    });
+    // When a post's media is still in use (StorageService.sweepUnreferenced): while the post is up; for an
+    // hour after its author deletes it; and through the 30-day appeal window after staff remove it.
+    this.storage.registerReferenceSource({
+      name: "posts",
+      inUse: async (urls, now) => {
+        const rows = await this.posts
+          .find({
+            mediaUrls: { $in: urls },
+            $or: [
+              { isActive: true, removedAt: null },
+              { removedAt: { $gte: new Date(now.getTime() - REMOVED_MEDIA_KEPT_MS) } },
+              { isActive: false, updatedAt: { $gte: new Date(now.getTime() - DELETED_MEDIA_KEPT_MS) } },
+            ],
+          })
+          .select({ mediaUrls: 1 })
+          .lean<Pick<FeedPost, "mediaUrls">[]>()
+          .exec();
+        return rows.flatMap((r) => r.mediaUrls ?? []);
+      },
     });
     this.registry.register({
       type: "post",
@@ -407,7 +433,7 @@ export class PostsService implements OnModuleInit {
     else this.changed(p);
   }
 
-  incCommentCount(id: string, by: 1 | -1, session?: ClientSession) {
+  incCommentCount(id: string, by: number, session?: ClientSession) {
     return this.posts.updateOne({ _id: id }, { $inc: { commentCount: by } }, { session }).exec();
   }
 

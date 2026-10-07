@@ -1,5 +1,5 @@
 import { searchRegex } from "../shared/http/pagination";
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, GoneException, Injectable, Logger, NotFoundException, type OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { InjectConnection, InjectModel } from "@nestjs/mongoose";
 import type { DecodedIdToken } from "firebase-admin/auth";
@@ -14,7 +14,7 @@ import type { Viewer } from "../shared/auth/viewer";
 import { withTransaction } from "../shared/db/transaction";
 import { EmailVerificationService } from "../verification/email-verification.service";
 import { mergePreferences, type Preferences } from "./domain/preferences";
-import { AccountLifecycle } from "./account-lifecycle";
+import { AccountLifecycle, DELETED_USER_NAME, DELETED_USER_UID, RESTORE_WINDOW_MS } from "./account-lifecycle";
 import type { DeactivateDto, OnboardingDto, PreferencesDto, UpdateMeDto, VerifyLocationDto } from "./dto/users.dto";
 import { User, UserDocument } from "./schemas/user.schema";
 
@@ -76,7 +76,7 @@ export function toMe(u: User): MeResponse {
 
 /** Self-service account operations (the signed-in neighbour acting on themselves). */
 @Injectable()
-export class UsersService {
+export class UsersService implements OnModuleInit {
   private readonly logger = new Logger(UsersService.name);
 
   constructor(
@@ -92,6 +92,14 @@ export class UsersService {
     private readonly storage: StorageService,
     private readonly lifecycle: AccountLifecycle,
   ) {}
+
+  onModuleInit() {
+    // A profile photo is in use for as long as it is someone's photo (StorageService.sweepUnreferenced).
+    this.storage.registerReferenceSource({
+      name: "users",
+      inUse: async (urls) => (await this.users.find({ photoURL: { $in: urls } }).select({ photoURL: 1 }).lean<Pick<User, "photoURL">[]>().exec()).map((u) => u.photoURL!),
+    });
+  }
 
   findByUid(uid: string): Promise<UserDocument | null> {
     return this.users.findOne({ uid }).exec();
@@ -110,7 +118,14 @@ export class UsersService {
       // An existing account is never recreated or overwritten by signing in, whichever method is used:
       // name, photo, Hood, role and onboarding stay exactly as they are. Only two things can change here.
       let changed = false;
+      // Deleted for good. (Their Firebase sign-in went with it; this covers a token issued just before.)
+      if (existing.purgedAt) throw new GoneException("This account has been deleted.");
       if (existing.deactivatedAt) {
+        // Past the 30 days, with deletion running: it is about to be deleted, and must not be half-restored meanwhile.
+        const pastWindow = Date.now() - existing.deactivatedAt.getTime() > RESTORE_WINDOW_MS;
+        if (pastWindow && this.config.get<string>("deletion.mode") === "live") {
+          throw new GoneException("This account was deactivated more than 30 days ago and can no longer be restored.");
+        }
         // Logging back in within 30 days restores the account (contract §10). Their content comes back
         // first: if that fails they are still deactivated, and the next sign-in tries again.
         await this.lifecycle.unhide(existing.uid);
@@ -342,14 +357,20 @@ export class UsersService {
 
   /**
    * GET /users/:uid/public — name, Hood name, badge, bio. Never email,
-   * address or coordinates. 404 outside the caller's Hood (staff excepted),
-   * and for blocked or deactivated people.
+   * address or coordinates. 404 for blocked or deactivated people, and for anyone the profile's
+   * owner hasn't opened it to: by default neighbours of their own Hood; with "Nearby neighbourhoods
+   * too" (privacy.profileVisibility), verified neighbours of the Hoods near it as well. Staff excepted.
    */
   async publicProfile(viewer: Viewer, uid: string): Promise<PublicProfile> {
     const target = await this.users.findOne({ uid, deactivatedAt: null }).lean<User>().exec();
     const staff = viewer.capabilities.includes("admin.access");
-    if (!target || (!staff && uid !== viewer.uid && (target.neighborhoodId !== viewer.hoodId || !viewer.hoodId))) {
-      throw new NotFoundException("This neighbour isn't available.");
+    if (!target) throw new NotFoundException("This neighbour isn't available.");
+    if (!staff && uid !== viewer.uid) {
+      // `viewer.hoodId` is only set for a verified neighbour, so nobody else gets past here.
+      const sameHood = Boolean(viewer.hoodId) && target.neighborhoodId === viewer.hoodId;
+      const openToNearby = target.preferences?.privacy?.profileVisibility === "nearby" && target.verificationStatus === "verified" && Boolean(target.neighborhoodId);
+      const nearby = !sameHood && openToNearby && Boolean(viewer.hoodId) && (await this.hoods.nearbyHoodIds(target.neighborhoodId!)).includes(viewer.hoodId!);
+      if (!sameHood && !nearby) throw new NotFoundException("This neighbour isn't available.");
     }
     if (uid !== viewer.uid && !staff) {
       const me = await this.users.findOne({ uid: viewer.uid }).select({ blockedUids: 1 }).lean<Pick<User, "blockedUids">>().exec();
@@ -441,7 +462,7 @@ export class UsersService {
     const deactivation = { reason: dto.reason, ...(dto.details?.trim() && { details: dto.details.trim() }) };
     // The first time only: deactivating again must not restart the 30 days.
     await this.users.updateOne({ uid, deactivatedAt: null }, { $set: { deactivatedAt: new Date() } }).exec();
-    await this.users.updateOne({ uid }, { $set: { deactivation } }).exec();
+    await this.users.updateOne({ uid, purgedAt: null }, { $set: { deactivation } }).exec();
     await this.lifecycle.hide(uid);
     this.logger.log(`Account deactivated (reason: ${dto.reason})`);
     await this.auth.revokeTokens(uid).catch(() => undefined);
@@ -477,20 +498,26 @@ export class UsersService {
    * Someone who has deactivated is "Former neighbour" with no photo and no Hood: what they wrote in
    * other people's threads, groups and conversations stays readable, but not under their name.
    * `forStaff` keeps the real name, for admin screens where moderation has to know who it is.
+   * Someone whose account has been deleted is "Deleted User" to everyone: there is no name left.
    */
   async authorCards(uids: string[], opts: { forStaff?: boolean } = {}): Promise<Map<string, { uid: string; displayName: string; photoURL?: string; neighborhoodId?: string }>> {
     const rows = await this.users
       .find({ uid: { $in: [...new Set(uids)] } })
-      .select({ uid: 1, displayName: 1, photoURL: 1, neighborhoodId: 1, deactivatedAt: 1 })
-      .lean<Pick<User, "uid" | "displayName" | "photoURL" | "neighborhoodId" | "deactivatedAt">[]>()
+      .select({ uid: 1, displayName: 1, photoURL: 1, neighborhoodId: 1, deactivatedAt: 1, purgedAt: 1 })
+      .lean<Pick<User, "uid" | "displayName" | "photoURL" | "neighborhoodId" | "deactivatedAt" | "purgedAt">[]>()
       .exec();
-    return new Map(
+    const cards = new Map<string, { uid: string; displayName: string; photoURL?: string; neighborhoodId?: string }>(
       rows.map((r) => [
         r.uid,
-        r.deactivatedAt && !opts.forStaff
-          ? { uid: r.uid, displayName: FORMER_NEIGHBOUR }
-          : { uid: r.uid, displayName: r.displayName ?? "Neighbour", photoURL: r.photoURL, neighborhoodId: r.neighborhoodId },
+        r.purgedAt
+          ? { uid: r.uid, displayName: DELETED_USER_NAME }
+          : r.deactivatedAt && !opts.forStaff
+            ? { uid: r.uid, displayName: FORMER_NEIGHBOUR }
+            : { uid: r.uid, displayName: r.displayName ?? "Neighbour", photoURL: r.photoURL, neighborhoodId: r.neighborhoodId },
       ]),
     );
+    // The stand-in left in a conversation where a deleted person's uid used to be.
+    if (uids.includes(DELETED_USER_UID)) cards.set(DELETED_USER_UID, { uid: DELETED_USER_UID, displayName: DELETED_USER_NAME });
+    return cards;
   }
 }

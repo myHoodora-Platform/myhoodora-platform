@@ -66,6 +66,14 @@ export class User {
   @Prop({ type: Date, default: null })
   deactivatedAt?: Date | null;
 
+  /**
+   * Set when the account was deleted for good, 30 days after it was deactivated
+   * (AccountDeletionService). Nothing personal is left on the record by then: it remains so that
+   * the uid on moderation and audit history still points at something, and can't be signed into.
+   */
+  @Prop({ type: Date, default: null })
+  purgedAt?: Date | null;
+
   /** What they told us when they deactivated. Cleared if they come back. */
   @Prop({ type: { reason: String, details: String }, _id: false, default: null })
   deactivation?: { reason: string; details?: string } | null;
