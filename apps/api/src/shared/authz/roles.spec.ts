@@ -21,6 +21,23 @@ describe("capabilitiesOf", () => {
     }
   });
 
+  it("without a confirmed email (where one is required) a verified neighbour can react and report, but not post or message", () => {
+    const unconfirmed = member({ emailConfirmed: false });
+    expect(can(unconfirmed, "content.create")).toBe(false);
+    expect(can(unconfirmed, "messages.send")).toBe(false);
+    expect(can(unconfirmed, "content.react")).toBe(true);
+    expect(can(unconfirmed, "report.create")).toBe(true);
+    expect(can(unconfirmed, "profile.manage")).toBe(true);
+    // Confirmed, or not a consideration at all: both write.
+    for (const s of [member({ emailConfirmed: true }), member()]) {
+      expect(can(s, "content.create")).toBe(true);
+      expect(can(s, "messages.send")).toBe(true);
+    }
+    // It adds a condition; it never replaces the others.
+    expect(can(member({ emailConfirmed: true, verificationStatus: "unverified" }), "content.create")).toBe(false);
+    expect(can(member({ emailConfirmed: false, role: "admin" }), "admin.access")).toBe(true);
+  });
+
   it("restriction blocks posting until it expires", () => {
     const now = new Date("2026-09-29T12:00:00Z");
     const restricted = member({ accountStatus: "restricted", restrictedUntil: new Date("2026-09-30T00:00:00Z") });
