@@ -6,16 +6,9 @@ import type { Viewer } from "../shared/auth/viewer";
 import { withTransaction } from "../shared/db/transaction";
 import { hasEnded } from "./domain/event-time";
 import { FeedPost, PollVote, Reaction, Rsvp, type PostDocument, type ReactionType } from "./schemas/post.schema";
-import { PostsService, type PollResults, type PostView } from "./posts.service";
+import { PostsService, type PollResults, type PostView, type RsvpSummary } from "./posts.service";
 
-export interface RsvpSummary {
-  /** The event is over (start + 3 h): RSVPs are closed. */
-  ended: boolean;
-  postId: string;
-  goingCount: number;
-  interestedCount: number;
-  myStatus: "going" | "interested" | null;
-}
+export type { RsvpSummary };
 
 /** Reactions, poll votes and RSVPs — the viewer's interactions with a post. */
 @Injectable()
@@ -144,6 +137,7 @@ export class EngagementService {
     return this.summary(viewer.uid, postId, post.eventDate);
   }
 
+  /** The same summary every event post carries (PostView.rsvp), for the event that was just changed. */
   private async summary(uid: string, postId: string, eventDate?: Date): Promise<RsvpSummary> {
     const [going, interested, mine] = await Promise.all([
       this.rsvps.countDocuments({ postId, status: "going" }).exec(),

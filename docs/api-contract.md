@@ -36,11 +36,14 @@ The client (`apps/web/src/lib/api/client.ts`) classifies every failure. The back
 | Doesn't exist, or outside the caller's neighbourhood | 404 | Screen-specific "isn't available" state |
 | Already done (e.g. voted twice) | 409 | Treated as success where idempotent |
 | Poll closed, listing sold | 410 | Screen-specific message |
+| Too many requests (the rate limiter; always has a `Retry-After` header, in seconds) | 429 + `Retry-After` | "You're doing that a lot. Give it a moment and try again." Reads wait that long and retry once, unless it is more than 10 s |
+| One of our own daily or hourly rules (urgent alerts, new conversations, uploads…) | 429, no `Retry-After`, with `message` | Your `message`, shown verbatim. Not retried |
 | Server error | 5xx | "Something went wrong on our side", with **one automatic retry** for reads |
+| The API can't reach Firebase to check a sign-in | 503 | Same as any 5xx. **Never 401**: the web signs the person out on a 401 (§26) |
 | No response within **15 s** | — | "Your connection is slow" |
 | Device offline | — | Offline banner. The last loaded feed stays on screen with "Showing posts from 5m ago · Retry". The composer keeps the draft. |
 
-Only 400/422 `message` strings are shown verbatim. For 401, 403 and 5xx the client uses its own wording, so never put stack traces or internals in those messages.
+Only 400/422 `message` strings (and a 429 without `Retry-After`) are shown verbatim. For 401, 403 and 5xx the client uses its own wording, so never put stack traces or internals in those messages.
 
 **Performance:** keep feed responses small. Page size is 10, and author and neighbourhood fields should be embedded (see §3) to avoid N+1 requests. This matters a lot on Nigerian mobile data.
 
@@ -199,7 +202,7 @@ interface Comment { _id; postId; authorUid; content; createdAt; likes: string[] 
 
 | Method | Path | Body | Returns |
 | --- | --- | --- | --- |
-| GET | `/posts/:id/comments` | — | `Comment[]`, oldest first |
+| GET | `/posts/:id/comments?before&limit` | — | `Comment[]`: the newest page (up to 500), oldest first. `before=<comment id>` gives the page before it (§26) |
 | POST | `/posts/:id/comments` | `{ content }` (1–1000 chars) | `Comment` |
 | DELETE | `/comments/:id` | — | 204 (author, or neighbourhood lead/admin) |
 
@@ -277,7 +280,7 @@ interface Message { _id; conversationId; senderUid; body; createdAt }
 | GET | `/conversations` | Caller's threads, newest activity first. |
 | POST | `/conversations` | `{ recipientUid, context? }`. **Idempotent**: return the existing thread for the same pair + `context.id`. |
 | GET | `/conversations/:id` | Participant only. |
-| GET | `/conversations/:id/messages` | Oldest first. **Marks the thread as read for the caller.** |
+| GET | `/conversations/:id/messages?before&limit` | The newest page (up to 500), oldest first. **Marks the thread as read for the caller.** `before=<message id>` gives the page before it and marks nothing read (§26) |
 | POST | `/conversations/:id/messages` | `{ body }` (1–2000 chars). Creates a `message` notification. |
 | GET | `/conversations/unread-count` (nice-to-have) | For the header badge. |
 
@@ -287,7 +290,7 @@ interface Message { _id; conversationId; senderUid; body; createdAt }
 
 **Real-time:** live over SSE (§19). New messages and read receipts arrive as `chat.message` / `chat.read`; `ConversationView.readBy[]` carries each member's `lastReadAt` for "Seen".
 
-**Safety:** block and report (`POST /reports` with `targetType: "message"`, `targetId: conversationId`), and rate-limit new threads per user per day.
+**Safety:** block and report (`POST /reports` with `targetType: "message"`, `targetId: conversationId`), and rate-limit new threads per user per day. Only the two people in a conversation can report it, and the report is about the other one (§26).
 
 ---
 
@@ -461,9 +464,10 @@ The frontend already hides blocked authors client-side as a fallback.
 ### Deactivate: `POST /users/me/deactivate`
 Body `{ reason, details? }`, where `reason` is one of `moved | not_useful | privacy | too_many_notifications | negative | few_neighbours | duplicate | other` (Nextdoor's list).
 
-- Hide the profile, posts and listings.
-- Revoke sessions.
-- Restore everything if the user logs in within 30 days; purge after that.
+- Hide the profile, posts and listings. ✅ Posts and listings disappear for neighbours (staff still see them); what the person wrote in other people's threads, groups and conversations stays, under "Former neighbour" with no photo.
+- Revoke sessions. ✅
+- Restore everything if the user logs in. ✅ `reason` and `details` are kept on the account until then.
+- Purge after 30 days. ✅ Built (§27). It runs only with `DATA_DELETION_MODE=live`; the default, `dry-run`, deletes nothing. Once live, signing in after 30 days answers `410` and no longer restores the account.
 
 ### Feedback: `POST /feedback`
 Body `{ kind: "idea" | "problem" | "praise" | "other", message (5–2000), path? }`. Goes to the team's inbox or admin queue.
@@ -667,7 +671,7 @@ interface AdminNeighbour {
 | `GET /admin/neighbours/:uid` | Adds `location` (address **admins only**), `verificationAttempts[]`, `timeline` |
 | `GET /admin/neighbours/:uid/posts` · `/reports` | Paged |
 | `POST /admin/neighbours/:uid/actions` | `{ action: "verify" \| "reject_verification" \| "change_hood" \| "warn" \| "restrict" \| "suspend" \| "reinstate", hoodId?, days?, reason, note? }`. `suspend` is **A** |
-| `POST /admin/neighbours/bulk` | `{ uids, action: "verify" \| "restrict", hoodId?, reason }`, max 100 |
+| `POST /admin/neighbours/bulk` | `{ uids, action: "verify" \| "restrict", hoodId?, reason }`, max 100 → `{ updated, results: [{ uid, ok, message? }] }`. Each neighbour is handled on their own (§26) |
 
 ### 13.4 Verification queue
 
@@ -775,11 +779,11 @@ Changes the backend made while implementing this contract. The web is already up
 - The link is `${APP_URL}/verify-email?token=…`. The token is 32 random bytes, stored only as a SHA-256 hash, valid 24 h and single use. Any newer link invalidates older ones.
 - `POST /auth/email-verification/confirm` `{ token }` → 204. Public and throttled. Invalid, used and expired tokens all get the **same** generic 400. On success we also mark the Firebase user `emailVerified` (best-effort).
 - `POST /auth/email-verification/resend` → 202. **429** after 3 links in an hour.
-- The web page `/verify-email` strips the token from the address bar, sends `Referrer-Policy: no-referrer` and never sends a token twice. Email verification is a nudge (banner), not a gate. Posting depends on address verification.
+- The web page `/verify-email` strips the token from the address bar, sends `Referrer-Policy: no-referrer` and never sends a token twice. Email verification was a nudge (banner), not a gate, until 2026-10-07: posting and messaging now need it as well as address verification (§27).
 
 **Webhooks:** `POST /api/webhooks/resend` receives Resend delivery events (Svix/Standard Webhooks signature on the raw body, 5-minute replay window, idempotent per `svix-id`, status never moves backwards). It returns 503 until `RESEND_WEBHOOK_SECRET` is set. It isn't used by the web.
 
-**Rate limits (429):** urgent alerts are limited to 1 per 6 h per neighbour; reports to 10/min and 50/h; verification resends to 3/h. There's also a global per-IP throttle.
+**Rate limits (429):** urgent alerts are limited to 1 per 6 h per neighbour; reports to 10/min and 50/h; verification resends to 3/h. There's also a global throttle: per person once signed in, per IP on public routes (§26; it was per IP for everyone until 2026-10-06).
 
 **Notifications:** new `type`s `moderation` (staff decisions about you or your content; never includes the staff note) and `system` (broadcasts). `GET /notifications/unread-count` → `{ count }`.
 
@@ -1228,3 +1232,103 @@ With `STORAGE_DIRECT_UPLOADS=true`, a ticket nobody completes within an hour is 
 ### Revocation check (2026-10-02)
 The API no longer calls Firebase on every request to ask whether a session was revoked. It verifies the token locally and compares its sign-in time with (a) `sessionsRevokedAt` on our user record, set by `POST /auth/logout-everywhere` and read on every request, and (b) Firebase's own revocation state, re-read at most once per user every `AUTH_REVOCATION_CACHE_SECONDS` (default 30). Responses are unchanged: a revoked token is still `401`.
 
+
+## 26. Changes from the October 2026 audit (2026-10-06)
+
+Each of these implements an item in [`codebase-audit.md`](./codebase-audit.md). All are compatible with the web build that was live before them, unless marked **breaking**.
+
+### A Firebase outage is 503, not 401 (B2)
+Any authenticated route can answer `503 { message: "We can't check your sign-in right now. Please try again in a moment." }` when the API cannot reach Google: either to download its signing keys or to read a user's revocation state. It used to answer 401, which the web treats as a dead session and signs the person out. While Google is unreachable, the last known revocation state of a user is reused for up to 5 minutes after it was fetched. "Sign out everywhere" and suspensions are unaffected: they come from our own records.
+
+The web server's own checks follow the same rule: `POST /api/auth/session` answers 503 (cookie kept) and the page gate lets the page load when it cannot download Google's keys.
+
+### Who may read a Hood (B3, B4)
+- **A Hood counts only for a verified neighbour.** An account that is unverified, pending or rejected gets 404 (or an empty list) from every Hood-scoped route, whatever `neighborhoodId` is on its record.
+- **`reject_verification` removes the Hood.** The neighbour's `neighborhoodId` is cleared (kept as `lastNeighborhoodId` for staff). `verify` gives one back.
+- **`change_hood` needs a verified neighbour**, otherwise `400 "This neighbour isn't verified yet. Verify them to place them in a Hood."` The admin page only offered it for verified neighbours already.
+- **`POST /users/me/verify-location` can move a verified neighbour to a different Hood once every 90 days** (`HOOD_CHANGE_COOLDOWN_DAYS`). Sooner: `409` with a message naming their Hood, and they stay in it. The attempt is recorded with `result: "mismatch"`. A move that is allowed writes an audit record, action `hood_self_change`.
+- **`GET /neighborhoods`, `/neighborhoods/nearby`, `/neighborhoods/:id`** return the full record (centre, radius) only to staff and to a Hood's own verified members. Everyone else gets `{ _id, name, city, country }`. **Breaking** for a client that drew other Hoods' circles; the web never did.
+- `HOOD_ACCESS_STRICT=false` turns all five off (a temporary rollback switch).
+
+### Neighbour detail: address for admins (B15)
+`GET /admin/neighbours/:uid` (and the same view returned by `POST …/actions`) includes `location` only for admins and owners, as §13.3 always said. Moderators get the rest unchanged, including `verificationAttempts`. (Confirmed on 2026-10-07: moderators may see the addresses in verification attempts and in the verification queue; they need them to review address checks.)
+
+### `POST /posts`: `clientId`, and alerts announced afterwards (B6)
+- New optional field `clientId` (8 to 64 letters, digits, `-` or `_`; a UUID is ideal). Send the same value when repeating a request (after a timeout): the response is the post created the first time, `201` again, and nothing is created or announced twice. Scoped to the author. Never returned.
+- For `category: "alert"` the response no longer waits for neighbours to be notified. Notifications follow within seconds, written in batches by a background job, each neighbour once. Hoods of any size are covered (there was a 5,000 limit).
+
+### Event posts carry their RSVPs (B7)
+Every post with `category: "event"` includes `rsvp: { postId, goingCount, interestedCount, myStatus, ended }`, the same object `GET /posts/:id/rsvp` returns. A page of events needs no request per card.
+
+### Rate limits are per person (B7)
+- Signed in: counted per person. On public routes: per IP, as before. Numbers unchanged (10/s, 60/min, 500/h, stricter per route).
+- Before sign-in is checked there is one generous per-IP ceiling against floods (1,000 requests per 10 s). The web server's session routes are exempt, as they all come from one address.
+- A `429` from the rate limiter has `message: "Too many requests. Please wait a moment and try again."` and a `Retry-After` header in seconds, exposed to browsers through CORS.
+
+### Uploads: who, and how much (B12)
+- `POST /media`, `/media/import` and `/media/direct` with `purpose` `post`, `listing` or `group` need the same standing as posting (a verified, active neighbour): otherwise `403` with the usual "Verify your address…" or "Your account is restricted…" message. `purpose: "avatar"` stays open to any account.
+- Each person may keep up to 200 files and 1 GB uploaded in any 24 hours (`STORAGE_DAILY_UPLOADS`, `STORAGE_DAILY_UPLOAD_MB`). Past that: `429 "You've reached today's upload limit. Try again tomorrow."`
+
+### Deactivation hides content (B5, first step)
+See §10. `author` / `seller` / `participants[]` cards for someone who has deactivated are `{ uid, displayName: "Former neighbour" }` with no `photoURL`.
+
+### Moderation (B8, B9, B11, B20)
+- **A new report reopens a decided case** when the content is still up (the author was warned, or it was removed and later restored). The case goes to staff with `status: "open"`, a new `reopenedAt`, and `resolution` still holding the earlier decision, which stays appealable.
+- **Suspended accounts can call** `GET /moderation/my-decisions`, `POST /moderation/cases/:id/appeals`, `GET /notifications` and `GET /notifications/unread-count`.
+- **A conversation can be reported only by the two people in it** (anyone else: `404`), and the report is about the other person. Each report records `reportedUid`; `GET /admin/reports/:id` shows it as `reports[].reported`.
+- **Overturning a "keep" on a reporter's appeal** sets the case's `resolution` to `remove_content` (by the reviewer) and sends the author the usual "Your post was removed… You can appeal within 30 days" notification.
+
+### Long threads (B10)
+`GET /conversations/:id/messages` and `GET /posts/:id/comments` return the **newest** page (they returned the oldest 500 and nothing after). Query: `limit` (1 to 500, default 500) and `before` (the id of the oldest item you have). Items are oldest-first within a page. A full page means there may be earlier ones.
+
+### Web server lookup routes (B14)
+`/api/geocode`, `/api/reverse-geocode` and `/api/ip-location` need a valid session cookie (`401` without), allow 20 calls a minute per person (`429` with `Retry-After`), and answer `504` when the third party is too slow.
+
+### Staff actions (B19, B21, B22, B24)
+- A group whose last member leaves is archived.
+- `POST /admin/neighbours/bulk` handles each neighbour on their own and returns `{ updated, results: [{ uid, ok, message? }] }` in the order sent. `403` only when the caller may not take that action on anyone.
+- `PATCH /admin/hoods/:id` answers `409` when a larger `radiusMeters` would overlap another Hood. `POST /neighborhoods` and `DELETE /neighborhoods/:id` now write the same audit records as the `/admin/hoods` routes.
+- Removing or restoring content, alert actions, Hood changes and Hood Lead appointments commit together with their audit record, or not at all.
+
+### Notifications
+A `title` over 140 characters or a `body` over 280 is shortened with "…", never refused (B18).
+
+## 27. Decisions of 7 October 2026
+
+The questions the audit left open, as the owner answered them, and what the API now does.
+
+### Posting and messaging need a confirmed email (audit B3)
+- `content.create` (posts, comments, listings, groups, group posts, media for any of them) and `messages.send` (starting a conversation, sending a message) need a confirmed email address as well as a verified address. Confirmed means our emailed link was followed, or the person signs in with a provider that has proved the address (Google).
+- Without it: `403 "Confirm your email address first. We sent you a link when you signed up; you can ask for a new one at the top of the app."` `GET /users/me` already reports `emailVerified`.
+- Unaffected: reading, reactions, RSVPs, reports, a profile photo, preferences, `POST /auth/email-verification/resend`. Staff capabilities do not depend on it.
+- `EMAIL_CONFIRMATION_REQUIRED=false` turns it off. **Needed wherever verification emails cannot be delivered yet.**
+
+### Privacy settings take effect (audit B23)
+- `privacy.profileVisibility: "nearby"` opens `GET /users/:uid/public` to verified neighbours of Hoods whose centre is within 5 km of the profile owner's, as well as their own Hood. `"neighbourhood"` (the default) is unchanged. Blocks still apply. It is the profile owner's setting that counts, not the viewer's.
+- `privacy.messaging: "contacts"` ("Only people I've messaged") lets someone start a new conversation only if the recipient has sent them a message before, in any conversation between the two. It used to refuse everyone, like `"nobody"`. Existing conversations carry on under every setting, as before.
+
+### Account deletion, 30 days after deactivation (audit B5)
+Runs as a background job per account, only when `DATA_DELETION_MODE=live` (`dry-run`, the default, logs what would go and changes nothing).
+
+| What | What happens to it |
+| --- | --- |
+| Posts, listings, comments, group posts | Deleted (comment counts adjusted) |
+| Uploaded files | Deleted from storage |
+| Group memberships and join requests | Removed. A group they alone ran passes to its longest-standing member, or is archived if nobody is left |
+| Hood Lead role, notifications, email-confirmation links, other people's blocks on them | Removed |
+| Firebase sign-in | Deleted |
+| The user record | Emptied of everything personal and marked `purgedAt`. The uid remains |
+| Conversations | **Kept for the other person, both sides.** The deleted person's uid is replaced, in `participantUids`, `members`, `startedBy`, `lastMessage` and every message's `senderUid`, by the stand-in `"deleted-user"`, whose card is `{ uid: "deleted-user", displayName: "Deleted User" }`. `POST /conversations/:id/messages` to such a conversation is `403 "This person has deleted their account, so they can't receive messages."` |
+| Moderation cases, reports, audit events | Kept, with the bare uid |
+
+- `GET /users/me` for a deleted account: `410 "This account has been deleted."` For an account deactivated more than 30 days ago while deletion is live: `410 "This account was deactivated more than 30 days ago and can no longer be restored."` In `dry-run` and `off`, signing in still restores the account however long it has been.
+- Author cards for a deleted account are `{ uid, displayName: "Deleted User" }`.
+- The only owner is never deleted: an error is logged until the role is handed on.
+
+### Media is deleted with its content (audit B13)
+An hourly sweep deletes stored files that nothing uses, in the same `DATA_DELETION_MODE`. A file counts as in use while a live post, listing or group, or someone's profile, has its URL; for one hour after its post or listing is deleted by its author; and for 31 days after staff remove the content (the appeal window). An upload never attached to anything is kept for 24 hours. Content restored after its window comes back without its media.
+
+### Left as they are
+- **Rate limits** keep the numbers in §26 (10/s, 60/min, 500/h), per person.
+- **The IP lookup** behind `/api/ip-location` (ip-api.com) stays.
+- **Moderators** may see the addresses in verification attempts and the verification queue. The profile `location` on `GET /admin/neighbours/:uid` remains admins-only, as §13.3 says.

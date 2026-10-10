@@ -1,7 +1,8 @@
-import { BadRequestException, ForbiddenException, HttpException, HttpStatus, Injectable, NotFoundException, OnModuleInit } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, HttpException, HttpStatus, Injectable, Logger, NotFoundException, OnModuleInit } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model, Types, type ClientSession, type QueryFilter } from "mongoose";
 import { HoodsService } from "../hoods/hoods.service";
+import { JobsService } from "../jobs/jobs.service";
 import { ModerationRegistry } from "../moderation/moderation-registry";
 import { NotificationsService } from "../notifications/notifications.service";
 import { URGENT_WINDOW_HOURS, type AlertCategory } from "../platform/platform-settings.schema";
@@ -10,15 +11,20 @@ import { RealtimeService } from "../realtime/realtime.service";
 import type { Viewer } from "../shared/auth/viewer";
 import { searchRegex } from "../shared/http/pagination";
 import { mediaMixProblem } from "../storage/media-kind";
-import { StorageService } from "../storage/storage.service";
+import { DELETED_MEDIA_KEPT_MS, REMOVED_MEDIA_KEPT_MS, StorageService } from "../storage/storage.service";
+import { AccountLifecycle } from "../users/account-lifecycle";
 import { UsersService } from "../users/users.service";
-import { eventDateProblem } from "./domain/event-time";
+import { eventDateProblem, hasEnded } from "./domain/event-time";
 import { decodePostContent, encodePostContent, postTypeFor, type PostMeta } from "./domain/post-meta";
 import type { CreatePostDto, FeedQuery } from "./dto/posts.dto";
-import { FeedPost, PollVote, Reaction, type PostDocument, type ReactionType } from "./schemas/post.schema";
+import { FeedPost, PollVote, Reaction, Rsvp, type PostDocument, type ReactionType } from "./schemas/post.schema";
 
 const URGENT_PER_USER_HOURS = 6;
 const HOUR = 3_600_000;
+/** Job: tell a Hood about a new alert (PostsService.fanOutAlert). */
+const ALERT_FANOUT = "alert.fanout";
+/** Neighbours told per step of that job. */
+const FANOUT_PAGE = 1_000;
 
 export interface PostView {
   _id: string;
@@ -38,6 +44,8 @@ export interface PostView {
   priceNaira?: number | null;
   poll?: { options: { id: string; text: string }[]; closesAt: string };
   pollResults?: PollResults;
+  /** Events only: the counts and the viewer's own answer, so a list of events needs no request per card. */
+  rsvp?: RsvpSummary;
   visibility: FeedPost["visibility"];
   mediaUrls: string[];
   /** width ÷ height of each `mediaUrls` entry (same order), or null when unknown (a pasted link). Lets the feed frame media before it loads. */
@@ -64,12 +72,24 @@ export interface PollResults {
   closed: boolean;
 }
 
+export interface RsvpSummary {
+  /** The event is over (start + 3 h): RSVPs are closed. */
+  ended: boolean;
+  postId: string;
+  goingCount: number;
+  interestedCount: number;
+  myStatus: "going" | "interested" | null;
+}
+
 @Injectable()
 export class PostsService implements OnModuleInit {
+  private readonly logger = new Logger(PostsService.name);
+
   constructor(
     @InjectModel(FeedPost.name) private readonly posts: Model<PostDocument>,
     @InjectModel(Reaction.name) private readonly reactions: Model<Reaction>,
     @InjectModel(PollVote.name) private readonly votes: Model<PollVote>,
+    @InjectModel(Rsvp.name) private readonly rsvps: Model<Rsvp>,
     private readonly users: UsersService,
     private readonly hoods: HoodsService,
     private readonly settings: PlatformSettingsService,
@@ -77,9 +97,43 @@ export class PostsService implements OnModuleInit {
     private readonly registry: ModerationRegistry,
     private readonly realtime: RealtimeService,
     private readonly storage: StorageService,
+    private readonly jobs: JobsService,
+    private readonly accounts: AccountLifecycle,
   ) {}
 
   onModuleInit() {
+    this.jobs.register(ALERT_FANOUT, (payload) => this.fanOutAlert(String(payload.postId)));
+    this.accounts.register({
+      name: "posts",
+      hide: async (uid) => void (await this.posts.updateMany({ authorUid: uid }, { $set: { authorDeactivated: true } }).exec()),
+      unhide: async (uid) => void (await this.posts.updateMany({ authorUid: uid, authorDeactivated: true }, { $unset: { authorDeactivated: 1 } }).exec()),
+      // Deleted like the author deleting each one: gone from every view, and its media no longer in use (swept by storage).
+      purge: async (uid, dryRun) => {
+        const theirs = { authorUid: uid, isActive: true };
+        if (dryRun) return { posts: await this.posts.countDocuments(theirs).exec() };
+        return { posts: (await this.posts.updateMany(theirs, { $set: { isActive: false } }).exec()).modifiedCount };
+      },
+    });
+    // When a post's media is still in use (StorageService.sweepUnreferenced): while the post is up; for an
+    // hour after its author deletes it; and through the 30-day appeal window after staff remove it.
+    this.storage.registerReferenceSource({
+      name: "posts",
+      inUse: async (urls, now) => {
+        const rows = await this.posts
+          .find({
+            mediaUrls: { $in: urls },
+            $or: [
+              { isActive: true, removedAt: null },
+              { removedAt: { $gte: new Date(now.getTime() - REMOVED_MEDIA_KEPT_MS) } },
+              { isActive: false, updatedAt: { $gte: new Date(now.getTime() - DELETED_MEDIA_KEPT_MS) } },
+            ],
+          })
+          .select({ mediaUrls: 1 })
+          .lean<Pick<FeedPost, "mediaUrls">[]>()
+          .exec();
+        return rows.flatMap((r) => r.mediaUrls ?? []);
+      },
+    });
     this.registry.register({
       type: "post",
       load: async (id) => {
@@ -122,9 +176,17 @@ export class PostsService implements OnModuleInit {
     return decodePostContent(p.content, p.type);
   }
 
+  /**
+   * `dto.clientId` makes this safe to repeat: the same id from the same person returns the post
+   * created the first time. A client that timed out can't know whether its post was created, and
+   * without this its retry posts (and announces) an alert twice.
+   */
   async create(viewer: Viewer, dto: CreatePostDto): Promise<PostView> {
     if (!viewer.hoodId) throw new ForbiddenException("Verify your address to join your neighbourhood first.");
     if (dto.neighborhoodId && dto.neighborhoodId !== viewer.hoodId) throw new ForbiddenException("You can only post in your own neighbourhood.");
+    // Before any rule that the first attempt already passed (one urgent alert per six hours would refuse its own retry).
+    const earlier = dto.clientId ? await this.findByClientId(viewer.uid, dto.clientId) : null;
+    if (earlier) return (await this.toViews([earlier], viewer))[0]!;
 
     // Accept the current web payload (encoded content) and first-class fields.
     const decoded = dto.content ? decodePostContent(dto.content, dto.type ?? "text") : { message: dto.message ?? "", meta: { category: "general" as const } };
@@ -156,29 +218,49 @@ export class PostsService implements OnModuleInit {
     const mediaUrls = dto.mediaUrls ?? [];
     const mediaProblem = mediaMixProblem(mediaUrls);
     if (mediaProblem) throw new BadRequestException(mediaProblem);
-    const doc = await this.posts.create({
-      authorUid: viewer.uid,
-      neighborhoodId: viewer.hoodId,
-      type: postTypeFor(meta.category, mediaUrls.length > 0),
-      content: encodePostContent(message, meta),
-      message,
-      category: meta.category,
-      alertCategory: meta.category === "alert" ? (meta.alertCategory ?? "other") : undefined,
-      urgent: meta.category === "alert" && Boolean(meta.urgent),
-      eventDate: meta.eventDate ? new Date(meta.eventDate) : undefined,
-      eventLocation: meta.eventLocation,
-      thankedName: meta.thankedName,
-      priceNaira: meta.category === "for_sale" ? (meta.priceNaira ?? null) : undefined,
-      poll: meta.poll ? { options: meta.poll.options, closesAt: new Date(meta.poll.closesAt) } : undefined,
-      visibility: meta.visibility ?? "neighbourhood",
-      location: dto.location ? { type: "Point", coordinates: [dto.location.lng, dto.location.lat] } : undefined,
-      mediaUrls,
-      activeUntil,
-    });
+    let doc: PostDocument;
+    try {
+      doc = await this.posts.create({
+        clientId: dto.clientId,
+        authorUid: viewer.uid,
+        neighborhoodId: viewer.hoodId,
+        type: postTypeFor(meta.category, mediaUrls.length > 0),
+        content: encodePostContent(message, meta),
+        message,
+        category: meta.category,
+        alertCategory: meta.category === "alert" ? (meta.alertCategory ?? "other") : undefined,
+        urgent: meta.category === "alert" && Boolean(meta.urgent),
+        eventDate: meta.eventDate ? new Date(meta.eventDate) : undefined,
+        eventLocation: meta.eventLocation,
+        thankedName: meta.thankedName,
+        priceNaira: meta.category === "for_sale" ? (meta.priceNaira ?? null) : undefined,
+        poll: meta.poll ? { options: meta.poll.options, closesAt: new Date(meta.poll.closesAt) } : undefined,
+        visibility: meta.visibility ?? "neighbourhood",
+        location: dto.location ? { type: "Point", coordinates: [dto.location.lng, dto.location.lat] } : undefined,
+        mediaUrls,
+        activeUntil,
+      });
+    } catch (err) {
+      // Two copies of one submission arrived together and the other got there first: it created the post, and announces it.
+      const winner = dto.clientId && (err as { code?: number }).code === 11000 ? await this.findByClientId(viewer.uid, dto.clientId) : null;
+      if (!winner) throw err;
+      return (await this.toViews([winner], viewer))[0]!;
+    }
 
-    if (meta.category === "alert") await this.notifyAlert(viewer, doc, message, Boolean(meta.urgent));
+    // The Hood is told afterwards, by a job: the post exists now, and the request must answer whether or
+    // not thousands of neighbours have been notified yet. For the same reason a job that can't be
+    // recorded is logged, not thrown: an error here would make the client retry a post that was created.
+    if (meta.category === "alert") {
+      await this.jobs
+        .enqueue(ALERT_FANOUT, { postId: String(doc._id) }, { dedupeKey: `${ALERT_FANOUT}:${String(doc._id)}` })
+        .catch((err: unknown) => this.logger.error(`Alert ${String(doc._id)} was posted but its neighbours could not be queued for notification`, err instanceof Error ? err.stack : String(err)));
+    }
     this.realtime.toHood(viewer.hoodId, "post.created", { id: String(doc._id) });
     return (await this.toViews([doc.toObject()], viewer))[0]!;
+  }
+
+  private findByClientId(authorUid: string, clientId: string) {
+    return this.posts.findOne({ authorUid, clientId }).lean<FeedPost & { _id: Types.ObjectId }>().exec();
   }
 
   private validateMeta(meta: PostMeta) {
@@ -210,20 +292,40 @@ export class PostsService implements OnModuleInit {
     }
   }
 
-  private async notifyAlert(viewer: Viewer, doc: PostDocument, message: string, urgent: boolean) {
-    // Neighbours in the Hood; bundled per type for 30 minutes (groupKey) unless urgent.
-    const members = await this.users.membersOfHood(viewer.hoodId!, 5000);
-    const bucket = Math.floor(Date.now() / (30 * 60_000));
-    await this.notifications.notify({
-      uids: members,
-      type: "alert",
-      actorUid: viewer.uid,
-      title: urgent ? `Urgent: ${doc.alertCategory} alert nearby` : `New ${doc.alertCategory} alert in your Hood`,
-      body: message.slice(0, 140),
-      href: `/p/${doc.id}`,
-      category: urgent ? "urgent_alerts" : "alerts",
-      groupKey: urgent ? undefined : `alert:${viewer.hoodId}:${doc.alertCategory}:${bucket}`,
-    });
+  /**
+   * The "alert.fanout" job: tell the alert's Hood about it, a page of neighbours at a time.
+   *
+   * Jobs can run more than once (a retry after a failure part-way, a takeover), so this must be
+   * safe to repeat. Ordinary alerts are bundled per kind for 30 minutes (`groupKey`), which updates
+   * a neighbour's unread notification in place; urgent ones carry a key per alert and neighbour
+   * (`dedupeKey`), so a second write is skipped. Either way nobody is told twice.
+   */
+  async fanOutAlert(postId: string): Promise<void> {
+    const p = await this.findRaw(postId);
+    // Deleted or removed before anyone was told: there is nothing to announce.
+    if (!p || p.category !== "alert" || !p.isActive || p.removedAt) return;
+    const { message } = this.read(p);
+    const urgent = Boolean(p.urgent);
+    // From the post's own time, so every run of the job lands in the same bundle.
+    const bucket = Math.floor((p.createdAt ?? new Date()).getTime() / (30 * 60_000));
+    let after = "";
+    for (;;) {
+      const uids = await this.users.membersOfHoodPage(p.neighborhoodId, after, FANOUT_PAGE);
+      if (!uids.length) break;
+      await this.notifications.notify({
+        uids,
+        type: "alert",
+        actorUid: p.authorUid,
+        title: urgent ? `Urgent: ${p.alertCategory} alert nearby` : `New ${p.alertCategory} alert in your Hood`,
+        body: message.slice(0, 140),
+        href: `/p/${postId}`,
+        category: urgent ? "urgent_alerts" : "alerts",
+        groupKey: urgent ? undefined : `alert:${p.neighborhoodId}:${p.alertCategory}:${bucket}`,
+        dedupeKey: urgent ? (uid) => `alert:${postId}:${uid}` : undefined,
+      });
+      after = uids[uids.length - 1]!;
+      if (uids.length < FANOUT_PAGE) break;
+    }
   }
 
   /**
@@ -238,6 +340,7 @@ export class PostsService implements OnModuleInit {
       neighborhoodId: hoodId,
       isActive: true,
       removedAt: null,
+      authorDeactivated: { $ne: true },
       ...(q.category && { category: q.category }),
       ...(hidden.length && { authorUid: { $nin: hidden } }),
     };
@@ -260,11 +363,11 @@ export class PostsService implements OnModuleInit {
     return Types.ObjectId.isValid(id) ? this.posts.findById(id).lean<FeedPost & { _id: Types.ObjectId }>().exec() : null;
   }
 
-  /** Load a post the viewer may see, or 404 (deleted, removed, other Hood, blocked). */
+  /** Load a post the viewer may see, or 404 (deleted, removed, other Hood, blocked, or its author has deactivated). */
   async loadVisible(viewer: Viewer, id: string): Promise<FeedPost & { _id: Types.ObjectId }> {
     const p = Types.ObjectId.isValid(id) ? await this.posts.findById(id).lean<FeedPost & { _id: Types.ObjectId }>().exec() : null;
     const staff = viewer.capabilities.includes("admin.access");
-    if (!p || (!staff && (!p.isActive || p.removedAt || p.neighborhoodId !== viewer.hoodId))) {
+    if (!p || (!staff && (!p.isActive || p.removedAt || p.authorDeactivated || p.neighborhoodId !== viewer.hoodId))) {
       throw new NotFoundException("This post isn't available.");
     }
     if (!staff) {
@@ -298,12 +401,14 @@ export class PostsService implements OnModuleInit {
     return { resolvedAt: resolvedAt?.toISOString() ?? null };
   }
 
-  /** Staff-only alert operations (contract §13.6). */
-  async staffAlertAction(id: string, action: "end" | "downgrade", actorUid: string): Promise<void> {
+  /**
+   * Staff-only alert operations (contract §13.6). Takes the caller's session so the change commits with
+   * its audit record; the caller announces it (PostsService.announce) once that has happened.
+   */
+  async staffAlertAction(id: string, action: "end" | "downgrade", actorUid: string, session?: ClientSession): Promise<void> {
     const set = action === "end" ? { resolvedAt: new Date(), resolvedBy: actorUid } : { urgent: false };
-    const res = await this.posts.updateOne({ _id: id, category: "alert" }, { $set: set }).exec();
+    const res = await this.posts.updateOne({ _id: id, category: "alert" }, { $set: set }, { session }).exec();
     if (!res.matchedCount) throw new NotFoundException("Alert not found.");
-    await this.announce(id);
   }
 
   async setRemoved(id: string, removed: boolean, actorUid: string, session?: ClientSession): Promise<void> {
@@ -328,18 +433,20 @@ export class PostsService implements OnModuleInit {
     else this.changed(p);
   }
 
-  incCommentCount(id: string, by: 1 | -1, session?: ClientSession) {
+  incCommentCount(id: string, by: number, session?: ClientSession) {
     return this.posts.updateOne({ _id: id }, { $inc: { commentCount: by } }, { session }).exec();
   }
 
-  /** Embed author cards, Hood names, viewer's reaction and poll results (no N+1). */
+  /** Embed author cards, Hood names, viewer's reaction, poll results and event RSVPs (no N+1). */
   async toViews(docs: (FeedPost & { _id?: unknown })[], viewer: Viewer): Promise<PostView[]> {
     if (!docs.length) return [];
     const ids = docs.map((d) => String(d._id));
-    const [authors, mine, polls, aspects] = await Promise.all([
-      this.users.authorCards(docs.map((d) => d.authorUid)),
+    const [authors, mine, polls, rsvps, aspects] = await Promise.all([
+      // A neighbour never receives a deactivated author's post at all; staff do, and need to know whose it is.
+      this.users.authorCards(docs.map((d) => d.authorUid), { forStaff: viewer.capabilities.includes("admin.access") }),
       this.reactions.find({ postId: { $in: ids }, uid: viewer.uid }).lean<Reaction[]>().exec(),
       this.pollResultsFor(docs.filter((d) => d.poll), viewer.uid),
+      this.rsvpSummariesFor(docs.filter((d) => this.read(d).meta.category === "event"), viewer.uid),
       this.storage.aspectRatios(docs.flatMap((d) => d.mediaUrls ?? [])),
     ]);
     const hoods = await this.hoods.findManyByIds([...new Set([...authors.values()].map((a) => a.neighborhoodId).filter(Boolean) as string[])]);
@@ -367,6 +474,7 @@ export class PostsService implements OnModuleInit {
         priceNaira: meta.priceNaira,
         poll: meta.poll,
         pollResults: polls.get(id),
+        rsvp: rsvps.get(id),
         visibility: meta.visibility ?? "neighbourhood",
         mediaUrls: d.mediaUrls ?? [],
         mediaAspects: (d.mediaUrls ?? []).map((url) => aspects.get(url) ?? null),
@@ -406,6 +514,33 @@ export class PostsService implements OnModuleInit {
         total: Object.values(counts).reduce((a, b) => a + b, 0),
         myVote: mine.find((m) => m.postId === id)?.optionId ?? null,
         closed: d.poll ? Date.now() >= new Date(d.poll.closesAt).getTime() : true,
+      });
+    }
+    return out;
+  }
+
+  /** RSVP counts and the viewer's own answer for a set of events: two queries, however many events. */
+  async rsvpSummariesFor(docs: (FeedPost & { _id?: unknown })[], uid: string): Promise<Map<string, RsvpSummary>> {
+    const out = new Map<string, RsvpSummary>();
+    if (!docs.length) return out;
+    const ids = docs.map((d) => String(d._id));
+    const [tallies, mine] = await Promise.all([
+      this.rsvps.aggregate<{ _id: { postId: string; status: "going" | "interested" }; n: number }>([
+        { $match: { postId: { $in: ids } } },
+        { $group: { _id: { postId: "$postId", status: "$status" }, n: { $sum: 1 } } },
+      ]),
+      this.rsvps.find({ postId: { $in: ids }, uid }).lean<Rsvp[]>().exec(),
+    ]);
+    const count = (postId: string, status: "going" | "interested") => tallies.find((t) => t._id.postId === postId && t._id.status === status)?.n ?? 0;
+    for (const d of docs) {
+      const id = String(d._id);
+      const eventDate = this.read(d).meta.eventDate;
+      out.set(id, {
+        postId: id,
+        goingCount: count(id, "going"),
+        interestedCount: count(id, "interested"),
+        myStatus: mine.find((m) => m.postId === id)?.status ?? null,
+        ended: hasEnded(eventDate ? new Date(eventDate) : undefined),
       });
     }
     return out;

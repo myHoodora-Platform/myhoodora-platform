@@ -3,6 +3,9 @@ import type { GeocodeResult, GeocodingProvider } from "../types";
 // https://geocode.maps.co — free tier, Nominatim-compatible search API.
 // Requires a free API key (sign up at https://geocode.maps.co) set as
 // GEOCODE_MAPS_CO_API_KEY.
+
+/** Per request to the geocoder. Without one, a stalled connection holds the route (and the visitor) indefinitely. */
+const REQUEST_TIMEOUT_MS = 8_000;
 export class MapsCoGeocodingProvider implements GeocodingProvider {
   async geocode(address: string): Promise<GeocodeResult | null> {
     for (const candidate of buildFallbackQueries(address)) {
@@ -23,7 +26,7 @@ export class MapsCoGeocodingProvider implements GeocodingProvider {
     url.searchParams.set("lon", String(lng));
     url.searchParams.set("api_key", apiKey);
 
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
     if (!response.ok) {
       throw new Error(`geocode.maps.co reverse request failed: ${response.status}`);
     }
@@ -44,7 +47,7 @@ export class MapsCoGeocodingProvider implements GeocodingProvider {
     url.searchParams.set("limit", "1");
     url.searchParams.set("countrycodes", "ng");
 
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
     if (!response.ok) {
       throw new Error(`geocode.maps.co request failed: ${response.status}`);
     }

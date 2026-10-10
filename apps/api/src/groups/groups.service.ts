@@ -3,7 +3,7 @@ import { ConfigService } from "@nestjs/config";
 import { InjectConnection, InjectModel } from "@nestjs/mongoose";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { Connection, Model, Types, type QueryFilter } from "mongoose";
-import { HoodsService } from "../hoods/hoods.service";
+import { HoodsService, NEARBY_HOOD_METERS } from "../hoods/hoods.service";
 import { ModerationRegistry } from "../moderation/moderation-registry";
 import { RealtimeService } from "../realtime/realtime.service";
 import { NotificationsService } from "../notifications/notifications.service";
@@ -11,6 +11,8 @@ import type { Viewer } from "../shared/auth/viewer";
 import { withTransaction } from "../shared/db/transaction";
 import { searchRegex, type Page, type PageQuery } from "../shared/http/pagination";
 import { UsersService } from "../users/users.service";
+import { REMOVED_MEDIA_KEPT_MS, StorageService } from "../storage/storage.service";
+import { AccountLifecycle } from "../users/account-lifecycle";
 import type { CreateGroupDto, UpdateGroupDto } from "./groups.dto";
 import { Group, GroupDocument, GroupMember, GroupMemberDocument, GroupPost, GroupRequest } from "./group.schemas";
 
@@ -47,7 +49,6 @@ export interface AdminGroupRow {
 type GroupRow = Group & { _id: Types.ObjectId };
 const MAX_GROUPS_PER_DAY = 3;
 /** "Nearby" boundary = Hoods whose centres are within this distance of yours. */
-const NEARBY_METERS = 5_000;
 
 const newToken = () => randomBytes(18).toString("base64url");
 const sameToken = (a: string, b: string) => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
@@ -67,9 +68,24 @@ export class GroupsService implements OnModuleInit {
     private readonly registry: ModerationRegistry,
     private readonly config: ConfigService,
     private readonly realtime: RealtimeService,
+    private readonly accounts: AccountLifecycle,
+    private readonly storage: StorageService,
   ) {}
 
   onModuleInit() {
+    this.accounts.register({ name: "groups", purge: (uid, dryRun) => this.purgeMember(uid, dryRun) });
+    // A cover photo is in use while its group exists, and through the appeal window after staff archive it.
+    this.storage.registerReferenceSource({
+      name: "groups",
+      inUse: async (urls, now) => {
+        const rows = await this.groups
+          .find({ coverPhoto: { $in: urls }, $or: [{ archivedAt: null }, { archivedAt: { $gte: new Date(now.getTime() - REMOVED_MEDIA_KEPT_MS) } }] })
+          .select({ coverPhoto: 1 })
+          .lean<Pick<Group, "coverPhoto">[]>()
+          .exec();
+        return rows.map((r) => r.coverPhoto!);
+      },
+    });
     this.registry.register({
       type: "group",
       load: async (id) => {
@@ -102,7 +118,7 @@ export class GroupsService implements OnModuleInit {
     if (!viewer.hoodId) throw new NotFoundException("Join a neighbourhood to see groups.");
     const hood = await this.hoods.findById(viewer.hoodId);
     const point = hood.location?.coordinates;
-    const [nearby, all] = await Promise.all([point ? this.hoods.findNearby(point[0], point[1], NEARBY_METERS) : Promise.resolve([hood]), this.hoods.findAll()]);
+    const [nearby, all] = await Promise.all([point ? this.hoods.findNearby(point[0], point[1], NEARBY_HOOD_METERS) : Promise.resolve([hood]), this.hoods.findAll()]);
     return { own: viewer.hoodId, nearby: nearby.map((h) => String(h._id)), city: all.filter((h) => h.city === hood.city).map((h) => String(h._id)) };
   }
 
@@ -123,7 +139,9 @@ export class GroupsService implements OnModuleInit {
     const g = await this.raw(id);
     if (!g || g.archivedAt) throw new NotFoundException("This group doesn't exist any more.");
     if (inviteToken && sameToken(inviteToken, g.inviteToken)) return g;
-    if (await this.members.exists({ groupId: id, uid: viewer.uid }).exec()) return g;
+    // Membership opens a group only to someone who is (still) a verified neighbour: without a Hood,
+    // `reach` below answers 404, so a membership can't outlive a rejected verification.
+    if (viewer.hoodId && (await this.members.exists({ groupId: id, uid: viewer.uid }).exec())) return g;
     if (!this.inReach(g, await this.reach(viewer))) throw new NotFoundException("This group doesn't exist any more.");
     return g;
   }
@@ -276,8 +294,42 @@ export class GroupsService implements OnModuleInit {
     }
     await withTransaction(this.connection, async (session) => {
       const res = await this.members.deleteOne({ groupId: id, uid: viewer.uid }, { session }).exec();
-      if (res.deletedCount) await this.groups.updateOne({ _id: id }, { $inc: { memberCount: -1 } }, { session }).exec();
+      if (!res.deletedCount) return;
+      await this.groups.updateOne({ _id: id }, { $inc: { memberCount: -1 } }, { session }).exec();
+      // Nobody left: a group that stayed listed would take new members as plain members, with no admin
+      // to run it. Archived rather than deleted, so what former members posted isn't destroyed; like a
+      // group staff removed, it is hidden from everyone and keeps its name.
+      const remaining = await this.members.countDocuments({ groupId: id }).session(session).exec();
+      if (remaining === 0) await this.groups.updateOne({ _id: id }, { $set: { archivedAt: new Date() } }, { session }).exec();
     });
+  }
+
+  /**
+   * An account is being deleted: out of every group, with their posts and join requests. A group
+   * they were the only admin of passes to its longest-standing member, or is archived if nobody is
+   * left (the same end as its last member leaving).
+   */
+  private async purgeMember(uid: string, dryRun: boolean): Promise<Record<string, number>> {
+    const memberships = await this.members.find({ uid }).lean<GroupMember[]>().exec();
+    const counts = {
+      groupMemberships: memberships.length,
+      groupPosts: await this.posts.countDocuments({ authorUid: uid }).exec(),
+      groupRequests: await this.requests.countDocuments({ uid }).exec(),
+    };
+    if (dryRun) return counts;
+    for (const m of memberships) {
+      await withTransaction(this.connection, async (session) => {
+        const res = await this.members.deleteOne({ groupId: m.groupId, uid }, { session }).exec();
+        if (!res.deletedCount) return;
+        await this.groups.updateOne({ _id: m.groupId }, { $inc: { memberCount: -1 } }, { session }).exec();
+        const left = await this.members.find({ groupId: m.groupId }).sort({ joinedAt: 1 }).session(session).lean<GroupMember[]>().exec();
+        if (!left.length) await this.groups.updateOne({ _id: m.groupId }, { $set: { archivedAt: new Date() } }, { session }).exec();
+        else if (!left.some((x) => x.role === "admin")) await this.members.updateOne({ groupId: m.groupId, uid: left[0]!.uid }, { $set: { role: "admin" } }, { session }).exec();
+      });
+    }
+    await this.requests.deleteMany({ uid }).exec();
+    await this.posts.deleteMany({ authorUid: uid }).exec();
+    return counts;
   }
 
   // ── Invites ────────────────────────────────────────────────────────────────

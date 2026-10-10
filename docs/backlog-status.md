@@ -13,9 +13,9 @@ _As of 2 October 2026. Each line was checked against the code or by running it; 
 
 | Item | Status | Detail |
 | --- | --- | --- |
-| Rotate Cloudinary key | 🟡 | The real key was committed in `apps/api/.env.example` (commits `532fc3c`, `a8fa360`); the file is clean now but history is not. Generate a new key in the Cloudinary console, delete the old one, update the API host and local `.env`. Do this before pushing those commits anywhere |
-| Rotate MongoDB password | 🟡 | Atlas → Database Access → new password → update `MONGODB_URI` on the API host and locally |
-| Verify Resend sending domain | 🟡 | Add Resend's DNS records for the sending domain; create a sending-only key and the webhook. Until then mail only reaches the Resend account owner |
+| Rotate Cloudinary key | ✅ reported | **Reported rotated by the owner on 7 October 2026.** Not checkable from the repository: confirm the old key is refused by Cloudinary. Background: the real key was committed in `apps/api/.env.example` (commits `532fc3c`, `a8fa360`); the file is clean now but history is not. Generate a new key in the Cloudinary console, delete the old one, update the API host and local `.env`. Do this before pushing those commits anywhere |
+| Rotate MongoDB password | ✅ reported | **Reported changed by the owner on 7 October 2026.** Not checkable from the repository. (Atlas → Database Access → new password → update `MONGODB_URI` on the API host and locally) |
+| Verify Resend sending domain | 🟡 | Add Resend's DNS records for the sending domain; create a sending-only key and the webhook. Until then mail only reaches the Resend account owner. **Now blocks posting:** since 7 October 2026 posting and messaging need a confirmed email, and the confirmation link is sent by email. Until this is done, deploy the API with `EMAIL_CONFIRMATION_REQUIRED=false` |
 | Set production env on the API host | 🟡 | List in `environment.md`. The API now refuses to start in production if a required variable is missing, including Firebase credentials |
 | Run `pnpm migrate` in production | 🟡 | `migrate:dry` first. Idempotent (`migrations.e2e-spec`) |
 | Disable QA staff accounts at launch | 🟡 | Firebase console → disable; role → `member` |
@@ -30,7 +30,7 @@ _As of 2 October 2026. Each line was checked against the code or by running it; 
 | Item | Status | Detail |
 | --- | --- | --- |
 | Fix `security.e2e-spec` event-date test | ✅ | Already corrected in the repository (uses a date 7 days ahead); the suite passes |
-| Run unit and e2e tests in CI | ✅ written · 🟡 first run | `.github/workflows/ci.yml` now runs lint, types, unit tests, API integration tests, the build, and the signed-out browser tests. It has not run on GitHub yet: watch the first run |
+| Run unit and e2e tests in CI | ✅ written · 🟡 first run | `.github/workflows/ci.yml` now runs lint, types, unit tests, API integration tests, the build, and the signed-out browser tests. It has not run on GitHub yet: watch the first run. On 6 October 2026 its push trigger was corrected from `develop` (a branch that does not exist) to `development`, it was moved to Node 24, and a secret-scanning job (gitleaks, over the commits each push or pull request adds) was added; none of that has run on GitHub either |
 | Stop `--fix` in the API lint script | ✅ | `lint` reports only; `lint:fix` fixes |
 | e2e for `/media`, `/search`, `/realtime` | ✅ | `test/media-search-realtime.e2e-spec.ts` (14 tests) |
 | Browser e2e (Playwright) for core flows | ✅ auth, session, admin, accessibility · ❌ resident flows | 39 tests pass. Posting, commenting, uploading and searching as a **verified resident** are not browser-tested: no verified test account exists. They are covered by API integration tests |

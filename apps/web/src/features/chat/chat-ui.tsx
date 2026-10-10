@@ -57,6 +57,7 @@ export function TypingDots({ label }: { label: string }) {
 export function ChatMessageList({
   items,
   empty,
+  header,
   seenAt,
   onRetry,
   typing,
@@ -64,6 +65,8 @@ export function ChatMessageList({
 }: {
   items: ChatItem[];
   empty?: ReactNode;
+  /** Shown above the first message, inside the scrolling area (e.g. "Load earlier messages"). */
+  header?: ReactNode;
   /** Who's typing on the other side (shows animated dots), or nothing. */
   typing?: string | null;
   /** When the other side last read the thread: shows "Seen" under your last message. */
@@ -74,6 +77,7 @@ export function ChatMessageList({
   const scrollRef = useRef<HTMLDivElement>(null);
   const nearBottom = useRef(true);
   const lastCount = useRef(0);
+  const lastNewest = useRef<string | undefined>(undefined);
   const [unseenBelow, setUnseenBelow] = useState(false);
 
   const scrollToBottom = (smooth = false) => {
@@ -86,8 +90,11 @@ export function ChatMessageList({
     const grew = items.length > lastCount.current;
     const first = lastCount.current === 0;
     lastCount.current = items.length;
-    if (!grew) return;
     const newest = items[items.length - 1];
+    // Earlier messages loaded above grow the list too, but nothing new arrived: stay where the reader is.
+    const arrivedBelow = newest?.id !== lastNewest.current;
+    lastNewest.current = newest?.id;
+    if (!grew || !arrivedBelow) return;
     if (first || nearBottom.current || newest?.mine) scrollToBottom(!first);
     else setUnseenBelow(true);
   }, [items]);
@@ -113,6 +120,7 @@ export function ChatMessageList({
         aria-live="polite"
       >
         {items.length === 0 && empty}
+        {header}
         {items.map((m, i) => {
           const prev = items[i - 1];
           const newDay = !prev || dayLabel(prev.at) !== dayLabel(m.at);

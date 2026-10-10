@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Node.js 20
+- Node.js 24
 - pnpm 9 (`corepack enable` picks up the version in `package.json`)
 - A Firebase project with Email/Password (and Google) sign-in enabled
 - MongoDB as a **replica set** (Atlas is one; a standalone local `mongod` is not, and transactions will fail)
@@ -47,10 +47,10 @@ Per app: `pnpm --filter web <script>` and `pnpm --filter @myhoodora/api <script>
 
 ## Git workflow
 
-- Branch from `develop`; open a pull request into it.
+- Branch from `development`; open a pull request into it.
 - Commit messages follow Conventional Commits (`feat(scope): …`, `fix(scope): …`). This is a convention: nothing enforces the format.
 - Husky hooks: **pre-commit** runs `pnpm lint && pnpm check-types`; **pre-push** runs `pnpm test`.
-- CI runs on pushes to `main` and `develop` and on every pull request (see [`testing.md`](./testing.md)).
+- CI runs on pushes to `main` and `development` and on every pull request (see [`testing.md`](./testing.md)).
 
 ## Conventions worth knowing
 

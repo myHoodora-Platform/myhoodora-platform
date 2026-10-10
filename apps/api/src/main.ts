@@ -57,6 +57,8 @@ async function bootstrap() {
   app.enableCors({
     origin: config.get<string>('cors.origin'),
     credentials: true,
+    // Lets the web app read how long to wait after a 429 (shared/throttle/throttle.guards.ts).
+    exposedHeaders: ['Retry-After'],
   });
 
   // ── Global prefix ─────────────────────────────────────────────────────────

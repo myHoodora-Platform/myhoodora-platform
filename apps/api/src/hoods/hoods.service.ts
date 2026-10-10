@@ -1,6 +1,9 @@
 import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
-import { InjectModel } from "@nestjs/mongoose";
-import { Model, Types, type QueryFilter } from "mongoose";
+import { InjectConnection, InjectModel } from "@nestjs/mongoose";
+import { Connection, Model, Types, type ClientSession, type QueryFilter } from "mongoose";
+import { AuditService } from "../audit/audit.service";
+import type { Viewer } from "../shared/auth/viewer";
+import { withTransaction } from "../shared/db/transaction";
 import { Neighborhood, NeighborhoodDocument, type HoodStatus } from "./schemas/hood.schema";
 
 export interface HoodInput {
@@ -20,6 +23,9 @@ export interface NearbyHood {
   distanceMeters: number;
 }
 
+/** How close two Hoods' centres must be for them to count as "nearby" each other (groups, profile visibility). */
+export const NEARBY_HOOD_METERS = 5_000;
+
 /** Rows written before migration 002 still have isActive instead of status. */
 const OPEN: QueryFilter<Neighborhood> = { $or: [{ status: "active" }, { status: { $exists: false }, isActive: { $ne: false } }] };
 
@@ -30,7 +36,11 @@ export function isOpenHood(h: Pick<Neighborhood, "status" | "isActive">): boolea
 
 @Injectable()
 export class HoodsService {
-  constructor(@InjectModel(Neighborhood.name) private readonly hoods: Model<NeighborhoodDocument>) {}
+  constructor(
+    @InjectModel(Neighborhood.name) private readonly hoods: Model<NeighborhoodDocument>,
+    @InjectConnection() private readonly connection: Connection,
+    private readonly audit: AuditService,
+  ) {}
 
   /** Hoods neighbours can see and verify into. */
   async findAll(): Promise<NeighborhoodDocument[]> {
@@ -65,26 +75,44 @@ export class HoodsService {
   }
 
   /** Staff: create a Hood. 409 if the name exists or the circle overlaps an open Hood. */
-  async create(input: HoodInput): Promise<NeighborhoodDocument> {
+  async create(input: HoodInput, session?: ClientSession): Promise<NeighborhoodDocument> {
     const nameTaken = await this.hoods.exists({ name: { $regex: `^${escape(input.name)}$`, $options: "i" } });
     if (nameTaken) throw new ConflictException(`A Hood called “${input.name}” already exists.`);
     const overlaps = await this.overlapping(input.center, input.radiusMeters);
     if (overlaps.length) {
       throw new ConflictException(`This area overlaps ${overlaps.map((o) => o.name).join(", ")}. Shrink the radius or move the centre.`);
     }
-    return this.hoods.create({
-      name: input.name,
-      city: input.city,
-      country: input.country ?? "Nigeria",
-      description: input.description,
-      radiusMeters: input.radiusMeters,
-      location: { type: "Point", coordinates: [input.center.lng, input.center.lat] },
-      status: "active",
-    });
+    const [hood] = await this.hoods.create(
+      [
+        {
+          name: input.name,
+          city: input.city,
+          country: input.country ?? "Nigeria",
+          description: input.description,
+          radiusMeters: input.radiusMeters,
+          location: { type: "Point", coordinates: [input.center.lng, input.center.lat] },
+          status: "active",
+        },
+      ],
+      { session },
+    );
+    return hood!;
   }
 
-  async update(id: string, patch: Partial<Pick<Neighborhood, "name" | "description" | "radiusMeters" | "status">>): Promise<NeighborhoodDocument> {
-    const hood = await this.hoods.findByIdAndUpdate(id, { $set: patch }, { new: true, runValidators: true }).exec();
+  /**
+   * 409 if a new radius would run into another Hood: two Hoods covering one address would make
+   * "which Hood is this?" depend on which is nearer. The same rule as on creation.
+   */
+  async update(id: string, patch: Partial<Pick<Neighborhood, "name" | "description" | "radiusMeters" | "status">>, session?: ClientSession): Promise<NeighborhoodDocument> {
+    if (patch.radiusMeters !== undefined) {
+      const current = await this.findById(id);
+      const [lng, lat] = current.location?.coordinates ?? [];
+      if (lng !== undefined && lat !== undefined && patch.radiusMeters > current.radiusMeters) {
+        const overlaps = await this.overlapping({ lat, lng }, patch.radiusMeters, id);
+        if (overlaps.length) throw new ConflictException(`That radius would overlap ${overlaps.map((o) => o.name).join(", ")}. Choose a smaller one.`);
+      }
+    }
+    const hood = await this.hoods.findByIdAndUpdate(id, { $set: patch }, { new: true, runValidators: true, session }).exec();
     if (!hood) throw new NotFoundException("That neighbourhood doesn't exist.");
     return hood;
   }
@@ -98,11 +126,38 @@ export class HoodsService {
     return this.update(id, { status });
   }
 
+  // Staff writes come in through two sets of routes (/admin/hoods and the older /neighborhoods).
+  // Both go through these, so every one is recorded, and recorded in the same transaction as the change.
+
+  createAudited(actor: Viewer, input: HoodInput): Promise<NeighborhoodDocument> {
+    return withTransaction(this.connection, async (session) => {
+      const hood = await this.create(input, session);
+      await this.audit.record(actor, "hood_create", { type: "hood", id: hood.id as string, label: hood.name }, {}, session);
+      return hood;
+    });
+  }
+
+  updateAudited(actor: Viewer, id: string, patch: Partial<Pick<Neighborhood, "name" | "description" | "radiusMeters" | "status">>, reason?: string): Promise<NeighborhoodDocument> {
+    return withTransaction(this.connection, async (session) => {
+      const hood = await this.update(id, patch, session);
+      await this.audit.record(actor, patch.status === "archived" ? "hood_archive" : "hood_update", { type: "hood", id, label: hood.name }, { reason }, session);
+      return hood;
+    });
+  }
+
   /** Open Hoods within `maxDistanceMeters` of a point. */
   async findNearby(lng: number, lat: number, maxDistanceMeters = 5000): Promise<NeighborhoodDocument[]> {
     return this.hoods
       .find({ ...OPEN, location: { $near: { $geometry: { type: "Point", coordinates: [lng, lat] }, $maxDistance: maxDistanceMeters } } })
       .exec();
+  }
+
+  /** The open Hoods that count as nearby this one, itself included. Empty if the Hood has no centre on record. */
+  async nearbyHoodIds(hoodId: string): Promise<string[]> {
+    const hood = Types.ObjectId.isValid(hoodId) ? await this.hoods.findById(hoodId).exec() : null;
+    const point = hood?.location?.coordinates;
+    if (!point) return [];
+    return (await this.findNearby(point[0], point[1], NEARBY_HOOD_METERS)).map((h) => String(h._id));
   }
 
   /** Nearest open Hood whose own radius covers the point. */
@@ -154,7 +209,8 @@ export class HoodsService {
     return rows.map((r) => ({ id: r._id.toString(), name: r.name, city: r.city, distanceMeters: Math.round(r.distanceMeters) }));
   }
 
-  private async overlapping(center: { lat: number; lng: number }, radiusMeters: number) {
+  /** Hoods (not archived) whose circle a circle here would cut into. `exceptId`: the Hood being resized. */
+  private async overlapping(center: { lat: number; lng: number }, radiusMeters: number, exceptId?: string) {
     const candidates = await this.hoods
       .aggregate<{ name: string; radiusMeters: number; distanceMeters: number }>([
         {
@@ -163,7 +219,7 @@ export class HoodsService {
             distanceField: "distanceMeters",
             spherical: true,
             maxDistance: radiusMeters + 20_000,
-            query: { status: { $ne: "archived" } },
+            query: { status: { $ne: "archived" }, ...(exceptId && { _id: { $ne: new Types.ObjectId(exceptId) } }) },
           },
         },
         { $project: { name: 1, radiusMeters: 1, distanceMeters: 1 } },

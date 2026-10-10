@@ -10,6 +10,24 @@ function sessionTtlMs(days: string | undefined): number {
   return Math.min(Math.max(requested, 5 * 60_000), 14 * DAY_MS);
 }
 
+/** off | dry-run | live. Anything else (including unset) is "dry-run": the safe reading of a typo is "don't delete". */
+function deletionMode(value: string | undefined): "off" | "dry-run" | "live" {
+  const mode = value?.trim().toLowerCase();
+  return mode === "off" || mode === "live" ? mode : "dry-run";
+}
+
+/** A whole number of 1 or more; anything else falls back to the default. */
+function positiveInt(value: string | undefined, fallback: number): number {
+  const requested = Number(value);
+  return Number.isInteger(requested) && requested >= 1 ? requested : fallback;
+}
+
+/** A whole number of days, 0 or more; anything else falls back to the default. */
+function days(value: string | undefined, fallback: number): number {
+  const requested = value === undefined || value.trim() === "" ? fallback : Number(value);
+  return Number.isFinite(requested) && requested >= 0 ? Math.floor(requested) : fallback;
+}
+
 /** Seconds → ms, 30 s by default, never negative and never more than 5 minutes. */
 function revocationCacheMs(seconds: string | undefined): number {
   const requested = seconds === undefined || seconds.trim() === "" ? 30 : Number(seconds);
@@ -65,6 +83,22 @@ export default () => ({
   verification: {
     /** How far outside a Hood's edge an address can be and still be offered "ask to join". */
     nearbyBufferMeters: Number(process.env.NEARBY_BUFFER_M) || 3000,
+    /**
+     * Who may read a Hood (October 2026 audit, B3 and B4). On: only verified neighbours get a Hood on
+     * their requests, rejecting a verification removes it, a verified neighbour can't re-verify into
+     * another Hood inside the cooldown, and Hood boundaries go only to staff and to a Hood's own members.
+     * HOOD_ACCESS_STRICT=false puts all four back as they were: a switch to turn the change off without
+     * a deploy while it beds in, to be removed afterwards.
+     */
+    strictHoodAccess: process.env.HOOD_ACCESS_STRICT !== "false",
+    /**
+     * Posting and messaging need a confirmed email address as well as a verified address (decided
+     * 7 October 2026). On by default. EMAIL_CONFIRMATION_REQUIRED=false turns it off: needed wherever
+     * verification emails can't be delivered yet, or nobody who signed up with a password could post.
+     */
+    requireConfirmedEmail: process.env.EMAIL_CONFIRMATION_REQUIRED !== "false",
+    /** Days after being verified before an address check may move a neighbour to a different Hood. 0 = no wait. HOOD_CHANGE_COOLDOWN_DAYS. */
+    hoodChangeCooldownDays: days(process.env.HOOD_CHANGE_COOLDOWN_DAYS, 90),
   },
 
   /** Event reminders and follow-ups (docs/api-contract.md §23). On unless EVENT_REMINDERS_ENABLED=false. */
@@ -87,6 +121,23 @@ export default () => ({
     directUploads: process.env.STORAGE_DIRECT_UPLOADS === "true",
     /** Files one instance sends to storage at once; more wait briefly, then get 503 "try again". */
     maxConcurrentUploads: Number(process.env.STORAGE_MAX_CONCURRENT_UPLOADS) || 4,
+    /**
+     * Each person's allowance over any 24 hours, counted from the files they still have stored:
+     * how many (STORAGE_DAILY_UPLOADS, default 200) and how much (STORAGE_DAILY_UPLOAD_MB, default 1024).
+     * Generous for a neighbour posting photos and the odd video; a ceiling for an account used as a file host.
+     */
+    dailyUploads: positiveInt(process.env.STORAGE_DAILY_UPLOADS, 200),
+    dailyUploadBytes: positiveInt(process.env.STORAGE_DAILY_UPLOAD_MB, 1024) * 1024 * 1024,
+  },
+
+  /**
+   * Permanent deletion: accounts 30 days after they were deactivated (users/account-deletion.service.ts)
+   * and stored files that nothing uses any more (StorageService.sweepUnreferenced). Neither can be undone.
+   * DATA_DELETION_MODE: "dry-run" (default) finds what is due and logs it, changing nothing;
+   * "live" deletes; "off" does neither.
+   */
+  deletion: {
+    mode: deletionMode(process.env.DATA_DELETION_MODE),
   },
 
   /** Live updates across API instances (docs/api-contract.md §19). */

@@ -11,6 +11,11 @@ export interface TargetSnapshot {
   preview: string;
   authorUid?: string;
   hoodId?: string;
+  /**
+   * Conversations only: the two people in it. A conversation has no single author, so a report on
+   * one is about whichever of them didn't file it, and only they may report it.
+   */
+  participantUids?: string[];
   removed: boolean;
   /** Rendered context for the report detail page (kind-specific). */
   content: Record<string, unknown>;

@@ -27,7 +27,7 @@ export function AppHeader() {
           <HeaderSearch />
         </Suspense>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
           <RealtimeStatusChip className="hidden sm:inline-flex" />
           <HeaderIconButton href={ROUTES.search()} icon={Search} label="Search" className="md:hidden" />
           <HeaderIconButton

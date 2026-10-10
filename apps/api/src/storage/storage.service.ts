@@ -1,9 +1,12 @@
 import {
   BadRequestException,
+  HttpException,
+  HttpStatus,
   Inject,
   Injectable,
   Logger,
   NotFoundException,
+  type OnModuleInit,
   Optional,
   PayloadTooLargeException,
   ServiceUnavailableException,
@@ -15,11 +18,41 @@ import { open } from "node:fs/promises";
 import { Model, Types } from "mongoose";
 import { STORAGE_PROVIDER, StorageError, type DirectUploadTicket, type StorageProvider, type StorageResourceType, type StoredObject } from "./providers/storage-provider";
 import { MediaAsset, MediaAssetDocument, type MediaPurpose } from "./schemas/media-asset.schema";
+import { AccountLifecycle } from "../users/account-lifecycle";
 import { sniffMediaType } from "./media-kind";
 import { fetchRemoteFile, RemoteFileError } from "./remote-file";
 import { removeTemp } from "./temp-files";
 
 const MB = 1024 * 1024;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// How long a stored file is kept after the thing that used it stopped using it. Content modules apply
+// the first two when they say what is still in use (registerReferenceSource).
+/** After its author deletes a post or listing: long enough for a slip to be noticed, short enough to mean "deleted". */
+export const DELETED_MEDIA_KEPT_MS = 60 * 60 * 1000;
+/** After staff remove content: the 30 days in which the author can appeal and have it restored, plus a day. */
+export const REMOVED_MEDIA_KEPT_MS = 31 * DAY_MS;
+/** A file that has never been attached to anything: long enough for a draft to be finished. */
+const UNUSED_UPLOAD_KEPT_MS = DAY_MS;
+/** Files looked at per sweep. */
+const SWEEP_BATCH = 200;
+/** Everything that keeps stored files. A sweep without all of them would delete files the missing one is using. */
+const REFERENCE_SOURCES = ["posts", "listings", "groups", "users"] as const;
+
+/** A module that keeps URLs of stored files, and can say which of a set it still needs. */
+export interface MediaReferenceSource {
+  name: (typeof REFERENCE_SOURCES)[number];
+  /** The ones among `urls` that something of this module's is still using at `now`. */
+  inUse(urls: string[], now: Date): Promise<string[]>;
+}
+
+export interface SweepReport {
+  checked: number;
+  /** Used by nothing. */
+  unused: number;
+  /** Actually deleted (0 in a dry run). */
+  deleted: number;
+}
 export const REMOTE_FILE_FETCHER = Symbol("REMOTE_FILE_FETCHER");
 /** Files stream to disk, then to storage in chunks, so videos can be as big as the provider's free plan allows. */
 export const MAX_BYTES: Record<StorageResourceType, number> = { image: 10 * MB, video: 100 * MB };
@@ -102,10 +135,14 @@ export interface MediaAssetView {
  * by our id. Knows nothing about any vendor SDK.
  */
 @Injectable()
-export class StorageService {
+export class StorageService implements OnModuleInit {
+  private readonly referenceSources = new Map<string, MediaReferenceSource>();
+  private readonly deletionMode: "off" | "dry-run" | "live";
   private readonly folder: string;
   private readonly directUploads: boolean;
   private readonly gate: UploadGate;
+  private readonly dailyUploads: number;
+  private readonly dailyUploadBytes: number;
   private readonly logger = new Logger(StorageService.name);
 
   constructor(
@@ -114,10 +151,112 @@ export class StorageService {
     config: ConfigService,
     /** Swappable in tests; Nest leaves it undefined, so the real downloader is used. */
     @Optional() @Inject(REMOTE_FILE_FETCHER) private readonly fetchRemote: typeof fetchRemoteFile = fetchRemoteFile,
+    /** Absent only in unit tests that build the service by hand. */
+    @Optional() private readonly accounts?: AccountLifecycle,
   ) {
     this.folder = config.get<string>("storage.folder") ?? "myhoodora/development";
     this.directUploads = config.get<boolean>("storage.directUploads") ?? false;
     this.gate = new UploadGate(config.get<number>("storage.maxConcurrentUploads") ?? 4, 20);
+    this.dailyUploads = config.get<number>("storage.dailyUploads") ?? 200;
+    this.dailyUploadBytes = config.get<number>("storage.dailyUploadBytes") ?? 1024 * MB;
+    this.deletionMode = config.get<"off" | "dry-run" | "live">("deletion.mode") ?? "dry-run";
+  }
+
+  onModuleInit() {
+    // An account being deleted takes every file it uploaded with it, at once (no grace period: this is the end of one).
+    this.accounts?.register({ name: "storage", purge: (uid, dryRun) => this.purgeOwner(uid, dryRun) });
+  }
+
+  /** Content modules call this on init to say which stored files they are using. */
+  registerReferenceSource(source: MediaReferenceSource): void {
+    this.referenceSources.set(source.name, source);
+  }
+
+  private async purgeOwner(uid: string, dryRun: boolean): Promise<Record<string, number>> {
+    const theirs = await this.assets.find({ ownerUid: uid }).exec();
+    if (dryRun || !theirs.length) return { mediaFiles: theirs.length };
+    // Files exist and can't be deleted: the account must not be marked deleted. The job fails and is retried.
+    const provider = this.requireProvider();
+    for (const asset of theirs) {
+      if (asset.provider !== provider.name) throw new Error(`A file stored with "${asset.provider}" can't be deleted through "${provider.name}".`);
+      await provider.delete(asset.providerId, asset.resourceType);
+      await asset.deleteOne();
+    }
+    return { mediaFiles: theirs.length };
+  }
+
+  /**
+   * Delete stored files that nothing uses any more: media of a deleted post or listing, of content
+   * staff removed once its appeal window has closed, and uploads that were never attached to anything.
+   * (Deleting content only ever marked it deleted; its photos stayed reachable by URL for good.)
+   *
+   * Each module that keeps file URLs says which of a batch it still needs, and applies its own
+   * grace periods in doing so. A file nobody claims is deleted from the provider, then from our
+   * records. Runs hourly (StorageModule), a batch at a time, least-recently-checked first, so the
+   * whole library is covered in turn. In "dry-run" mode it only counts. This cannot be undone:
+   * content restored after its window comes back without its media.
+   */
+  async sweepUnreferenced(now = new Date()): Promise<SweepReport> {
+    const none: SweepReport = { checked: 0, unused: 0, deleted: 0 };
+    const provider = this.provider;
+    if (this.deletionMode === "off" || !provider) return none;
+    const missing = REFERENCE_SOURCES.filter((name) => !this.referenceSources.has(name));
+    if (missing.length) {
+      this.logger.error(`Unused-file sweep skipped: nothing has said which files ${missing.join(", ")} still use, so none can safely be called unused.`);
+      return none;
+    }
+
+    const batch = await this.assets
+      .find({ status: "ready", provider: provider.name, createdAt: { $lt: new Date(now.getTime() - UNUSED_UPLOAD_KEPT_MS) } })
+      .sort({ referenceCheckedAt: 1 })
+      .limit(SWEEP_BATCH)
+      .exec();
+    if (!batch.length) return none;
+    const urls = batch.map((a) => a.url).filter(Boolean);
+    const inUse = new Set<string>();
+    // If any module can't answer, this throws and nothing is deleted this time round.
+    for (const source of this.referenceSources.values()) for (const url of await source.inUse(urls, now)) inUse.add(url);
+
+    const unused = batch.filter((a) => !inUse.has(a.url));
+    const used = batch.filter((a) => inUse.has(a.url));
+    let deleted = 0;
+    if (this.deletionMode === "live") {
+      for (const asset of unused) {
+        try {
+          await provider.delete(asset.providerId, asset.resourceType);
+          await asset.deleteOne();
+          deleted++;
+        } catch (err) {
+          // Left for the next sweep, at the back of the queue, so one bad file doesn't hold up the rest.
+          this.logger.warn(`Couldn't delete an unused file: ${(err as Error).message}`);
+          await this.assets.updateOne({ _id: asset._id }, { $set: { referenceCheckedAt: now } }).exec();
+        }
+      }
+    } else if (unused.length) {
+      this.logger.log(`[dry run] ${unused.length} stored file(s) are used by nothing and would be deleted. Nothing was changed.`);
+    }
+    // Move what was looked at to the back of the queue (in a dry run that includes the unused ones, or it would never get past them).
+    const seen = this.deletionMode === "live" ? used : batch;
+    if (seen.length) await this.assets.updateMany({ _id: { $in: seen.map((a) => a._id) } }, { $set: { referenceCheckedAt: now } }).exec();
+    return { checked: batch.length, unused: unused.length, deleted };
+  }
+
+  /**
+   * Refuses (429) a file that would take this person past their allowance for any 24 hours: a number
+   * of files and a total size, counted from what they still have stored. Checked before anything is
+   * downloaded or sent to the provider. Two uploads at the same moment can both pass and overshoot
+   * by one file; the next is refused.
+   */
+  private async assertWithinAllowance(ownerUid: string, incomingBytes: number): Promise<void> {
+    const [used] = await this.assets
+      .aggregate<{ files: number; bytes: number }>([
+        { $match: { ownerUid, createdAt: { $gte: new Date(Date.now() - DAY_MS) } } },
+        { $group: { _id: null, files: { $sum: 1 }, bytes: { $sum: "$bytes" } } },
+      ])
+      .exec();
+    if ((used?.files ?? 0) + 1 > this.dailyUploads || (used?.bytes ?? 0) + incomingBytes > this.dailyUploadBytes) {
+      throw new HttpException("You've reached today's upload limit. Try again tomorrow.", HttpStatus.TOO_MANY_REQUESTS);
+    }
   }
 
   get enabled(): boolean {
@@ -131,6 +270,7 @@ export class StorageService {
     assertSize(resourceType, file.size, MAX_BYTES);
 
     const provider = this.requireProvider();
+    await this.assertWithinAllowance(ownerUid, file.size);
     const source = file.path ? { path: file.path } : { buffer: file.buffer ?? Buffer.alloc(0) };
     let stored;
     try {
@@ -151,6 +291,8 @@ export class StorageService {
    */
   async importFromUrl(ownerUid: string, url: string, purpose: MediaPurpose): Promise<MediaAssetView> {
     this.requireProvider();
+    // Before the download: someone out of allowance must not be able to keep the server fetching files.
+    await this.assertWithinAllowance(ownerUid, 0);
     let remote;
     try {
       remote = await this.fetchRemote(url, { maxBytes: MAX_UPLOAD_BYTES });
@@ -177,6 +319,7 @@ export class StorageService {
   ): Promise<{ id: string | null; upload: DirectUploadTicket | null }> {
     const provider = this.requireProvider();
     const resourceType = this.resourceTypeFor(input.mimetype, input.purpose);
+    await this.assertWithinAllowance(ownerUid, input.size);
     // Off by default (STORAGE_DIRECT_UPLOADS): each completion costs a Cloudinary Admin API call, which the free plan rate-limits.
     if (!this.directUploads || resourceType !== "video" || !provider.createDirectUpload || !provider.describe) return { id: null, upload: null };
     assertSize(resourceType, input.size, MAX_DIRECT_BYTES);

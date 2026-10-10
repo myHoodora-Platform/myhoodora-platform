@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { ActionDialog } from "@/components/admin/action-dialog";
 import { fieldInputClass } from "@/components/shared/field";
 import { useAuth } from "@/context/AuthContext";
+import { bulkFailureSummary } from "@/lib/api/admin/bulk-outcome";
 import { actOnNeighbour, bulkNeighbours, listHoods } from "@/lib/api/admin/community";
 import type { AdminHood, NeighbourAction } from "@/lib/api/admin/types";
 import { useAdminSession } from "../session";
@@ -130,7 +131,16 @@ export function NeighbourActionDialog({
         if (!user) return;
         const input = { action, reason, note, hoodId: needsHood ? hoodId : undefined, days: action === "restrict" ? Number(days) : undefined };
         if (targets.length === 1) await actOnNeighbour(user, targets[0]!.uid, input, role);
-        else await bulkNeighbours(user, targets.map((t) => t.uid), input, role);
+        else {
+          // Each neighbour is handled on their own, so some can succeed while others don't.
+          const outcome = await bulkNeighbours(user, targets.map((t) => t.uid), input, role);
+          const problem = bulkFailureSummary(outcome, (uid) => targets.find((t) => t.uid === uid)?.displayName ?? "A neighbour");
+          if (problem) {
+            toast.warning(`${spec.confirm}: ${problem}`, { duration: 12_000 });
+            onDone();
+            return;
+          }
+        }
         toast.success(`${spec.confirm}: done. It's in the moderation history.`);
         onDone();
       }}

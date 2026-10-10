@@ -17,7 +17,8 @@ export type VerificationStatus = (typeof VERIFICATION_STATUSES)[number];
 export type Capability =
   // Everyone signed in (not suspended)
   | "profile.manage"
-  // Verified, active neighbours with a Hood
+  // Verified, active neighbours with a Hood. Writing to neighbours (content.create, messages.send)
+  // also needs a confirmed email address; reacting and reporting don't.
   | "content.create"
   | "content.react"
   | "report.create"
@@ -28,6 +29,8 @@ export type Capability =
   | "moderation.act"
   | "moderation.suspend"
   | "verification.review"
+  /** See a neighbour's home address on their staff profile (contract §13.3: admins only). */
+  | "neighbours.address"
   | "hoods.manage"
   | "businesses.review"
   | "broadcasts.send"
@@ -43,6 +46,7 @@ const STAFF: Record<Exclude<Role, "member">, Capability[]> = {
     "moderation.act",
     "moderation.suspend",
     "verification.review",
+    "neighbours.address",
     "hoods.manage",
     "businesses.review",
     "broadcasts.send",
@@ -54,6 +58,7 @@ const STAFF: Record<Exclude<Role, "member">, Capability[]> = {
     "moderation.act",
     "moderation.suspend",
     "verification.review",
+    "neighbours.address",
     "hoods.manage",
     "businesses.review",
     "broadcasts.send",
@@ -69,6 +74,8 @@ export interface CapabilitySubject {
   verificationStatus: VerificationStatus;
   hoodId?: string | null;
   restrictedUntil?: Date | null;
+  /** False when a confirmed email is required and they don't have one. Left out, it isn't a consideration. */
+  emailConfirmed?: boolean;
 }
 
 /** Restriction ends automatically once `restrictedUntil` has passed. */
@@ -82,9 +89,13 @@ export function capabilitiesOf(s: CapabilitySubject, now = new Date()): Capabili
   const status = effectiveAccountStatus(s, now);
   if (status === "suspended") return [];
   const caps: Capability[] = ["profile.manage"];
-  if (s.verificationStatus === "verified" && s.hoodId) caps.push("messages.send");
-  if (status === "active" && s.verificationStatus === "verified" && s.hoodId) {
-    caps.push("content.create", "content.react", "report.create");
+  const neighbour = s.verificationStatus === "verified" && Boolean(s.hoodId);
+  // An address check says where someone claims to live, not who they are: writing to neighbours needs a reachable person too.
+  const mayWrite = neighbour && s.emailConfirmed !== false;
+  if (mayWrite) caps.push("messages.send");
+  if (status === "active" && neighbour) {
+    if (mayWrite) caps.push("content.create");
+    caps.push("content.react", "report.create");
   } else if (status === "active") {
     // Unverified neighbours can still report harmful content they see.
     caps.push("report.create");

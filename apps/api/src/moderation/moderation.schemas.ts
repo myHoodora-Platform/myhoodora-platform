@@ -9,6 +9,8 @@ export class Report {
   @Prop({ type: String, required: true, enum: TARGET_TYPES }) targetType!: TargetType;
   @Prop({ required: true }) targetId!: string;
   @Prop({ required: true, index: true }) reporterUid!: string;
+  /** Who the report is about: the author, or for a conversation the other person in it. */
+  @Prop() reportedUid?: string;
   @Prop({ type: String, required: true, enum: REPORT_REASONS }) reason!: ReportReason;
   @Prop({ maxlength: 1000 }) details?: string;
   @Prop({ required: true, index: true }) caseId!: string;
@@ -54,6 +56,11 @@ export class ModerationCase {
   resolution?: { action: ModerationAction; reason: string; note?: string; by: string; byUid: string; at: Date } | null;
   /** When the case went to Hood Leads (for the 48 h escalation). */
   @Prop() routedToLeadsAt?: Date;
+  /**
+   * When a new report brought an already-decided case back to the queue. `resolution` then still
+   * holds the earlier decision (it stays appealable) until staff decide again.
+   */
+  @Prop() reopenedAt?: Date;
 }
 export const ModerationCaseSchema = SchemaFactory.createForClass(ModerationCase);
 ModerationCaseSchema.index({ targetType: 1, targetId: 1 }, { unique: true });

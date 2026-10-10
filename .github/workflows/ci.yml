@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - develop
+      - development
   pull_request:
 
 # A newer push to the same branch makes the older run pointless.
@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify:
+  build:
     name: Lint, types, tests, build
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -25,10 +25,10 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
 
-      - name: Setup Node.js v20
+      - name: Setup Node.js v24
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
 
       - name: Install dependencies
@@ -71,10 +71,10 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
 
-      - name: Setup Node.js v20
+      - name: Setup Node.js v24
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
 
       - name: Install dependencies
@@ -96,3 +96,45 @@ jobs:
           name: playwright-report
           path: apps/web/playwright-report
           retention-days: 7
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      # Full history: gitleaks reads the commits between the base and this one.
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Only the commits this push or pull request adds are scanned, so a leak is stopped where it enters.
+      # Older history holds credentials that are already known and tracked (docs/codebase-audit.md, B1):
+      # rotating them is the fix, and scanning them again on every run would only keep this job red.
+      - name: Scan new commits for credentials (gitleaks)
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          # A brand-new branch has no "before" commit (all zeros): scan what it adds on top of main.
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            BASE="$(git merge-base origin/main HEAD)"
+          fi
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.24.2 \
+            git /repo --log-opts="$BASE..HEAD" --redact --no-banner --verbose
+
+  verify:
+    name: verify
+    if: always()
+    needs: [build, browser, secrets]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check all jobs passed
+        run: |
+          if [[ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}" == "true" ]]; then
+            echo "One or more required jobs did not pass: ${{ join(needs.*.result, ', ') }}"
+            exit 1
+          fi
+          echo "All jobs passed"

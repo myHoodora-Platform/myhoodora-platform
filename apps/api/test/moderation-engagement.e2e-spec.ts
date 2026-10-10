@@ -144,6 +144,47 @@ describe("Moderation & engagement", () => {
       const list = (await t.http.get(`/api/posts/${p._id}/comments`).set(t.auth("ada")).expect(200)).body as { authorUid: string }[];
       expect(list.some((x) => x.authorUid === "chidi")).toBe(false);
     });
+
+    // "Who has blocked me?" runs on nearly every read (feed, post, comments, listings, groups, chat).
+    // Without an index it reads the whole users collection each time.
+    it("finds the people who blocked someone through an index, not by scanning every user", async () => {
+      const plan = (await t.users.find({ blockedUids: "chidi" }).select({ uid: 1 }).explain("queryPlanner")) as unknown as { queryPlanner: { winningPlan: unknown } };
+      const stages = JSON.stringify(plan.queryPlanner.winningPlan);
+      expect(stages).toContain('"indexName":"blockedUids_1"');
+      expect(stages).not.toContain("COLLSCAN");
+    });
+  });
+
+  // Audit B7: the events page used to ask for each card's RSVPs separately, one request per event.
+  describe("event RSVPs come with the post", () => {
+    const event = (message: string) => ({ message, category: "event", eventDate: new Date(Date.now() + 3 * 86_400_000).toISOString(), eventLocation: "Road 12 park" });
+    const feed = async (uid: string) => (await t.http.get(`/api/posts/neighborhood/${lekki}?category=event`).set(t.auth(uid)).expect(200)).body as { _id: string; rsvp?: unknown }[];
+
+    it("every event in the feed carries the counts and the viewer's own answer", async () => {
+      const cleanUp = await t.post("ada", event("Street clean-up on Saturday"));
+      const quiet = await t.post("ada", event("Estate AGM"));
+      // (Not chidi: an earlier test has ada block him, so he can't see her events at all.)
+      await t.http.put(`/api/posts/${cleanUp._id}/rsvp`).set(t.auth("bola")).send({ status: "going" }).expect(200);
+      await t.http.put(`/api/posts/${cleanUp._id}/rsvp`).set(t.auth("mod1")).send({ status: "going" }).expect(200);
+      await t.http.put(`/api/posts/${cleanUp._id}/rsvp`).set(t.auth("dayo")).send({ status: "interested" }).expect(200);
+
+      const forBola = await feed("bola");
+      expect(forBola.find((p) => p._id === cleanUp._id)?.rsvp).toEqual({ postId: cleanUp._id, goingCount: 2, interestedCount: 1, myStatus: "going", ended: false });
+      expect(forBola.find((p) => p._id === quiet._id)?.rsvp).toEqual({ postId: quiet._id, goingCount: 0, interestedCount: 0, myStatus: null, ended: false });
+      // The same event, someone else's answer.
+      expect((await feed("dayo")).find((p) => p._id === cleanUp._id)?.rsvp).toMatchObject({ goingCount: 2, interestedCount: 1, myStatus: "interested" });
+      expect((await feed("ada")).find((p) => p._id === cleanUp._id)?.rsvp).toMatchObject({ myStatus: null });
+
+      // It is the same summary the RSVP routes return, and a single post carries it too.
+      const direct = (await t.http.get(`/api/posts/${cleanUp._id}/rsvp`).set(t.auth("bola")).expect(200)).body;
+      const single = (await t.http.get(`/api/posts/${cleanUp._id}`).set(t.auth("bola")).expect(200)).body;
+      expect(single.rsvp).toEqual(direct);
+    });
+
+    it("posts that aren't events carry none", async () => {
+      const plain = await t.post("ada", { message: "Lost keys near the gate" });
+      expect((await t.http.get(`/api/posts/${plain._id}`).set(t.auth("bola")).expect(200)).body.rsvp).toBeUndefined();
+    });
   });
 
   describe("urgent alerts", () => {

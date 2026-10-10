@@ -22,7 +22,7 @@ docs/        documentation of record (and an archive of older plans)
 
 ## Quick start
 
-Needs Node.js 20, pnpm 9, a Firebase project and a MongoDB replica set (Atlas works).
+Needs Node.js 24, pnpm 9, a Firebase project and a MongoDB replica set (Atlas works).
 
 ```bash
 pnpm install
@@ -49,7 +49,7 @@ Before opening a pull request: lint, types, tests and build should pass (CI chec
 
 ## Contributing
 
-- Branch from `develop`, open a pull request into it.
+- Branch from `development`, open a pull request into it.
 - Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/): `feat(feed): …`, `fix(api): …`, `docs: …`.
 - Git hooks (Husky) run lint and type-check before a commit and unit tests before a push.
 - When behaviour changes, update the matching page in `docs/` in the same pull request.

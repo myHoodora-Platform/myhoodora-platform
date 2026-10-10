@@ -220,6 +220,73 @@ describe("Security & authorization (audit findings)", () => {
     });
   });
 
+  // A 401 makes the web app sign the person out of Firebase and drop their session cookie.
+  // Google being unreachable must therefore never look like a bad token (audit B2).
+  describe("a Firebase outage is 503 'try again', never 401 'signed out'", () => {
+    const service = () => t.app.get(SessionRevocationService);
+    /** Stands in for the 30-second memory lapsing: what we knew is still there, but too old to use without asking again. */
+    const lapse = (uid: string) => {
+      (service() as unknown as { states: Map<string, { until: number }> }).states.get(uid)!.until = 0;
+    };
+    beforeEach(() => t.resetThrottle());
+    afterEach(() => {
+      firebaseState.lookupDown = false;
+      firebaseState.keysDown = false;
+    });
+
+    it("the revocation lookup failing for someone we know nothing about yet is 503 on every kind of route", async () => {
+      await t.member("jide", lekki);
+      service().forget("jide");
+      firebaseState.lookupDown = true;
+      const me = await t.http.get("/api/users/me").set(t.auth("jide")).expect(503);
+      expect(me.body).toEqual({ statusCode: 503, message: expect.any(String) });
+      await t.http.post("/api/posts").set(t.auth("jide")).send({ message: "hello?" }).expect(503);
+      // The web's page gate and cookie exchange: 503 is "unknown" / "unavailable" there, and the cookie is kept.
+      await t.http.get("/api/auth/session").set({ Authorization: "Bearer s:jide" }).expect(503);
+      await t.http.post("/api/auth/session").set(t.auth("jide")).expect(503);
+
+      // Google is back: the very next request works, nothing was remembered about the failure.
+      firebaseState.lookupDown = false;
+      await t.http.get("/api/users/me").set(t.auth("jide")).expect(200);
+    });
+
+    it("someone whose state was known a moment ago keeps working through the outage", async () => {
+      await t.member("kemi", lekki);
+      await t.http.get("/api/users/me").set(t.auth("kemi")).expect(200);
+      firebaseState.lookupDown = true;
+      lapse("kemi");
+      await t.http.get("/api/users/me").set(t.auth("kemi")).expect(200);
+      await t.http.get("/api/auth/session").set({ Authorization: "Bearer s:kemi" }).expect(204);
+    });
+
+    it("the outage doesn't loosen our own checks: sign out everywhere and suspension still apply at once", async () => {
+      await t.member("lola", lekki);
+      await t.http.get("/api/users/me").set(t.auth("lola")).expect(200);
+      firebaseState.lookupDown = true;
+      lapse("lola");
+      await t.users.updateOne({ uid: "lola" }, { $set: { sessionsRevokedAt: new Date() } });
+      await t.http.get("/api/users/me").set(t.auth("lola")).expect(401);
+
+      firebaseState.lookupDown = false;
+      await t.member("musa", lekki);
+      await t.http.get("/api/users/me").set(t.auth("musa")).expect(200);
+      firebaseState.lookupDown = true;
+      lapse("musa");
+      await t.users.updateOne({ uid: "musa" }, { $set: { accountStatus: "suspended" } });
+      await t.http.post("/api/posts").set(t.auth("musa")).send({ message: "still here?" }).expect(403);
+    });
+
+    it("Google's signing keys being unfetchable is 503 too, while a genuinely bad token stays 401", async () => {
+      firebaseState.keysDown = true;
+      await t.http.get("/api/users/me").set(t.auth("ada")).expect(503);
+      await t.http.get("/api/auth/session").set({ Authorization: "Bearer s:ada" }).expect(503);
+      firebaseState.keysDown = false;
+      await t.http.get("/api/users/me").set({ Authorization: "Bearer nonsense" }).expect(401);
+      await t.http.get("/api/users/me").expect(401);
+      await t.http.get("/api/users/me").set(t.auth("ada")).expect(200);
+    });
+  });
+
   it("deleting someone else's post is 403, your own is 204", async () => {
     const p = await t.post("ada", { message: "mine" });
     await t.member("chi", lekki);
@@ -236,6 +303,26 @@ describe("Security & authorization (audit findings)", () => {
       await t.http.patch("/api/admin/settings").set(t.auth("mod1")).send({}).expect(403);
       const me = await t.http.get("/api/admin/me").set(t.auth("mod1")).expect(200);
       expect(me.body.can).toEqual(["moderation.act", "verification.review"]);
+    });
+
+    // Contract §13.3: a neighbour's home address is for admins only (audit B15).
+    it("a neighbour's home address goes to admins and owners, not to moderators", async () => {
+      await t.member("homer", lekki, { location: { address: "12 Admiralty Way, Lekki", lat: 6.4478, lng: 3.4746 } });
+      for (const uid of ["admin1", "owner1"]) {
+        const detail = (await t.http.get("/api/admin/neighbours/homer").set(t.auth(uid)).expect(200)).body;
+        expect(detail.location).toEqual({ address: "12 Admiralty Way, Lekki", lat: 6.4478, lng: 3.4746 });
+      }
+      const forModerator = (await t.http.get("/api/admin/neighbours/homer").set(t.auth("mod1")).expect(200)).body;
+      expect(forModerator.location).toBeUndefined();
+      expect(JSON.stringify(forModerator)).not.toContain("Admiralty Way");
+      // Everything else a moderator works with is still there.
+      expect(forModerator).toMatchObject({ uid: "homer", verificationStatus: "verified", verificationAttempts: [], timeline: expect.any(Array) });
+
+      // The same view comes back from an action, so the same rule applies there.
+      const afterAction = (await t.http.post("/api/admin/neighbours/homer/actions").set(t.auth("mod1")).send({ action: "warn", reason: "Be kind" }).expect(201)).body;
+      expect(afterAction.location).toBeUndefined();
+      // The capability behind it is internal: it is not one of the contract's names sent to the web.
+      expect((await t.http.get("/api/admin/me").set(t.auth("admin1")).expect(200)).body.can).not.toContain("neighbours.address");
     });
 
     it("moderators can't suspend or reinstate; admins can", async () => {

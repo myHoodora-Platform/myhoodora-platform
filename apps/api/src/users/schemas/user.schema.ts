@@ -25,9 +25,16 @@ export class User {
   @Prop({ default: "email" })
   provider!: string; // 'password' | 'google.com' | 'apple.com'
 
-  /** Home Hood. Only address verification or staff can set it. */
+  /**
+   * Home Hood. Only address verification or staff can set it. It grants access only while
+   * `verificationStatus` is "verified" (AccountGuard); staff rejecting a verification clears it.
+   */
   @Prop({ index: true })
   neighborhoodId?: string;
+
+  /** The Hood they were in when staff rejected their verification. History for staff: it grants nothing. */
+  @Prop()
+  lastNeighborhoodId?: string;
 
   @Prop({ default: false })
   isOnboarded!: boolean;
@@ -58,6 +65,18 @@ export class User {
 
   @Prop({ type: Date, default: null })
   deactivatedAt?: Date | null;
+
+  /**
+   * Set when the account was deleted for good, 30 days after it was deactivated
+   * (AccountDeletionService). Nothing personal is left on the record by then: it remains so that
+   * the uid on moderation and audit history still points at something, and can't be signed into.
+   */
+  @Prop({ type: Date, default: null })
+  purgedAt?: Date | null;
+
+  /** What they told us when they deactivated. Cleared if they come back. */
+  @Prop({ type: { reason: String, details: String }, _id: false, default: null })
+  deactivation?: { reason: string; details?: string } | null;
 
   /**
    * When they last chose "sign out everywhere". Any token or session cookie from a sign-in before
@@ -93,3 +112,5 @@ export class User {
 
 export const UserSchema = SchemaFactory.createForClass(User);
 UserSchema.index({ createdAt: -1 });
+// "Who has blocked this person?" (UsersService.hiddenAuthorsFor) runs on nearly every read.
+UserSchema.index({ blockedUids: 1 });

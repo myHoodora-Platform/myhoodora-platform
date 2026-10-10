@@ -18,7 +18,19 @@ They boot the real `AppModule` against `mongodb-memory-server` in replica-set mo
 
 | Suite | Covers |
 | --- | --- |
-| `security` | Authorisation findings, account-state gates, ownership, the web session cookie routes, per-credential rate limits |
+| `security` | Authorisation findings, account-state gates, ownership, the web session cookie routes, per-credential rate limits, a Firebase outage answering 503 (never 401), who sees a neighbour's address |
+| `hood-access` | Who may read a Hood: every Hood-scoped route per account state, rejection, the 90-day cooldown on moving, Hood boundaries, and the `HOOD_ACCESS_STRICT=false` rollback |
+| `jobs` | The background job runner: runs once, retries with a growing delay, survives a restart, takes over from a dead worker, two instances at once |
+| `alert-fanout` | Alerts announced after the response, in batches, each neighbour once (2,000 members); `clientId` making a retried post the same post; notification length limits |
+| `rate-limits` | Limits per person once signed in, per address on public routes, the flood ceiling, `Retry-After` |
+| `upload-rules` | Who may upload for which purpose, and the daily allowance |
+| `deactivation` | Deactivating hides posts, listings and the person's name; signing in restores them |
+| `moderation-fixes` | Reopening a decided case, appeals by a suspended account, reporting a conversation, overturning a "keep" |
+| `paging` | Messages and comments past 500: newest page first, `before` and `limit` |
+| `email-confirmation` | Posting and messaging need a confirmed email; reading, reacting and reporting don't; the off switch |
+| `privacy-settings` | "Who can see your full profile" and "Only people I've messaged" doing what they say |
+| `account-deletion` | Deletion 30 days after deactivation, in live, dry-run and off modes: what goes, what stays, conversations kept with "Deleted User", retries; and the sweep that deletes stored files nothing uses |
+| `staff-and-groups` | Bulk neighbour actions per neighbour, Hood resize overlap, audited legacy Hood routes, staff actions atomic with their audit record, the last member leaving a group |
 | `media-search-realtime` | Upload, ownership and deletion of media; search scoping and validation; the live event stream |
 | `broadcasts` | Batched delivery, no duplicates on re-run, the double-send guard, failure and retry, resume after restart |
 | `moderation-engagement` | Reports to decisions, reactions, polls, comments, blocks, media shapes on posts |

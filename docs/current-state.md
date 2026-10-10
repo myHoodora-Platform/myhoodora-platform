@@ -56,7 +56,7 @@ The web app and the API, used by residents and by staff. A resident can sign up,
 
 **Frontend.** Next.js App Router. Three areas: public pages (marketing, legal, sign-in), the signed-in app under the `(app)` route group, and `/admin`. Pages are client-rendered shells that call the API from the browser with the signed-in person's Firebase ID token. `src/proxy.ts` decides which pages a request may see. A mock mode (`NEXT_PUBLIC_USE_MOCKS=true`) runs the whole UI on in-browser sample data with no API.
 
-**API.** A modular NestJS monolith: one module per domain (posts, comments, listings, groups, chat, businesses, moderation, notifications, admin, storage, search, realtime…). Every request passes four global guards in order: rate limit, Firebase token, account state, capability. Authorisation is by capability, derived from role *and* account state.
+**API.** A modular NestJS monolith: one module per domain (posts, comments, listings, groups, chat, businesses, moderation, notifications, admin, storage, search, realtime…). Every request passes five global guards in order: a per-IP flood limit, Firebase token, a per-person rate limit, account state, capability. Work that must outlive a request (telling a Hood about an alert) runs as a background job recorded in MongoDB (`src/jobs`). Authorisation is by capability, derived from role *and* account state.
 
 **Database.** MongoDB (Atlas, a replica set: transactions depend on it) through Mongoose 9. Data migrations are code (`apps/api/src/database/migrations`) run with `pnpm migrate`; missing indexes are created at boot.
 
@@ -86,3 +86,4 @@ These are real and open; none is hidden behind "done".
 - The content policy allows inline scripts (`'unsafe-inline'`), which Next.js needs without per-request nonces. See `security.md`.
 - Legal pages have not had a lawyer's review.
 - Several production tasks are manual and outstanding: `backlog-status.md`.
+- The October 2026 audit ([`codebase-audit.md`](./codebase-audit.md)) is partly implemented and **not yet committed, deployed or run in CI**: see [`implementation-progress.md`](./implementation-progress.md). Two things in it depend on steps outside the code: posting now needs a confirmed email, which needs verification emails to be deliverable (the Resend sending domain); and deletion 30 days after deactivation exists but starts in `dry-run`, so the privacy policy's promise is kept only once `DATA_DELETION_MODE=live` is set.

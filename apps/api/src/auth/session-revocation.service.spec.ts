@@ -1,5 +1,5 @@
 import type { ConfigService } from "@nestjs/config";
-import { SessionRevocationService } from "./session-revocation.service";
+import { RevocationLookupUnavailable, SessionRevocationService } from "./session-revocation.service";
 
 const getUser = jest.fn();
 jest.mock("../config/firebase.config", () => ({ getFirebaseAdmin: () => ({ auth: () => ({ getUser: (uid: string) => getUser(uid) }) }) }));
@@ -73,13 +73,82 @@ describe("SessionRevocationService", () => {
     expect(await service.isRevoked({ uid: "ada", auth_time: NOW / 1000 })).toBe(false);
   });
 
-  it("if Firebase can't be reached, the request fails rather than being waved through, and nothing is remembered", async () => {
+  const firebaseIsDown = () => getUser.mockRejectedValue(Object.assign(new Error("network"), { code: "app/network-error" }));
+
+  it("if Firebase can't be reached about someone unknown, the lookup fails as 'unavailable' (never 'fine', never 'revoked'), and nothing is remembered", async () => {
     const service = make();
     getUser.mockRejectedValueOnce(Object.assign(new Error("network"), { code: "auth/internal-error" }));
-    await expect(service.isRevoked(signedInAt(NOW))).rejects.toThrow("network");
+    const failure = await service.isRevoked(signedInAt(NOW)).catch((e: unknown) => e);
+    expect(failure).toBeInstanceOf(RevocationLookupUnavailable);
+    expect((failure as RevocationLookupUnavailable).reason).toBe("auth/internal-error");
     firebaseSays({});
     expect(await service.isRevoked(signedInAt(NOW))).toBe(false);
     expect(getUser).toHaveBeenCalledTimes(2);
+  });
+
+  it("during an outage, the last answer about someone is reused, whatever it was", async () => {
+    firebaseSays({ revokedAtMs: NOW - 60_000 });
+    const service = make(30_000);
+    const before = signedInAt(NOW - 120_000);
+    const after = signedInAt(NOW - 10_000);
+    expect(await service.isRevoked(before)).toBe(true);
+
+    firebaseIsDown();
+    jest.setSystemTime(NOW + 31_000); // the 30-second window has passed, so Firebase is asked again and fails
+    expect(await service.isRevoked(after)).toBe(false);
+    // "Revoked" survives the outage just as "not revoked" does: an old answer is reused, not softened.
+    expect(await service.isRevoked(before)).toBe(true);
+  });
+
+  it("…but only for five minutes after Firebase last answered; then it is 'unavailable' until Firebase is back", async () => {
+    firebaseSays({});
+    const service = make(30_000);
+    await service.isRevoked(signedInAt(NOW));
+
+    firebaseIsDown();
+    jest.setSystemTime(NOW + 4 * 60_000 + 59_000);
+    expect(await service.isRevoked(signedInAt(NOW))).toBe(false);
+    jest.setSystemTime(NOW + 5 * 60_000 + 11_000);
+    await expect(service.isRevoked(signedInAt(NOW))).rejects.toBeInstanceOf(RevocationLookupUnavailable);
+
+    firebaseSays({});
+    expect(await service.isRevoked(signedInAt(NOW))).toBe(false);
+  });
+
+  it("an outage doesn't mean a lookup (and a timeout) per request: Firebase is retried every 10 seconds per person", async () => {
+    firebaseSays({});
+    const service = make(30_000);
+    await service.isRevoked(signedInAt(NOW));
+    expect(getUser).toHaveBeenCalledTimes(1);
+
+    firebaseIsDown();
+    jest.setSystemTime(NOW + 31_000);
+    for (let i = 0; i < 10; i++) await service.isRevoked(signedInAt(NOW));
+    expect(getUser).toHaveBeenCalledTimes(2);
+    jest.setSystemTime(NOW + 42_000);
+    for (let i = 0; i < 10; i++) await service.isRevoked(signedInAt(NOW));
+    expect(getUser).toHaveBeenCalledTimes(3);
+
+    // Back up: the next retry gets a real answer, and the normal 30-second window resumes.
+    firebaseSays({ disabled: true });
+    jest.setSystemTime(NOW + 53_000);
+    expect(await service.isRevoked(signedInAt(NOW))).toBe(true);
+    expect(getUser).toHaveBeenCalledTimes(4);
+  });
+
+  it("nothing is reused for someone we were told to forget (they just signed out everywhere), or when nothing is remembered at all", async () => {
+    firebaseSays({});
+    const service = make(30_000);
+    await service.isRevoked(signedInAt(NOW));
+    service.forget("ada");
+    firebaseIsDown();
+    await expect(service.isRevoked(signedInAt(NOW))).rejects.toBeInstanceOf(RevocationLookupUnavailable);
+
+    firebaseSays({});
+    const askEveryTime = make(0);
+    await askEveryTime.isRevoked(signedInAt(NOW));
+    firebaseIsDown();
+    await expect(askEveryTime.isRevoked(signedInAt(NOW))).rejects.toBeInstanceOf(RevocationLookupUnavailable);
   });
 
   it("a window of 0 asks every time (the old behaviour)", async () => {

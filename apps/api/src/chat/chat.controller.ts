@@ -1,9 +1,9 @@
-import { Body, Controller, Get, HttpCode, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, Post, Query } from "@nestjs/common";
 import { ApiBearerAuth, ApiCreatedResponse, ApiForbiddenResponse, ApiOkResponse, ApiOperation, ApiTags, ApiTooManyRequestsResponse } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { CurrentViewer, type Viewer } from "../shared/auth/viewer";
 import { Can } from "../shared/authz/can.decorator";
-import { ParseObjectIdPipe } from "../shared/http/pagination";
+import { ParseObjectIdPipe, ThreadPageQuery } from "../shared/http/pagination";
 import { SendMessageDto, StartConversationDto } from "./chat.dto";
 import { ChatService } from "./chat.service";
 import { ApiNotFound, ApiStandardErrors } from "../shared/http/api-docs";
@@ -48,11 +48,14 @@ export class ChatController {
   }
 
   @Get(":id/messages")
-  @ApiOperation({ summary: "Messages, oldest first. Marks the conversation read for you" })
+  @ApiOperation({
+    summary: "Messages: the newest page, oldest first. Marks the conversation read for you",
+    description: "Up to 500 at a time (`limit`). A full page means there may be earlier ones: pass the id of the oldest you have as `before` to get the page before it. Earlier pages don't mark anything read.",
+  })
   @ApiOkResponse()
   @ApiNotFound("Conversation")
-  messages(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string) {
-    return this.chat.listMessages(viewer, id);
+  messages(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Query() q: ThreadPageQuery) {
+    return this.chat.listMessages(viewer, id, q);
   }
 
   @Post(":id/typing")

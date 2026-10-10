@@ -13,7 +13,10 @@ export interface Viewer {
   role: Role;
   accountStatus: AccountStatus;
   verificationStatus: VerificationStatus;
-  /** The caller's own Hood — every Hood-scoped query uses this, never a client param. */
+  /**
+   * The caller's own Hood — every Hood-scoped query uses this, never a client param.
+   * Null unless they are a verified neighbour (see AccountGuard).
+   */
   hoodId: string | null;
   capabilities: Capability[];
   /** false until GET /users/me has created the record. */
