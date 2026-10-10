@@ -23,6 +23,7 @@ import { useAdminSession } from "../session";
 import { useAdminQuery } from "../use-admin-query";
 import { reportHref } from "../moderation/queue-page";
 import { HoodLeadsPanel } from "./hood-leads-panel";
+import { useHoodsAround } from "./use-hoods-around";
 
 const HoodMap = dynamic(() => import("./hood-map").then((m) => m.HoodMap), { ssr: false, loading: () => <div className="h-56 animate-pulse bg-muted" /> });
 
@@ -51,6 +52,7 @@ export function HoodDetailPage({ id }: { id: string }) {
   const [tab, setTab] = useState<Tab>("members");
   const [dialog, setDialog] = useState<null | "edit" | HoodStatus>(null);
   const [form, setForm] = useState({ name: "", radius: 1500, description: "" });
+  const around = useHoodsAround(hood.data?.center, id);
 
   if (hood.loading && !hood.data) return <DetailSkeleton />;
   if (!hood.data) return <AdminProblem error={hood.error} onRetry={hood.refetch} backHref="/admin/hoods" />;
@@ -201,7 +203,7 @@ export function HoodDetailPage({ id }: { id: string }) {
         aside={
           <>
             <Panel title="Boundary" padded={false}>
-              <HoodMap lat={h.center.lat} lng={h.center.lng} radiusMeters={h.radiusMeters} className="h-56 w-full overflow-hidden" />
+              <HoodMap lat={h.center.lat} lng={h.center.lng} radiusMeters={h.radiusMeters} others={around} className="h-56 w-full overflow-hidden" />
               <div className="p-5">
                 <KeyValues
                   items={[
@@ -224,7 +226,7 @@ export function HoodDetailPage({ id }: { id: string }) {
           open
           onOpenChange={(o) => !o && setDialog(null)}
           title={`Edit ${h.name}`}
-          consequence="Changes apply straight away. Changing the radius affects who can verify into this Hood from now on; existing members stay."
+          consequence="Changes apply straight away. Changing the radius affects who can verify into this Hood from now on; existing members stay. It may overlap other Hoods, but not cover another Hood's centre."
           confirmLabel="Save changes"
           requireReason={false}
           ready={form.name.trim().length >= 2}
