@@ -245,9 +245,9 @@ export class HoodsService {
   }
 
   /**
-   * Hoods (not archived) a Hood centred here could overlap at any allowed radius: those whose circle
-   * comes within MAX_HOOD_RADIUS_METERS of the point. Nearest first. Not limited to one city, so a Hood
-   * across a city line still shows.
+   * Hoods a Hood centred here could overlap at any allowed radius: those whose circle comes within
+   * MAX_HOOD_RADIUS_METERS of the point. Nearest first. Not limited to one city, so a Hood across a city
+   * line still shows. Archived ones too, so staff can keep clear of a Hood that may be reopened.
    */
   async around(center: { lat: number; lng: number }): Promise<HoodFootprint[]> {
     const rows = await this.hoods
@@ -258,7 +258,6 @@ export class HoodsService {
             distanceField: "distanceMeters",
             spherical: true,
             maxDistance: 2 * MAX_HOOD_RADIUS_METERS,
-            query: { status: { $ne: "archived" } },
           },
         },
         { $match: { $expr: { $lt: ["$distanceMeters", { $add: ["$radiusMeters", MAX_HOOD_RADIUS_METERS] }] } } },

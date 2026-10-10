@@ -56,7 +56,7 @@ describe("Overlapping Hoods", () => {
   describe("GET /admin/hoods/near: what the admin map draws", () => {
     const near = (at: { lng: number; lat: number }, uid = "admin1") => t.http.get("/api/admin/hoods/near").query(at).set(t.auth(uid));
 
-    it("every Hood a Hood centred here could overlap, nearest first, whatever its city; not archived or out of reach ones", async () => {
+    it("every Hood a Hood centred here could overlap, nearest first, whatever its city or status; not out of reach ones", async () => {
       // t.hood files these under Lagos: a different city from Bodija's Ibadan, and still shown.
       await t.hood("Moniya", east(-10_000).lng, east(-10_000).lat, 1000);
       // 30 km away, but 12 km across: a 20 km Hood here could reach it.
@@ -66,8 +66,10 @@ describe("Overlapping Hoods", () => {
       await t.hoods.updateOne({ _id: await t.hood("Old Bodija", east(-6000).lng, east(-6000).lat, 1000) }, { $set: { status: "archived" } });
 
       const body = (await near(BODIJA).expect(200)).body as { name: string }[];
-      expect(body.map((h) => h.name)).toEqual(["Bodija", "Agodi", "Moniya", "Iseyin Road"]);
+      expect(body.map((h) => h.name)).toEqual(["Bodija", "Agodi", "Old Bodija", "Moniya", "Iseyin Road"]);
       expect(body[1]).toEqual({ id: agodi, name: "Agodi", city: "Ibadan", status: "active", center: east(3500), radiusMeters: 1000 });
+      // Archived Hoods are drawn so a new one can keep clear of them, in case they reopen.
+      expect(body[2]).toMatchObject({ name: "Old Bodija", status: "archived" });
     });
 
     it("needs a valid point, and staff", async () => {

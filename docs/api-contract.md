@@ -703,7 +703,7 @@ interface AdminHood {
 | Method & path | Notes |
 | --- | --- |
 | `GET /admin/hoods?q&city&status` | |
-| `GET /admin/hoods/near?lat&lng` | `HoodFootprint[]` (`{ id, name, city, status, center, radiusMeters }`): every Hood, not archived and in any city, that a Hood centred at the point could overlap at the largest allowed radius (its circle comes within 20 km of the point). Nearest first, at most 200. For the admin map (§28) |
+| `GET /admin/hoods/near?lat&lng` | `HoodFootprint[]` (`{ id, name, city, status, center, radiusMeters }`): every Hood, in any city and of any status, that a Hood centred at the point could overlap at the largest allowed radius (its circle comes within 20 km of the point). Nearest first, at most 200. Archived Hoods are included so staff can keep clear of one that may be reopened; the placement rules ignore them. For the admin map (§28) |
 | `GET /admin/hoods/:id` | Adds `timeline` and a `members7d` series for the chart |
 | `GET /admin/hoods/:id/members` · `/posts` · `/reports` | Paged |
 | `POST /admin/hoods` **A** | `{ name, city, country, center, radiusMeters, description? }`. `409` when its centre is inside another Hood or its radius covers another Hood's centre. Overlapping is allowed (§28) |
@@ -1358,4 +1358,4 @@ With that rule, every Hood keeps its own centre and the ground around it.
 - **Ask to join** (§16) still serves addresses outside every Hood.
 
 ### Web
-`/admin/hoods/new` and the Boundary map on `/admin/hoods/:id` draw the Hoods around the centre (from `GET /admin/hoods/near`, so not limited to one city or one page) and a dashed line where circles cross. The new-Hood form shows the same 409 messages before submitting, and lists the Hoods it shares ground with. The mock store applies the same rules (`apps/web/src/lib/hood-placement.ts`).
+`/admin/hoods/new` and the Boundary map on `/admin/hoods/:id` draw the Hoods around the centre (from `GET /admin/hoods/near`, so not limited to one city or one page) and a dashed line where circles cross. Archived Hoods appear as a faint dotted outline marked "(archived)", with no dividing line, and don't count towards the form's checks. The new-Hood form shows the same 409 messages before submitting, and lists the Hoods it shares ground with. The mock store applies the same rules (`apps/web/src/lib/hood-placement.ts`).
