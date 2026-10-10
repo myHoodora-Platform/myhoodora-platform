@@ -28,6 +28,7 @@ import {
   DecisionDto,
   EstimateDto,
   HoodQueryDto,
+  HoodsNearQuery,
   NeighbourActionDto,
   NeighbourQueryDto,
   SettingsDto,
@@ -224,6 +225,13 @@ export class AdminController {
     return this.read.listHoods(q);
   }
 
+  // Before hoods/:id, which would otherwise take "near" for an id.
+  @Get("hoods/near")
+  @ApiOperation({ summary: "Every Hood a Hood centred at this point could overlap, nearest first (admin map)" })
+  hoodsNear(@Query() q: HoodsNearQuery) {
+    return this.hoods.around({ lat: q.lat, lng: q.lng });
+  }
+
   @Get("hoods/:id")
   @ApiOperation({ summary: "Hood detail, 7-day members series and timeline" })
   hood(@Param("id", ParseObjectIdPipe) id: string) {
@@ -249,7 +257,7 @@ export class AdminController {
   }
 
   @Post("hoods")
-  @ApiOperation({ summary: "Create a Hood (409 + overlaps if it overlaps another)" })
+  @ApiOperation({ summary: "Create a Hood (409 if it would sit over another Hood's centre; overlapping is allowed)" })
   @Can("hoods.manage")
   async createHood(@CurrentViewer() v: Viewer, @Body() body: CreateHoodDto) {
     const hood = await this.hoods.createAudited(v, body);

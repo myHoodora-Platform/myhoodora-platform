@@ -703,10 +703,11 @@ interface AdminHood {
 | Method & path | Notes |
 | --- | --- |
 | `GET /admin/hoods?q&city&status` | |
+| `GET /admin/hoods/near?lat&lng` | `HoodFootprint[]` (`{ id, name, city, status, center, radiusMeters }`): every Hood, in any city and of any status, that a Hood centred at the point could overlap at the largest allowed radius (its circle comes within 20 km of the point). Nearest first, at most 200. Archived Hoods are included so staff can keep clear of one that may be reopened; the placement rules ignore them. For the admin map (§28) |
 | `GET /admin/hoods/:id` | Adds `timeline` and a `members7d` series for the chart |
 | `GET /admin/hoods/:id/members` · `/posts` · `/reports` | Paged |
-| `POST /admin/hoods` **A** | `{ name, city, country, center, radiusMeters, description? }`. `409` + `overlaps[]` when it overlaps an existing Hood (reuses `/neighborhoods/nearby` logic) |
-| `PATCH /admin/hoods/:id` **A** | Name, radius, status, description |
+| `POST /admin/hoods` **A** | `{ name, city, country, center, radiusMeters, description? }`. `409` when its centre is inside another Hood or its radius covers another Hood's centre. Overlapping is allowed (§28) |
+| `PATCH /admin/hoods/:id` **A** | Name, radius, status, description. `409` when a larger radius would cover another Hood's centre (§28) |
 
 ### 13.6 Content
 
@@ -772,7 +773,7 @@ Changes the backend made while implementing this contract. The web is already up
 
 **`GET /users/me`** adds `emailVerified`, `bio`, `accountStatus`, `restrictedUntil` and `createdAt`. **`PATCH /users/me`** accepts only `displayName`, `bio` (≤ 160) and `photoURL` (https). Sending `neighborhoodId` (or any other field) is a **400**: your Hood only changes through location verification or staff.
 
-**Neighbourhoods:** `POST /neighborhoods` and `DELETE /neighborhoods/:id` now need `hoods.manage` (admin). They were previously open to any signed-in user. `DELETE` **archives** (204); it no longer deletes. New Hoods that overlap an existing one get a 409.
+**Neighbourhoods:** `POST /neighborhoods` and `DELETE /neighborhoods/:id` now need `hoods.manage` (admin). They were previously open to any signed-in user. `DELETE` **archives** (204); it no longer deletes. New Hoods placed over another Hood's centre get a 409 (§28; overlapping was refused until 2026-10-10).
 
 **Email verification** (`auth.emailVerification`)
 - On first sign-in (account creation) we send **one** welcome email. Password sign-ups get a verification link; Google and Apple sign-ups are marked verified immediately. No email is sent on later sign-ins.
@@ -1287,7 +1288,7 @@ See §10. `author` / `seller` / `participants[]` cards for someone who has deact
 ### Staff actions (B19, B21, B22, B24)
 - A group whose last member leaves is archived.
 - `POST /admin/neighbours/bulk` handles each neighbour on their own and returns `{ updated, results: [{ uid, ok, message? }] }` in the order sent. `403` only when the caller may not take that action on anyone.
-- `PATCH /admin/hoods/:id` answers `409` when a larger `radiusMeters` would overlap another Hood. `POST /neighborhoods` and `DELETE /neighborhoods/:id` now write the same audit records as the `/admin/hoods` routes.
+- `PATCH /admin/hoods/:id` answers `409` when a larger `radiusMeters` would overlap another Hood (since §28: only when it would cover another Hood's centre). `POST /neighborhoods` and `DELETE /neighborhoods/:id` now write the same audit records as the `/admin/hoods` routes.
 - Removing or restoring content, alert actions, Hood changes and Hood Lead appointments commit together with their audit record, or not at all.
 
 ### Notifications
@@ -1332,3 +1333,29 @@ An hourly sweep deletes stored files that nothing uses, in the same `DATA_DELETI
 - **Rate limits** keep the numbers in §26 (10/s, 60/min, 500/h), per person.
 - **The IP lookup** behind `/api/ip-location` (ip-api.com) stays.
 - **Moderators** may see the addresses in verification attempts and the verification queue. The profile `location` on `GET /admin/neighbours/:uid` remains admins-only, as §13.3 says.
+
+
+## 28. Hoods may overlap (2026-10-10)
+
+**Why:** Hoods are circles, and circles that may not overlap leave gaps between neighbouring areas where people live. Everyone in a gap had to ask to join a Hood and wait for staff (§16). Allowing overlap closes most gaps while every address still belongs to one Hood.
+
+### Which Hood an address belongs to
+Of the open Hoods whose radius covers the point, the one with the lowest **d² − r²** (d: distance from the point to the Hood's centre, r: the Hood's radius). Where two circles overlap, this splits the shared ground along the straight line through the two points where the circles cross, so a bigger Hood keeps proportionally more of it. It is not the nearest centre: a point can belong to a big Hood while being nearer a small one's centre. Ties go to the older Hood (lower id). `POST /users/me/verify-location` uses this; its responses are unchanged.
+
+### What staff may not do
+Hoods may overlap, but not over another Hood's centre. Archived Hoods don't count; paused ones do, as they may reopen.
+
+| Request | `409` when |
+| --- | --- |
+| `POST /admin/hoods`, `POST /neighborhoods` | The new centre is inside another Hood: `"This centre is inside {names}. Hoods can overlap, but not over another Hood's centre: move it."` |
+| | The new radius covers another Hood's centre: `"This radius would cover the centre of {names}. Hoods can overlap, but not over another Hood's centre: shrink it or move the centre."` |
+| `PATCH /admin/hoods/:id` with a larger `radiusMeters` | It would cover another Hood's centre: `"That radius would cover the centre of {names}. Hoods can overlap, but not over another Hood's centre: choose a smaller one."` |
+
+With that rule, every Hood keeps its own centre and the ground around it.
+
+### Unchanged
+- **Members stay where they are.** Creating or resizing a Hood moves the boundary for address checks from then on; nobody already verified is moved. The 90-day cooldown on moving yourself (§26) applies as before.
+- **Ask to join** (§16) still serves addresses outside every Hood.
+
+### Web
+`/admin/hoods/new` and the Boundary map on `/admin/hoods/:id` draw the Hoods around the centre (from `GET /admin/hoods/near`, so not limited to one city or one page) and a dashed line where circles cross. Archived Hoods appear as a faint dotted outline marked "(archived)", with no dividing line, and don't count towards the form's checks. The new-Hood form shows the same 409 messages before submitting, and lists the Hoods it shares ground with. The mock store applies the same rules (`apps/web/src/lib/hood-placement.ts`).

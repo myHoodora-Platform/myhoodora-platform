@@ -209,6 +209,16 @@ export interface VerificationCase {
 
 export type HoodStatus = "active" | "paused" | "archived";
 
+/** Where a Hood is: GET /admin/hoods/near, for drawing the Hoods around a point. */
+export interface HoodFootprint {
+  id: string;
+  name: string;
+  city: string;
+  status: HoodStatus;
+  center: { lat: number; lng: number };
+  radiusMeters: number;
+}
+
 export interface AdminHood {
   id: string;
   name: string;

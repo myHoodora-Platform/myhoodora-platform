@@ -3,7 +3,7 @@ import { createTestApp, type TestApp } from "./helpers/app";
 jest.mock("../src/config/firebase.config", () => jest.requireActual("./helpers/firebase-mock").firebaseMock);
 
 const LEKKI = { lng: 3.4746, lat: 6.4478 };
-// About 4.5 km east of Lekki Phase 1: clear of it at 2,000 m + 1,500 m, overlapping once either grows enough.
+// About 4.5 km east of Lekki Phase 1: clear of it at 2,000 m + 1,500 m; Lekki Phase 1 reaches its centre past 4.5 km.
 const LEKKI2 = { lng: 3.5146, lat: 6.44 };
 
 /** Audit B18, B19, B21, B22 and B24: small ways a group or a staff action could end up half done. */
@@ -114,13 +114,13 @@ describe("Groups and staff actions finish what they start", () => {
   });
 
   describe("B22: Hood changes are checked and recorded however they are made", () => {
-    it("a Hood can't be grown into its neighbour, but can be grown in clear space or shrunk", async () => {
+    it("a Hood can be grown into its neighbour but not over its centre, and can be shrunk", async () => {
       const grow = (radiusMeters: number) => t.http.patch(`/api/admin/hoods/${lekki}`).set(t.auth("admin1")).send({ radiusMeters, reason: "Estate extension" });
-      // Lekki Phase 2 starts about 3 km from this centre (4.5 km away, 1.5 km radius).
-      const res = await grow(4000).expect(409);
-      expect(res.body.message).toMatch(/Lekki Phase 2/);
+      // Lekki Phase 2's circle starts about 3 km from this centre, and its centre is about 4.5 km away.
+      const res = await grow(5000).expect(409);
+      expect(res.body.message).toMatch(/centre of Lekki Phase 2/);
       expect((await t.hoods.findById(lekki).lean())!.radiusMeters).toBe(2000);
-      await grow(2500).expect(200);
+      await grow(4000).expect(200);
       await grow(1800).expect(200);
       // Renaming or pausing involves no geometry, so needs no check.
       await t.http.patch(`/api/admin/hoods/${lekki}`).set(t.auth("admin1")).send({ description: "Phase 1 and the estates beside it" }).expect(200);

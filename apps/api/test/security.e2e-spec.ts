@@ -43,8 +43,9 @@ describe("Security & authorization (audit findings)", () => {
       expect(doc?.status).toBe("archived");
     });
 
-    it("refuses an overlapping Hood (409)", async () => {
-      await t.http.post("/api/neighborhoods").set(t.auth("admin1")).send({ name: "Lekki Central", city: "Lagos", center: { lat: 6.448, lng: 3.475 }, radiusMeters: 1000 }).expect(409);
+    it("refuses a Hood centred inside another (409)", async () => {
+      const res = await t.http.post("/api/neighborhoods").set(t.auth("admin1")).send({ name: "Lekki Central", city: "Lagos", center: { lat: 6.448, lng: 3.475 }, radiusMeters: 1000 }).expect(409);
+      expect(res.body.message).toMatch(/inside Lekki Phase 1/);
     });
   });
 
