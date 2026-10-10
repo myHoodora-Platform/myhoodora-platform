@@ -4,7 +4,7 @@ import { useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Info } from "lucide-react";
 import { Button } from "@myhoodora/ui/button";
 import { AdminPageHeader } from "@/components/admin/page-header";
 import { Unauthorized } from "@/components/admin/admin-states";
@@ -13,7 +13,9 @@ import { Field, fieldInputClass } from "@/components/shared/field";
 import { useAuth } from "@/context/AuthContext";
 import { errorMessage } from "@/lib/api/client";
 import { createHood } from "@/lib/api/admin/community";
+import { createProblem, hoodPlacement } from "@/lib/hood-placement";
 import { useAdminSession } from "../session";
+import { useHoodsAround } from "./use-hoods-around";
 
 const HoodMap = dynamic(() => import("./hood-map").then((m) => m.HoodMap), { ssr: false, loading: () => <div className="h-80 animate-pulse rounded-2xl bg-muted" /> });
 
@@ -34,13 +36,17 @@ export function NewHoodPage() {
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-
-  if (!can("hoods.manage")) return <Unauthorized message="Only admins can create Hoods." />;
-
   const latN = Number(lat);
   const lngN = Number(lng);
   const validPoint = Number.isFinite(latN) && Number.isFinite(lngN) && Math.abs(latN) <= 90 && Math.abs(lngN) <= 180;
-  const valid = name.trim().length >= 2 && validPoint;
+  const around = useHoodsAround(validPoint ? { lat: latN, lng: lngN } : undefined);
+
+  if (!can("hoods.manage")) return <Unauthorized message="Only admins can create Hoods." />;
+
+  // The API checks again on submit; this is so the admin sees it while placing the circle.
+  const placement = validPoint ? hoodPlacement({ name, center: { lat: latN, lng: lngN }, radiusMeters: radius }, around) : null;
+  const problem = placement && createProblem(placement);
+  const valid = name.trim().length >= 2 && validPoint && !problem;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,9 +109,15 @@ export function NewHoodPage() {
             <Field label="Description" htmlFor="h-desc" optional>
               <textarea id="h-desc" value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className={fieldInputClass} />
             </Field>
-            {error && (
+            {(problem || error) && (
               <p role="alert" className="flex items-start gap-2 rounded-xl bg-danger-soft p-3 text-sm">
-                <AlertCircle className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden /> {error}
+                <AlertCircle className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden /> {problem ?? error}
+              </p>
+            )}
+            {!problem && placement && placement.sharesWith.length > 0 && (
+              <p className="flex items-start gap-2 rounded-xl bg-muted p-3 text-sm">
+                <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+                Shares ground with {placement.sharesWith.map((h) => h.name).join(", ")}. Addresses there join the Hood on their side of the dashed line.
               </p>
             )}
             <div className="flex gap-2">
@@ -116,11 +128,15 @@ export function NewHoodPage() {
                 Create Hood
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">We check for overlap with existing Hoods before creating it.</p>
+            <p className="text-xs text-muted-foreground">Hoods can overlap, but not over another Hood&apos;s centre.</p>
           </div>
         </Panel>
         <div className="overflow-hidden rounded-2xl border border-border">
-          {validPoint ? <HoodMap lat={latN} lng={lngN} radiusMeters={radius} className="h-80 w-full lg:h-[460px]" /> : <div className="flex h-80 items-center justify-center bg-muted text-sm text-muted-foreground">Enter a valid centre point</div>}
+          {validPoint ? (
+            <HoodMap lat={latN} lng={lngN} radiusMeters={radius} others={around} className="h-80 w-full lg:h-[460px]" />
+          ) : (
+            <div className="flex h-80 items-center justify-center bg-muted text-sm text-muted-foreground">Enter a valid centre point</div>
+          )}
         </div>
       </form>
     </div>

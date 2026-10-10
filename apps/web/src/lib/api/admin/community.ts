@@ -1,6 +1,7 @@
 import type { User } from "firebase/auth";
 import type { BulkNeighbourResult } from "./bulk-outcome";
 import { distanceMeters as haversine } from "@/lib/geo";
+import { MAX_HOOD_RADIUS_METERS, createProblem, hoodPlacement, resizeProblem } from "@/lib/hood-placement";
 import { ApiError, apiFetch } from "../client";
 import { isLive } from "../config";
 import { actorOf, adminGet, adminSend, forbidden, mock, notFound } from "./http";
@@ -26,6 +27,7 @@ import type {
   AdminRole,
   CreateHoodInput,
   HoodDetail,
+  HoodFootprint,
   HoodLead,
   HoodStatus,
   ListQuery,
@@ -210,6 +212,20 @@ export async function listHoods(user: User, query: ListQuery & { city?: string; 
   });
 }
 
+/** live: GET /admin/hoods/near — every Hood a Hood centred here could overlap, nearest first. */
+export async function hoodsNear(user: User, center: { lat: number; lng: number }): Promise<HoodFootprint[]> {
+  if (isLive("admin.hoods")) return adminGet(user, "/hoods/near", center);
+  return mock(() =>
+    hoods()
+      .filter((h) => h.status !== "archived")
+      .map((h) => ({ h, d: haversine(center, h.center) }))
+      .filter(({ h, d }) => d < h.radiusMeters + MAX_HOOD_RADIUS_METERS)
+      .sort((a, b) => a.d - b.d)
+      .slice(0, 200)
+      .map(({ h }) => ({ id: h.id, name: h.name, city: h.city, status: h.status, center: h.center, radiusMeters: h.radiusMeters })),
+  );
+}
+
 /** live: GET /admin/hoods/:id */
 export async function getHood(user: User, id: string): Promise<HoodDetail> {
   if (isLive("admin.hoods")) return adminGet(user, `/hoods/${id}`);
@@ -226,7 +242,7 @@ export async function getHood(user: User, id: string): Promise<HoodDetail> {
   });
 }
 
-/** live: POST /admin/hoods — 409 with overlaps when it clashes with an existing Hood. */
+/** live: POST /admin/hoods — 409 when it would sit over another Hood's centre. Overlapping is allowed. */
 export async function createHood(user: User, input: CreateHoodInput, role: AdminRole): Promise<AdminHood> {
   if (isLive("admin.hoods")) return adminSend(user, "/hoods", input);
   return mock(() => {
@@ -235,10 +251,8 @@ export async function createHood(user: User, input: CreateHoodInput, role: Admin
     if (all.some((h) => h.name.toLowerCase() === input.name.trim().toLowerCase())) {
       throw new ApiError(`A Hood called “${input.name}” already exists.`, 409, "client");
     }
-    const overlaps = all.filter((h) => h.status !== "archived" && distanceMeters(h.center, input.center) < h.radiusMeters + input.radiusMeters);
-    if (overlaps.length) {
-      throw new ApiError(`This area overlaps ${overlaps.map((o) => o.name).join(", ")}. Shrink the radius or move the centre.`, 409, "client");
-    }
+    const problem = createProblem(hoodPlacement(input, all.filter((h) => h.status !== "archived")));
+    if (problem) throw new ApiError(problem, 409, "client");
     const hood: AdminHood = {
       id: `hood-${input.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
       ...input,
@@ -265,6 +279,11 @@ export async function updateHood(
     const h = hoodById(id);
     if (!h) notFound("Hood");
     const { reason, ...fields } = patch;
+    if (fields.radiusMeters !== undefined && fields.radiusMeters > h.radiusMeters) {
+      const others = hoods().filter((x) => x.id !== id && x.status !== "archived");
+      const problem = resizeProblem(hoodPlacement({ ...h, radiusMeters: fields.radiusMeters }, others));
+      if (problem) throw new ApiError(problem, 409, "client");
+    }
     saveHoods(hoods().map((x) => (x.id === id ? { ...x, ...fields } : x)));
     recordAudit(actorOf(user, role), patch.status === "archived" ? "hood_archive" : "hood_update", { type: "hood", id, label: h.name }, reason);
   }, 350);

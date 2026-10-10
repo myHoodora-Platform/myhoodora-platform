@@ -79,6 +79,9 @@ describe("admin API ↔ web contract (§13)", () => {
     expectShape(await get("/neighbours/ada"), "NeighbourDetail");
     expectPage(await get("/hoods"), "AdminHood");
     expectShape(await get(`/hoods/${hood}`), "HoodDetail");
+    const near = (await get("/hoods/near?lat=6.4478&lng=3.4746")) as Record<string, unknown>[];
+    expect(near.length).toBeGreaterThan(0);
+    near.forEach((row) => expectShape(row, "HoodFootprint"));
     const verification = await get("/verification");
     expect(verification.items.length).toBe(1);
   });
