@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { publicPageMetadata } from "@/lib/site";
 import Link from "next/link";
 import { ArrowRight, BookOpen, Compass, HeartHandshake, Home, ShieldCheck, Users } from "lucide-react";
 import { SmartImage } from "@myhoodora/ui/image";
@@ -6,10 +7,10 @@ import { MarketingPage, PageIntro } from "@/components/marketing/marketing-page"
 import { ExploreMore } from "@/components/marketing/explore-more";
 import { ABOUT_IMAGE } from "@/lib/site-images";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = publicPageMetadata("/about", {
   title: "About myHoodora",
   description: "Stronger hoods, where neighbours are connected, informed and always growing. Our vision, mission and HOOD values.",
-};
+});
 
 /** Objectives, one per letter of HOOD. */
 const HOOD_VALUES = [

@@ -13,7 +13,7 @@ function baseCount(postId: string, salt: number): number {
   return h % 23;
 }
 
-/** planned: GET /posts/:id/rsvp → { goingCount, interestedCount, myStatus } */
+/** live: GET /posts/:id/rsvp → { goingCount, interestedCount, myStatus } */
 export async function getRsvp(user: User, postId: string): Promise<EventRsvpSummary> {
   if (isLive("events.rsvp")) return apiFetch<EventRsvpSummary>(user, `/posts/${postId}/rsvp`);
   await latency(150);
@@ -26,7 +26,7 @@ export async function getRsvp(user: User, postId: string): Promise<EventRsvpSumm
   };
 }
 
-/** planned: PUT /posts/:id/rsvp { status } | DELETE /posts/:id/rsvp */
+/** live: PUT /posts/:id/rsvp { status } | DELETE /posts/:id/rsvp */
 export async function setRsvp(
   user: User,
   postId: string,

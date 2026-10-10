@@ -19,7 +19,7 @@ export function ComposerPrompt() {
   const me = viewer.user ? resolveAuthor(viewer.user.uid, viewer) : null;
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-3 sm:p-4">
+    <div data-tour="composer" className="rounded-2xl border border-border bg-card p-3 sm:p-4">
       <div className="flex items-center gap-3">
         {me && <UserAvatar person={me} />}
         <button

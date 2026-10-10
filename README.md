@@ -1,157 +1,59 @@
-# MyHoodora Platform
+# myHoodora
 
-MyHoodora is a hyper-local community platform for Nigeria, connecting neighbors and communities across cities.
+A neighbourhood network for Nigeria: verified neighbours share posts, safety alerts, events and items for sale within their own "Hood".
 
-## Project Overview
+**Documentation lives in [`docs/`](./docs/README.md).** Start with [current state](./docs/current-state.md) for what exists, and [development](./docs/development.md) to run it.
 
-The MyHoodora platform is designed to facilitate local interaction, community management, and neighbor-to-neighbor services. It is built as a modern, high-performance monorepo to ensure scalability and developer efficiency.
-
-## Tech Stack
-
-- **Monorepo Management**: [Turborepo](https://turbo.build/repo)
-- **Package Manager**: [pnpm](https://pnpm.io/)
-- **Frontend**: [Next.js](https://nextjs.org/) (React 19)
-- **Backend**: [NestJS](https://nestjs.com/)
-- **Mobile**: [Expo](https://expo.dev/) (React Native)
-- **Language**: [TypeScript](https://www.typescriptlang.org/)
-- **Database**: [MongoDB](https://www.mongodb.com/) with [Mongoose](https://mongoosejs.com/)
-- **Authentication**: [Firebase Auth](https://firebase.google.com/docs/auth) + JWT
-- **Code Quality**: [ESLint](https://eslint.org/), [Prettier](https://prettier.io/)
-
-## Project Structure
+## What's here
 
 ```text
-.
-├── apps/
-│   ├── api/          # NestJS Backend API
-│   ├── mobile/       # Expo (React Native) Mobile App
-│   └── web/          # Next.js Frontend Web Application
-├── packages/
-│   ├── ui/           # Shared React Component Library
-│   ├── eslint-config/# Shared ESLint configurations
-│   └── typescript-config/ # Shared TypeScript configurations
-├── package.json      # Root dependencies and scripts
-├── pnpm-workspace.yaml
-└── turbo.json        # Turborepo configuration
+apps/
+  web/       Next.js 16 app: marketing site, the signed-in app, the staff admin
+  api/       NestJS 10 REST API on MongoDB
+  mobile/    Expo starter. Post-MVP, not part of the workspace or CI
+packages/
+  ui/                  shared React components
+  eslint-config/       shared ESLint config
+  typescript-config/   shared TypeScript config
+docs/        documentation of record (and an archive of older plans)
 ```
 
-## Getting Started
+**Stack:** TypeScript · Next.js (React 19, Tailwind 4) · NestJS · MongoDB (Mongoose) · Firebase Authentication · Cloudinary (media) · Resend (email) · Redis (live updates) · pnpm workspaces + Turborepo.
 
-### Prerequisites
+## Quick start
 
-- Node.js >= 18
-- pnpm >= 9.0.0
-
-### Local Setup
-
-1.  **Clone the repository**:
-
-    ```bash
-    git clone https://github.com/myhoodora-hub/myhoodora-platform.git
-    cd myhoodora-platform
-    ```
-
-2.  **Install dependencies**:
-
-    ```bash
-    pnpm install
-    ```
-
-3.  **Environment Configuration**:
-    Copy the environment example files in the respective applications:
-
-    - **API** — copy `apps/api/.env.example` to `apps/api/.env`
-      (MongoDB URI, Firebase Admin SDK credentials, JWT secret, CORS origin).
-    - **Web** — create `apps/web/.env.local` with your Firebase client keys.
-      Required variables (see `apps/web/src/lib/firebase/config.ts`):
-      `NEXT_PUBLIC_FIREBASE_API_KEY`, `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`,
-      `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`,
-      `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`, `NEXT_PUBLIC_FIREBASE_APP_ID`,
-      plus `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_APP_URL`.
-
-4.  **Run the development server**:
-    ```bash
-    pnpm dev
-    ```
-    This will start the API, Web, and Mobile applications in development mode
-    (Turborepo runs the `dev` script in every workspace that defines one).
-
-## Development Workflow
-
-### Common Commands
-
-| Command            | Description                                |
-| :----------------- | :----------------------------------------- |
-| `pnpm dev`         | Start all applications in development mode |
-| `pnpm build`       | Build all applications and packages        |
-| `pnpm lint`        | Run linting checks across the monorepo     |
-| `pnpm format`      | Format all files using Prettier            |
-| `pnpm check-types` | Run type-checking across all packages      |
-
-### Pre-PR Checklist
-
-Before submitting a Pull Request, ensure the following pass:
-
-- [ ] `pnpm lint` (No linting errors)
-- [ ] `pnpm check-types` (No TypeScript errors)
-- [ ] `pnpm build` (Project builds successfully)
-- [ ] `pnpm format` (Code is correctly formatted)
-
-## Git Commit Convention
-
-We use [Conventional Commits](https://www.conventionalcommits.org/) to ensure a clean and readable project history. This is enforced using **commitlint** and **Husky** Git hooks.
-
-### Commit Message Format
-
-```text
-type(optional scope): description
-```
-
-### Commit Types
-
-| Type       | When to use                                                           |
-| :--------- | :-------------------------------------------------------------------- |
-| `feat`     | A new feature                                                         |
-| `fix`      | A bug fix                                                             |
-| `chore`    | Changes to the build process or auxiliary tools and libraries         |
-| `docs`     | Documentation only changes                                            |
-| `style`    | Changes that do not affect the meaning of the code (white-space, etc) |
-| `refactor` | A code change that neither fixes a bug nor adds a feature             |
-| `test`     | Adding missing tests or correcting existing tests                     |
-
-### Examples
-
-- `feat(auth): add login page`
-- `fix(api): resolve user profile update bug`
-- `docs(readme): update git convention section`
-- `chore(deps): upgrade turbo version`
-
-### Note on Tooling
-
-These rules apply regardless of how you commit—whether via the **terminal**, **Sourcetree**, **VS Code**, or any other Git client. The hooks will automatically validate your message before the commit is finalized.
-
-### Bypassing Hooks
-
-If you absolutely need to bypass the hooks (e.g., for a work-in-progress commit that doesn't meet the standards yet), you can use the `--no-verify` flag:
+Needs Node.js 24, pnpm 9, a Firebase project and a MongoDB replica set (Atlas works).
 
 ```bash
-git commit -m "wip: temporary commit" --no-verify
+pnpm install
+cp apps/api/.env.example apps/api/.env          # fill in: MongoDB, Firebase Admin, …
+cp apps/web/.env.example apps/web/.env.local    # fill in: Firebase web config
+pnpm dev                                        # web → http://localhost:3000, API → http://localhost:3001/api
 ```
 
-_Note: Bypassing hooks should be avoided whenever possible and is only acceptable for temporary local commits._
+Every variable is explained in [`docs/environment.md`](./docs/environment.md). To explore the UI with no backend at all: `NEXT_PUBLIC_USE_MOCKS=true pnpm --filter web dev`.
 
-## CI/CD
+## Commands
 
-We use GitHub Actions for continuous integration. Every push and pull request to `main` and `develop` branches triggers the CI pipeline, which runs:
+| Command | Does |
+| --- | --- |
+| `pnpm dev` | Web and API in watch mode |
+| `pnpm build` | Production build |
+| `pnpm lint` · `pnpm check-types` | ESLint · TypeScript |
+| `pnpm test` | Unit tests (API and web) |
+| `pnpm test:e2e:api` | API integration tests (in-memory MongoDB) |
+| `pnpm test:e2e:web` | Browser tests (Playwright) |
+| `pnpm format` | Prettier |
 
-- Dependency installation
-- Linting
-- Type checking
-- Build verification
+Before opening a pull request: lint, types, tests and build should pass (CI checks the same). See [`docs/testing.md`](./docs/testing.md).
 
-## Contribution Guidelines
+## Contributing
 
-1.  Create a feature branch from `develop`.
-2.  Follow the [Pre-PR Checklist](#pre-pr-checklist).
-3.  Submit a Pull Request with a clear description of changes.
-4.  Ensure all CI checks pass before requesting a review.
+- Branch from `development`, open a pull request into it.
+- Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/): `feat(feed): …`, `fix(api): …`, `docs: …`.
+- Git hooks (Husky) run lint and type-check before a commit and unit tests before a push.
+- When behaviour changes, update the matching page in `docs/` in the same pull request.
+
+## Deploying
+
+The API is deployed before the web app. The full runbook, with checks and rollback, is [`docs/deployment.md`](./docs/deployment.md). Several launch tasks are manual (secret rotation, domain verification, legal review): see [`docs/backlog-status.md`](./docs/backlog-status.md).

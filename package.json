@@ -8,7 +8,9 @@
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
     "test": "turbo run test --continue",
-    "prepare": "husky"
+    "prepare": "husky",
+    "test:e2e:api": "pnpm --filter @myhoodora/api test:e2e",
+    "test:e2e:web": "pnpm --filter web test:e2e"
   },
   "devDependencies": {
     "husky": "^9.1.7",
@@ -18,6 +20,6 @@
   },
   "packageManager": "pnpm@9.15.9",
   "engines": {
-    "node": "20.x"
+    "node": "24.x"
   }
 }

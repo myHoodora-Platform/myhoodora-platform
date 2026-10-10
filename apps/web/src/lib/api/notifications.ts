@@ -50,7 +50,7 @@ export interface NotificationSources {
 }
 
 /**
- * planned: GET /notifications → AppNotification[] (newest first).
+ * live: GET /notifications → AppNotification[] (newest first).
  * Preview: derived from data the app already has — neighbourhood alerts,
  * comments on your posts, unread messages and verification status.
  */
@@ -155,7 +155,7 @@ export async function listNotifications(
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
-/** planned: PATCH /notifications/:id { read: true } */
+/** live: PATCH /notifications/:id { read: true } */
 export async function markNotificationRead(user: User, id: string): Promise<void> {
   if (isLive("notifications")) {
     await apiFetch<void>(user, `/notifications/${id}`, { method: "PATCH", json: { read: true } });
@@ -165,7 +165,7 @@ export async function markNotificationRead(user: User, id: string): Promise<void
   if (!s.readIds.includes(id)) save(readKey(user.uid), { ...s, readIds: [...s.readIds, id] });
 }
 
-/** planned: POST /notifications/read-all */
+/** live: POST /notifications/read-all */
 export async function markAllNotificationsRead(user: User): Promise<void> {
   if (isLive("notifications")) {
     await apiFetch<void>(user, "/notifications/read-all", { method: "POST" });

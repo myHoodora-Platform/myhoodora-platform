@@ -4,7 +4,7 @@ type Tone = "green" | "amber" | "coral" | "red" | "grey" | "teal";
 
 /**
  * One status → one word → one colour, everywhere in the admin
- * (ADMIN_TARGET_ARCHITECTURE §8).
+ * (docs/archive/2026-09-29-admin-target-architecture.md §8).
  */
 const STATUS: Record<string, { label: string; tone: Tone }> = {
   // accounts

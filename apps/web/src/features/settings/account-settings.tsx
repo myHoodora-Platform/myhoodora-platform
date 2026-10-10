@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@myhoodora/ui/button";
 import { Badge } from "@myhoodora/ui/badge";
@@ -11,7 +12,9 @@ import { useAuth } from "@/context/AuthContext";
 import { errorMessage } from "@/lib/api/client";
 import { resetUserPassword } from "@/lib/firebase/auth";
 import { DEACTIVATION_REASONS, deactivateAccount, type DeactivationReason } from "@/lib/api/settings";
-import { SettingsRow, SettingsSection } from "./ui";
+import { ROUTES } from "@/lib/routes";
+import { THEME_OPTIONS, readThemePreference, saveThemePreference, type ThemePreference } from "@/lib/theme";
+import { Segmented, SettingsRow, SettingsSection } from "./ui";
 
 const PROVIDER_LABELS: Record<string, string> = {
   password: "Email & password",
@@ -34,7 +37,7 @@ function DeactivateDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
         toast.success("Your account has been deactivated.");
         window.location.href = "/";
       } else {
-        toast.info("Preview: account deactivation isn't connected yet, so nothing was changed.");
+        toast.info("Preview mode: accounts aren't really deactivated here, so nothing was changed.");
         onOpenChange(false);
       }
     } catch (err) {
@@ -83,10 +86,69 @@ function DeactivateDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
   );
 }
 
+function SignOutEverywhereDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+  const router = useRouter();
+  const { logoutEverywhere } = useAuth();
+  const [busy, setBusy] = useState(false);
+
+  const confirm = async () => {
+    setBusy(true);
+    try {
+      await logoutEverywhere();
+      toast.success("You're signed out on every device.");
+      router.push(ROUTES.login);
+    } catch (err) {
+      toast.error(errorMessage(err, "Couldn't sign you out everywhere. Please try again."));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <ResponsiveModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Sign out everywhere?"
+      description="You'll be signed out of myHoodora on every phone, tablet and computer, including this one. Other devices can take up to a minute. You can log back in straight away."
+    >
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>
+          Cancel
+        </Button>
+        <Button onClick={confirm} loading={busy} className="bg-destructive shadow-none hover:bg-destructive/90">
+          Sign out everywhere
+        </Button>
+      </div>
+    </ResponsiveModal>
+  );
+}
+
+/** Light, dark, or whatever the device uses. Saved on this device only. */
+function AppearanceSetting() {
+  const [theme, setTheme] = useState<ThemePreference>("system");
+  // Read after mount: the choice lives in this browser, so the server can't know it.
+  useEffect(() => setTheme(readThemePreference()), []);
+  return (
+    <SettingsSection title="Appearance" description="How myHoodora looks on this device.">
+      <SettingsRow label="Theme" description="System follows your phone or computer's light and dark setting.">
+        <Segmented
+          label="Theme"
+          value={theme}
+          options={THEME_OPTIONS}
+          onChange={(next) => {
+            setTheme(next);
+            saveThemePreference(next);
+          }}
+        />
+      </SettingsRow>
+    </SettingsSection>
+  );
+}
+
 export function AccountSettings() {
   const { user } = useAuth();
   const [sending, setSending] = useState(false);
   const [deactivating, setDeactivating] = useState(false);
+  const [signingOutEverywhere, setSigningOutEverywhere] = useState(false);
   if (!user) return null;
 
   const providers = user.providerData.map((p) => p.providerId);
@@ -122,11 +184,15 @@ export function AccountSettings() {
             </Button>
           </SettingsRow>
         )}
-        <SettingsRow
-          label="Phone number"
-          description="Add a phone number to verify faster and secure your account."
-        >
-          <Badge variant="secondary">Coming soon</Badge>
+      </SettingsSection>
+
+      <AppearanceSetting />
+
+      <SettingsSection title="Signed-in devices" description="Lost a phone or used a shared computer? End every session at once.">
+        <SettingsRow label="Sign out everywhere" description="Signs you out on all your devices, including this one.">
+          <Button variant="outline" size="sm" onClick={() => setSigningOutEverywhere(true)}>
+            Sign out everywhere
+          </Button>
         </SettingsRow>
       </SettingsSection>
 
@@ -137,6 +203,7 @@ export function AccountSettings() {
           </Button>
         </SettingsRow>
       </SettingsSection>
+      <SignOutEverywhereDialog open={signingOutEverywhere} onOpenChange={setSigningOutEverywhere} />
       <DeactivateDialog open={deactivating} onOpenChange={setDeactivating} />
     </div>
   );

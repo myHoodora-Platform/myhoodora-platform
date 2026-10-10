@@ -1,3 +1,5 @@
+import { ApiError } from "@/lib/api/client";
+
 interface FirebaseErrorLike {
   code: string;
   message: string;
@@ -55,6 +57,9 @@ export function getAuthErrorMessage(error: unknown): {
   if (process.env.NODE_ENV === "development") {
     console.error("[FirebaseAuthErrorDebug]:", error);
   }
+
+  // Signed in with Firebase, but our own session couldn't be set up: already a readable message.
+  if (error instanceof ApiError) return { message: error.message };
 
   let code: string | undefined;
 

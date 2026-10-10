@@ -154,10 +154,12 @@ function ResetPasswordForm() {
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div>
-          <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-1">
+          <label htmlFor="reset-password" className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-1">
             New Password
           </label>
           <PasswordInput
+            id="reset-password"
+            autoComplete="new-password"
             placeholder="••••••••"
             error={errors.password?.message}
             {...register("password")}

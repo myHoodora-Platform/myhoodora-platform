@@ -17,7 +17,7 @@ import { resolveAuthor } from "@/lib/api/users";
 import { ROUTES } from "@/lib/routes";
 import { timeAgo } from "@/lib/time";
 import type { Comment } from "@/lib/api/types";
-import { needsKindnessReminder } from "@/features/feed/kindness";
+import { checkKindness, kindnessHint, type KindnessReason } from "@/lib/api/kindness";
 import { reportKindness } from "@/lib/api/telemetry";
 import { useBlocked } from "@/hooks/use-blocked";
 import { useLiveVersion } from "@/lib/realtime/use-realtime";
@@ -36,6 +36,7 @@ export function CommentsSection({ postId, onCountChange }: CommentsSectionProps)
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [kindness, setKindness] = useState(false);
+  const [kindnessReasons, setKindnessReasons] = useState<KindnessReason[]>([]);
   const [reporting, setReporting] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -54,15 +55,17 @@ export function CommentsSection({ postId, onCountChange }: CommentsSectionProps)
     if (window.location.hash === "#comments") inputRef.current?.focus({ preventScroll: false });
   }, [comments]);
 
-  const send = () => {
+  const send = async () => {
     const content = draft.trim();
     if (!user || !content) return;
-    if (!kindness && needsKindnessReminder(content)) {
+    const check = await checkKindness(user, content);
+    if (!kindness && check.flagged) {
+      setKindnessReasons(check.reasons);
       setKindness(true);
       reportKindness(user, "shown");
       return;
     }
-    if (kindness) reportKindness(user, needsKindnessReminder(content) ? "posted_anyway" : "edited");
+    if (kindness) reportKindness(user, check.flagged ? "posted_anyway" : "edited");
     runGatedAction(async () => {
       setSending(true);
       try {
@@ -150,7 +153,7 @@ export function CommentsSection({ postId, onCountChange }: CommentsSectionProps)
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          send();
+          void send();
         }}
         className="flex items-end gap-2 border-t border-border pt-4 sm:gap-3"
       >
@@ -170,7 +173,7 @@ export function CommentsSection({ postId, onCountChange }: CommentsSectionProps)
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                send();
+                void send();
               }
             }}
             rows={1}
@@ -180,7 +183,7 @@ export function CommentsSection({ postId, onCountChange }: CommentsSectionProps)
           />
           {kindness && (
             <p role="alert" className="text-xs font-semibold text-warning">
-              This might come across as hurtful. Edit it, or press send again to post anyway.
+              {kindnessHint(kindnessReasons)} Edit it, or press send again to post anyway.
             </p>
           )}
         </div>

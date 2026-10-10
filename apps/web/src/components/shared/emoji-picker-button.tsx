@@ -1,5 +1,6 @@
 "use client";
 
+import { useIsDark } from "./theme-sync";
 import { useState } from "react";
 import dynamic from "next/dynamic";
 import { SmilePlus } from "lucide-react";
@@ -36,6 +37,7 @@ interface EmojiPickerButtonProps {
  */
 export function EmojiPickerButton({ onSelect, disabled, className }: EmojiPickerButtonProps) {
   const isMobile = useIsMobile();
+  const dark = useIsDark();
   const [open, setOpen] = useState(false);
 
   const trigger = (
@@ -74,7 +76,7 @@ export function EmojiPickerButton({ onSelect, disabled, className }: EmojiPicker
           onEmojiClick={(data: EmojiClickData) => onSelect(data.emoji)}
           width="100%"
           height="100%"
-          theme={Theme.LIGHT}
+          theme={dark ? Theme.DARK : Theme.LIGHT}
           emojiStyle={EmojiStyle.NATIVE}
           suggestedEmojisMode={SuggestionMode.RECENT}
           lazyLoadEmojis

@@ -3,6 +3,7 @@ import {
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
   signInWithPopup,
+  signInWithCredential,
   GoogleAuthProvider,
   OAuthProvider,
   signOut,
@@ -18,6 +19,7 @@ import { MOCK_HOOD_RADIUS_M, MOCK_NEARBY_HOODS, MOCK_NEARBY_LIMIT_M, MOCK_NEIGHB
 import { hasSkippedOnboarding } from "@/features/onboarding/draft";
 import { isStaff } from "@/lib/auth/profile";
 import { DEFAULT_APP_ROUTE, ROUTES } from "@/lib/routes";
+import { requireServerSession } from "@/lib/auth/session-sync";
 
 // ── Mock mode (NEXT_PUBLIC_USE_MOCKS=true) ──────────────────────────────────
 // Firebase sign-in stays real; everything our API would return is served
@@ -57,16 +59,22 @@ function updateMockProfile(user: User, patch: Record<string, unknown>) {
  * person is still signed in, so send them on to `fallback`: the app shell
  * shows a "couldn't load your account" state with Retry, rather than guessing
  * they're new and sending them through onboarding.
+ *
+ * Every destination is behind the proxy, so this also waits for the server
+ * session. Without one it throws (a readable ApiError) instead of returning
+ * a page that would only bounce them back to login.
  */
 export async function routeAfterSignIn(user: User, fallback: string): Promise<string> {
-  try {
-    const profile = (await fetchUserProfile(user)) as { isOnboarded?: boolean; role?: string } | null;
-    if (profile && profile.isOnboarded === false) {
-      if (isStaff(profile.role)) return fallback === DEFAULT_APP_ROUTE ? ROUTES.admin : fallback;
-      if (!hasSkippedOnboarding(user.uid)) return ROUTES.onboarding;
-    }
-  } catch (err) {
-    console.error("Couldn't load profile after sign-in:", err);
+  const [, profile] = await Promise.all([
+    requireServerSession(user),
+    (fetchUserProfile(user) as Promise<{ isOnboarded?: boolean; role?: string } | null>).catch((err) => {
+      console.error("Couldn't load profile after sign-in:", err);
+      return null;
+    }),
+  ]);
+  if (profile && profile.isOnboarded === false) {
+    if (isStaff(profile.role)) return fallback === DEFAULT_APP_ROUTE ? ROUTES.admin : fallback;
+    if (!hasSkippedOnboarding(user.uid)) return ROUTES.onboarding;
   }
   return fallback;
 }
@@ -111,11 +119,21 @@ export async function resetUserPassword(email: string): Promise<void> {
 }
 
 export async function signInWithGoogle(): Promise<User> {
+  // Default scopes only (name, email, photo): we ask Google who they are, never for access to their data.
   const provider = new GoogleAuthProvider();
+  // Always let them pick the account, instead of silently reusing whichever Google session the browser has.
+  provider.setCustomParameters({ prompt: "select_account" });
   const credential = await signInWithPopup(auth, provider);
   return credential.user;
 }
 
+/** Google One Tap hands us a Google ID token; Firebase turns it into the same account and session as the pop-up. */
+export async function signInWithGoogleCredential(googleIdToken: string): Promise<User> {
+  const credential = await signInWithCredential(auth, GoogleAuthProvider.credential(googleIdToken));
+  return credential.user;
+}
+
+/** Not offered yet (APPLE_SIGN_IN_ENABLED in social-auth-buttons.tsx); kept so enabling it is a one-line change. */
 export async function signInWithApple(): Promise<User> {
   const provider = new OAuthProvider("apple.com");
   const credential = await signInWithPopup(auth, provider);
@@ -124,11 +142,23 @@ export async function signInWithApple(): Promise<User> {
 
 export async function logoutUser(): Promise<void> {
   await signOut(auth);
+  // If Google's One Tap script is on the page, stop it offering to sign the same person straight back in.
+  if (typeof window !== "undefined") window.google?.accounts.id.disableAutoSelect();
 }
+
+// Right after sign-in two callers want the profile at the same moment (AuthProvider, and the form deciding
+// where to go next): they share one request. Nothing is kept once it answers, so every later call is fresh.
+const profileRequests = new Map<string, Promise<unknown>>();
 
 export async function fetchUserProfile(user: User): Promise<unknown> {
   if (USE_MOCKS) return mockProfile(user);
-  return apiFetch<unknown>(user, "/users/me");
+  const running = profileRequests.get(user.uid);
+  if (running) return running;
+  const request = apiFetch<unknown>(user, "/users/me").finally(() => {
+    if (profileRequests.get(user.uid) === request) profileRequests.delete(user.uid);
+  });
+  profileRequests.set(user.uid, request);
+  return request;
 }
 
 /** Mock of the API's nearby-Hood search: open Hoods close to a point, nearest first. */
@@ -206,11 +236,14 @@ export async function updateProfileApi(
   return apiFetch<unknown>(user, "/users/me", { method: "PATCH", json: payload });
 }
 
-// Revokes the user's Firebase refresh tokens server-side. Must be called
-// with a still-valid bearer token, before signOut() discards it.
-export async function revokeBackendSession(user: User): Promise<void> {
+/**
+ * "Sign out everywhere": the API revokes every refresh token, which ends the
+ * account's sessions on all devices (ID tokens and session cookies alike).
+ * Needs a still-valid ID token, so call it before signing out here.
+ */
+export async function revokeAllSessionsApi(user: User): Promise<void> {
   if (USE_MOCKS) return;
-  await apiFetch<void>(user, "/auth/logout", { method: "POST" });
+  await apiFetch<void>(user, "/auth/logout-everywhere", { method: "POST" });
 }
 
 export interface NeighborhoodSummary {

@@ -61,7 +61,7 @@ function attentionTiles(a: AdminOverview["attention"], canBusiness: boolean): At
 }
 
 const TONE = {
-  coral: "bg-brand-coral/10 text-brand-coral",
+  coral: "bg-brand-coral/10 text-brand-coral-ink dark:text-brand-coral",
   amber: "bg-amber-100 text-amber-700",
   teal: "bg-primary/10 text-primary",
 };

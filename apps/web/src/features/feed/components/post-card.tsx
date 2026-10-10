@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { BadgeCheck, CalendarDays, CheckCircle2, HandHeart, MapPin, MessageCircle, Share2 } from "lucide-react";
 import { cn } from "@myhoodora/ui/utils";
-import { ImageWithFallback } from "@/components/shared/image-with-fallback";
+import { PhotoGallery } from "@/components/shared/photo-gallery";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { useAuth } from "@/context/AuthContext";
 import { useViewer } from "@/hooks/use-neighbourhood";
@@ -14,6 +14,7 @@ import { ROUTES } from "@/lib/routes";
 import { timeAgo } from "@/lib/time";
 import type { Post, ReactionType } from "@/lib/api/types";
 import { alertStatus } from "@/features/alerts/lifecycle";
+import { EventPhaseChip } from "@/features/events/event-phase-chip";
 import { alertCategoryDef, categoryDef, reactionDef } from "../categories";
 import { shareLink } from "../share";
 import { PollCard } from "./poll-card";
@@ -117,9 +118,10 @@ export function PostCard({ post, onReact, onDelete, variant = "feed" }: PostCard
         {meta.category === "event" && (meta.eventDate || meta.eventLocation) && (
           <div className="space-y-1 rounded-xl bg-primary/5 px-3 py-2.5 text-sm font-semibold text-primary">
             {meta.eventDate && (
-              <p className="flex items-center gap-2">
+              <p className="flex flex-wrap items-center gap-2">
                 <CalendarDays className="size-4 shrink-0" aria-hidden />
                 {formatEventDate(meta.eventDate)}
+                <EventPhaseChip eventDate={meta.eventDate} />
               </p>
             )}
             {meta.eventLocation && (
@@ -156,13 +158,7 @@ export function PostCard({ post, onReact, onDelete, variant = "feed" }: PostCard
         {meta.category === "poll" && <PollCard post={post} />}
       </div>
 
-      {post.mediaUrls[0] && (
-        <ImageWithFallback
-          src={post.mediaUrls[0]}
-          alt=""
-          className="max-h-[28rem] w-full border-y border-border object-cover"
-        />
-      )}
+      <PhotoGallery urls={post.mediaUrls} aspects={post.mediaAspects} className="border-y border-border" />
 
       {/* Counts */}
       {(post.reactionTotal > 0 || post.commentCount > 0) && (

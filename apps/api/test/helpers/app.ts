@@ -1,6 +1,6 @@
 import { INestApplication, ValidationPipe } from "@nestjs/common";
 import { getConnectionToken, getModelToken } from "@nestjs/mongoose";
-import { Test } from "@nestjs/testing";
+import { Test, type TestingModuleBuilder } from "@nestjs/testing";
 import { ThrottlerStorage } from "@nestjs/throttler";
 import type { Connection, Model } from "mongoose";
 import request from "supertest";
@@ -17,7 +17,7 @@ export const WEBHOOK_SECRET = "whsec_" + Buffer.from("test-webhook-secret-32-byt
  * Firebase is the only stub (see firebase-mock.ts). Guards, pipes, services,
  * Mongo transactions and unique indexes all run for real.
  */
-export async function createTestApp(): Promise<TestApp> {
+export async function createTestApp(customise?: (builder: TestingModuleBuilder) => TestingModuleBuilder): Promise<TestApp> {
   const base = process.env.TEST_MONGO_URI!;
   const dbName = `t_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const url = new URL(base);
@@ -26,8 +26,12 @@ export async function createTestApp(): Promise<TestApp> {
   process.env.RESEND_API_KEY = "";
   process.env.RESEND_WEBHOOK_SECRET = WEBHOOK_SECRET;
   process.env.APP_URL = "https://app.test";
+  // Tests stay on this machine: no shared Redis channel and no real storage account, whatever a local .env holds.
+  process.env.REALTIME_BUS = "memory";
+  process.env.CLOUDINARY_URL = "";
 
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+  const builder = Test.createTestingModule({ imports: [AppModule] });
+  const moduleRef = await (customise ? customise(builder) : builder).compile();
   const app = moduleRef.createNestApplication({ rawBody: true, logger: ["error"] });
   app.setGlobalPrefix("api");
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
@@ -74,8 +78,9 @@ export class TestApp {
     return uid;
   }
 
+  /** A neighbour in full standing: address verified and email confirmed (pass `emailVerifiedAt: null` for one who hasn't). */
   async member(uid: string, hoodId: string, patch: Partial<User> = {}): Promise<string> {
-    return this.user(uid, { neighborhoodId: hoodId, verificationStatus: "verified", verifiedAt: new Date(), ...patch });
+    return this.user(uid, { neighborhoodId: hoodId, verificationStatus: "verified", verifiedAt: new Date(), emailVerifiedAt: new Date(), ...patch });
   }
 
   async post(uid: string, body: Record<string, unknown> = { message: "Hello neighbours" }) {
@@ -84,9 +89,13 @@ export class TestApp {
     return res.body as { _id: string };
   }
 
-  /** Rate limits are per IP and every test request shares one; call between cases that hit strict routes. */
+  /** Limits are per person, but per address on public routes, and every test request comes from one address; call between cases that hit strict routes. */
   resetThrottle() {
-    (this.app.get(ThrottlerStorage) as unknown as { storage: Map<string, unknown> }).storage.clear();
+    const limiter = this.app.get(ThrottlerStorage) as unknown as { storage: Map<string, unknown>; timeoutIds: Map<string, NodeJS.Timeout[]> };
+    // Cancel the expiry timers along with the counters they belong to, or they fire later against entries that are gone.
+    limiter.timeoutIds.forEach((ids) => ids.forEach(clearTimeout));
+    limiter.timeoutIds.clear();
+    limiter.storage.clear();
   }
 
   close() {

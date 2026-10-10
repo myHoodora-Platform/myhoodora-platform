@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { publicPageMetadata } from "@/lib/site";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -26,11 +27,11 @@ import { MarketingPage } from "@/components/marketing/marketing-page";
 import { AiPilotForm } from "@/features/hoodora-ai/pilot-form";
 import { HOODORA_AI_LOGO } from "@/lib/site-images";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = publicPageMetadata("/ai", {
   title: "myHoodora AI | Turn lectures into songs, games and videos",
   description:
     "Upload your slides or notes once. myHoodora AI turns them into a catchy song, a playable learning game and a short explainer video, reviewed by you before students see them.",
-};
+});
 
 const container = "mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8";
 
@@ -86,7 +87,7 @@ export default function HoodoraAiPage() {
         <span aria-hidden className="absolute top-40 -left-40 -z-10 size-[26rem] rounded-full bg-primary/10 blur-3xl" />
         <div className={`${container} grid items-center gap-12 py-16 lg:grid-cols-[1.1fr_0.9fr] lg:py-24`}>
           <div className="space-y-6 text-center lg:text-left">
-            <p className="inline-flex items-center gap-2 rounded-full bg-brand-coral/10 px-3 py-1 text-xs font-bold tracking-wide text-brand-coral uppercase">
+            <p className="inline-flex items-center gap-2 rounded-full bg-brand-coral/10 px-3 py-1 text-xs font-bold tracking-wide text-brand-coral-ink uppercase">
               <Sparkles className="size-3.5" aria-hidden /> New from myHoodora · Pilot
             </p>
             <h1 className="text-4xl leading-[1.05] font-bold tracking-tight sm:text-5xl lg:text-6xl">
@@ -324,7 +325,7 @@ export default function HoodoraAiPage() {
       <section id="pilot" className="scroll-mt-20 py-16 lg:py-24">
         <div className={`${container} grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center`}>
           <div className="space-y-5">
-            <p className="inline-flex items-center gap-2 rounded-full bg-brand-coral/10 px-3 py-1 text-xs font-bold tracking-wide text-brand-coral uppercase">
+            <p className="inline-flex items-center gap-2 rounded-full bg-brand-coral/10 px-3 py-1 text-xs font-bold tracking-wide text-brand-coral-ink uppercase">
               <Sparkles className="size-3.5" aria-hidden /> Limited pilot places
             </p>
             <h2 className="text-3xl font-bold tracking-tight sm:text-5xl">Bring myHoodora AI to your classroom</h2>
@@ -352,7 +353,7 @@ export default function HoodoraAiPage() {
 // ── Pieces ──────────────────────────────────────────────────────────────────
 
 const TONES = {
-  coral: { chip: "bg-brand-coral text-white", soft: "bg-brand-coral/10 text-brand-coral" },
+  coral: { chip: "bg-brand-coral text-white", soft: "bg-brand-coral/10 text-brand-coral-ink" },
   teal: { chip: "bg-primary text-primary-foreground", soft: "bg-primary/10 text-primary" },
   dark: { chip: "bg-slate-900 text-white", soft: "bg-slate-900/10 text-slate-900 dark:bg-white/10 dark:text-white" },
 } as const;
@@ -531,7 +532,7 @@ function ReviewPreview() {
                   <Check className="size-3.5" />
                 </span>
               ) : (
-                <span className="shrink-0 rounded-full bg-brand-coral/15 px-2 py-0.5 text-xs font-bold text-brand-coral">Check</span>
+                <span className="shrink-0 rounded-full bg-brand-coral/15 px-2 py-0.5 text-xs font-bold text-brand-coral-ink">Check</span>
               )}
             </div>
             <p className="mt-2 flex gap-2 rounded-xl bg-muted/60 px-3 py-2 text-xs text-muted-foreground">

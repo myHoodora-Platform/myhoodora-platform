@@ -2,30 +2,55 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Check, Star } from "lucide-react";
+import { CalendarPlus, Check, Star } from "lucide-react";
 import { cn } from "@myhoodora/ui/utils";
 import { useAuth } from "@/context/AuthContext";
 import { getRsvp, setRsvp } from "@/lib/api/events";
 import { errorMessage } from "@/lib/api/client";
+import { downloadIcs, type CalendarEvent } from "@/lib/calendar";
 import type { EventRsvpSummary, RsvpStatus } from "@/lib/api/types";
+import { eventPhase } from "./event-time";
 
-export function RsvpButtons({ postId, compact }: { postId: string; compact?: boolean }) {
+interface RsvpButtonsProps {
+  postId: string;
+  /**
+   * What the post already says about its RSVPs (`post.rsvp`). When present nothing is fetched:
+   * a page of events used to make one request per card just to draw these buttons.
+   */
+  summary?: EventRsvpSummary;
+  compact?: boolean;
+  /** Closes RSVPs once the event is over (the API refuses them too). */
+  eventDate?: string;
+  /** Shown as "Add to calendar" once you're going. */
+  calendar?: CalendarEvent | null;
+}
+
+export function RsvpButtons({ postId, summary, compact, eventDate, calendar }: RsvpButtonsProps) {
   const { user, runGatedAction } = useAuth();
-  const [rsvp, setState] = useState<EventRsvpSummary | null>(null);
+  const [rsvp, setState] = useState<EventRsvpSummary | null>(summary ?? null);
   const [busy, setBusy] = useState(false);
 
+  // The post is refetched when someone else RSVPs (a live update): show what it says now.
   useEffect(() => {
-    if (user) void getRsvp(user, postId).then(setState).catch(() => undefined);
-  }, [user, postId]);
+    if (summary) setState(summary);
+  }, [summary]);
+
+  // Only when the post didn't bring its RSVPs along (the mock store, or an older API).
+  const hasSummary = summary !== undefined;
+  useEffect(() => {
+    if (user && !hasSummary) void getRsvp(user, postId).then(setState).catch(() => undefined);
+  }, [user, postId, hasSummary]);
+
+  const ended = rsvp?.ended ?? eventPhase(eventDate) === "ended";
 
   const choose = (status: RsvpStatus) => {
-    if (!user || !rsvp) return;
+    if (!user || !rsvp || ended) return;
     runGatedAction(async () => {
       const next = rsvp.myStatus === status ? null : status;
       setBusy(true);
       try {
         setState(await setRsvp(user, postId, next));
-        if (next === "going") toast.success("You're going!");
+        if (next === "going") toast.success("You're going! We'll remind you before it starts.");
       } catch (err) {
         toast.error(errorMessage(err, "Couldn't update your RSVP."));
       } finally {
@@ -33,6 +58,16 @@ export function RsvpButtons({ postId, compact }: { postId: string; compact?: boo
       }
     });
   };
+
+  if (ended) {
+    const went = rsvp?.goingCount ?? 0;
+    return (
+      <p className="inline-flex h-10 items-center rounded-full bg-muted px-4 text-sm font-semibold text-muted-foreground">
+        This event has ended{went > 0 ? ` · ${went} went` : ""}
+        {rsvp?.myStatus === "going" && " · including you"}
+      </p>
+    );
+  }
 
   const btn = (status: RsvpStatus, label: string, Icon: typeof Check, count?: number) => {
     const active = rsvp?.myStatus === status;
@@ -44,9 +79,7 @@ export function RsvpButtons({ postId, compact }: { postId: string; compact?: boo
         aria-pressed={active}
         className={cn(
           "inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-full border px-4 text-sm font-bold transition-colors disabled:opacity-60 sm:flex-none",
-          active
-            ? "border-primary bg-primary text-primary-foreground"
-            : "border-border bg-card text-foreground hover:bg-muted",
+          active ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-foreground hover:bg-muted",
         )}
       >
         <Icon className="size-4" aria-hidden />
@@ -57,9 +90,19 @@ export function RsvpButtons({ postId, compact }: { postId: string; compact?: boo
   };
 
   return (
-    <div className="flex gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       {btn("going", "Going", Check, rsvp?.goingCount)}
       {btn("interested", "Interested", Star, rsvp?.interestedCount)}
+      {calendar && rsvp?.myStatus === "going" && (
+        <button
+          type="button"
+          onClick={() => downloadIcs(calendar)}
+          className="inline-flex h-10 items-center gap-1.5 rounded-full px-3 text-sm font-semibold text-primary hover:bg-primary/5"
+        >
+          <CalendarPlus className="size-4" aria-hidden />
+          Add to calendar
+        </button>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { IsBoolean, IsIn, IsLatitude, IsLongitude, IsOptional, IsString, IsUrl, Length, MaxLength, ValidateNested } from "class-validator";
+import { IsBoolean, IsIn, IsLatitude, IsLongitude, IsMongoId, IsOptional, IsString, IsUrl, Length, MaxLength, ValidateIf, ValidateNested } from "class-validator";
 
 /** PATCH /users/me — profile fields only. `neighborhoodId` is NOT accepted (security: Hood changes go through verification or staff). */
 export class UpdateMeDto {
@@ -13,10 +13,12 @@ export class UpdateMeDto {
   @MaxLength(160)
   bio?: string;
 
+  /** An https URL (from POST /media), or null to remove the photo. */
   @IsOptional()
+  @ValidateIf((_, v) => v !== null)
   @IsUrl({ protocols: ["https"], require_protocol: true })
   @MaxLength(500)
-  photoURL?: string;
+  photoURL?: string | null;
 }
 
 class OnboardingLocationDto {
@@ -70,6 +72,16 @@ export class VerifyLocationDto {
   @IsString()
   @MaxLength(200)
   address?: string;
+}
+
+/** Ask to join a Hood offered by the last address check (contract §16). */
+export class HoodRequestDto {
+  /**
+   * One of the `nearbyHoods` ids from `POST /users/me/verify-location`.
+   * @example 66f1a2b3c4d5e6f7a8b9c0d1
+   */
+  @IsMongoId({ message: "Choose a neighbourhood." })
+  hoodId!: string;
 }
 
 class NotificationChannelDto {

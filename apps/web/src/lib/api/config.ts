@@ -41,7 +41,16 @@ export const ENDPOINTS = {
   "reports": "live",
   "settings": "live",
   // Join a nearby Hood when the address is outside every Hood (contract §16).
-  "users.hoodRequest": "planned",
+  "users.hoodRequest": "live",
+  // Photo/video uploads through the API's storage layer (contract §20).
+  "media": "live",
+  // Browser → storage uploads for videos. Off: the API route streams to disk and on in chunks instead, and direct
+  // completion costs a Cloudinary Admin API call (hourly quota on the free plan). Flip with STORAGE_DIRECT_UPLOADS=true.
+  "media.direct": "planned",
+  // Kindness Reminder check before posting/commenting (contract §12).
+  "moderation.check": "live",
+  // Header search → /search (contract §12).
+  "search": "live",
   "feedback": "live",
   "business": "live",
   "ai.pilot": "live",

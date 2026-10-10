@@ -24,7 +24,8 @@ import { formatMonthYear, formatNaira } from "@/lib/format";
 import { ROUTES } from "@/lib/routes";
 import { timeAgo } from "@/lib/time";
 import type { Listing } from "@/lib/api/types";
-import { SAFETY_TIPS, conditionLabel, listingCategory, listingStatusLabel } from "./constants";
+import { SAFETY_TIPS, conditionLabel, listingCategory, listingStatusLabel, listingStatusTone } from "./constants";
+import { PhotoGallery } from "@/components/shared/photo-gallery";
 import { ListingPhoto } from "./listing-photo";
 
 export function ListingDetail({ id }: { id: string }) {
@@ -127,10 +128,12 @@ export function ListingDetail({ id }: { id: string }) {
     <div className="space-y-4">
       <BackLink fallback={ROUTES.forSale} label="For Sale & Free" />
       <div className="grid gap-6 md:grid-cols-2">
-        <div className="relative overflow-hidden rounded-2xl border border-border bg-card">
-          <ListingPhoto listing={listing} className="aspect-square" />
+        {/* self-start: the photo card keeps its own height instead of stretching to the details column. */}
+        <div className="relative self-start overflow-hidden rounded-2xl border border-border bg-card">
+          {/* Photos keep their own shape (and open full-screen); only a listing without one gets the square placeholder. */}
+          {listing.photos.length > 0 ? <PhotoGallery urls={listing.photos} aspects={listing.photoAspects} /> : <ListingPhoto listing={listing} />}
           {listing.status !== "available" && (
-            <span className="absolute top-3 left-3 rounded-full bg-foreground/80 px-3 py-1 text-sm font-bold text-background">
+            <span className={cn("absolute top-3 left-3 rounded-full px-3 py-1 text-sm font-bold shadow-sm", listingStatusTone(listing.status, isFree))}>
               {listingStatusLabel(listing.status, isFree)}
             </span>
           )}
@@ -162,7 +165,7 @@ export function ListingDetail({ id }: { id: string }) {
                     onClick={() => void changeStatus(s)}
                     className={cn(
                       "h-9 rounded-full border px-4 text-sm font-semibold",
-                      listing.status === s ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-muted",
+                      listing.status === s ? listingStatusTone(s, isFree, "soft") : "border-border hover:bg-muted",
                     )}
                   >
                     {listingStatusLabel(s, isFree)}

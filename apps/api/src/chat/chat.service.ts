@@ -1,13 +1,15 @@
-import { BadRequestException, ForbiddenException, HttpException, HttpStatus, Injectable, NotFoundException, OnModuleInit } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, GoneException, HttpException, HttpStatus, Injectable, NotFoundException, OnModuleInit } from "@nestjs/common";
 import { InjectConnection, InjectModel } from "@nestjs/mongoose";
-import { Connection, Model, Types } from "mongoose";
+import { Connection, Model, Types, type QueryFilter } from "mongoose";
 import { ListingsService } from "../listings/listings.service";
 import { ModerationRegistry } from "../moderation/moderation-registry";
 import { RealtimeService, TYPING_SIGNAL_MS } from "../realtime/realtime.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import type { Viewer } from "../shared/auth/viewer";
 import { withTransaction } from "../shared/db/transaction";
+import { THREAD_PAGE_MAX, type ThreadPageQuery } from "../shared/http/pagination";
 import { User, UserDocument } from "../users/schemas/user.schema";
+import { AccountLifecycle, DELETED_USER_UID } from "../users/account-lifecycle";
 import { UsersService } from "../users/users.service";
 import type { StartConversationDto } from "./chat.dto";
 import { Conversation, ConversationDocument, Message, type ChatContext } from "./chat.schemas";
@@ -47,10 +49,12 @@ export class ChatService implements OnModuleInit {
     private readonly notifications: NotificationsService,
     private readonly registry: ModerationRegistry,
     private readonly realtime: RealtimeService,
+    private readonly accounts: AccountLifecycle,
   ) {}
 
   /** Reports use targetType "message" with the conversation id (contract §5). */
   onModuleInit() {
+    this.accounts.register({ name: "chat", purge: (uid, dryRun) => this.purgeParticipant(uid, dryRun) });
     this.registry.register({
       type: "message",
       load: async (id) => {
@@ -61,8 +65,8 @@ export class ChatService implements OnModuleInit {
           type: "message",
           id,
           preview: recent[0]?.body.slice(0, 200) ?? "Conversation",
-          // The reported party is whoever didn't file the report; moderation shows both.
-          authorUid: c.startedBy,
+          // No single author: the reported party is whoever didn't file the report (ModerationService.fileReport).
+          participantUids: c.participantUids,
           removed: Boolean(c.removedAt),
           content: {
             kind: "conversation",
@@ -82,6 +86,48 @@ export class ChatService implements OnModuleInit {
     const c = Types.ObjectId.isValid(id) ? await this.conversations.findById(id).lean<ConvRow>().exec() : null;
     if (!c || c.removedAt || !c.participantUids.includes(viewer.uid)) throw new NotFoundException("Conversation not found.");
     return c;
+  }
+
+  /**
+   * An account is being deleted. The other person keeps every conversation, with both sides of it:
+   * it is their correspondence too. What goes is the deleted person's id, replaced everywhere by a
+   * stand-in that clients show as "Deleted User" and that points at nobody.
+   */
+  private async purgeParticipant(uid: string, dryRun: boolean): Promise<Record<string, number>> {
+    const theirs = await this.conversations.find({ participantUids: uid }).lean<ConvRow[]>().exec();
+    const ids = theirs.map((c) => String(c._id));
+    const sent = { conversationId: { $in: ids }, senderUid: uid };
+    const counts = { conversations: ids.length, messages: ids.length ? await this.messages.countDocuments(sent).exec() : 0 };
+    if (dryRun || !ids.length) return counts;
+    const swap = (u: string) => (u === uid ? DELETED_USER_UID : u);
+    await this.messages.updateMany(sent, { $set: { senderUid: DELETED_USER_UID } }).exec();
+    for (const c of theirs) {
+      await this.conversations
+        .updateOne(
+          { _id: c._id },
+          {
+            $set: {
+              participantUids: c.participantUids.map(swap),
+              members: c.members.map((m) => ({ ...m, uid: swap(m.uid) })),
+              startedBy: swap(c.startedBy),
+              // The key was built from both uids. Nobody can start a conversation with the stand-in, so it only has to stay unique.
+              threadKey: `deleted:${String(c._id)}`,
+              ...(c.lastMessage && { lastMessage: { ...c.lastMessage, senderUid: swap(c.lastMessage.senderUid) } }),
+            },
+          },
+          // Not "activity": the other person's inbox keeps its order.
+          { timestamps: false },
+        )
+        .exec();
+    }
+    return counts;
+  }
+
+  /** Has `from` ever sent `to` a message, in any conversation the two share? */
+  private async hasWrittenTo(from: string, to: string): Promise<boolean> {
+    const shared = await this.conversations.find({ participantUids: { $all: [from, to] } }).select({ _id: 1 }).lean<{ _id: Types.ObjectId }[]>().exec();
+    if (!shared.length) return false;
+    return Boolean(await this.messages.exists({ conversationId: { $in: shared.map((c) => String(c._id)) }, senderUid: from }).exec());
   }
 
   private async blockedBetween(a: string, b: string): Promise<boolean> {
@@ -115,7 +161,10 @@ export class ChatService implements OnModuleInit {
   /** Idempotent per pair + context: tapping "Message seller" twice reuses the thread. */
   async start(viewer: Viewer, dto: StartConversationDto): Promise<ConversationView> {
     if (dto.recipientUid === viewer.uid) throw new BadRequestException("You can't message yourself.");
-    const recipient = await this.userModel.findOne({ uid: dto.recipientUid, deactivatedAt: null }).lean<User>().exec();
+    const recipient = await this.userModel.findOne({ uid: dto.recipientUid }).lean<User>().exec();
+    if (recipient && (recipient.deactivatedAt || recipient.purgedAt)) {
+      throw new GoneException("This account has been deactivated, so you can't message them.");
+    }
     if (!recipient || recipient.accountStatus === "suspended" || (await this.blockedBetween(viewer.uid, dto.recipientUid))) {
       throw new NotFoundException("This neighbour isn't available.");
     }
@@ -138,9 +187,12 @@ export class ChatService implements OnModuleInit {
 
     // New thread: respect the recipient's messaging preference (contract §10).
     const pref = recipient.preferences?.privacy?.messaging ?? "neighbourhood";
-    if (pref === "nobody" || pref === "contacts") throw new ForbiddenException(`${recipient.displayName ?? "This neighbour"} isn't accepting new messages.`);
+    // "Only people I've messaged": someone the recipient has themselves written to, in any conversation between the two.
+    const closed = pref === "nobody" || (pref === "contacts" && !(await this.hasWrittenTo(recipient.uid, viewer.uid)));
+    const name = recipient.displayName ?? "This neighbour";
+    if (closed) throw new ForbiddenException(`${name} has restricted who can message them and isn't accepting new messages.`);
     if (pref === "neighbourhood" && recipient.neighborhoodId !== viewer.hoodId && !context) {
-      throw new ForbiddenException(`${recipient.displayName ?? "This neighbour"} only accepts messages from their neighbourhood.`);
+      throw new ForbiddenException(`${name} is outside your neighbourhood, so you can't start a conversation. Neighbours can only message people in their own neighbourhood.`);
     }
     const started = await this.conversations.countDocuments({ startedBy: viewer.uid, createdAt: { $gt: new Date(Date.now() - 86_400_000) } }).exec();
     if (started >= MAX_NEW_THREADS_PER_DAY) throw new HttpException("You've started a lot of conversations today. Try again tomorrow.", HttpStatus.TOO_MANY_REQUESTS);
@@ -161,10 +213,29 @@ export class ChatService implements OnModuleInit {
     }
   }
 
-  /** Oldest first; marks the thread read for the caller. */
-  async listMessages(viewer: Viewer, id: string): Promise<MessageView[]> {
+  /**
+   * A page of the thread, oldest first: the newest messages, or with `before` the ones just earlier
+   * than that message. (It used to be the oldest 500 with no way past them, so in a long thread
+   * new messages were stored and never shown.) Opening the newest page marks the thread read for the caller.
+   */
+  async listMessages(viewer: Viewer, id: string, q: ThreadPageQuery = {}): Promise<MessageView[]> {
     const c = await this.load(viewer, id);
-    const rows = await this.messages.find({ conversationId: id }).sort({ createdAt: 1 }).limit(500).lean<(Message & { _id: Types.ObjectId })[]>().exec();
+    const filter: QueryFilter<Message> = { conversationId: id };
+    if (q.before) {
+      const cursor = await this.messages.findOne({ _id: q.before, conversationId: id }).select({ createdAt: 1 }).lean<Pick<Message, "createdAt"> & { _id: Types.ObjectId }>().exec();
+      // Not a message of this thread: there is nothing "before" it here.
+      if (!cursor) return [];
+      filter.$or = [{ createdAt: { $lt: cursor.createdAt } }, { createdAt: cursor.createdAt, _id: { $lt: cursor._id } }];
+    }
+    const newestFirst = await this.messages
+      .find(filter)
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(q.limit ?? THREAD_PAGE_MAX)
+      .lean<(Message & { _id: Types.ObjectId })[]>()
+      .exec();
+    const rows = newestFirst.reverse();
+    // Reading back through earlier messages is not reading the new ones.
+    if (q.before) return rows.map(toMessage);
     // Only when there was something unread: announcing every open would make
     // two open threads refetch each other forever.
     const read = await this.conversations
@@ -194,6 +265,8 @@ export class ChatService implements OnModuleInit {
     const text = body.trim();
     if (!text) throw new BadRequestException("Write a message first.");
     const others = c.participantUids.filter((u) => u !== viewer.uid);
+    // They can still read it; there is nobody left to write to.
+    if (others.includes(DELETED_USER_UID)) throw new ForbiddenException("This person has deleted their account, so they can't receive messages.");
     if (await this.blockedBetween(viewer.uid, others[0]!)) throw new ForbiddenException("You can't message this neighbour.");
 
     const msg = await withTransaction(this.connection, async (session) => {

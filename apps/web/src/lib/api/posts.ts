@@ -116,7 +116,7 @@ export async function getPost(
 
 // ── Mutations ───────────────────────────────────────────────────────────────
 
-/** live: POST /posts  { neighborhoodId, content, type, mediaUrls } */
+/** live: POST /posts  { neighborhoodId, content, type, mediaUrls, clientId } */
 export async function createPost(
   user: User,
   neighborhoodId: string,
@@ -125,8 +125,9 @@ export async function createPost(
   const payload = {
     neighborhoodId,
     content: encodePostContent(input.message, input.meta),
-    type: postTypeFor(input.meta, Boolean(input.mediaUrl)),
-    mediaUrls: input.mediaUrl ? [input.mediaUrl] : undefined,
+    type: postTypeFor(input.meta, Boolean(input.mediaUrls?.length)),
+    mediaUrls: input.mediaUrls?.length ? input.mediaUrls.slice(0, 10) : undefined,
+    clientId: input.clientId,
   };
   if (isLive("posts.create")) {
     const doc = await apiFetch<ApiPost>(user, "/posts", { method: "POST", json: payload });

@@ -5,13 +5,12 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@myhoodora/ui/button";
 import { Field, fieldInputClass } from "@/components/shared/field";
-import { ImagePicker } from "@/components/shared/image-picker";
 import { PreviewNotice } from "@/components/shared/states";
-import { UserAvatar } from "@/components/shared/user-avatar";
 import { useAuth } from "@/context/AuthContext";
 import { errorMessage } from "@/lib/api/client";
 import { myProfileExtras, updateProfileExtras } from "@/lib/api/settings";
 import { ROUTES } from "@/lib/routes";
+import { AvatarField } from "./avatar-field";
 import { SettingsSection } from "./ui";
 
 const BIO_MAX = 160;
@@ -23,13 +22,14 @@ export function ProfileSettings() {
   const extras = { bio: local.bio ?? profile?.bio, photoURL: local.photoURL ?? profile?.photoURL };
   const [name, setName] = useState(profile?.displayName ?? "");
   const [bio, setBio] = useState(extras.bio ?? "");
+  // Saved as soon as it changes (AvatarField); not part of the form below.
   const [photo, setPhoto] = useState<string | null>(extras.photoURL ?? user?.photoURL ?? null);
   const [saving, setSaving] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
 
   if (!user) return null;
   const dirty =
-    name.trim() !== (profile?.displayName ?? "") || bio.trim() !== (extras.bio ?? "") || photo !== (extras.photoURL ?? user.photoURL ?? null);
+    name.trim() !== (profile?.displayName ?? "") || bio.trim() !== (extras.bio ?? "");
 
   const save = async () => {
     const trimmed = name.trim();
@@ -41,7 +41,7 @@ export function ProfileSettings() {
     setSaving(true);
     try {
       if (trimmed !== profile?.displayName) await updateProfile({ displayName: trimmed });
-      await updateProfileExtras(user, { bio: bio.trim(), photoURL: photo ?? undefined });
+      await updateProfileExtras(user, { bio: bio.trim() });
       await refreshProfile();
       toast.success("Profile updated.");
     } catch (err) {
@@ -55,17 +55,16 @@ export function ProfileSettings() {
     <div className="space-y-4">
       <SettingsSection title="Profile" description="This is what neighbours see on your posts and profile.">
         <div className="space-y-5 px-4 py-4 sm:px-5">
-          <div className="flex flex-wrap items-center gap-4">
-            <UserAvatar person={{ displayName: name || "?", photoURL: photo ?? undefined }} size="lg" />
-            <div className="min-w-0 flex-1">
-              <ImagePicker value={null} onChange={(url) => url && setPhoto(url)} disabled={saving} />
-              {photo && (
-                <button type="button" onClick={() => setPhoto(null)} className="mt-1 text-xs font-semibold text-muted-foreground hover:text-destructive">
-                  Remove photo
-                </button>
-              )}
-            </div>
-          </div>
+          <AvatarField
+            user={user}
+            displayName={name}
+            photoURL={photo}
+            onSave={async (url) => {
+              await updateProfileExtras(user, { photoURL: url });
+              setPhoto(url);
+              await refreshProfile();
+            }}
+          />
 
           <Field label="Name" htmlFor="profile-name" error={nameError ?? undefined} hint="Real names build trust between neighbours.">
             <input

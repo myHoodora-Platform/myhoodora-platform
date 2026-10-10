@@ -1,4 +1,9 @@
+import { isIP } from "node:net";
 import { NextRequest, NextResponse } from "next/server";
+import { guardLookup } from "@/lib/auth/lookup-guard";
+
+/** The lookup is a convenience: if it is slow, onboarding falls back to typing an address. */
+const LOOKUP_TIMEOUT_MS = 4_000;
 
 interface IpLocationResult {
   lat: number;
@@ -44,15 +49,16 @@ function fromPlatformHeaders(request: NextRequest): IpLocationResult | null {
 function getClientIp(request: NextRequest): string | null {
   const forwardedFor = request.headers.get("x-forwarded-for");
   const ip = forwardedFor?.split(",")[0]?.trim() || request.headers.get("x-real-ip");
-  if (!ip || ip === "::1" || ip === "127.0.0.1") return null;
+  // The header is whatever the client (or a proxy) sent. Only a real address goes into the lookup URL.
+  if (!ip || !isIP(ip) || ip === "::1" || ip === "127.0.0.1") return null;
   return ip;
 }
 
 // ip-api.com's free tier is HTTP-only (HTTPS needs a paid plan) — fine here
 // since this call happens server-side, never from the browser.
 async function fromIpLookup(ip: string): Promise<IpLocationResult | null> {
-  const url = `http://ip-api.com/json/${ip}?fields=status,lat,lon,city,region,country`;
-  const response = await fetch(url);
+  const url = `http://ip-api.com/json/${encodeURIComponent(ip)}?fields=status,lat,lon,city,region,country`;
+  const response = await fetch(url, { signal: AbortSignal.timeout(LOOKUP_TIMEOUT_MS) });
   if (!response.ok) return null;
 
   const data = await response.json();
@@ -68,7 +74,11 @@ async function fromIpLookup(ip: string): Promise<IpLocationResult | null> {
   };
 }
 
+/** Signed-in visitors only (onboarding's fallback when GPS fails): it spends a third-party lookup quota. */
 export async function GET(request: NextRequest) {
+  const refused = await guardLookup(request, "ip-location");
+  if (refused) return refused;
+
   try {
     const fromHeaders = fromPlatformHeaders(request);
     if (fromHeaders) {
@@ -90,6 +100,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(fromIp);
   } catch (err) {
+    if (err instanceof DOMException && err.name === "TimeoutError") {
+      return NextResponse.json({ error: "IP location lookup timed out" }, { status: 504 });
+    }
     console.error("IP location lookup failed:", err);
     return NextResponse.json(
       { error: "Internal server error" },

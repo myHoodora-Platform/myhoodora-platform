@@ -28,7 +28,7 @@ function summarise(post: Post, votes: Record<string, string>, viewerUid: string)
   };
 }
 
-/** planned: GET /posts/:id/poll → PollResults (viewer-relative myVote). */
+/** live: GET /posts/:id/poll → PollResults (viewer-relative myVote). */
 export async function getPollResults(user: User, post: Post): Promise<PollResults> {
   if (isLive("polls")) return apiFetch<PollResults>(user, `/posts/${post._id}/poll`);
   await latency(120);
@@ -36,7 +36,7 @@ export async function getPollResults(user: User, post: Post): Promise<PollResult
 }
 
 /**
- * planned: PUT /posts/:id/poll/vote { optionId } → PollResults.
+ * live: PUT /posts/:id/poll/vote { optionId } → PollResults.
  * Casts or changes the viewer's vote while the poll is open (410 once closed).
  */
 export async function votePoll(user: User, post: Post, optionId: string): Promise<PollResults> {
@@ -52,7 +52,7 @@ export async function votePoll(user: User, post: Post, optionId: string): Promis
   return summarise(post, book[post._id] ?? {}, user.uid);
 }
 
-/** planned: DELETE /posts/:id/poll/vote → PollResults. Removes the viewer's vote while open. */
+/** live: DELETE /posts/:id/poll/vote → PollResults. Removes the viewer's vote while open. */
 export async function unvotePoll(user: User, post: Post): Promise<PollResults> {
   if (isLive("polls")) {
     return apiFetch<PollResults>(user, `/posts/${post._id}/poll/vote`, { method: "DELETE" });

@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
+import { publicPageMetadata } from "@/lib/site";
 import { Suspense } from "react";
 import { GetStartedFlow, GetStartedHeader } from "@/features/business/get-started";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = publicPageMetadata("/business/get-started", {
   title: "Create your free Business Page | myHoodora",
   description: "Put your business in front of verified neighbours in Lagos and Ibadan. Free to start.",
-};
+});
 
 export default function Page() {
   return (

@@ -16,7 +16,7 @@ export interface NavItem {
   matches?: string[];
 }
 
-/** Primary nav — Nextdoor's noun-based sections, adapted (docs/frontend-information-architecture.md). */
+/** Primary nav — Nextdoor's noun-based sections, adapted (docs/product/nextdoor-research.md). */
 export const PRIMARY_NAV: NavItem[] = [
   { label: "Home", href: ROUTES.newsFeed, icon: Home, matches: ["/p/"] },
   { label: "For Sale & Free", href: ROUTES.forSale, icon: ShoppingBag },

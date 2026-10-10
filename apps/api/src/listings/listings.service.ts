@@ -6,7 +6,9 @@ import { ModerationRegistry } from "../moderation/moderation-registry";
 import { RealtimeService } from "../realtime/realtime.service";
 import type { Viewer } from "../shared/auth/viewer";
 import { searchRegex, type Page, type PageQuery } from "../shared/http/pagination";
+import { AccountLifecycle } from "../users/account-lifecycle";
 import { UsersService } from "../users/users.service";
+import { DELETED_MEDIA_KEPT_MS, REMOVED_MEDIA_KEPT_MS, StorageService } from "../storage/storage.service";
 import type { CreateListingDto, ListingQuery } from "./listings.dto";
 import { Listing, ListingDocument, type ListingStatus } from "./listing.schema";
 
@@ -23,6 +25,8 @@ export interface ListingView {
   category: Listing["category"];
   condition: Listing["condition"];
   photos: string[];
+  /** width ÷ height of each `photos` entry (same order), or null when unknown. Lets the web frame a photo before it loads. */
+  photoAspects: (number | null)[];
   status: ListingStatus;
   createdAt: string;
 }
@@ -50,11 +54,42 @@ export class ListingsService implements OnModuleInit {
     @InjectModel(Listing.name) private readonly listings: Model<ListingDocument>,
     private readonly users: UsersService,
     private readonly hoods: HoodsService,
+    private readonly storage: StorageService,
     private readonly registry: ModerationRegistry,
     private readonly realtime: RealtimeService,
+    private readonly accounts: AccountLifecycle,
   ) {}
 
   onModuleInit() {
+    this.accounts.register({
+      name: "listings",
+      hide: async (uid) => void (await this.listings.updateMany({ sellerUid: uid }, { $set: { sellerDeactivated: true } }).exec()),
+      unhide: async (uid) => void (await this.listings.updateMany({ sellerUid: uid, sellerDeactivated: true }, { $unset: { sellerDeactivated: 1 } }).exec()),
+      purge: async (uid, dryRun) => {
+        const theirs = { sellerUid: uid, deletedAt: null };
+        if (dryRun) return { listings: await this.listings.countDocuments(theirs).exec() };
+        return { listings: (await this.listings.updateMany(theirs, { $set: { deletedAt: new Date() } }).exec()).modifiedCount };
+      },
+    });
+    // The same windows as a post's media (see PostsService).
+    this.storage.registerReferenceSource({
+      name: "listings",
+      inUse: async (urls, now) => {
+        const rows = await this.listings
+          .find({
+            photos: { $in: urls },
+            $or: [
+              { deletedAt: null, removedAt: null },
+              { removedAt: { $gte: new Date(now.getTime() - REMOVED_MEDIA_KEPT_MS) } },
+              { deletedAt: { $gte: new Date(now.getTime() - DELETED_MEDIA_KEPT_MS) } },
+            ],
+          })
+          .select({ photos: 1 })
+          .lean<Pick<Listing, "photos">[]>()
+          .exec();
+        return rows.flatMap((r) => r.photos ?? []);
+      },
+    });
     this.registry.register({
       type: "listing",
       load: async (id) => {
@@ -97,12 +132,15 @@ export class ListingsService implements OnModuleInit {
       neighborhoodId: hoodId,
       deletedAt: null,
       removedAt: null,
+      sellerDeactivated: { $ne: true },
       // Sold items drop out of the list, except for their seller.
       $or: [{ status: { $ne: "sold" } }, { sellerUid: viewer.uid }],
       ...(q.category && { category: q.category }),
       ...(q.free && { priceNaira: null }),
       ...(q.seller ? { sellerUid: q.seller } : hidden.length ? { sellerUid: { $nin: hidden } } : {}),
     };
+    const re = searchRegex(q.q);
+    if (re) filter.$and = [{ $or: [{ title: re }, { description: re }] }];
     if (q.seller && hidden.includes(q.seller)) return [];
     const rows = await this.listings.find(filter).sort({ createdAt: -1 }).limit(q.limit ?? 60).lean<Row[]>().exec();
     return this.toViews(rows);
@@ -118,6 +156,8 @@ export class ListingsService implements OnModuleInit {
     if (!l || l.deletedAt || (l.removedAt && !staff) || (l.neighborhoodId !== viewer.hoodId && l.sellerUid !== viewer.uid && !staff)) {
       throw new NotFoundException("This listing isn't available any more.");
     }
+    // The seller has deactivated their account: gone for neighbours, still there for staff.
+    if (l.sellerDeactivated && !staff) throw new NotFoundException("This listing isn't available any more.");
     if (l.sellerUid !== viewer.uid && (await this.users.hiddenAuthorsFor(viewer.uid)).includes(l.sellerUid)) {
       throw new NotFoundException("This listing isn't available any more.");
     }
@@ -163,7 +203,10 @@ export class ListingsService implements OnModuleInit {
   }
 
   private async toViews(rows: Row[]): Promise<ListingView[]> {
-    const cards = await this.users.authorCards(rows.map((r) => r.sellerUid));
+    const [cards, aspects] = await Promise.all([
+      this.users.authorCards(rows.map((r) => r.sellerUid)),
+      this.storage.aspectRatios(rows.flatMap((r) => r.photos ?? [])),
+    ]);
     return rows.map((l) => {
       const c = cards.get(l.sellerUid);
       return {
@@ -178,6 +221,7 @@ export class ListingsService implements OnModuleInit {
         category: l.category,
         condition: l.condition,
         photos: l.photos,
+        photoAspects: (l.photos ?? []).map((url) => aspects.get(url) ?? null),
         status: l.status,
         createdAt: (l.createdAt ?? new Date()).toISOString(),
       };
@@ -202,7 +246,7 @@ export class ListingsService implements OnModuleInit {
     if (q.reported) rows = rows.filter((r) => (counts.get(String(r._id)) ?? 0) > 0);
     const total = q.reported ? rows.length : await this.listings.countDocuments(filter).exec();
     const pageRows = rows.slice((q.page - 1) * q.pageSize, q.page * q.pageSize);
-    const [cards, hoods] = await Promise.all([this.users.authorCards(pageRows.map((r) => r.sellerUid)), this.hoods.findManyByIds(pageRows.map((r) => r.neighborhoodId))]);
+    const [cards, hoods] = await Promise.all([this.users.authorCards(pageRows.map((r) => r.sellerUid), { forStaff: true }), this.hoods.findManyByIds(pageRows.map((r) => r.neighborhoodId))]);
     return {
       items: pageRows.map((l) => ({
         id: String(l._id),

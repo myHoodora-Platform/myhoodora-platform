@@ -19,9 +19,11 @@ function wasDismissed(): boolean {
 }
 
 /**
- * Gentle reminder to confirm the email address (not a gate — posting depends
- * on address verification, not email). Hidden while the address banner shows
- * so neighbours never see two warnings stacked; dismissible per session.
+ * Asks someone to confirm their email address. Since October 2026 the API
+ * requires it before posting or messaging (reading, reacting and RSVPs stay
+ * open), so this is where an unconfirmed neighbour learns why "Post" is
+ * refused and gets a new link. Hidden while the address banner shows so
+ * neighbours never see two warnings stacked; dismissible per session.
  */
 export function EmailVerificationBanner() {
   const { user, profile } = useAuth();
@@ -57,8 +59,8 @@ export function EmailVerificationBanner() {
       <div className="mx-auto flex max-w-[1280px] items-center gap-3 px-4 py-2.5 lg:px-6">
         <MailCheck className="size-5 shrink-0 text-primary" aria-hidden />
         <p className="min-w-0 flex-1 text-sm text-foreground/80">
-          <span className="font-semibold text-foreground">Confirm your email</span> so safety alerts and account notices reach you.
-          We sent a link to {profile.email ?? user.email}.
+          <span className="font-semibold text-foreground">Confirm your email</span> to post and message your neighbours, and so
+          safety alerts reach you. We sent a link to {profile.email ?? user.email}.
         </p>
         <Button size="sm" variant="outline" onClick={resend} disabled={sending} className="shrink-0">
           {sending ? "Sending…" : "Resend link"}

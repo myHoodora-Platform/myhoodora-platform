@@ -82,7 +82,7 @@ export function AdminSidebar({ attention }: { attention: AdminOverview["attentio
           if (!items.length) return null;
           return (
             <SidebarGroup key={section.label || "home"}>
-              {section.label && section.label !== items[0]?.title && <SidebarGroupLabel>{section.label}</SidebarGroupLabel>}
+              {section.label && section.label !== items[0]?.title && <SidebarGroupLabel className="text-slate-400">{section.label}</SidebarGroupLabel>}
               <SidebarGroupContent>
                 <SidebarMenu>
                   {items.map((item) => {

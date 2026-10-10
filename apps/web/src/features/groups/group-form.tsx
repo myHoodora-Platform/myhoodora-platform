@@ -150,7 +150,7 @@ export function GroupForm({ mode, initial, submitLabel, onSubmit, onCancel }: Gr
           <p className="text-sm font-semibold">
             Cover photo <span className="font-normal text-muted-foreground">(optional)</span>
           </p>
-          <ImagePicker value={cover} onChange={setCover} disabled={isSubmitting} />
+          <ImagePicker value={cover} onChange={setCover} purpose="group" disabled={isSubmitting} />
         </div>
       </section>
 

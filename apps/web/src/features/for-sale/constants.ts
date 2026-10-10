@@ -43,6 +43,28 @@ export function listingStatusLabel(status: ListingStatus, isFree: boolean): stri
   return "Available";
 }
 
+type StatusTone = "available" | "pending" | "sold" | "given";
+
+/**
+ * Colours per status, from the theme tokens: green = available, amber =
+ * pending (reserved for someone), neutral = sold (closed), brand teal =
+ * given away (a good outcome, not just "gone"). `solid` sits on photos
+ * (white text, readable on any image); `soft` is for in-page chips and the
+ * seller's status buttons.
+ */
+const STATUS_TONES: Record<StatusTone, { solid: string; soft: string }> = {
+  available: { solid: "bg-success text-white", soft: "border-success/40 bg-success-soft text-success" },
+  pending: { solid: "bg-warning text-white", soft: "border-warning/40 bg-warning-soft text-warning" },
+  sold: { solid: "bg-foreground/80 text-background", soft: "border-foreground/25 bg-muted text-foreground" },
+  given: { solid: "bg-primary text-primary-foreground", soft: "border-primary/40 bg-primary/10 text-primary" },
+};
+
+/** Badge colours for a listing status, alongside listingStatusLabel(). */
+export function listingStatusTone(status: ListingStatus, isFree: boolean, variant: "solid" | "soft" = "solid"): string {
+  const tone: StatusTone = status === "sold" ? (isFree ? "given" : "sold") : status;
+  return STATUS_TONES[tone][variant];
+}
+
 export const SAFETY_TIPS = [
   "Meet in a public place: your estate gate or a busy spot.",
   "Inspect the item before you pay.",

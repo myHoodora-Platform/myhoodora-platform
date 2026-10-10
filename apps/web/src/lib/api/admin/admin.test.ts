@@ -3,7 +3,7 @@ import type { User } from "firebase/auth";
 import { ApiError } from "../client";
 import { isRemoved } from "../mock/moderation-state";
 import { submitReport } from "../reports";
-import { actOnNeighbour, createHood, getNeighbour, listVerification, updateHood } from "./community";
+import { actOnNeighbour, createHood, getNeighbour, hoodsNear, listVerification, updateHood } from "./community";
 import { actOnReport, getReport, listAudit, listReports, setReportClaim } from "./moderation";
 import { actOnBusiness, listBusinesses } from "./businesses";
 import { getAdminSession } from "./session";
@@ -87,12 +87,20 @@ describe("community", () => {
     await expect(actOnNeighbour(staff, "nb_segun", { action: "reinstate", reason: "Appeal accepted" }, "moderator")).rejects.toMatchObject({ kind: "forbidden" });
   });
 
-  it("refuses a Hood that overlaps an existing one, and archives instead of deleting", async () => {
+  it("refuses a Hood centred inside an existing one, and archives instead of deleting", async () => {
     await expect(
       createHood(staff, { name: "Lekki Central", city: "Lagos", country: "Nigeria", center: { lat: 6.448, lng: 3.475 }, radiusMeters: 1000 }, "admin"),
-    ).rejects.toThrow(/overlaps/);
+    ).rejects.toThrow(/centre is inside Lekki Phase 1/);
     const archived = await updateHood(staff, "hood-apapa", { status: "archived", reason: "Merged" }, "admin");
     expect(archived.status).toBe("archived");
+  });
+
+  it("lists the Hoods in reach of a point, nearest first, archived ones included", async () => {
+    const near = await hoodsNear(staff, { lat: 6.4478, lng: 3.4746 });
+    expect(near[0]!.name).toBe("Lekki Phase 1");
+    expect(near.map((h) => h.city)).not.toContain("Ibadan");
+    // Apapa is about 13 km away and was archived above.
+    expect(near.find((h) => h.id === "hood-apapa")?.status).toBe("archived");
   });
 });
 

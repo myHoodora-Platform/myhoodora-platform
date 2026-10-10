@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { publicPageMetadata } from "@/lib/site";
 import Link from "next/link";
 import { SmartImage } from "@myhoodora/ui/image";
 import { ArrowUpRight, BookOpen, Mail, MessageCircle, Newspaper, Phone, Store, type LucideIcon } from "lucide-react";
@@ -8,10 +9,10 @@ import { ContactForm } from "@/features/company/contact-form";
 import { isContactTopic } from "@/lib/api/company";
 import { CONTACT_IMAGE } from "@/lib/site-images";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = publicPageMetadata("/contact", {
   title: "Contact us | myHoodora",
   description: "Questions, feedback, press or partnerships: get in touch with the myHoodora team.",
-};
+});
 
 const container = "mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8";
 

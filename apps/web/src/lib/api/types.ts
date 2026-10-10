@@ -47,6 +47,8 @@ export interface ApiPost {
   type: PostType;
   content: string;
   mediaUrls: string[];
+  /** width ÷ height of each `mediaUrls` entry, or null when the API doesn't know (a pasted link). Frames media before it loads. */
+  mediaAspects?: (number | null)[];
   /** @deprecated always [] from the live API; use reactionTotal / myReaction. */
   likes: string[];
   isActive: boolean;
@@ -63,6 +65,8 @@ export interface ApiPost {
   priceNaira?: number | null;
   poll?: PollDefinition;
   pollResults?: PollResults;
+  /** Events: RSVP counts and your own answer, sent with the post so a list needs no request per card. */
+  rsvp?: EventRsvpSummary;
   visibility?: PostVisibility;
   reactionCounts?: Partial<Record<ReactionType, number>>;
   reactionTotal?: number;
@@ -74,9 +78,10 @@ export interface ApiPost {
 }
 
 /**
- * Fields the Post schema doesn't have yet. Until it does, they round-trip
- * inside `content` behind a machine-readable prefix (lib/api/post-meta.ts);
- * planned: first-class fields on the Post document.
+ * A post's typed fields (category, event date, poll…). The API stores and
+ * returns them as first-class fields; the web still *sends* them inside
+ * `content` behind a machine-readable prefix (lib/api/post-meta.ts), which
+ * the API parses on the way in.
  */
 export interface PostMeta {
   category: PostCategory;
@@ -132,12 +137,18 @@ export interface Post extends ApiPost {
 export interface CreatePostInput {
   message: string;
   meta: PostMeta;
-  mediaUrl?: string;
+  /** Up to 10 photo URLs (from POST /media or pasted). */
+  mediaUrls?: string[];
+  /**
+   * Makes a retry safe: the same id again returns the post created the first
+   * time instead of a second one (see lib/api/submission-id.ts).
+   */
+  clientId?: string;
 }
 
 // ── People ──────────────────────────────────────────────────────────────────
 
-/** planned: GET /users/:uid/public */
+/** live: GET /users/:uid/public */
 export interface PublicProfile {
   uid: string;
   displayName: string;
@@ -191,6 +202,8 @@ export interface Listing {
   category: ListingCategory;
   condition: ListingCondition;
   photos: string[];
+  /** width ÷ height of each photo, or null when the API doesn't know (a pasted link). Frames a photo before it loads. */
+  photoAspects?: (number | null)[];
   status: ListingStatus;
   createdAt: string;
   /** Embedded by the live API. */
@@ -270,6 +283,8 @@ export interface EventRsvpSummary {
   goingCount: number;
   interestedCount: number;
   myStatus: RsvpStatus | null;
+  /** The event is over: RSVPs are closed (contract §23). */
+  ended?: boolean;
 }
 
 // ── Chat (planned) ──────────────────────────────────────────────────────────
@@ -321,6 +336,10 @@ export type NotificationType =
 export interface AppNotification {
   _id: string;
   type: NotificationType;
+  /** Finer meaning, e.g. "event_reminder_final" opens the reminder pop-up (contract §23). */
+  kind?: "event_reminder" | "event_reminder_final" | "event_followup";
+  /** What it's about (e.g. the event's post id). */
+  subjectId?: string;
   actorUid?: string;
   title: string;
   body?: string;

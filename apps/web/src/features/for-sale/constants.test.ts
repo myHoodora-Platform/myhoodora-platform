@@ -14,3 +14,14 @@ describe("listingStatusLabel", () => {
     expect(listingStatusLabel("sold", true)).toBe("Given away");
   });
 });
+
+describe("listingStatusTone", () => {
+  it("gives each status a fitting colour", async () => {
+    const { listingStatusTone } = await import("./constants");
+    expect(listingStatusTone("available", false)).toContain("bg-success");
+    expect(listingStatusTone("pending", false)).toContain("bg-warning");
+    expect(listingStatusTone("sold", false)).toContain("bg-foreground/80");
+    expect(listingStatusTone("sold", true)).toContain("bg-primary");
+    expect(listingStatusTone("pending", true, "soft")).toContain("bg-warning-soft");
+  });
+});

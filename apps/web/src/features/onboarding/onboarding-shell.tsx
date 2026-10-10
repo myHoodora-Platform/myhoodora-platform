@@ -28,7 +28,7 @@ export function OnboardingShell({ step, onSkip, children }: OnboardingShellProps
   return (
     <div className="flex min-h-dvh bg-canvas font-sans text-foreground">
       {/* Brand panel (desktop) */}
-      <aside className="relative hidden w-[380px] shrink-0 flex-col justify-between overflow-hidden bg-primary p-10 text-primary-foreground lg:flex">
+      <aside className="relative hidden w-[380px] shrink-0 flex-col justify-between overflow-hidden bg-brand-teal p-10 text-white lg:flex">
         <div aria-hidden className="absolute -right-24 -bottom-24 size-80 rounded-full bg-white/10" />
         <div className="relative space-y-10">
           <MascotWordmark size="md" tone="reversed" />
@@ -42,7 +42,7 @@ export function OnboardingShell({ step, onSkip, children }: OnboardingShellProps
                   <span
                     className={cn(
                       "flex size-9 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold transition-colors",
-                      done && "border-white bg-white text-primary",
+                      done && "border-white bg-white text-brand-teal",
                       active && "border-white text-white",
                       !done && !active && "border-white/30 text-white/50",
                     )}
@@ -50,17 +50,17 @@ export function OnboardingShell({ step, onSkip, children }: OnboardingShellProps
                     {done ? <Check className="size-4" aria-hidden /> : n}
                   </span>
                   <span>
-                    <span className={cn("block font-bold", !active && !done && "text-white/60")}>{s.title}</span>
-                    <span className="block text-sm text-white/70">{s.desc}</span>
+                    <span className={cn("block font-bold", !active && !done && "font-medium")}>{s.title}</span>
+                    <span className="block text-sm text-white/95">{s.desc}</span>
                   </span>
                 </li>
               );
             })}
           </ol>
         </div>
-        <div className="relative space-y-3 rounded-2xl bg-white/10 p-5">
+        <div className="relative space-y-3 rounded-2xl bg-black/15 p-5">
           <p className="font-bold">Why we ask for your address</p>
-          <ul className="space-y-3 text-sm text-white/85">
+          <ul className="space-y-3 text-sm text-white/95">
             {PRIVACY_POINTS.map((p) => (
               <li key={p.text} className="flex gap-3">
                 <p.icon className="mt-0.5 size-4 shrink-0" aria-hidden />
@@ -88,7 +88,7 @@ export function OnboardingShell({ step, onSkip, children }: OnboardingShellProps
         </header>
 
         {/* Progress (phones & tablets) */}
-        <div className="px-4 pt-4 sm:px-8 lg:hidden" aria-label={`Step ${Math.min(step, 3)} of 3`}>
+        <div className="px-4 pt-4 sm:px-8 lg:hidden" role="img" aria-label={`Step ${Math.min(step, 3)} of 3`}>
           <div className="flex gap-2">
             {ONBOARDING_STEPS.map((s, i) => (
               <span key={s.title} className={cn("h-1.5 flex-1 rounded-full", step > i ? "bg-primary" : "bg-border")} />

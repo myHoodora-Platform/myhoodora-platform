@@ -41,6 +41,8 @@ export class FeedPost {
   urgent!: boolean;
 
   @Prop() eventDate?: Date;
+  /** Host notices already sent for this event ("host_2d", "host_followup"); claimed atomically, so exactly once. */
+  @Prop({ type: [String], default: undefined }) hostNotices?: string[];
   @Prop({ maxlength: 200 }) eventLocation?: string;
   @Prop({ maxlength: 80 }) thankedName?: string;
   @Prop({ type: Number, default: undefined }) priceNaira?: number | null;
@@ -83,6 +85,15 @@ export class FeedPost {
 
   @Prop() removedBy?: string;
 
+  /** The author has deactivated their account: hidden from neighbours until they come back (AccountLifecycle). */
+  @Prop() authorDeactivated?: boolean;
+
+  /**
+   * An id the client made up for this submission. Sending the same one again (a retry after a
+   * timeout) returns this post instead of creating another: see the unique index below.
+   */
+  @Prop() clientId?: string;
+
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -90,6 +101,12 @@ export class FeedPost {
 export const PostSchema = SchemaFactory.createForClass(FeedPost);
 PostSchema.index({ neighborhoodId: 1, isActive: 1, createdAt: -1 });
 PostSchema.index({ neighborhoodId: 1, category: 1, createdAt: -1 });
+// The reminder scheduler scans events by date.
+PostSchema.index({ category: 1, eventDate: 1 });
+// "Is this stored file still used by a post?" (StorageService.sweepUnreferenced).
+PostSchema.index({ mediaUrls: 1 });
+// One post per author per client-made id. Partial: posts without an id (older clients) are not constrained.
+PostSchema.index({ authorUid: 1, clientId: 1 }, { unique: true, partialFilterExpression: { clientId: { $type: "string" } } });
 
 /** One reaction per person per post (unique), replaces the unbounded likes[] array. */
 @Schema({ timestamps: true, collection: "reactions" })
@@ -117,6 +134,10 @@ export class Rsvp {
   @Prop({ required: true }) postId!: string;
   @Prop({ required: true }) uid!: string;
   @Prop({ required: true, enum: ["going", "interested"] }) status!: "going" | "interested";
+  /** Reminders already sent to this person for this event; claimed atomically, so exactly once (event-reminders.service). */
+  @Prop({ type: [String], default: [] }) remindersSent!: string[];
+  updatedAt?: Date;
 }
 export const RsvpSchema = SchemaFactory.createForClass(Rsvp);
 RsvpSchema.index({ postId: 1, uid: 1 }, { unique: true });
+RsvpSchema.index({ postId: 1, status: 1 });

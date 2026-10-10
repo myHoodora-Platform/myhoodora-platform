@@ -2,9 +2,9 @@
 
 The NestJS backend for myHoodora. It serves the REST API described in [`docs/api-contract.md`](../../docs/api-contract.md) and consumed by `apps/web`.
 
-- **Stack:** NestJS 10, TypeScript, MongoDB Atlas via Mongoose 9, Firebase Admin (auth), Resend (email).
-- **Design notes and audit:** [`docs/backend/BACKEND_AUDIT_AND_TARGET.md`](../../docs/backend/BACKEND_AUDIT_AND_TARGET.md).
-- **Change log:** [`docs/backend/BACKEND_CHANGELOG.md`](../../docs/backend/BACKEND_CHANGELOG.md).
+- **Stack:** NestJS 10, TypeScript, MongoDB Atlas via Mongoose 9, Firebase Admin (auth), Resend (email), Cloudinary (media), Redis (live updates).
+- **Project documentation:** [`/docs`](../../docs/README.md), in particular [architecture](../../docs/architecture.md), [authentication](../../docs/authentication.md), [security](../../docs/security.md) and the [deployment runbook](../../docs/deployment.md).
+- **History:** the original audit and change logs are in [`docs/archive`](../../docs/archive/README.md).
 
 ## Run it
 
@@ -18,33 +18,26 @@ Swagger (every route, with request schemas generated from the DTOs) is at `/api/
 | Command | What it does |
 | --- | --- |
 | `pnpm dev` / `pnpm build` / `pnpm start:prod` | Watch mode / compile to `dist/` (cleaned each build) / run the build |
-| `pnpm check-types` · `pnpm lint` | Type-check · ESLint |
-| `pnpm test` | Unit tests (`src/**/*.spec.ts`: authorization rules, post codec) |
+| `pnpm check-types` · `pnpm lint` · `pnpm lint:fix` | Type-check · ESLint (reports only) · ESLint with auto-fix |
+| `pnpm test` | Unit tests (`src/**/*.spec.ts`) |
 | `pnpm test:e2e` | Integration tests (`test/*.e2e-spec.ts`), described below |
 | `pnpm migrate:dry` · `pnpm migrate` | Show / apply pending data migrations (`src/database/migrations`) |
 | `pnpm seed:neighborhoods` | Seed the Lagos Hoods |
 
 ## Environment
 
-| Variable | Required | Notes |
-| --- | --- | --- |
-| `MONGODB_URI` | ✅ | Must be a replica set (Atlas is one); transactions depend on it |
-| `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` | ✅ in prod | Or `GOOGLE_APPLICATION_CREDENTIALS` / `serviceAccountKey.json` locally |
-| `PORT` | | Default `3000`. The web app expects `http://localhost:3001/api` unless `NEXT_PUBLIC_API_URL` says otherwise, so set `PORT=3001` locally |
-| `CORS_ORIGIN` | ✅ in prod | Comma-separated list of web origins |
-| `APP_URL` | ✅ in prod | Web app URL, used for links in emails |
-| `RESEND_API_KEY` | ✅ in prod | A **sending-only** key for the verified sending domain. If empty, emails are logged (masked), not sent |
-| `RESEND_WEBHOOK_SECRET` | ✅ in prod | `whsec_…` from the Resend webhook. Without it the webhook returns 503 |
-| `MAIL_FROM` / `MAIL_REPLY_TO` | | Default `myHoodora <hello@myhoodora.com>` (switch to `mail.myhoodora.com` once Resend verifies it) |
-| `SWAGGER_ENABLED` | | `true` exposes `/api/docs` in production |
-| `MONGO_AUTO_INDEX` | | Default on: missing indexes are created at boot (unique indexes enforce rules). Set `false` once Atlas manages indexes |
+Every variable, with what is required in production, is in [`docs/environment.md`](../../docs/environment.md); the template is `.env.example`. In short:
 
-In production the app refuses to start if a required variable is missing (`validateEnv`). Secrets live only in the server environment. None of these may be given a `NEXT_PUBLIC_` prefix.
+- **Required in production** (the API refuses to start without them): `MONGODB_URI`, `APP_URL`, `CORS_ORIGIN`, `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, `MAIL_FROM`, and Firebase Admin credentials (`FIREBASE_PROJECT_ID` + `FIREBASE_CLIENT_EMAIL` + `FIREBASE_PRIVATE_KEY`, or `GOOGLE_APPLICATION_CREDENTIALS`).
+- **Locally:** set `PORT=3001` (the web app expects `http://localhost:3001/api`) and point `GOOGLE_APPLICATION_CREDENTIALS` at a service-account file (`serviceAccountKey.json` here is git-ignored).
+- `MONGODB_URI` must be a replica set: transactions depend on it.
+- Secrets live only in the server environment. None of these may be given a `NEXT_PUBLIC_` prefix.
 
 ## Architecture: a modular monolith
 
 ```
 src/
+  auth/          web session cookie (mint, liveness, staff gate), sign out everywhere, email-verification endpoints
   shared/        auth (Firebase guard, AccountGuard, @CurrentViewer), authz (roles → capabilities, @Can),
                  http (error filter, pagination, ObjectId pipe), db (withTransaction), logging (redaction)
   users/         self-service (me, onboarding, verify-location, preferences, blocks, deactivate, public profile)
@@ -65,6 +58,9 @@ src/
   platform/      platform settings (report reasons, alert windows)
   admin/         /admin/* (contract §13): read models + staff actions over the modules above
   inbound/       contact, careers, AI pilot, feedback, in-app support → staff inbox
+  storage/       uploads behind a StorageProvider port (Cloudinary adapter), media shapes, upload sweeps
+  search/        posts, listings and neighbours in the caller's Hood
+  realtime/      Server-Sent Events stream; bus over Redis, Mongo change streams or memory
   telemetry/     anonymous daily counters (kindness reminders)
   database/      migrations + runner, seed scripts
 ```
@@ -95,7 +91,9 @@ Rules the code follows:
 
 | Suite | Covers |
 | --- | --- |
-| `security` | Audit findings F1–F4, suspended/restricted/unverified gates, ownership, admin capabilities, owner rules |
+| `security` | Audit findings F1–F4, suspended/restricted/unverified gates, ownership, admin capabilities, owner rules, the web session-cookie routes |
+| `media-search-realtime` | Uploads (type from bytes, ownership, delete), search scoping and validation, the live event stream |
+| `broadcasts` | Batched delivery, no duplicates on re-run, double-send guard, failure + retry, resume after restart |
 | `communications` | Welcome sent once, confirm / reuse / expiry, resend limit, webhook signature, replay, idempotency, status ordering |
 | `moderation-engagement` | Report → case → claim → decision → feed/audit/notifications; reactions (incl. concurrent), polls (410), comments, blocks, urgent-alert limit |
 | `marketplace-chat` | Listing scope/limits/sold visibility, idempotent listing threads, unread counts, messaging preferences, blocks, reports |
@@ -107,20 +105,19 @@ Rules the code follows:
 
 ## Deploying
 
-1. Set the environment above. Keep Swagger off (automatic in production) and set `trust proxy` (automatic).
-2. `pnpm --filter @myhoodora/api build`.
-3. Run `pnpm migrate:dry`, read the output, then `pnpm migrate`. Migrations are idempotent and recorded in the `migrations` collection.
-4. Start with `node dist/main.js`. Missing indexes are created at boot unless `MONGO_AUTO_INDEX=false`.
+The API is deployed **before** the web app. The full runbook (order, health checks, migrations, rollback) is [`docs/deployment.md`](../../docs/deployment.md). In short:
 
-## Firebase Storage rules
+1. Set the environment. Swagger is off in production and `trust proxy` is set automatically.
+2. `pnpm --filter @myhoodora/api build`, then `node dist/main.js`. It shuts down cleanly on `SIGTERM`.
+3. `pnpm migrate:dry`, read the output, then `pnpm migrate`. Migrations are idempotent and recorded in the `migrations` collection.
+4. Missing indexes are created at boot unless `MONGO_AUTO_INDEX=false`.
 
-The feed's image upload writes to `posts/{uid}/…`. Suggested rule:
+## File storage
 
-```
-match /posts/{uid}/{fileName} {
-  allow read: if true;
-  allow write: if request.auth != null && request.auth.uid == uid
-    && request.resource.size < 8 * 1024 * 1024
-    && request.resource.contentType.matches('image/.*');
-}
-```
+Photos and videos are uploaded through `POST /api/media`; the browser never talks to a storage vendor and never sees its credentials (contract §20).
+
+- **Layers:** business modules → `StorageService` (`src/storage/storage.service.ts`: validation, folders, ownership in `media_assets`) → `StorageProvider` port (`providers/storage-provider.ts`) → an adapter. `CloudinaryStorageAdapter` is the only file that imports the `cloudinary` SDK.
+- **How files travel:** uploads stream to a temp file (`os.tmpdir()/myhoodora-uploads`), the real type is read from the bytes, and the adapter streams the file from disk to the provider in one request. Temp files are always deleted, and stale ones are swept at startup and hourly. At most `STORAGE_MAX_CONCURRENT_UPLOADS` go at once per instance.
+- **Cloudinary:** set `CLOUDINARY_URL` from the Cloudinary console (API Keys). Its shape is checked at startup and the value is never logged. Files land in `myhoodora/<NODE_ENV>/<purpose>/`.
+- **Switching provider:** write `providers/<name>-storage.adapter.ts` implementing `upload`, `delete` and `url`, add a `case` in `createStorageProvider()` (`storage.module.ts`), then set `STORAGE_PROVIDER=<name>`. Nothing else changes. An unknown `STORAGE_PROVIDER` stops the API at startup.
+- **Tests:** `storage.service.spec.ts` (fake provider), `cloudinary-storage.adapter.spec.ts` (fake SDK), `storage.module.spec.ts` (selection).

@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
+import { publicPageMetadata } from "@/lib/site";
 import { LegalPage } from "@/components/legal/legal-page";
 import { PrivacyPolicyContent } from "@/components/legal/privacy-policy";
 
-export const metadata: Metadata = {
-  title: "Privacy Policy",
+export const metadata: Metadata = publicPageMetadata("/privacy", {
+  title: "Privacy Policy | myHoodora",
   description:
     "Learn how myHoodora collects, uses, and protects your personal information — and how we keep your location private.",
-};
+});
 
 export default function Page() {
   return (

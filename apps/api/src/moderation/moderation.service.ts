@@ -33,6 +33,8 @@ export interface AdminReport {
   status: CaseStatus;
   assignee?: { uid: string; displayName: string };
   resolution?: { action: ModerationAction; reason: string; note?: string; by: string; at: string };
+  /** Set when a new report reopened a decided case; `resolution` is then the earlier decision. */
+  reopenedAt?: string;
   /** "leads" while Hood Leads are voting on it. */
   route: "staff" | "leads";
 }
@@ -94,7 +96,11 @@ export class ModerationService {
   async fileReport(viewer: Viewer, input: { targetType: TargetType; targetId: string; reason: ReportReason; details?: string }): Promise<void> {
     const snap = await this.snapshot(input.targetType, input.targetId);
     if (!snap) throw new NotFoundException("That isn't available any more.");
-    if (snap.authorUid === viewer.uid) throw new BadRequestException("You can't report your own content.");
+    // A conversation is reported by one of the two people in it, about the other. Anyone else gets the
+    // same answer as for an id that doesn't exist: a report hands its last messages to staff.
+    if (snap.participantUids && !snap.participantUids.includes(viewer.uid)) throw new NotFoundException("That isn't available any more.");
+    const reportedUid = snap.participantUids ? snap.participantUids.find((u) => u !== viewer.uid) : snap.authorUid;
+    if (reportedUid === viewer.uid) throw new BadRequestException("You can't report your own content.");
     // Reporters can only report what they can see: their own Hood (staff excepted).
     if (snap.hoodId && viewer.hoodId && snap.hoodId !== viewer.hoodId && !viewer.capabilities.includes("admin.access")) {
       throw new NotFoundException("That isn't available any more.");
@@ -119,7 +125,8 @@ export class ModerationService {
           targetType: input.targetType,
           targetId: input.targetId,
           hoodId: snap.hoodId,
-          authorUid: snap.authorUid,
+          // Who account actions on this case apply to. For a conversation: the person first reported.
+          authorUid: reportedUid,
           preview: snap.preview.slice(0, 200),
           severity: setting.severity,
           severityRank: RANK[setting.severity],
@@ -129,7 +136,7 @@ export class ModerationService {
           firstReportedAt: now,
           lastReportedAt: now,
         });
-      await this.reports.create([{ ...input, reporterUid: viewer.uid, caseId: String(kase._id) }], { session });
+      await this.reports.create([{ ...input, reporterUid: viewer.uid, reportedUid, caseId: String(kase._id) }], { session });
       kase.reasonCounts = { ...kase.reasonCounts, [input.reason]: (kase.reasonCounts?.[input.reason] ?? 0) + 1 };
       kase.reporterCount += 1;
       kase.lastReportedAt = now;
@@ -139,11 +146,20 @@ export class ModerationService {
       }
       // A single high-risk report takes the whole case to staff.
       if (staffOnly) kase.route = "staff";
-      // New reports reopen a dismissed case (not one already actioned).
+      // New reports reopen a dismissed case…
       if (kase.status === "dismissed") {
         kase.status = "open";
         kase.resolution = null;
         if (kase.route === "leads") kase.routedToLeadsAt = now;
+      } else if (kase.status === "resolved" && !snap.removed) {
+        // …and one that was acted on while the content stayed up (the author was warned, or it was
+        // removed and later restored): otherwise nothing reported once could ever reach staff again.
+        // The earlier decision stays on the case, so the author can still appeal it. It goes to
+        // staff, not to a Lead vote: the Leads' votes from last time are still attached to the case.
+        kase.status = "open";
+        kase.reopenedAt = now;
+        kase.assignee = null;
+        kase.route = "staff";
       }
       kase.markModified("reasonCounts");
       await kase.save({ session });
@@ -197,7 +213,7 @@ export class ModerationService {
       kase.authorUid ? this.cases.find({ authorUid: kase.authorUid, _id: { $ne: kase._id } }).sort({ lastReportedAt: -1 }).limit(10).lean<(ModerationCase & { _id: Types.ObjectId })[]>().exec() : [],
       Promise.all([this.audit.forTarget(kase.targetType, kase.targetId), this.audit.forTarget("report", id)]).then(([a, b]) => [...a, ...b].sort((x, y) => y.at.localeCompare(x.at))),
     ]);
-    const reporterNames = await this.names(reports.map((r) => r.reporterUid));
+    const reporterNames = await this.names(reports.flatMap((r) => (r.reportedUid ? [r.reporterUid, r.reportedUid] : [r.reporterUid])));
     const author = kase.authorUid ? await this.users.findOne({ uid: kase.authorUid }).lean<User>().exec() : null;
     const hoodDoc = kase.hoodId ? (await this.hoods.findManyByIds([kase.hoodId])).get(kase.hoodId) : undefined;
     const authorHood = author?.neighborhoodId ? (await this.hoods.findManyByIds([author.neighborhoodId])).get(author.neighborhoodId) : undefined;
@@ -215,7 +231,14 @@ export class ModerationService {
       },
       hood: hoodDoc ? { id: kase.hoodId!, name: hoodDoc.name, city: hoodDoc.city } : undefined,
       // Staff only (this endpoint is behind admin.access). Never shown to the author.
-      reports: reports.map((r) => ({ reason: r.reason, details: r.details, reporter: { uid: r.reporterUid, displayName: reporterNames.get(r.reporterUid) ?? "Neighbour" }, at: r.createdAt.toISOString() })),
+      reports: reports.map((r) => ({
+        reason: r.reason,
+        details: r.details,
+        reporter: { uid: r.reporterUid, displayName: reporterNames.get(r.reporterUid) ?? "Neighbour" },
+        // Who it is about. On a conversation the two people may each have reported the other.
+        reported: r.reportedUid ? { uid: r.reportedUid, displayName: reporterNames.get(r.reportedUid) ?? "Neighbour" } : undefined,
+        at: r.createdAt.toISOString(),
+      })),
       related: related.map(toAdminReport),
       timeline,
     };
@@ -228,7 +251,7 @@ export class ModerationService {
         .findOneAndUpdate(
           { _id: kase._id, $or: [{ assignee: null }, { assignee: { $exists: false } }, { "assignee.uid": actor.uid }], status: { $in: ["open", "under_review", "escalated"] } },
           { $set: { assignee: { uid: actor.uid, displayName: actor.displayName ?? "Staff" }, status: kase.status === "escalated" ? "escalated" : "under_review" } },
-          { new: true },
+          { returnDocument: "after" },
         )
         .lean<ModerationCase & { _id: Types.ObjectId }>()
         .exec();
@@ -238,7 +261,7 @@ export class ModerationService {
       return toAdminReport(updated);
     }
     const updated = await this.cases
-      .findOneAndUpdate({ _id: kase._id, "assignee.uid": actor.uid }, { $set: { assignee: null, status: kase.status === "under_review" ? "open" : kase.status } }, { new: true })
+      .findOneAndUpdate({ _id: kase._id, "assignee.uid": actor.uid }, { $set: { assignee: null, status: kase.status === "under_review" ? "open" : kase.status } }, { returnDocument: "after" })
       .lean<ModerationCase & { _id: Types.ObjectId }>()
       .exec();
     if (!updated) throw new ForbiddenException("Only the person reviewing it can release it.");
@@ -378,6 +401,7 @@ export function toAdminReport(c: ModerationCase & { _id: Types.ObjectId | string
     status: c.status,
     assignee: c.assignee ?? undefined,
     resolution: c.resolution ? { action: c.resolution.action, reason: c.resolution.reason, note: c.resolution.note, by: c.resolution.by, at: c.resolution.at.toISOString() } : undefined,
+    reopenedAt: c.reopenedAt?.toISOString(),
     route: c.route ?? "staff",
   };
 }

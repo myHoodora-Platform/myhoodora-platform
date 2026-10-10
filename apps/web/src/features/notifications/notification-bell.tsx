@@ -6,6 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@myhoodora/ui/popover";
 import { useState } from "react";
 import { ROUTES } from "@/lib/routes";
 import { HeaderIconButton } from "@/components/layout/app-shell/header-icon-button";
+import { EventReminderModal } from "@/features/events/event-reminder-modal";
 import { NotificationItem } from "./notification-item";
 import { useNotifications } from "./use-notifications";
 
@@ -16,6 +17,8 @@ export function NotificationBell() {
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
+      {/* The final event reminder pops up (once), reusing the bell's notifications. Popover's root renders no DOM. */}
+      <EventReminderModal items={items} markRead={markRead} />
       <PopoverTrigger asChild>
         <HeaderIconButton
           icon={Bell}

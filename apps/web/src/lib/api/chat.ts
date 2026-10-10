@@ -75,11 +75,20 @@ export async function startConversation(
   return convo;
 }
 
-/** live: GET /conversations/:id/messages — oldest first. Also marks as read. */
-export async function listMessages(user: User, conversationId: string): Promise<Message[]> {
-  if (isLive("chat")) return apiFetch<Message[]>(user, `/conversations/${conversationId}/messages`);
+/**
+ * live: GET /conversations/:id/messages[?before=<message id>] — the newest
+ * page (up to 500), oldest first; also marks as read. With `before`, the page
+ * of messages older than that one (which doesn't mark anything read).
+ */
+export async function listMessages(user: User, conversationId: string, opts: { before?: string } = {}): Promise<Message[]> {
+  if (isLive("chat")) {
+    const query = opts.before ? `?before=${encodeURIComponent(opts.before)}` : "";
+    return apiFetch<Message[]>(user, `/conversations/${conversationId}/messages${query}`);
+  }
   await latency(150);
   const s = state(user.uid);
+  // The mock store never holds more than one page, so there is nothing earlier.
+  if (opts.before) return [];
   save(key(user.uid), {
     ...s,
     conversations: s.conversations.map((c) => (c._id === conversationId ? { ...c, unreadCount: 0 } : c)),

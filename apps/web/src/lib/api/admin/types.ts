@@ -84,7 +84,10 @@ export type AuditAction =
   | "appeal_filed"
   | "appeal_upheld"
   | "appeal_overturned"
-  | "business_claim";
+  | "business_claim"
+  | "hood_request"
+  | "hood_request_cancel"
+  | "hood_self_change";
 
 export interface AuditEvent {
   id: string;
@@ -205,6 +208,16 @@ export interface VerificationCase {
 // ── Hoods ───────────────────────────────────────────────────────────────────
 
 export type HoodStatus = "active" | "paused" | "archived";
+
+/** Where a Hood is: GET /admin/hoods/near, for drawing the Hoods around a point. */
+export interface HoodFootprint {
+  id: string;
+  name: string;
+  city: string;
+  status: HoodStatus;
+  center: { lat: number; lng: number };
+  radiusMeters: number;
+}
 
 export interface AdminHood {
   id: string;
@@ -344,6 +357,10 @@ export interface Broadcast {
   reach: number;
   sentAt: string;
   sentBy: string;
+  /** Delivery runs after the request, in batches. Absent (older rows, preview) means sent. */
+  status?: "sending" | "sent" | "failed";
+  /** Notifications written so far (equals `reach` once sent). */
+  delivered?: number;
 }
 
 // ── Insights, team, settings ────────────────────────────────────────────────

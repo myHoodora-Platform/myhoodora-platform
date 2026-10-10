@@ -16,19 +16,11 @@ import { resolveAuthor } from "@/lib/api/users";
 import { dateBadge, formatEventDate } from "@/lib/format";
 import { ROUTES } from "@/lib/routes";
 import type { Post } from "@/lib/api/types";
+import { EventPhaseChip } from "./event-phase-chip";
+import { calendarFor, eventEndsAt, eventTitle } from "./event-time";
 import { RsvpButtons } from "./rsvp-buttons";
 
 type Tab = "upcoming" | "past";
-
-/** The first sentence (or line) of the post doubles as the event title. */
-function eventTitle(post: Post): { title: string; rest: string } {
-  const text = post.message.trim();
-  const end = text.search(/[.!?\n]/);
-  const cut = end === -1 ? text.length : end + (text[end] === "\n" ? 0 : 1);
-  const title = text.slice(0, cut).trim();
-  if (title.length > 90) return { title: `${title.slice(0, 87).trimEnd()}…`, rest: text };
-  return { title, rest: text.slice(cut).trim() };
-}
 
 function EventCard({ post }: { post: Post }) {
   const viewer = useViewer();
@@ -45,7 +37,10 @@ function EventCard({ post }: { post: Post }) {
           <span className="text-[11px] text-muted-foreground">{badge?.weekday}</span>
         </div>
         <div className="min-w-0 flex-1 space-y-1.5">
-          <h2 className="text-base font-bold text-foreground">{title}</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-base font-bold text-foreground">{title}</h2>
+            <EventPhaseChip eventDate={post.meta.eventDate} />
+          </div>
           {post.meta.eventDate && (
             <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
               <CalendarDays className="size-4 shrink-0" aria-hidden /> {formatEventDate(post.meta.eventDate)}
@@ -63,7 +58,7 @@ function EventCard({ post }: { post: Post }) {
         </div>
       </Link>
       <div className="border-t border-border px-4 py-3 sm:px-5">
-        <RsvpButtons postId={post._id} />
+        <RsvpButtons postId={post._id} summary={post.rsvp} eventDate={post.meta.eventDate} calendar={calendarFor(post)} />
       </div>
     </article>
   );
@@ -75,15 +70,13 @@ export function EventsPage() {
   const tab: Tab = useSearchParams().get("tab") === "past" ? "past" : "upcoming";
 
   const { upcoming, past } = useMemo(() => {
-    const now = new Date().toISOString();
+    const now = new Date();
     const events = posts.filter((p) => p.meta.category === "event");
+    // An event moves to Past when it ends (start + 3 h), so one that's on right now stays in Upcoming.
     // Events without a date (older posts) count as upcoming so they aren't lost.
-    const up = events
-      .filter((p) => !p.meta.eventDate || p.meta.eventDate >= now)
-      .sort((a, b) => (a.meta.eventDate ?? "9").localeCompare(b.meta.eventDate ?? "9"));
-    const gone = events
-      .filter((p) => p.meta.eventDate && p.meta.eventDate < now)
-      .sort((a, b) => b.meta.eventDate!.localeCompare(a.meta.eventDate!));
+    const isOver = (p: Post) => !!p.meta.eventDate && eventEndsAt(p.meta.eventDate) <= now;
+    const up = events.filter((p) => !isOver(p)).sort((a, b) => (a.meta.eventDate ?? "9").localeCompare(b.meta.eventDate ?? "9"));
+    const gone = events.filter(isOver).sort((a, b) => b.meta.eventDate!.localeCompare(a.meta.eventDate!));
     return { upcoming: up, past: gone };
   }, [posts]);
 

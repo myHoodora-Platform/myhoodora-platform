@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useRef } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Input } from "@myhoodora/ui/input";
@@ -10,22 +9,17 @@ import { PasswordInput } from "@myhoodora/ui/password-input";
 import { Button } from "@myhoodora/ui/button";
 import { Divider } from "@myhoodora/ui/divider";
 import { registerSchema, type RegisterInput } from "@/lib/validation/auth";
-import {
-  signUpUser,
-  signInWithGoogle,
-  signInWithApple,
-  routeAfterSignIn,
-} from "@/lib/firebase/auth";
-import { DEFAULT_APP_ROUTE, ROUTES } from "@/lib/routes";
+import { signUpUser } from "@/lib/firebase/auth";
+import { ROUTES } from "@/lib/routes";
+import { requireServerSession } from "@/lib/auth/session-sync";
+import { enterApp } from "@/lib/safe-redirect";
 import { getAuthErrorMessage } from "@/lib/firebase/errors";
+import { GoogleOneTap } from "@/components/shared/google-one-tap";
 import { SocialAuthButtons } from "@/components/shared/social-auth-buttons";
 import { useRedirectIfSignedIn } from "@/hooks/use-redirect-if-signed-in";
 import { toast } from "sonner";
 
 export default function RegisterPage() {
-  const router = useRouter();
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const [appleLoading, setAppleLoading] = useState(false);
   // Blocks a second sign-up from a fast double submit (see login page).
   const submittingRef = useRef(false);
   useRedirectIfSignedIn();
@@ -45,11 +39,13 @@ export default function RegisterPage() {
     if (submittingRef.current) return;
     submittingRef.current = true;
     try {
-      await signUpUser(data.email, data.password);
+      const user = await signUpUser(data.email, data.password);
+      // Onboarding is behind the proxy: the server session has to exist first.
+      await requireServerSession(user);
       // A brand-new account always starts onboarding. The onboarding page
       // waits for the profile (created by GET /users/me) and shows an error
       // with Retry if that fails.
-      router.push(ROUTES.onboarding);
+      enterApp(ROUTES.onboarding);
     } catch (err: unknown) {
       const { code, message, silent } = getAuthErrorMessage(err);
       if (process.env.NODE_ENV === "development" && code) {
@@ -60,44 +56,6 @@ export default function RegisterPage() {
       }
     } finally {
       submittingRef.current = false;
-    }
-  };
-
-  const handleGoogleSignIn = async () => {
-    setGoogleLoading(true);
-    try {
-      // Google may sign in an existing account: only new or unfinished
-      // accounts go to onboarding.
-      const user = await signInWithGoogle();
-      router.push(await routeAfterSignIn(user, DEFAULT_APP_ROUTE));
-    } catch (err: unknown) {
-      const { code, message, silent } = getAuthErrorMessage(err);
-      if (process.env.NODE_ENV === "development" && code) {
-        console.warn(`[AuthError code]: ${code}`);
-      }
-      if (!silent) {
-        toast.error(message);
-      }
-    } finally {
-      setGoogleLoading(false);
-    }
-  };
-
-  const handleAppleSignIn = async () => {
-    setAppleLoading(true);
-    try {
-      const user = await signInWithApple();
-      router.push(await routeAfterSignIn(user, DEFAULT_APP_ROUTE));
-    } catch (err: unknown) {
-      const { code, message, silent } = getAuthErrorMessage(err);
-      if (process.env.NODE_ENV === "development" && code) {
-        console.warn(`[AuthError code]: ${code}`);
-      }
-      if (!silent) {
-        toast.error(message);
-      }
-    } finally {
-      setAppleLoading(false);
     }
   };
 
@@ -112,21 +70,19 @@ export default function RegisterPage() {
         </p>
       </div>
 
-      <SocialAuthButtons
-        onGoogleClick={handleGoogleSignIn}
-        onAppleClick={handleAppleSignIn}
-        googleLoading={googleLoading}
-        appleLoading={appleLoading}
-      />
+      <SocialAuthButtons />
+      <GoogleOneTap />
 
       <Divider label="or" className="py-1" />
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div>
-          <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-1">
+          <label htmlFor="register-email" className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-1">
             Email Address
           </label>
           <Input
+            id="register-email"
+            autoComplete="email"
             type="email"
             placeholder="name@example.com"
             error={errors.email?.message}
@@ -135,10 +91,12 @@ export default function RegisterPage() {
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-1">
+          <label htmlFor="register-password" className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-1">
             Password
           </label>
           <PasswordInput
+            id="register-password"
+            autoComplete="new-password"
             placeholder="••••••••"
             error={errors.password?.message}
             {...register("password")}

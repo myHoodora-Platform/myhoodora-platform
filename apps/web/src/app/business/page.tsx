@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { publicPageMetadata } from "@/lib/site";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -22,11 +23,11 @@ import { MarketingPage } from "@/components/marketing/marketing-page";
 import { ExploreMore } from "@/components/marketing/explore-more";
 import { BUSINESS_IMAGE } from "@/lib/site-images";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = publicPageMetadata("/business", {
   title: "myHoodora for Business | Reach neighbours near you",
   description:
     "Create a free Business Page, post to nearby neighbours and earn recommendations from verified residents in Lagos and Ibadan.",
-};
+});
 
 const START = "/business/get-started";
 
@@ -126,9 +127,8 @@ export default function BusinessPage() {
       {/* Hero: fixed skyline behind the copy (parallax on large screens; iOS falls back to scroll). */}
       <section
         className="relative isolate overflow-hidden bg-cover bg-center lg:bg-fixed"
+        // The photo is decoration. (role="img" here would hide the heading and buttons inside from screen readers.)
         style={{ backgroundImage: `url(${BUSINESS_IMAGE.src})` }}
-        role="img"
-        aria-label={BUSINESS_IMAGE.alt}
       >
         <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-r from-[#0b1716]/95 via-[#0b1716]/75 to-[#0b1716]/35" />
         <div className="mx-auto flex min-h-[78vh] max-w-6xl flex-col justify-center gap-6 px-4 py-20 text-white sm:px-6 lg:px-8">
@@ -267,7 +267,7 @@ export default function BusinessPage() {
       <section id="estates" className="scroll-mt-20 px-4 py-16 sm:px-6 lg:py-24">
         <div className="mx-auto grid max-w-6xl gap-10 overflow-hidden rounded-3xl bg-primary p-8 text-primary-foreground sm:p-12 lg:grid-cols-[1.2fr_1fr] lg:items-center">
           <div className="space-y-4">
-            <p className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-bold tracking-wide uppercase">
+            <p className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-bold tracking-wide uppercase">
               <Landmark className="size-3.5" aria-hidden /> Estates, associations &amp; agencies
             </p>
             <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Reach every resident, not just the ones in the WhatsApp group</h2>

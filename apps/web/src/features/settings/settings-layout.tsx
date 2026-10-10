@@ -36,7 +36,7 @@ interface Section {
   icon: LucideIcon;
 }
 
-/** Nextdoor-style settings sections (docs/nextdoor-research.md). */
+/** Nextdoor-style settings sections (docs/product/nextdoor-research.md). */
 export const SETTINGS_SECTIONS: Section[] = [
   { label: "Profile", description: "Photo, name and bio", href: ROUTES.settingsProfile, icon: User },
   { label: "Account", description: "Email, password and sign-in", href: ROUTES.settingsAccount, icon: KeyRound },
@@ -170,7 +170,8 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
         </div>
       )}
       <div className="grid gap-6 lg:grid-cols-[300px_1fr]">
-        <div className={cn("space-y-4", isHub ? "block" : "hidden lg:block")}>
+        {/* min-w-0: a grid item is otherwise as wide as its longest one-line description, wider than a phone. */}
+        <div className={cn("min-w-0 space-y-4", isHub ? "block" : "hidden lg:block")}>
           <Summary />
           <SectionNav activeHref={activeHref} desktopOnly={isHub} />
         </div>

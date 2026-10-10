@@ -1,5 +1,7 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, NotFoundException, Param, Patch, Post, Query } from "@nestjs/common";
+import { BadRequestException, Body, Controller, ForbiddenException, Get, HttpException, Logger, NotFoundException, Param, Patch, Post, Query } from "@nestjs/common";
+import { InjectConnection } from "@nestjs/mongoose";
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
+import type { Connection } from "mongoose";
 import { AuditService } from "../audit/audit.service";
 import { CreateHoodDto, UpdateHoodDto } from "../hoods/dto/hood.dto";
 import { HoodsService } from "../hoods/hoods.service";
@@ -10,6 +12,7 @@ import { ALERT_CATEGORIES } from "../platform/platform-settings.schema";
 import { PlatformSettingsService } from "../platform/platform-settings.service";
 import { PostsService } from "../posts/posts.service";
 import { CurrentViewer, type Viewer } from "../shared/auth/viewer";
+import { withTransaction } from "../shared/db/transaction";
 import { Can } from "../shared/authz/can.decorator";
 import { ParseObjectIdPipe } from "../shared/http/pagination";
 import { StaffUsersService } from "../users/staff-users.service";
@@ -25,6 +28,7 @@ import {
   DecisionDto,
   EstimateDto,
   HoodQueryDto,
+  HoodsNearQuery,
   NeighbourActionDto,
   NeighbourQueryDto,
   SettingsDto,
@@ -45,7 +49,10 @@ const CONTRACT_CAPABILITIES = ["moderation.act", "moderation.suspend", "verifica
 @Can("admin.access")
 @Controller("admin")
 export class AdminController {
+  private readonly logger = new Logger(AdminController.name);
+
   constructor(
+    @InjectConnection() private readonly connection: Connection,
     private readonly read: AdminReadService,
     private readonly moderation: ModerationService,
     private readonly audit: AuditService,
@@ -135,13 +142,16 @@ export class AdminController {
   @ApiOperation({ summary: "Neighbour detail (address for admins only)" })
   @ApiOkResponse()
   @ApiNotFound("Neighbour")
-  async neighbour(@Param("uid") uid: string) {
+  async neighbour(@CurrentViewer() v: Viewer, @Param("uid") uid: string) {
     const u = await this.staffUsers.get(uid);
     const [row] = await this.staffUsers.toRows([u]);
+    // Where someone lives: admins only (contract §13.3). Moderators review address checks from
+    // `verificationAttempts` below and from the verification queue.
+    const mayReadAddress = v.capabilities.includes("neighbours.address");
     return {
       ...row!,
       counts: await this.read.neighbourCounts(uid),
-      location: u.location?.address ? { address: u.location.address, lat: u.location.lat ?? 0, lng: u.location.lng ?? 0 } : undefined,
+      location: mayReadAddress && u.location?.address ? { address: u.location.address, lat: u.location.lat ?? 0, lng: u.location.lng ?? 0 } : undefined,
       verificationAttempts: (u.verificationAttempts ?? []).map((a) => ({ at: a.at.toISOString(), address: a.address ?? "", point: { lat: a.lat, lng: a.lng }, result: a.result })),
       timeline: await this.audit.forTarget("user", uid),
     };
@@ -160,12 +170,29 @@ export class AdminController {
   }
 
   @Post("neighbours/bulk")
-  @ApiOperation({ summary: "Bulk verify / restrict (max 100)" })
+  @ApiOperation({
+    summary: "Bulk verify / restrict (max 100)",
+    description:
+      "Each neighbour is handled on their own: one that can't be changed (unknown, your own account, staff at or above your role) doesn't stop the rest. Returns `{ updated, results: [{ uid, ok, message? }] }` in the order sent. 403 only when you may not take this action on anyone.",
+  })
   async bulk(@CurrentViewer() v: Viewer, @Body() body: BulkNeighbourDto) {
     this.assertNeighbourCapability(v, body.action);
     const { uids, ...input } = body;
-    for (const uid of uids) await this.staffUsers.act(v, uid, input);
-    return { updated: uids.length };
+    // What this person may not do to anyone is refused once, before anything changes.
+    this.staffUsers.assertMayTake(v, input);
+    const results: { uid: string; ok: boolean; message?: string }[] = [];
+    for (const uid of [...new Set(uids)]) {
+      try {
+        await this.staffUsers.act(v, uid, input);
+        results.push({ uid, ok: true });
+      } catch (err) {
+        // Each action is its own transaction (and its own email), so the ones already done stand.
+        // The caller is told exactly which were not, instead of an error that hides the ones that were.
+        if (!(err instanceof HttpException)) this.logger.error(`Bulk ${input.action} failed for one neighbour`, err instanceof Error ? err.stack : String(err));
+        results.push({ uid, ok: false, message: err instanceof HttpException ? err.message : "Something went wrong on our side." });
+      }
+    }
+    return { updated: results.filter((r) => r.ok).length, results };
   }
 
   @Post("neighbours/:uid/actions")
@@ -173,7 +200,7 @@ export class AdminController {
   async act(@CurrentViewer() v: Viewer, @Param("uid") uid: string, @Body() body: NeighbourActionDto) {
     this.assertNeighbourCapability(v, body.action);
     await this.staffUsers.act(v, uid, body);
-    return this.neighbour(uid);
+    return this.neighbour(v, uid);
   }
 
   private assertNeighbourCapability(v: Viewer, action: NeighbourActionDto["action"]) {
@@ -196,6 +223,13 @@ export class AdminController {
   @ApiOperation({ summary: "Hoods with stats" })
   hoodsList(@Query() q: HoodQueryDto) {
     return this.read.listHoods(q);
+  }
+
+  // Before hoods/:id, which would otherwise take "near" for an id.
+  @Get("hoods/near")
+  @ApiOperation({ summary: "Every Hood a Hood centred at this point could overlap, nearest first (admin map)" })
+  hoodsNear(@Query() q: HoodsNearQuery) {
+    return this.hoods.around({ lat: q.lat, lng: q.lng });
   }
 
   @Get("hoods/:id")
@@ -223,11 +257,10 @@ export class AdminController {
   }
 
   @Post("hoods")
-  @ApiOperation({ summary: "Create a Hood (409 + overlaps if it overlaps another)" })
+  @ApiOperation({ summary: "Create a Hood (409 if it would sit over another Hood's centre; overlapping is allowed)" })
   @Can("hoods.manage")
   async createHood(@CurrentViewer() v: Viewer, @Body() body: CreateHoodDto) {
-    const hood = await this.hoods.create(body);
-    await this.audit.record(v, "hood_create", { type: "hood", id: hood.id as string, label: hood.name });
+    const hood = await this.hoods.createAudited(v, body);
     return this.read.hoodDetail(hood.id as string);
   }
 
@@ -236,8 +269,7 @@ export class AdminController {
   @Can("hoods.manage")
   async updateHood(@CurrentViewer() v: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Body() body: UpdateHoodDto) {
     const { reason, ...patch } = body;
-    const hood = await this.hoods.update(id, patch);
-    await this.audit.record(v, patch.status === "archived" ? "hood_archive" : "hood_update", { type: "hood", id, label: hood.name }, { reason });
+    await this.hoods.updateAudited(v, id, patch, reason);
     return this.read.hoodDetail(id);
   }
 
@@ -281,13 +313,15 @@ export class AdminController {
   async alertAction(@CurrentViewer() v: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Body() body: AlertActionDto) {
     const snap = await this.registry.get("post")!.load(id);
     if (!snap) throw new NotFoundException("Alert not found.");
-    if (body.action === "remove") {
-      await this.registry.get("post")!.setRemoved(id, true, v.uid);
-      await this.registry.announce("post", id);
-    }
-    else await this.posts.staffAlertAction(id, body.action, v.uid);
     const action = body.action === "end" ? "alert_end" : body.action === "downgrade" ? "alert_downgrade" : "remove_content";
-    await this.audit.record(v, action, { type: "post", id, label: `“${snap.preview.slice(0, 60)}”` }, { reason: body.reason });
+    // The change and its audit record together: a staff action with no record of who took it must not exist.
+    await withTransaction(this.connection, async (session) => {
+      if (body.action === "remove") await this.registry.get("post")!.setRemoved(id, true, v.uid, session);
+      else await this.posts.staffAlertAction(id, body.action, v.uid, session);
+      await this.audit.record(v, action, { type: "post", id, label: `“${snap.preview.slice(0, 60)}”` }, { reason: body.reason }, session);
+    });
+    // Open screens hear about it once it is real.
+    await this.registry.announce("post", id);
     return { ok: true };
   }
 
@@ -312,6 +346,14 @@ export class AdminController {
   @Can("broadcasts.send")
   send(@CurrentViewer() v: Viewer, @Body() body: BroadcastDto) {
     return this.broadcasts.send(v, { title: body.title, body: body.body, audience: toAudience(body.audience) });
+  }
+
+  @Post("broadcasts/:id/retry")
+  @ApiOperation({ summary: "Retry a failed broadcast (nobody is notified twice)" })
+  @ApiNotFound("Broadcast")
+  @Can("broadcasts.send")
+  retryBroadcast(@CurrentViewer() v: Viewer, @Param("id", ParseObjectIdPipe) id: string) {
+    return this.broadcasts.retry(v, id);
   }
 
   // ── 13.9 Insights, team, settings ──────────────────────────────────────────

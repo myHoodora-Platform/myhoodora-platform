@@ -124,10 +124,22 @@ export async function estimateReach(user: User, audience: BroadcastAudience): Pr
   return mock(() => reachOf(audience), 120);
 }
 
-/** live: POST /admin/broadcasts — "everyone" is admin only. */
-export async function sendBroadcast(user: User, input: { title: string; body: string; audience: BroadcastAudience }, role: AdminRole): Promise<Broadcast> {
-  if (isLive("admin.broadcasts")) return adminSend(user, "/broadcasts", input);
-  return mock(() => {
+/** live: POST /admin/broadcasts/:id/retry. Finishes a failed broadcast; nobody is notified twice. */
+export async function retryBroadcast(user: User, id: string): Promise<void> {
+  if (isLive("admin.broadcasts")) await adminSend(user, `/broadcasts/${id}/retry`, {});
+}
+
+/**
+ * live: POST /admin/broadcasts ("everyone" is admin only). The API answers at
+ * once and delivers in batches afterwards; the list shows progress. Sending
+ * the identical message again within five minutes is refused (409).
+ */
+export async function sendBroadcast(user: User, input: { title: string; body: string; audience: BroadcastAudience }, role: AdminRole): Promise<void> {
+  if (isLive("admin.broadcasts")) {
+    await adminSend(user, "/broadcasts", input);
+    return;
+  }
+  await mock(() => {
     if (role === "moderator") forbidden();
     if (input.audience.type !== "all" && (input.audience.type === "hood" ? input.audience.hoodIds : input.audience.uids).length === 0) {
       throw new ApiError("Choose who should receive this.", 422, "client");

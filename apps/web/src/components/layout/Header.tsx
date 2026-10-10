@@ -39,7 +39,7 @@ const ALL_MOBILE_LINKS: NavLink[] = [...ABOUT_LINKS, ...MARKETING_NAV];
 
 function SoonBadge() {
   return (
-    <span className="rounded-full bg-brand-coral/15 px-1.5 py-0.5 text-[10px] leading-none font-bold tracking-wide text-brand-coral uppercase">
+    <span className="rounded-full bg-brand-coral/15 px-1.5 py-0.5 text-[10px] leading-none font-bold tracking-wide text-brand-coral-ink uppercase">
       Soon
     </span>
   );

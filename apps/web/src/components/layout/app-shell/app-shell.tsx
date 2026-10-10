@@ -10,6 +10,9 @@ import { OnboardingGatingModal } from "@/components/shared/OnboardingGatingModal
 import { OfflineBanner, ProblemState } from "@/components/shared/connection-states";
 import { ComposerProvider } from "@/features/feed/composer-context";
 import { hasSkippedOnboarding } from "@/features/onboarding/draft";
+import { FirstRunTour } from "@/features/tour/first-run-tour";
+import { prefetchUnreadMessages } from "@/features/chat/use-unread-messages";
+import { prefetchNotifications } from "@/features/notifications/use-notifications";
 import { ROUTES } from "@/lib/routes";
 import { isStaff } from "@/lib/auth/profile";
 import { AppHeader } from "./app-header";
@@ -43,6 +46,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       root.style.removeProperty("--banners-h");
     };
   }, []);
+
+  // The header's unread badges: ask as soon as we know who is signed in, not
+  // after the profile has loaded and the header mounts. By then the answers
+  // are usually already here.
+  useEffect(() => {
+    if (!user) return;
+    prefetchUnreadMessages(user);
+    prefetchNotifications(user);
+  }, [user]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -152,6 +164,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
           <MobileTabBar />
           <OnboardingGatingModal />
+          <FirstRunTour />
         </div>
       </ComposerProvider>
     </TooltipProvider>

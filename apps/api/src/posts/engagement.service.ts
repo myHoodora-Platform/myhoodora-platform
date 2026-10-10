@@ -1,18 +1,14 @@
-import { BadRequestException, ForbiddenException, HttpException, HttpStatus, Injectable } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, HttpException, HttpStatus, Injectable } from "@nestjs/common";
 import { InjectConnection, InjectModel } from "@nestjs/mongoose";
 import { Connection, Model } from "mongoose";
 import { NotificationsService } from "../notifications/notifications.service";
 import type { Viewer } from "../shared/auth/viewer";
 import { withTransaction } from "../shared/db/transaction";
+import { hasEnded } from "./domain/event-time";
 import { FeedPost, PollVote, Reaction, Rsvp, type PostDocument, type ReactionType } from "./schemas/post.schema";
-import { PostsService, type PollResults, type PostView } from "./posts.service";
+import { PostsService, type PollResults, type PostView, type RsvpSummary } from "./posts.service";
 
-export interface RsvpSummary {
-  postId: string;
-  goingCount: number;
-  interestedCount: number;
-  myStatus: "going" | "interested" | null;
-}
+export type { RsvpSummary };
 
 /** Reactions, poll votes and RSVPs — the viewer's interactions with a post. */
 @Injectable()
@@ -32,7 +28,7 @@ export class EngagementService {
   async react(viewer: Viewer, postId: string, type: ReactionType): Promise<PostView> {
     const post = await this.postsService.loadVisible(viewer, postId);
     const previous = await withTransaction(this.connection, async (session) => {
-      const before = await this.reactions.findOneAndUpdate({ postId, uid: viewer.uid }, { $set: { type } }, { upsert: true, session, new: false }).lean<Reaction>().exec();
+      const before = await this.reactions.findOneAndUpdate({ postId, uid: viewer.uid }, { $set: { type } }, { upsert: true, session, returnDocument: "before" }).lean<Reaction>().exec();
       if (before?.type === type) return before.type;
       const inc: Record<string, number> = { [`reactionCounts.${type}`]: 1 };
       if (before) inc[`reactionCounts.${before.type}`] = -1;
@@ -110,14 +106,15 @@ export class EngagementService {
   }
 
   async rsvpSummary(viewer: Viewer, postId: string): Promise<RsvpSummary> {
-    await this.eventPost(viewer, postId);
-    return this.summary(viewer.uid, postId);
+    const post = await this.eventPost(viewer, postId);
+    return this.summary(viewer.uid, postId, post.eventDate);
   }
 
   async rsvp(viewer: Viewer, postId: string, status: "going" | "interested"): Promise<RsvpSummary> {
     const post = await this.eventPost(viewer, postId);
     if (!viewer.capabilities.includes("content.react")) throw new ForbiddenException("Verify your address to join events.");
-    const before = await this.rsvps.findOneAndUpdate({ postId, uid: viewer.uid }, { $set: { status } }, { upsert: true, new: false }).lean<Rsvp>().exec();
+    if (hasEnded(post.eventDate)) throw new ConflictException("This event has ended.");
+    const before = await this.rsvps.findOneAndUpdate({ postId, uid: viewer.uid }, { $set: { status } }, { upsert: true, returnDocument: "before" }).lean<Rsvp>().exec();
     if (before?.status !== status) this.postsService.changed(post);
     if (status === "going" && before?.status !== "going") {
       await this.notifications.notify({
@@ -130,22 +127,23 @@ export class EngagementService {
         groupKey: `rsvp:${postId}`,
       });
     }
-    return this.summary(viewer.uid, postId);
+    return this.summary(viewer.uid, postId, post.eventDate);
   }
 
   async cancelRsvp(viewer: Viewer, postId: string): Promise<RsvpSummary> {
     const post = await this.eventPost(viewer, postId);
     const res = await this.rsvps.deleteOne({ postId, uid: viewer.uid }).exec();
     if (res.deletedCount) this.postsService.changed(post);
-    return this.summary(viewer.uid, postId);
+    return this.summary(viewer.uid, postId, post.eventDate);
   }
 
-  private async summary(uid: string, postId: string): Promise<RsvpSummary> {
+  /** The same summary every event post carries (PostView.rsvp), for the event that was just changed. */
+  private async summary(uid: string, postId: string, eventDate?: Date): Promise<RsvpSummary> {
     const [going, interested, mine] = await Promise.all([
       this.rsvps.countDocuments({ postId, status: "going" }).exec(),
       this.rsvps.countDocuments({ postId, status: "interested" }).exec(),
       this.rsvps.findOne({ postId, uid }).lean<Rsvp>().exec(),
     ]);
-    return { postId, goingCount: going, interestedCount: interested, myStatus: mine?.status ?? null };
+    return { postId, goingCount: going, interestedCount: interested, myStatus: mine?.status ?? null, ended: hasEnded(eventDate) };
   }
 }

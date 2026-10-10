@@ -1,7 +1,7 @@
 /**
  * Single source of truth for app URLs. Structure mirrors Nextdoor's flat,
  * noun-based routes (/news_feed, /p/{id}, /for_sale_and_free, /g/{id}) —
- * see docs/nextdoor-research.md.
+ * see docs/product/nextdoor-research.md.
  */
 export const ROUTES = {
   home: "/",
@@ -12,6 +12,7 @@ export const ROUTES = {
   newsFeed: "/news-feed",
   post: (id: string) => `/p/${id}`,
   forSale: "/for-sale",
+  search: (q?: string, type?: string) => `/search${q ? `?q=${encodeURIComponent(q)}${type ? `&type=${type}` : ""}` : ""}`,
   listing: (id: string) => `/for-sale/${id}`,
   alerts: "/alerts",
   events: "/events",
@@ -77,6 +78,15 @@ export function isPublicPath(pathname: string): boolean {
 
 export function isGuestOnlyPath(pathname: string): boolean {
   return (GUEST_ONLY_PATHS as readonly string[]).includes(pathname);
+}
+
+/**
+ * Pages the proxy only serves to someone *with* a valid session cookie:
+ * the signed-in app, onboarding and the admin. Being on one proves the
+ * cookie exists.
+ */
+export function isSessionOnlyPath(pathname: string): boolean {
+  return !isPublicPath(pathname) && !isGuestOnlyPath(pathname);
 }
 
 /**

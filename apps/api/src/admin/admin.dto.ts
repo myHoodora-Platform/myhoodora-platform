@@ -7,6 +7,8 @@ import {
   IsDateString,
   IsIn,
   IsInt,
+  IsLatitude,
+  IsLongitude,
   IsMongoId,
   IsOptional,
   IsString,
@@ -76,6 +78,12 @@ export class VerificationQueryDto extends PageQuery {
 export class HoodQueryDto extends PageQuery {
   @IsOptional() @IsString() @MaxLength(60) city?: string;
   @IsOptional() @IsIn(HOOD_STATUSES) status?: (typeof HOOD_STATUSES)[number];
+}
+
+/** A point: the Hoods around it (GET /admin/hoods/near). */
+export class HoodsNearQuery {
+  @Type(() => Number) @IsLatitude() lat!: number;
+  @Type(() => Number) @IsLongitude() lng!: number;
 }
 
 export class AdminPostQuery extends PageQuery {

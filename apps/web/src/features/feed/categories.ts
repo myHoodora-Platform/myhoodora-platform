@@ -45,7 +45,7 @@ export function categoryDef(id: PostCategory): CategoryDef {
   return POST_CATEGORIES.find((c) => c.id === id) ?? POST_CATEGORIES[0]!;
 }
 
-// ── Alert categories (adapted for Nigeria — docs/nextdoor-research.md §13) ─
+// ── Alert categories (adapted for Nigeria — docs/product/nextdoor-research.md §13) ─
 
 export interface AlertCategoryDef {
   id: AlertCategory;

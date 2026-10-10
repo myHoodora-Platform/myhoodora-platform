@@ -71,7 +71,8 @@ export function HeaderActions({
           <span className="max-w-[140px] truncate">{name}</span>
         </div>
 
-        <Link href={DEFAULT_APP_ROUTE} className={isStack ? "w-full" : undefined}>
+        {/* No prefetch: until the session cookie is back the proxy answers with a redirect to /login, and that must not be cached. */}
+        <Link href={DEFAULT_APP_ROUTE} prefetch={false} className={isStack ? "w-full" : undefined}>
           <Button
             size="sm"
             className={cn("gap-2 font-semibold", isStack && "w-full")}

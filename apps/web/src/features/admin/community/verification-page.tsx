@@ -34,6 +34,8 @@ export function VerificationPage() {
   const cases = useAdminQuery(
     (u) => listVerification(u, { status: get("status") as "pending_review" | "failed", q: get("q") || undefined, page }),
     key,
+    // Live: join requests and withdrawals appear without a reload.
+    ["queue.changed"],
   );
   const [pending, setPending] = useState<{ action: NeighbourAction; c: VerificationCase; hoodId?: string } | null>(null);
 
