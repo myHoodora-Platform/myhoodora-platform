@@ -194,7 +194,7 @@ export class UsersService implements OnModuleInit {
       $set: { ...rest, ...(photoURL && { photoURL }) },
       ...(photoURL === null && { $unset: { photoURL: 1 } }),
     };
-    const before = await this.users.findOneAndUpdate({ uid }, update, { new: false, runValidators: true }).exec();
+    const before = await this.users.findOneAndUpdate({ uid }, update, { returnDocument: "before", runValidators: true }).exec();
     if (!before) throw new NotFoundException("Profile not found.");
     if (photoURL !== undefined && before.photoURL && before.photoURL !== photoURL) {
       // Only files this person uploaded through us are touched; Google/Apple photos are left alone.
@@ -215,7 +215,7 @@ export class UsersService implements OnModuleInit {
     const set: Partial<User> = { isOnboarded: true };
     if (dto.displayName !== undefined) set.displayName = dto.displayName;
     if (dto.location !== undefined) set.location = dto.location;
-    const user = await this.users.findOneAndUpdate({ uid }, { $set: set }, { new: true, runValidators: true }).exec();
+    const user = await this.users.findOneAndUpdate({ uid }, { $set: set }, { returnDocument: "after", runValidators: true }).exec();
     if (!user) throw new NotFoundException("Profile not found.");
     return toMe(user);
   }
@@ -326,7 +326,7 @@ export class UsersService implements OnModuleInit {
         .findOneAndUpdate(
           { uid: viewer.uid, verificationStatus: { $in: ["unverified", "pending_review"] } },
           { $set: { verificationStatus: "pending_review", requestedHood: { id: hood.id, name: hood.name, requestedAt: new Date() } } },
-          { new: true, session: s },
+          { returnDocument: "after", session: s },
         )
         .exec();
       if (!doc) throw new ConflictException("Your verification status just changed. Refresh and try again.");
@@ -453,7 +453,7 @@ export class UsersService implements OnModuleInit {
   async block(uid: string, target: string): Promise<string[]> {
     if (target === uid) throw new BadRequestException("You can't block yourself.");
     const user = await this.users
-      .findOneAndUpdate({ uid, [`blockedUids.${MAX_BLOCKS - 1}`]: { $exists: false } }, { $addToSet: { blockedUids: target } }, { new: true })
+      .findOneAndUpdate({ uid, [`blockedUids.${MAX_BLOCKS - 1}`]: { $exists: false } }, { $addToSet: { blockedUids: target } }, { returnDocument: "after" })
       .exec();
     if (!user) throw new BadRequestException(`You can block up to ${MAX_BLOCKS} people.`);
     return user.blockedUids;

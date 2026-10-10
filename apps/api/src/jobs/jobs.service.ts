@@ -137,7 +137,7 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
           ],
         },
         { $set: { status: "running", lockedUntil: new Date(now.getTime() + LEASE_MS) }, $inc: { attempts: 1 } },
-        { sort: { runAt: 1 }, new: true },
+        { sort: { runAt: 1 }, returnDocument: "after" },
       )
       .exec();
   }

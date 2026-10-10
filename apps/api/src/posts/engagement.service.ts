@@ -28,7 +28,7 @@ export class EngagementService {
   async react(viewer: Viewer, postId: string, type: ReactionType): Promise<PostView> {
     const post = await this.postsService.loadVisible(viewer, postId);
     const previous = await withTransaction(this.connection, async (session) => {
-      const before = await this.reactions.findOneAndUpdate({ postId, uid: viewer.uid }, { $set: { type } }, { upsert: true, session, new: false }).lean<Reaction>().exec();
+      const before = await this.reactions.findOneAndUpdate({ postId, uid: viewer.uid }, { $set: { type } }, { upsert: true, session, returnDocument: "before" }).lean<Reaction>().exec();
       if (before?.type === type) return before.type;
       const inc: Record<string, number> = { [`reactionCounts.${type}`]: 1 };
       if (before) inc[`reactionCounts.${before.type}`] = -1;
@@ -114,7 +114,7 @@ export class EngagementService {
     const post = await this.eventPost(viewer, postId);
     if (!viewer.capabilities.includes("content.react")) throw new ForbiddenException("Verify your address to join events.");
     if (hasEnded(post.eventDate)) throw new ConflictException("This event has ended.");
-    const before = await this.rsvps.findOneAndUpdate({ postId, uid: viewer.uid }, { $set: { status } }, { upsert: true, new: false }).lean<Rsvp>().exec();
+    const before = await this.rsvps.findOneAndUpdate({ postId, uid: viewer.uid }, { $set: { status } }, { upsert: true, returnDocument: "before" }).lean<Rsvp>().exec();
     if (before?.status !== status) this.postsService.changed(post);
     if (status === "going" && before?.status !== "going") {
       await this.notifications.notify({
