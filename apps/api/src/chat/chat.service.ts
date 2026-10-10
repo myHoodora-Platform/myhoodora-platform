@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, HttpException, HttpStatus, Injectable, NotFoundException, OnModuleInit } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, GoneException, HttpException, HttpStatus, Injectable, NotFoundException, OnModuleInit } from "@nestjs/common";
 import { InjectConnection, InjectModel } from "@nestjs/mongoose";
 import { Connection, Model, Types, type QueryFilter } from "mongoose";
 import { ListingsService } from "../listings/listings.service";
@@ -161,7 +161,10 @@ export class ChatService implements OnModuleInit {
   /** Idempotent per pair + context: tapping "Message seller" twice reuses the thread. */
   async start(viewer: Viewer, dto: StartConversationDto): Promise<ConversationView> {
     if (dto.recipientUid === viewer.uid) throw new BadRequestException("You can't message yourself.");
-    const recipient = await this.userModel.findOne({ uid: dto.recipientUid, deactivatedAt: null }).lean<User>().exec();
+    const recipient = await this.userModel.findOne({ uid: dto.recipientUid }).lean<User>().exec();
+    if (recipient && (recipient.deactivatedAt || recipient.purgedAt)) {
+      throw new GoneException("This account has been deactivated, so you can't message them.");
+    }
     if (!recipient || recipient.accountStatus === "suspended" || (await this.blockedBetween(viewer.uid, dto.recipientUid))) {
       throw new NotFoundException("This neighbour isn't available.");
     }
@@ -186,9 +189,10 @@ export class ChatService implements OnModuleInit {
     const pref = recipient.preferences?.privacy?.messaging ?? "neighbourhood";
     // "Only people I've messaged": someone the recipient has themselves written to, in any conversation between the two.
     const closed = pref === "nobody" || (pref === "contacts" && !(await this.hasWrittenTo(recipient.uid, viewer.uid)));
-    if (closed) throw new ForbiddenException(`${recipient.displayName ?? "This neighbour"} isn't accepting new messages.`);
+    const name = recipient.displayName ?? "This neighbour";
+    if (closed) throw new ForbiddenException(`${name} has restricted who can message them and isn't accepting new messages.`);
     if (pref === "neighbourhood" && recipient.neighborhoodId !== viewer.hoodId && !context) {
-      throw new ForbiddenException(`${recipient.displayName ?? "This neighbour"} only accepts messages from their neighbourhood.`);
+      throw new ForbiddenException(`${name} is outside your neighbourhood, so you can't start a conversation. Neighbours can only message people in their own neighbourhood.`);
     }
     const started = await this.conversations.countDocuments({ startedBy: viewer.uid, createdAt: { $gt: new Date(Date.now() - 86_400_000) } }).exec();
     if (started >= MAX_NEW_THREADS_PER_DAY) throw new HttpException("You've started a lot of conversations today. Try again tomorrow.", HttpStatus.TOO_MANY_REQUESTS);

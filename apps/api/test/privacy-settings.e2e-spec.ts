@@ -33,8 +33,11 @@ describe("Privacy settings do what they say", () => {
   describe("who can see your full profile", () => {
     it("\"My neighbourhood\" (the default): neighbours in your Hood, and nobody from another", async () => {
       expect((await profile("bola").expect(200)).body).toMatchObject({ uid: "ada", displayName: "Ada Okafor", bio: "Road 12" });
-      await profile("emeka").expect(404);
-      await profile("tunde").expect(404);
+      const restricted = await profile("emeka").expect(403);
+      expect(restricted.body.message).toMatch(/Ada Okafor has restricted who can see their profile/);
+      // Out of coverage altogether: not Ada's restriction, so it must not be described as one.
+      const far = await profile("tunde").expect(404);
+      expect(far.body.message).toMatch(/outside your neighbourhood coverage/);
     });
 
     it("\"Nearby neighbourhoods too\": verified neighbours of a nearby Hood as well, and still nobody further away", async () => {
@@ -52,7 +55,7 @@ describe("Privacy settings do what they say", () => {
     it("it is the profile owner's choice, not the viewer's", async () => {
       // emeka opens his own profile up; that doesn't let him see someone who hasn't.
       await setPrivacy("emeka", { profileVisibility: "nearby" });
-      await profile("emeka", "bola").expect(404);
+      await profile("emeka", "bola").expect(403);
       await profile("bola", "emeka").expect(200);
     });
 
@@ -66,7 +69,7 @@ describe("Privacy settings do what they say", () => {
 
     it("going back to \"My neighbourhood\" closes it again; staff see profiles regardless", async () => {
       await setPrivacy("ada", { profileVisibility: "neighbourhood" });
-      await profile("emeka").expect(404);
+      await profile("emeka").expect(403);
       await profile("admin1").expect(200);
     });
   });
@@ -89,7 +92,7 @@ describe("Privacy settings do what they say", () => {
       // A new conversation (about her listing) from each of them, and from someone she has never heard from.
       await start("chidi", "ada", { type: "listing", id: listing }).expect(201);
       const refused = await start("bola", "ada", { type: "listing", id: listing }).expect(403);
-      expect(refused.body.message).toMatch(/isn't accepting new messages/);
+      expect(refused.body.message).toMatch(/has restricted who can message them and isn't accepting new messages/);
       await start("dayo", "ada").expect(403);
       // Conversations that already exist carry on, as they always have.
       await t.http.post(`/api/conversations/${unanswered}/messages`).set(t.auth("bola")).send({ body: "Never mind." }).expect(201);

@@ -84,7 +84,10 @@ describe("Deactivating an account hides the person from their neighbours", () =>
     });
 
     it("her profile can't be opened and she can't be found or messaged", async () => {
-      await t.http.get("/api/users/ada/public").set(t.auth("bola")).expect(404);
+      const gone = await t.http.get("/api/users/ada/public").set(t.auth("bola")).expect(410);
+      expect(gone.body.message).toMatch(/deactivated/);
+      const refused = await t.http.post("/api/conversations").set(t.auth("bola")).send({ recipientUid: "ada" }).expect(410);
+      expect(refused.body.message).toMatch(/deactivated/);
       expect((await t.http.get("/api/users/search?q=Ada").set(t.auth("bola")).expect(200)).body).toEqual([]);
     });
 

@@ -84,7 +84,24 @@ async function errorFrom(response: Response): Promise<ApiError> {
   return errorFor(response.status, await response.text().catch(() => ""), response.headers.get("Retry-After"));
 }
 
+/**
+ * A 403/404 whose message the API wrote for people ("Ada has restricted who can message them…")
+ * rather than the framework's stock "Forbidden resource" / "Cannot GET /x".
+ */
+function customMessage(text: string): string | undefined {
+  try {
+    const body = JSON.parse(text) as { message?: unknown; error?: unknown };
+    const message = body.message;
+    if (typeof message !== "string" || !message || message === body.error) return undefined;
+    if (message === "Forbidden resource" || message.startsWith("Cannot ")) return undefined;
+    return message;
+  } catch {
+    return undefined;
+  }
+}
+
 function messageFromText(text: string, kind: ApiErrorKind): string {
+  if (kind === "forbidden" || kind === "not_found") return customMessage(text) ?? FRIENDLY_MESSAGES[kind];
   // Only validation-style errors carry a message worth showing verbatim.
   if (kind !== "client") return FRIENDLY_MESSAGES[kind];
   try {

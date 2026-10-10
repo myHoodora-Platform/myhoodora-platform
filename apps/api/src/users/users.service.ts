@@ -357,20 +357,31 @@ export class UsersService implements OnModuleInit {
 
   /**
    * GET /users/:uid/public — name, Hood name, badge, bio. Never email,
-   * address or coordinates. 404 for blocked or deactivated people, and for anyone the profile's
-   * owner hasn't opened it to: by default neighbours of their own Hood; with "Nearby neighbourhoods
-   * too" (privacy.profileVisibility), verified neighbours of the Hoods near it as well. Staff excepted.
+   * address or coordinates. 410 for deactivated people, 404 for blocks (never say who blocked whom).
+   * Visible to neighbours of their own Hood and, with "Nearby neighbourhoods too"
+   * (privacy.profileVisibility), verified neighbours of the Hoods near it. Staff excepted. Beyond
+   * that: 403 "restricted" when the viewer is in a nearby Hood and the owner kept it closed, and
+   * 404 "outside your coverage" when the viewer is simply too far away for the owner's choice to matter.
    */
   async publicProfile(viewer: Viewer, uid: string): Promise<PublicProfile> {
-    const target = await this.users.findOne({ uid, deactivatedAt: null }).lean<User>().exec();
+    const target = await this.users.findOne({ uid }).lean<User>().exec();
     const staff = viewer.capabilities.includes("admin.access");
     if (!target) throw new NotFoundException("This neighbour isn't available.");
+    if (target.deactivatedAt || target.purgedAt) throw new GoneException("This account has been deactivated.");
     if (!staff && uid !== viewer.uid) {
       // `viewer.hoodId` is only set for a verified neighbour, so nobody else gets past here.
       const sameHood = Boolean(viewer.hoodId) && target.neighborhoodId === viewer.hoodId;
-      const openToNearby = target.preferences?.privacy?.profileVisibility === "nearby" && target.verificationStatus === "verified" && Boolean(target.neighborhoodId);
-      const nearby = !sameHood && openToNearby && Boolean(viewer.hoodId) && (await this.hoods.nearbyHoodIds(target.neighborhoodId!)).includes(viewer.hoodId!);
-      if (!sameHood && !nearby) throw new NotFoundException("This neighbour isn't available.");
+      if (!sameHood) {
+        const inReach = Boolean(viewer.hoodId) && Boolean(target.neighborhoodId) && target.verificationStatus === "verified" && (await this.hoods.nearbyHoodIds(target.neighborhoodId!)).includes(viewer.hoodId!);
+        const name = target.displayName ?? "This neighbour";
+        if (!inReach) {
+          // Nothing the owner chose: they simply live outside the viewer's neighbourhoods.
+          throw new NotFoundException(`${name} is outside your neighbourhood coverage, so their profile isn't available to you.`);
+        }
+        if (target.preferences?.privacy?.profileVisibility !== "nearby") {
+          throw new ForbiddenException(`${name} has restricted who can see their profile, so you can't view it.`);
+        }
+      }
     }
     if (uid !== viewer.uid && !staff) {
       const me = await this.users.findOne({ uid: viewer.uid }).select({ blockedUids: 1 }).lean<Pick<User, "blockedUids">>().exec();
