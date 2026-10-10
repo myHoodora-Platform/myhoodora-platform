@@ -68,7 +68,7 @@ export class HoodsService {
   /** Idempotent upsert keyed by name (seed script). */
   async upsertByName(data: Partial<Neighborhood> & { name: string }): Promise<NeighborhoodDocument> {
     const hood = await this.hoods
-      .findOneAndUpdate({ name: data.name }, { status: "active", ...data }, { upsert: true, new: true, setDefaultsOnInsert: true })
+      .findOneAndUpdate({ name: data.name }, { status: "active", ...data }, { upsert: true, returnDocument: "after", setDefaultsOnInsert: true })
       .exec();
     if (!hood) throw new Error(`Failed to upsert neighborhood "${data.name}"`);
     return hood;
@@ -112,7 +112,7 @@ export class HoodsService {
         if (overlaps.length) throw new ConflictException(`That radius would overlap ${overlaps.map((o) => o.name).join(", ")}. Choose a smaller one.`);
       }
     }
-    const hood = await this.hoods.findByIdAndUpdate(id, { $set: patch }, { new: true, runValidators: true, session }).exec();
+    const hood = await this.hoods.findByIdAndUpdate(id, { $set: patch }, { returnDocument: "after", runValidators: true, session }).exec();
     if (!hood) throw new NotFoundException("That neighbourhood doesn't exist.");
     return hood;
   }
