@@ -164,7 +164,7 @@ export class NotificationsService implements OnModuleInit {
 
   async markRead(uid: string, id: string): Promise<AppNotification> {
     // Ownership: the filter includes uid, so another user's id is a 404.
-    const row = await this.notifications.findOneAndUpdate({ _id: id, uid }, { $set: { readAt: new Date() } }, { new: true }).lean().exec();
+    const row = await this.notifications.findOneAndUpdate({ _id: id, uid }, { $set: { readAt: new Date() } }, { returnDocument: "after" }).lean().exec();
     if (!row) throw new NotFoundException("Notification not found.");
     this.realtime.toUser(uid, "unread.changed");
     return toApp(row);

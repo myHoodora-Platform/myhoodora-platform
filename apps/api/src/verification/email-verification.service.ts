@@ -71,7 +71,7 @@ export class EmailVerificationService implements OnModuleInit {
     if (!raw || raw.length < 20 || raw.length > 100) throw new BadRequestException(INVALID);
     // Atomic consume: only one request can flip consumedAt, so a token can't be replayed concurrently.
     const token = await this.tokens
-      .findOneAndUpdate({ tokenHash: hashToken(raw), consumedAt: null, expiresAt: { $gt: new Date() } }, { $set: { consumedAt: new Date() } }, { new: true })
+      .findOneAndUpdate({ tokenHash: hashToken(raw), consumedAt: null, expiresAt: { $gt: new Date() } }, { $set: { consumedAt: new Date() } }, { returnDocument: "after" })
       .exec();
     if (!token) throw new BadRequestException(INVALID);
 

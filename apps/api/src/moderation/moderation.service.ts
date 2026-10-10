@@ -251,7 +251,7 @@ export class ModerationService {
         .findOneAndUpdate(
           { _id: kase._id, $or: [{ assignee: null }, { assignee: { $exists: false } }, { "assignee.uid": actor.uid }], status: { $in: ["open", "under_review", "escalated"] } },
           { $set: { assignee: { uid: actor.uid, displayName: actor.displayName ?? "Staff" }, status: kase.status === "escalated" ? "escalated" : "under_review" } },
-          { new: true },
+          { returnDocument: "after" },
         )
         .lean<ModerationCase & { _id: Types.ObjectId }>()
         .exec();
@@ -261,7 +261,7 @@ export class ModerationService {
       return toAdminReport(updated);
     }
     const updated = await this.cases
-      .findOneAndUpdate({ _id: kase._id, "assignee.uid": actor.uid }, { $set: { assignee: null, status: kase.status === "under_review" ? "open" : kase.status } }, { new: true })
+      .findOneAndUpdate({ _id: kase._id, "assignee.uid": actor.uid }, { $set: { assignee: null, status: kase.status === "under_review" ? "open" : kase.status } }, { returnDocument: "after" })
       .lean<ModerationCase & { _id: Types.ObjectId }>()
       .exec();
     if (!updated) throw new ForbiddenException("Only the person reviewing it can release it.");
