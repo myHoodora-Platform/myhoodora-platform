@@ -212,12 +212,11 @@ export async function listHoods(user: User, query: ListQuery & { city?: string; 
   });
 }
 
-/** live: GET /admin/hoods/near — every Hood a Hood centred here could overlap, nearest first. */
+/** live: GET /admin/hoods/near — every Hood a Hood centred here could overlap, archived ones included, nearest first. */
 export async function hoodsNear(user: User, center: { lat: number; lng: number }): Promise<HoodFootprint[]> {
   if (isLive("admin.hoods")) return adminGet(user, "/hoods/near", center);
   return mock(() =>
     hoods()
-      .filter((h) => h.status !== "archived")
       .map((h) => ({ h, d: haversine(center, h.center) }))
       .filter(({ h, d }) => d < h.radiusMeters + MAX_HOOD_RADIUS_METERS)
       .sort((a, b) => a.d - b.d)

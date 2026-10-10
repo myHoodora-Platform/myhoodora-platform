@@ -95,12 +95,12 @@ describe("community", () => {
     expect(archived.status).toBe("archived");
   });
 
-  it("lists the Hoods around a point, nearest first: in reach, and not archived", async () => {
+  it("lists the Hoods in reach of a point, nearest first, archived ones included", async () => {
     const near = await hoodsNear(staff, { lat: 6.4478, lng: 3.4746 });
     expect(near[0]!.name).toBe("Lekki Phase 1");
     expect(near.map((h) => h.city)).not.toContain("Ibadan");
-    // Apapa is about 13 km away, in reach, but archived above.
-    expect(near.map((h) => h.id)).not.toContain("hood-apapa");
+    // Apapa is about 13 km away and was archived above.
+    expect(near.find((h) => h.id === "hood-apapa")?.status).toBe("archived");
   });
 });
 

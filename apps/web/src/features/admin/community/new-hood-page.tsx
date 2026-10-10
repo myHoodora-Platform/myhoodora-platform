@@ -43,8 +43,9 @@ export function NewHoodPage() {
 
   if (!can("hoods.manage")) return <Unauthorized message="Only admins can create Hoods." />;
 
-  // The API checks again on submit; this is so the admin sees it while placing the circle.
-  const placement = validPoint ? hoodPlacement({ name, center: { lat: latN, lng: lngN }, radiusMeters: radius }, around) : null;
+  // The API checks again on submit; this is so the admin sees it while placing the circle. Like the
+  // API, it ignores archived Hoods: the map still draws them, to keep clear of in case they reopen.
+  const placement = validPoint ? hoodPlacement({ name, center: { lat: latN, lng: lngN }, radiusMeters: radius }, around.filter((h) => h.status !== "archived")) : null;
   const problem = placement && createProblem(placement);
   const valid = name.trim().length >= 2 && validPoint && !problem;
 

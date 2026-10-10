@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Map as MapLibre, Marker, NavigationControl } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import type { HoodStatus } from "@/lib/api/admin/types";
 import type { HoodCircle } from "@/lib/hood-placement";
 
 const STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
@@ -17,6 +18,7 @@ function metersPerPixel(lat: number, zoom: number) {
 }
 
 type Ring = { x: number; y: number; r: number };
+type Neighbour = HoodCircle & { status?: HoodStatus };
 
 /**
  * Where two circles cross, as a line: the boundary between overlapping Hoods (the API gives each
@@ -36,18 +38,19 @@ function dividingLine(a: Ring, b: Ring) {
 
 /**
  * A Hood's centre and boundary radius on a map, with the Hoods around it (`others`) and the line
- * that divides any ground they share. The overlay is SVG projected from the map camera, so it shows
+ * that divides any ground they share. Archived Hoods are drawn faintly, with no line: they take no
+ * addresses, but may be reopened. The overlay is SVG projected from the map camera, so it shows
  * immediately and never depends on tile/style loading. Updates live as inputs change.
  */
-export function HoodMap({ lat, lng, radiusMeters, others = [], className }: { lat: number; lng: number; radiusMeters: number; others?: HoodCircle[]; className?: string }) {
+export function HoodMap({ lat, lng, radiusMeters, others = [], className }: { lat: number; lng: number; radiusMeters: number; others?: Neighbour[]; className?: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibre | null>(null);
   const markerRef = useRef<Marker | null>(null);
   const projectRef = useRef<() => void>(() => undefined);
   const latest = useRef({ lat, lng, radiusMeters, others });
   latest.current = { lat, lng, radiusMeters, others };
-  const [overlay, setOverlay] = useState<{ ring: Ring; others: (Ring & { name: string })[] } | null>(null);
-  const othersKey = others.map((o) => `${o.name}:${o.center.lat},${o.center.lng},${o.radiusMeters}`).join("|");
+  const [overlay, setOverlay] = useState<{ ring: Ring; others: (Ring & { name: string; archived: boolean })[] } | null>(null);
+  const othersKey = others.map((o) => `${o.name}:${o.status}:${o.center.lat},${o.center.lng},${o.radiusMeters}`).join("|");
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -67,7 +70,7 @@ export function HoodMap({ lat, lng, radiusMeters, others = [], className }: { la
     const project = () => {
       const { lat: la, lng: ln, radiusMeters: r, others: os } = latest.current;
       if (!Number.isFinite(la) || !Number.isFinite(ln)) return;
-      setOverlay({ ring: toRing(la, ln, r), others: os.map((o) => ({ name: o.name, ...toRing(o.center.lat, o.center.lng, o.radiusMeters) })) });
+      setOverlay({ ring: toRing(la, ln, r), others: os.map((o) => ({ name: o.name, archived: o.status === "archived", ...toRing(o.center.lat, o.center.lng, o.radiusMeters) })) });
     };
     projectRef.current = project;
     map.on("move", project);
@@ -98,15 +101,19 @@ export function HoodMap({ lat, lng, radiusMeters, others = [], className }: { la
         <svg className="pointer-events-none absolute inset-0 size-full" aria-hidden>
           {overlay.others.map((o) => (
             <g key={o.name}>
-              <circle cx={o.x} cy={o.y} r={o.r} fill="rgba(100,116,139,0.08)" stroke="#64748B" strokeWidth={1.5} strokeDasharray="4 4" />
-              <text x={o.x} y={o.y} textAnchor="middle" dominantBaseline="middle" fontSize={11} fontWeight={600} fill="#475569" stroke="#fff" strokeWidth={3} paintOrder="stroke">
-                {o.name}
+              {o.archived ? (
+                <circle cx={o.x} cy={o.y} r={o.r} fill="none" stroke="#94A3B8" strokeWidth={1.5} strokeDasharray="1 4" strokeLinecap="round" />
+              ) : (
+                <circle cx={o.x} cy={o.y} r={o.r} fill="rgba(100,116,139,0.08)" stroke="#64748B" strokeWidth={1.5} strokeDasharray="4 4" />
+              )}
+              <text x={o.x} y={o.y} textAnchor="middle" dominantBaseline="middle" fontSize={11} fontWeight={600} fill={o.archived ? "#64748B" : "#475569"} stroke="#fff" strokeWidth={3} paintOrder="stroke">
+                {o.archived ? `${o.name} (archived)` : o.name}
               </text>
             </g>
           ))}
           <circle cx={overlay.ring.x} cy={overlay.ring.y} r={overlay.ring.r} fill="rgba(20,124,115,0.14)" stroke="#147C73" strokeWidth={2} />
           {overlay.others.map((o) => {
-            const line = dividingLine(overlay.ring, o);
+            const line = !o.archived && dividingLine(overlay.ring, o);
             return line && <line key={`${o.name}-line`} {...line} stroke="#147C73" strokeWidth={2} strokeDasharray="6 4" />;
           })}
         </svg>
