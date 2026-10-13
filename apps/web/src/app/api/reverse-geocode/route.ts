@@ -23,11 +23,12 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const address = await geocodingProvider.reverseGeocode(lat, lng);
-    if (!address) {
+    const result = await geocodingProvider.reverseGeocode(lat, lng);
+    if (!result) {
       return NextResponse.json({ error: "Address not found" }, { status: 404 });
     }
-    return NextResponse.json({ address });
+    // { address, parts: { street, area, city } }: onboarding fills its fields from `parts`.
+    return NextResponse.json(result);
   } catch (err) {
     if (err instanceof DOMException && err.name === "TimeoutError") {
       return NextResponse.json({ error: "Address lookup timed out" }, { status: 504 });
