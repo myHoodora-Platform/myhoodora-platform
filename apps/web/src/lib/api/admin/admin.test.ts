@@ -95,6 +95,12 @@ describe("community", () => {
     expect(archived.status).toBe("archived");
   });
 
+  it("moves a Hood's centre, under the same rules as a new Hood", async () => {
+    await expect(updateHood(staff, "hood-ikoyi", { center: { lat: 6.448, lng: 3.475 } }, "admin")).rejects.toThrow(/centre is inside Lekki Phase 1/);
+    const moved = await updateHood(staff, "hood-ikoyi", { center: { lat: 6.7, lng: 3.2 }, radiusMeters: 1000 }, "admin");
+    expect(moved).toMatchObject({ center: { lat: 6.7, lng: 3.2 }, radiusMeters: 1000 });
+  });
+
   it("lists the Hoods in reach of a point, nearest first, archived ones included", async () => {
     const near = await hoodsNear(staff, { lat: 6.4478, lng: 3.4746 });
     expect(near[0]!.name).toBe("Lekki Phase 1");

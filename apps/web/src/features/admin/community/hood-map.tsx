@@ -4,17 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { Map as MapLibre, Marker, NavigationControl } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { HoodStatus } from "@/lib/api/admin/types";
+import { metersPerPixel } from "@/lib/geo";
 import type { HoodCircle } from "@/lib/hood-placement";
 
 const STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
 
+/** Frames the circle with room around it for the Hoods next to it. */
 function zoomFor(radiusMeters: number) {
-  return Math.max(10, Math.min(16, 15.2 - Math.log2(radiusMeters / 400)));
-}
-
-/** Web-Mercator metres per CSS pixel at a latitude/zoom. */
-function metersPerPixel(lat: number, zoom: number) {
-  return (156_543.03392 * Math.cos((lat * Math.PI) / 180)) / 2 ** zoom;
+  return Math.max(9, Math.min(15, 14.2 - Math.log2(radiusMeters / 400)));
 }
 
 type Ring = { x: number; y: number; r: number };
@@ -36,19 +33,46 @@ function dividingLine(a: Ring, b: Ring) {
   return { x1: mx - (half * dy) / d, y1: my + (half * dx) / d, x2: mx + (half * dy) / d, y2: my - (half * dx) / d };
 }
 
+type Point = { lat: number; lng: number };
+
+/** ~0.1 m: plenty for a Hood's centre, and short enough to read in a text box. */
+const round6 = (n: number) => Math.round(n * 1e6) / 1e6;
+
 /**
  * A Hood's centre and boundary radius on a map, with the Hoods around it (`others`) and the line
  * that divides any ground they share. Archived Hoods are drawn faintly, with no line: they take no
  * addresses, but may be reopened. The overlay is SVG projected from the map camera, so it shows
  * immediately and never depends on tile/style loading. Updates live as inputs change.
+ *
+ * With `onPick`, the admin sets the centre on the map: clicking it moves the pin there, and the pin can
+ * be dragged. Points the admin picks don't recentre the map, since they're already in view; points
+ * typed in do.
  */
-export function HoodMap({ lat, lng, radiusMeters, others = [], className }: { lat: number; lng: number; radiusMeters: number; others?: Neighbour[]; className?: string }) {
+export function HoodMap({
+  lat,
+  lng,
+  radiusMeters,
+  others = [],
+  onPick,
+  className,
+}: {
+  lat: number;
+  lng: number;
+  radiusMeters: number;
+  others?: Neighbour[];
+  onPick?: (point: Point) => void;
+  className?: string;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibre | null>(null);
   const markerRef = useRef<Marker | null>(null);
   const projectRef = useRef<() => void>(() => undefined);
   const latest = useRef({ lat, lng, radiusMeters, others });
   latest.current = { lat, lng, radiusMeters, others };
+  const onPickRef = useRef(onPick);
+  onPickRef.current = onPick;
+  /** The last point sent through onPick. */
+  const picked = useRef<Point | null>(null);
   const [overlay, setOverlay] = useState<{ ring: Ring; others: (Ring & { name: string; archived: boolean })[] } | null>(null);
   const othersKey = others.map((o) => `${o.name}:${o.status}:${o.center.lat},${o.center.lng},${o.radiusMeters}`).join("|");
 
@@ -62,7 +86,21 @@ export function HoodMap({ lat, lng, radiusMeters, others = [], className }: { la
       attributionControl: { compact: true },
     });
     map.addControl(new NavigationControl({ showCompass: false }));
-    markerRef.current = new Marker({ color: "#147C73" }).setLngLat([lng, lat]).addTo(map);
+    const pickable = Boolean(onPickRef.current);
+    const marker = new Marker({ color: "#147C73", draggable: pickable }).setLngLat([lng, lat]).addTo(map);
+    markerRef.current = marker;
+    if (pickable) {
+      const pick = (p: Point) => {
+        picked.current = { lat: round6(p.lat), lng: round6(p.lng) };
+        onPickRef.current?.(picked.current);
+      };
+      map.getCanvas().style.cursor = "crosshair";
+      map.on("click", (e) => {
+        marker.setLngLat(e.lngLat);
+        pick(e.lngLat);
+      });
+      marker.on("drag", () => pick(marker.getLngLat()));
+    }
     const toRing = (la: number, ln: number, r: number): Ring => {
       const p = map.project([ln, la]);
       return { x: p.x, y: p.y, r: r / metersPerPixel(la, map.getZoom()) };
@@ -86,13 +124,22 @@ export function HoodMap({ lat, lng, radiusMeters, others = [], className }: { la
     const map = mapRef.current;
     if (!map || !Number.isFinite(lat) || !Number.isFinite(lng)) return;
     markerRef.current?.setLngLat([lng, lat]);
-    map.easeTo({ center: [lng, lat], zoom: zoomFor(radiusMeters), duration: 400 });
+    const p = picked.current;
+    if (!p || p.lat !== lat || p.lng !== lng) map.easeTo({ center: [lng, lat], duration: 400 });
     projectRef.current();
-  }, [lat, lng, radiusMeters]);
+  }, [lat, lng]);
+
+  useEffect(() => {
+    const { lat: la, lng: ln } = latest.current;
+    if (Number.isFinite(la) && Number.isFinite(ln)) mapRef.current?.easeTo({ center: [ln, la], zoom: zoomFor(radiusMeters), duration: 400 });
+    projectRef.current();
+  }, [radiusMeters]);
 
   useEffect(() => projectRef.current(), [othersKey]);
 
-  const label = others.length ? "Map of the Hood boundary, the Hoods around it, and the lines dividing shared ground" : "Map of the Hood boundary";
+  const label =
+    (others.length ? "Map of the Hood boundary, the Hoods around it, and the lines dividing shared ground" : "Map of the Hood boundary") +
+    (onPick ? ". Click the map or drag the pin to set the centre." : "");
 
   return (
     <div className={`relative overflow-hidden ${className ?? "h-64 w-full"}`}>
