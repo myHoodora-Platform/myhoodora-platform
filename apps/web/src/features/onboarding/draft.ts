@@ -1,14 +1,21 @@
+import { splitAddress, type AddressParts, type PinSource } from "./address";
+
 const DRAFT_KEY_PREFIX = "myhoodora:onboarding-draft:";
 /** Pre-fix drafts were shared by every account on the device. */
 const LEGACY_DRAFT_KEY = "myhoodora:onboarding-draft";
 
 export interface OnboardingDraft {
   name: string;
-  address: string;
+  address: AddressParts;
   coords: { lat: number; lng: number } | null;
+  /** Where `coords` came from. */
+  pinSource: PinSource | null;
   /** Last step reached (1 or 2), so a refresh resumes where they were. */
   step?: number;
 }
+
+/** Drafts saved before the address was split into street, area and city. */
+type StoredDraft = Omit<OnboardingDraft, "address" | "pinSource"> & { address: AddressParts | string; pinSource?: PinSource | null };
 
 // Keeps the step-1 fields around locally as they're typed (no backend write,
 // no isOnboarded change) so a refresh, "Skip for now" or closing the tab
@@ -17,7 +24,13 @@ export interface OnboardingDraft {
 export function readOnboardingDraft(uid: string): OnboardingDraft | null {
   try {
     const raw = localStorage.getItem(DRAFT_KEY_PREFIX + uid);
-    return raw ? (JSON.parse(raw) as OnboardingDraft) : null;
+    if (!raw) return null;
+    const draft = JSON.parse(raw) as StoredDraft;
+    if (typeof draft.address === "string") {
+      // An old one-line address: its pin came from looking that line up, so check it again.
+      return { ...draft, address: splitAddress(draft.address), coords: null, pinSource: null, step: 1 };
+    }
+    return { ...draft, address: draft.address, pinSource: draft.pinSource ?? null };
   } catch {
     return null;
   }
