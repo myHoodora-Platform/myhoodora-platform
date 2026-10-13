@@ -43,6 +43,17 @@ export interface MeResponse {
   createdAt?: string;
 }
 
+/** POST /users/me/verify-location/preview: what verifying at a point would do (contract §29). */
+export interface LocationPreview {
+  /** The Hood the point would join, or null when it's outside every Hood. */
+  hood: { id: string; name: string; city: string } | null;
+  distanceMeters?: number;
+  /** Outside every Hood: the close ones, to ask to join (§16). */
+  nearbyHoods: NearbyHood[];
+  /** Why joining `hood` would be refused: a verified neighbour moving Hood too soon (§26). */
+  cannotJoin?: string;
+}
+
 export interface PublicProfile {
   uid: string;
   displayName: string;
@@ -237,13 +248,14 @@ export class UsersService implements OnModuleInit {
       throw new ForbiddenException("Your address couldn't be verified. Contact support if you think that's wrong.");
     }
     const match = await this.hoods.findVerifiedMatch(dto.lng, dto.lat);
-    // Already a verified neighbour somewhere else: this check would move them.
-    const movingFrom = match && user.verificationStatus === "verified" && user.neighborhoodId && user.neighborhoodId !== match.neighborhoodId ? user.neighborhoodId : undefined;
-    const cooldownDays = this.config.get<number>("verification.hoodChangeCooldownDays") ?? 90;
-    const tooSoon =
-      Boolean(movingFrom) &&
-      this.config.get<boolean>("verification.strictHoodAccess") !== false &&
-      Date.now() - (user.verifiedAt?.getTime() ?? 0) < cooldownDays * DAY_MS;
+    // The neighbour confirmed a Hood (from the preview): never put them anywhere else.
+    if (dto.neighborhoodId !== undefined && match?.neighborhoodId !== dto.neighborhoodId) {
+      const hoods = await this.hoods.findManyByIds(match ? [dto.neighborhoodId, match.neighborhoodId] : [dto.neighborhoodId]);
+      const chosen = hoods.get(dto.neighborhoodId)?.name ?? "the neighbourhood you chose";
+      const actual = match && hoods.get(match.neighborhoodId)?.name;
+      throw new ConflictException(actual ? `That pin is in ${actual}, not ${chosen}. Check it and confirm again.` : `That pin isn't in ${chosen} any more. Check it and confirm again.`);
+    }
+    const { movingFrom, cooldownDays, tooSoon } = this.hoodMove(user, match?.neighborhoodId);
 
     const result = !match ? ("outside_coverage" as const) : tooSoon ? ("mismatch" as const) : ("matched" as const);
     const attempt = { at: new Date(), lat: dto.lat, lng: dto.lng, address: dto.address, result };
@@ -251,12 +263,7 @@ export class UsersService implements OnModuleInit {
 
     if (!match || tooSoon) {
       await this.users.updateOne({ uid: viewer.uid }, { $set: { lastKnownLocation: { lat: dto.lat, lng: dto.lng }, verificationAttempts: attempts } }).exec();
-      if (tooSoon) {
-        const current = (await this.hoods.findManyByIds([movingFrom!])).get(movingFrom!);
-        throw new ConflictException(
-          `You're a verified neighbour in ${current?.name ?? "another neighbourhood"}, and you can change neighbourhood once every ${cooldownDays} days. If you've moved, contact support and we'll help.`,
-        );
-      }
+      if (tooSoon) throw new ConflictException(await this.tooSoonMessage(movingFrom!, cooldownDays));
       return {
         verificationStatus: user.verificationStatus === "verified" ? "verified" : "unverified",
         reason: "outside_coverage" as const,
@@ -296,6 +303,40 @@ export class UsersService implements OnModuleInit {
       await this.notifications.notify({ uids: [viewer.uid], type: "verification", title: "You're a verified neighbour", body: "Welcome to your Hood.", href: "/news-feed" });
     }
     return { verificationStatus: "verified" as const, neighborhoodId: match.neighborhoodId, distanceMeters: Math.round(match.distanceMeters) };
+  }
+
+  /**
+   * What verifyLocation would do with a point, without doing it or recording anything: the Hood it
+   * would join, or the Hoods near it to ask to join. The app shows this so the neighbour sees (and can
+   * correct) their Hood before committing, then passes `hood.id` to verifyLocation (contract §29).
+   */
+  async previewLocation(viewer: Viewer, point: { lat: number; lng: number }): Promise<LocationPreview> {
+    const match = await this.hoods.findVerifiedMatch(point.lng, point.lat);
+    if (!match) return { hood: null, nearbyHoods: await this.nearbyHoods(point.lng, point.lat) };
+    const [user, hood] = await Promise.all([this.findByUid(viewer.uid), this.hoods.findById(match.neighborhoodId)]);
+    const move = user ? this.hoodMove(user, match.neighborhoodId) : null;
+    return {
+      hood: { id: match.neighborhoodId, name: hood.name, city: hood.city },
+      distanceMeters: Math.round(match.distanceMeters),
+      nearbyHoods: [],
+      ...(move?.tooSoon && { cannotJoin: await this.tooSoonMessage(move.movingFrom!, move.cooldownDays) }),
+    };
+  }
+
+  /** Whether joining `matchId` would move a verified neighbour out of their Hood, and whether that is too soon (§26). */
+  private hoodMove(user: Pick<User, "verificationStatus" | "neighborhoodId" | "verifiedAt">, matchId: string | undefined) {
+    const movingFrom = matchId && user.verificationStatus === "verified" && user.neighborhoodId && user.neighborhoodId !== matchId ? user.neighborhoodId : undefined;
+    const cooldownDays = this.config.get<number>("verification.hoodChangeCooldownDays") ?? 90;
+    const tooSoon =
+      Boolean(movingFrom) &&
+      this.config.get<boolean>("verification.strictHoodAccess") !== false &&
+      Date.now() - (user.verifiedAt?.getTime() ?? 0) < cooldownDays * DAY_MS;
+    return { movingFrom, cooldownDays, tooSoon };
+  }
+
+  private async tooSoonMessage(movingFrom: string, cooldownDays: number) {
+    const current = (await this.hoods.findManyByIds([movingFrom])).get(movingFrom);
+    return `You're a verified neighbour in ${current?.name ?? "another neighbourhood"}, and you can change neighbourhood once every ${cooldownDays} days. If you've moved, contact support and we'll help.`;
   }
 
   private nearbyHoods(lng: number, lat: number): Promise<NearbyHood[]> {

@@ -98,4 +98,39 @@ describe("Overlapping Hoods", () => {
       expect((await verify("east-of-agodi", east(4800)).expect(200)).body).toMatchObject({ verificationStatus: "verified", neighborhoodId: agodi });
     });
   });
+
+  // Agodi is now 4,000 m east of Bodija's centre, 1,000 m across.
+  describe("Seeing the Hood before joining it", () => {
+    const preview = (uid: string, at: { lng: number; lat: number }) => t.http.post("/api/users/me/verify-location/preview").set(t.auth(uid)).send(at);
+    const confirm = (uid: string, at: { lng: number; lat: number }, neighborhoodId: string) =>
+      t.http.post("/api/users/me/verify-location").set(t.auth(uid)).send({ ...at, address: "4 Test Close", neighborhoodId });
+    const record = (uid: string) => t.users.findOne({ uid }).lean();
+
+    it("the preview says which Hood a point would join, and changes and records nothing", async () => {
+      await t.user("previewer");
+      expect((await preview("previewer", east(1000)).expect(200)).body).toMatchObject({ hood: { id: bodija, name: "Bodija" }, distanceMeters: 1000, nearbyHoods: [] });
+      // 1,600 m from Agodi's centre: outside every Hood, close enough to ask to join.
+      const outside = (await preview("previewer", east(5600)).expect(200)).body as { hood: null; nearbyHoods: { id: string }[] };
+      expect(outside.hood).toBeNull();
+      expect(outside.nearbyHoods[0]?.id).toBe(agodi);
+      expect(await record("previewer")).toMatchObject({ verificationStatus: "unverified", verificationAttempts: [] });
+    });
+
+    it("the preview warns a verified neighbour who can't move Hood yet", async () => {
+      await t.member("settler", bodija);
+      expect((await preview("settler", east(4000)).expect(200)).body).toMatchObject({ hood: { id: agodi }, cannotJoin: expect.stringMatching(/Bodija.*90 days/) });
+    });
+
+    it("verifies only into the Hood the neighbour confirmed", async () => {
+      await t.user("confirmer");
+      expect((await confirm("confirmer", east(4200), bodija).expect(409)).body.message).toBe("That pin is in Agodi, not Bodija. Check it and confirm again.");
+      expect((await confirm("confirmer", east(5600), bodija).expect(409)).body.message).toBe("That pin isn't in Bodija any more. Check it and confirm again.");
+      expect(await record("confirmer")).toMatchObject({ verificationStatus: "unverified", verificationAttempts: [] });
+      expect((await confirm("confirmer", east(1000), bodija).expect(200)).body).toMatchObject({ verificationStatus: "verified", neighborhoodId: bodija });
+    });
+
+    it("needs a valid point", async () => {
+      await preview("previewer", { lng: BODIJA.lng, lat: 91 }).expect(400);
+    });
+  });
 });
