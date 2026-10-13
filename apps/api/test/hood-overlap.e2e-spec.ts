@@ -78,4 +78,24 @@ describe("Overlapping Hoods", () => {
       await near(BODIJA, "resident").expect(403);
     });
   });
+
+  describe("PATCH /admin/hoods/:id with a centre: moving a Hood", () => {
+    const patch = (id: string, body: object) => t.http.patch(`/api/admin/hoods/${id}`).set(t.auth("admin1")).send(body);
+
+    it("checks the new centre like a new Hood's, and leaves the Hood where it was when refused", async () => {
+      expect((await patch(agodi, { center: east(2000) }).expect(409)).body.message).toMatch(/centre is inside Bodija/);
+      // 5 km east is outside Bodija, but 5,500 m from there reaches its centre.
+      expect((await patch(agodi, { center: east(5000), radiusMeters: 5500 }).expect(409)).body.message).toMatch(/cover the centre of Bodija/);
+      const stored = await t.hoods.findById(agodi).lean().exec();
+      expect(stored).toMatchObject({ radiusMeters: 1000, location: { coordinates: [east(3500).lng, east(3500).lat] } });
+    });
+
+    it("moves the boundary for address checks from then on", async () => {
+      await t.user("east-of-agodi");
+      // 1,300 m from Agodi's centre: outside every Hood until Agodi moves 500 m east.
+      expect((await verify("east-of-agodi", east(4800)).expect(200)).body).toMatchObject({ verificationStatus: "unverified", reason: "outside_coverage" });
+      expect((await patch(agodi, { center: east(4000) }).expect(200)).body).toMatchObject({ center: east(4000), radiusMeters: 1000 });
+      expect((await verify("east-of-agodi", east(4800)).expect(200)).body).toMatchObject({ verificationStatus: "verified", neighborhoodId: agodi });
+    });
+  });
 });

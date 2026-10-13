@@ -707,7 +707,7 @@ interface AdminHood {
 | `GET /admin/hoods/:id` | Adds `timeline` and a `members7d` series for the chart |
 | `GET /admin/hoods/:id/members` · `/posts` · `/reports` | Paged |
 | `POST /admin/hoods` **A** | `{ name, city, country, center, radiusMeters, description? }`. `409` when its centre is inside another Hood or its radius covers another Hood's centre. Overlapping is allowed (§28) |
-| `PATCH /admin/hoods/:id` **A** | Name, radius, status, description. `409` when a larger radius would cover another Hood's centre (§28) |
+| `PATCH /admin/hoods/:id` **A** | Name, `center`, radius, status, description. `409` when a moved centre is inside another Hood or its radius covers another Hood's centre, or when a larger radius would cover another Hood's centre (§28) |
 
 ### 13.6 Content
 
@@ -1350,12 +1350,13 @@ Hoods may overlap, but not over another Hood's centre. Archived Hoods don't coun
 | `POST /admin/hoods`, `POST /neighborhoods` | The new centre is inside another Hood: `"This centre is inside {names}. Hoods can overlap, but not over another Hood's centre: move it."` |
 | | The new radius covers another Hood's centre: `"This radius would cover the centre of {names}. Hoods can overlap, but not over another Hood's centre: shrink it or move the centre."` |
 | `PATCH /admin/hoods/:id` with a larger `radiusMeters` | It would cover another Hood's centre: `"That radius would cover the centre of {names}. Hoods can overlap, but not over another Hood's centre: choose a smaller one."` |
+| `PATCH /admin/hoods/:id` with a new `center` (since 2026-10-13) | The same checks and messages as a new Hood, with the new centre and the new (or current) radius, leaving out the Hood itself. A `center` equal to the current one is not a move. |
 
 With that rule, every Hood keeps its own centre and the ground around it.
 
 ### Unchanged
-- **Members stay where they are.** Creating or resizing a Hood moves the boundary for address checks from then on; nobody already verified is moved. The 90-day cooldown on moving yourself (§26) applies as before.
+- **Members stay where they are.** Creating, moving or resizing a Hood moves the boundary for address checks from then on; nobody already verified is moved. The 90-day cooldown on moving yourself (§26) applies as before.
 - **Ask to join** (§16) still serves addresses outside every Hood.
 
 ### Web
-`/admin/hoods/new` and the Boundary map on `/admin/hoods/:id` draw the Hoods around the centre (from `GET /admin/hoods/near`, so not limited to one city or one page) and a dashed line where circles cross. Archived Hoods appear as a faint dotted outline marked "(archived)", with no dividing line, and don't count towards the form's checks. The new-Hood form shows the same 409 messages before submitting, and lists the Hoods it shares ground with. The mock store applies the same rules (`apps/web/src/lib/hood-placement.ts`).
+`/admin/hoods/new` and the Boundary map on `/admin/hoods/:id` draw the Hoods around the centre (from `GET /admin/hoods/near`, so not limited to one city or one page) and a dashed line where circles cross. Archived Hoods appear as a faint dotted outline marked "(archived)", with no dividing line, and don't count towards the form's checks. The new-Hood form and the "Edit boundary" dialog on `/admin/hoods/:id` show the same 409 messages before submitting, and list the Hoods the circle shares ground with. On both, the admin sets the centre by clicking the map or dragging its pin (to 6 decimal places), by typing it, or by pasting "lat, lng" into either box; typed points move the pin. The mock store applies the same rules (`apps/web/src/lib/hood-placement.ts`).

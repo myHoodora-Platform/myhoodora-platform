@@ -50,6 +50,12 @@ export class UpdateHoodDto {
   @Length(0, 280)
   description?: string;
 
+  /** Moves the Hood. Checked like a new Hood's centre and radius. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PointDto)
+  center?: PointDto;
+
   @IsOptional()
   @IsInt()
   @Min(300)

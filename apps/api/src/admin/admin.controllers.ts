@@ -265,7 +265,7 @@ export class AdminController {
   }
 
   @Patch("hoods/:id")
-  @ApiOperation({ summary: "Rename, resize, pause or archive a Hood" })
+  @ApiOperation({ summary: "Rename, move, resize, pause or archive a Hood" })
   @Can("hoods.manage")
   async updateHood(@CurrentViewer() v: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Body() body: UpdateHoodDto) {
     const { reason, ...patch } = body;
