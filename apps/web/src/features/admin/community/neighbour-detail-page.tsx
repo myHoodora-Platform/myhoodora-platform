@@ -218,7 +218,8 @@ export function NeighbourDetailPage({ uid }: { uid: string }) {
 
       <NeighbourActionDialog
         action={action}
-        targets={[{ uid: n.uid, displayName: n.displayName, hoodId: n.hood?.id }]}
+        targets={[{ uid: n.uid, displayName: n.displayName, hood: n.hood }]}
+        near={n.location?.lat && n.location.lng ? { lat: n.location.lat, lng: n.location.lng } : undefined}
         onClose={() => setAction(null)}
         onDone={() => void person.refetch()}
       />

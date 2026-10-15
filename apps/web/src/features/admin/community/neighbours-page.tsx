@@ -158,7 +158,7 @@ export function NeighboursPage() {
 
       <NeighbourActionDialog
         action={pending?.action ?? null}
-        targets={(pending?.targets ?? []).map((t) => ({ uid: t.uid, displayName: t.displayName, hoodId: t.hood?.id }))}
+        targets={(pending?.targets ?? []).map((t) => ({ uid: t.uid, displayName: t.displayName, hood: t.hood }))}
         onClose={() => setPending(null)}
         onDone={() => {
           setSelected(new Set());
