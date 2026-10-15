@@ -5,6 +5,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { Flag, MessageCircle, SendHorizontal, Trash2 } from "lucide-react";
 import { cn } from "@myhoodora/ui/utils";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { EmojiPickerButton, insertAtCaret } from "@/components/shared/emoji-picker-button";
 import { ReportDialog } from "@/components/shared/report-dialog";
 import { PreviewNotice } from "@/components/shared/states";
@@ -38,6 +39,7 @@ export function CommentsSection({ postId, onCountChange }: CommentsSectionProps)
   const [kindness, setKindness] = useState(false);
   const [kindnessReasons, setKindnessReasons] = useState<KindnessReason[]>([]);
   const [reporting, setReporting] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Live: neighbours' new or deleted comments on this post appear without a reload.
@@ -134,7 +136,7 @@ export function CommentsSection({ postId, onCountChange }: CommentsSectionProps)
                   <div className="mt-1 flex items-center gap-3 px-2 text-xs text-muted-foreground">
                     <span>{timeAgo(c.createdAt)}</span>
                     {isOwn ? (
-                      <button type="button" onClick={() => void remove(c._id)} className="inline-flex items-center gap-1 font-semibold hover:text-destructive">
+                      <button type="button" onClick={() => setConfirmingDelete(c._id)} className="inline-flex items-center gap-1 font-semibold hover:text-destructive">
                         <Trash2 className="size-3" aria-hidden /> Delete
                       </button>
                     ) : (
@@ -201,6 +203,19 @@ export function CommentsSection({ postId, onCountChange }: CommentsSectionProps)
         </button>
       </form>
 
+      {/* The delete itself is optimistic (and undone on failure), so the dialog closes straight away. */}
+      <ConfirmDialog
+        open={confirmingDelete !== null}
+        onOpenChange={(o) => !o && setConfirmingDelete(null)}
+        title="Delete this comment?"
+        description="It's removed from the post for everyone. This can't be undone."
+        confirmLabel="Delete comment"
+        destructive
+        onConfirm={() => {
+          if (confirmingDelete) void remove(confirmingDelete);
+          setConfirmingDelete(null);
+        }}
+      />
       <ReportDialog
         open={reporting !== null}
         onOpenChange={(o) => !o && setReporting(null)}
