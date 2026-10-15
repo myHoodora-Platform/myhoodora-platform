@@ -376,6 +376,17 @@ export interface NearbyHood {
   distanceMeters: number;
 }
 
+/** Result of POST /users/me/verify-location/preview: what verifying at a point would do, without doing it. */
+export interface LocationPreview {
+  /** The Hood the point would join, or null when it's outside every Hood. */
+  hood: { id: string; name: string; city: string } | null;
+  distanceMeters?: number;
+  /** Outside every Hood: the close ones, to ask to join. */
+  nearbyHoods: NearbyHood[];
+  /** Why joining `hood` would be refused (a verified neighbour moving Hood too soon). */
+  cannotJoin?: string;
+}
+
 /** Result of POST /users/me/verify-location. */
 export interface VerifyLocationResult {
   verificationStatus: string;

@@ -12,7 +12,7 @@ import {
 import { auth } from "./config";
 import { USE_MOCKS, isLive } from "@/lib/api/config";
 import { ApiError, FRIENDLY_MESSAGES, apiFetch } from "@/lib/api/client";
-import type { NearbyHood, VerifyLocationResult } from "@/lib/api/types";
+import type { LocationPreview, NearbyHood, VerifyLocationResult } from "@/lib/api/types";
 import { distanceMeters } from "@/lib/geo";
 import { load, save } from "@/lib/api/mock/store";
 import { MOCK_HOOD_RADIUS_M, MOCK_NEARBY_HOODS, MOCK_NEARBY_LIMIT_M, MOCK_NEIGHBORHOOD } from "@/lib/api/mock/seed";
@@ -169,13 +169,35 @@ function mockNearbyHoods(point: { lat: number; lng: number }): NearbyHood[] {
     .slice(0, 3);
 }
 
+/**
+ * Which Hood a point would join, without verifying or recording anything. Onboarding shows it so the
+ * neighbour sees their Hood (and can move their pin) before joining. Contract §29.
+ */
+export async function previewLocationApi(user: User, coords: { lat: number; lng: number }): Promise<LocationPreview> {
+  if (USE_MOCKS) {
+    const toLekki = Math.round(distanceMeters(coords, MOCK_NEARBY_HOODS[0]!));
+    return toLekki <= MOCK_HOOD_RADIUS_M
+      ? { hood: { id: MOCK_NEIGHBORHOOD._id, name: MOCK_NEIGHBORHOOD.name, city: MOCK_NEIGHBORHOOD.city }, distanceMeters: toLekki, nearbyHoods: [] }
+      : { hood: null, nearbyHoods: mockNearbyHoods(coords) };
+  }
+  return apiFetch(user, "/users/me/verify-location/preview", { method: "POST", json: { lng: coords.lng, lat: coords.lat } });
+}
+
+/**
+ * `neighborhoodId`: the Hood the neighbour confirmed from the preview. The API refuses (409, nothing
+ * changed) when the point isn't in it, so nobody is put in a Hood they didn't see.
+ */
 export async function verifyLocationApi(
   user: User,
   coords: { lat: number; lng: number },
+  neighborhoodId?: string,
 ): Promise<VerifyLocationResult> {
   if (USE_MOCKS) {
     const lekki = MOCK_NEARBY_HOODS[0]!;
     const toLekki = Math.round(distanceMeters(coords, lekki));
+    if (neighborhoodId && (toLekki > MOCK_HOOD_RADIUS_M || neighborhoodId !== MOCK_NEIGHBORHOOD._id)) {
+      throw new ApiError("That pin isn't in the neighbourhood you chose any more. Check it and confirm again.", 409, "client");
+    }
     if (toLekki <= MOCK_HOOD_RADIUS_M) {
       updateMockProfile(user, { verificationStatus: "verified", neighborhoodId: MOCK_NEIGHBORHOOD._id, location: coords, lastKnownLocation: coords, requestedHood: null });
       return { verificationStatus: "verified", neighborhoodId: MOCK_NEIGHBORHOOD._id, distanceMeters: toLekki };
@@ -190,7 +212,7 @@ export async function verifyLocationApi(
   }
   return apiFetch(user, "/users/me/verify-location", {
     method: "POST",
-    json: { lng: coords.lng, lat: coords.lat },
+    json: { lng: coords.lng, lat: coords.lat, ...(neighborhoodId && { neighborhoodId }) },
   });
 }
 

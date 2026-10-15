@@ -78,4 +78,59 @@ describe("Overlapping Hoods", () => {
       await near(BODIJA, "resident").expect(403);
     });
   });
+
+  describe("PATCH /admin/hoods/:id with a centre: moving a Hood", () => {
+    const patch = (id: string, body: object) => t.http.patch(`/api/admin/hoods/${id}`).set(t.auth("admin1")).send(body);
+
+    it("checks the new centre like a new Hood's, and leaves the Hood where it was when refused", async () => {
+      expect((await patch(agodi, { center: east(2000) }).expect(409)).body.message).toMatch(/centre is inside Bodija/);
+      // 5 km east is outside Bodija, but 5,500 m from there reaches its centre.
+      expect((await patch(agodi, { center: east(5000), radiusMeters: 5500 }).expect(409)).body.message).toMatch(/cover the centre of Bodija/);
+      const stored = await t.hoods.findById(agodi).lean().exec();
+      expect(stored).toMatchObject({ radiusMeters: 1000, location: { coordinates: [east(3500).lng, east(3500).lat] } });
+    });
+
+    it("moves the boundary for address checks from then on", async () => {
+      await t.user("east-of-agodi");
+      // 1,300 m from Agodi's centre: outside every Hood until Agodi moves 500 m east.
+      expect((await verify("east-of-agodi", east(4800)).expect(200)).body).toMatchObject({ verificationStatus: "unverified", reason: "outside_coverage" });
+      expect((await patch(agodi, { center: east(4000) }).expect(200)).body).toMatchObject({ center: east(4000), radiusMeters: 1000 });
+      expect((await verify("east-of-agodi", east(4800)).expect(200)).body).toMatchObject({ verificationStatus: "verified", neighborhoodId: agodi });
+    });
+  });
+
+  // Agodi is now 4,000 m east of Bodija's centre, 1,000 m across.
+  describe("Seeing the Hood before joining it", () => {
+    const preview = (uid: string, at: { lng: number; lat: number }) => t.http.post("/api/users/me/verify-location/preview").set(t.auth(uid)).send(at);
+    const confirm = (uid: string, at: { lng: number; lat: number }, neighborhoodId: string) =>
+      t.http.post("/api/users/me/verify-location").set(t.auth(uid)).send({ ...at, address: "4 Test Close", neighborhoodId });
+    const record = (uid: string) => t.users.findOne({ uid }).lean();
+
+    it("the preview says which Hood a point would join, and changes and records nothing", async () => {
+      await t.user("previewer");
+      expect((await preview("previewer", east(1000)).expect(200)).body).toMatchObject({ hood: { id: bodija, name: "Bodija" }, distanceMeters: 1000, nearbyHoods: [] });
+      // 1,600 m from Agodi's centre: outside every Hood, close enough to ask to join.
+      const outside = (await preview("previewer", east(5600)).expect(200)).body as { hood: null; nearbyHoods: { id: string }[] };
+      expect(outside.hood).toBeNull();
+      expect(outside.nearbyHoods[0]?.id).toBe(agodi);
+      expect(await record("previewer")).toMatchObject({ verificationStatus: "unverified", verificationAttempts: [] });
+    });
+
+    it("the preview warns a verified neighbour who can't move Hood yet", async () => {
+      await t.member("settler", bodija);
+      expect((await preview("settler", east(4000)).expect(200)).body).toMatchObject({ hood: { id: agodi }, cannotJoin: expect.stringMatching(/Bodija.*90 days/) });
+    });
+
+    it("verifies only into the Hood the neighbour confirmed", async () => {
+      await t.user("confirmer");
+      expect((await confirm("confirmer", east(4200), bodija).expect(409)).body.message).toBe("That pin is in Agodi, not Bodija. Check it and confirm again.");
+      expect((await confirm("confirmer", east(5600), bodija).expect(409)).body.message).toBe("That pin isn't in Bodija any more. Check it and confirm again.");
+      expect(await record("confirmer")).toMatchObject({ verificationStatus: "unverified", verificationAttempts: [] });
+      expect((await confirm("confirmer", east(1000), bodija).expect(200)).body).toMatchObject({ verificationStatus: "verified", neighborhoodId: bodija });
+    });
+
+    it("needs a valid point", async () => {
+      await preview("previewer", { lng: BODIJA.lng, lat: 91 }).expect(400);
+    });
+  });
 });

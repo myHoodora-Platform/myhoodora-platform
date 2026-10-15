@@ -27,7 +27,7 @@ const get = (path: string, opts: { as?: string; headers?: Record<string, string>
   new NextRequest(`http://localhost:3000${path}`, { headers: { ...(opts.as ? { cookie: `__session=${opts.as}` } : {}), ...opts.headers } });
 
 const routes = [
-  { name: "geocode", call: (o?: Parameters<typeof get>[1]) => geocode(get("/api/geocode?address=Admiralty%20Way%2C%20Lekki", o)) },
+  { name: "geocode", call: (o?: Parameters<typeof get>[1]) => geocode(get("/api/geocode?street=Admiralty%20Way&area=Lekki%20Phase%201&city=Lagos", o)) },
   { name: "reverse-geocode", call: (o?: Parameters<typeof get>[1]) => reverseGeocode(get("/api/reverse-geocode?lat=6.4478&lng=3.4746", o)) },
   { name: "ip-location", call: (o?: Parameters<typeof get>[1]) => ipLocation(get("/api/ip-location", { ...o, headers: { "x-forwarded-for": "102.89.1.1", ...o?.headers } })) },
 ] as const;
@@ -114,9 +114,11 @@ describe.each(routes)("GET /api/$name", ({ call }) => {
 });
 
 describe("input the routes pass on to third parties", () => {
-  it("geocode: a missing or absurdly long address is refused before any lookup", async () => {
-    expect((await geocode(get("/api/geocode", { as: "sc:ada" }))).status).toBe(400);
-    expect((await geocode(get(`/api/geocode?address=${"a".repeat(201)}`, { as: "sc:ada" }))).status).toBe(400);
+  it("geocode: an address without its street, area or city, or absurdly long, is refused before any lookup", async () => {
+    for (const query of ["", "?street=Admiralty%20Way&city=Lagos", "?street=Admiralty%20Way&area=Lekki", "?area=Lekki&city=Lagos", "?street=%20&area=Lekki&city=Lagos"]) {
+      expect((await geocode(get(`/api/geocode${query}`, { as: "sc:ada" }))).status).toBe(400);
+    }
+    expect((await geocode(get(`/api/geocode?street=${"a".repeat(101)}&area=Lekki&city=Lagos`, { as: "sc:ada" }))).status).toBe(400);
     expect(thirdParty()).not.toHaveBeenCalled();
   });
 

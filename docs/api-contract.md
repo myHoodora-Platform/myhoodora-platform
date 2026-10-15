@@ -707,7 +707,7 @@ interface AdminHood {
 | `GET /admin/hoods/:id` | Adds `timeline` and a `members7d` series for the chart |
 | `GET /admin/hoods/:id/members` · `/posts` · `/reports` | Paged |
 | `POST /admin/hoods` **A** | `{ name, city, country, center, radiusMeters, description? }`. `409` when its centre is inside another Hood or its radius covers another Hood's centre. Overlapping is allowed (§28) |
-| `PATCH /admin/hoods/:id` **A** | Name, radius, status, description. `409` when a larger radius would cover another Hood's centre (§28) |
+| `PATCH /admin/hoods/:id` **A** | Name, `center`, radius, status, description. `409` when a moved centre is inside another Hood or its radius covers another Hood's centre, or when a larger radius would cover another Hood's centre (§28) |
 
 ### 13.6 Content
 
@@ -1350,12 +1350,28 @@ Hoods may overlap, but not over another Hood's centre. Archived Hoods don't coun
 | `POST /admin/hoods`, `POST /neighborhoods` | The new centre is inside another Hood: `"This centre is inside {names}. Hoods can overlap, but not over another Hood's centre: move it."` |
 | | The new radius covers another Hood's centre: `"This radius would cover the centre of {names}. Hoods can overlap, but not over another Hood's centre: shrink it or move the centre."` |
 | `PATCH /admin/hoods/:id` with a larger `radiusMeters` | It would cover another Hood's centre: `"That radius would cover the centre of {names}. Hoods can overlap, but not over another Hood's centre: choose a smaller one."` |
+| `PATCH /admin/hoods/:id` with a new `center` (since 2026-10-13) | The same checks and messages as a new Hood, with the new centre and the new (or current) radius, leaving out the Hood itself. A `center` equal to the current one is not a move. |
 
 With that rule, every Hood keeps its own centre and the ground around it.
 
 ### Unchanged
-- **Members stay where they are.** Creating or resizing a Hood moves the boundary for address checks from then on; nobody already verified is moved. The 90-day cooldown on moving yourself (§26) applies as before.
+- **Members stay where they are.** Creating, moving or resizing a Hood moves the boundary for address checks from then on; nobody already verified is moved. The 90-day cooldown on moving yourself (§26) applies as before.
 - **Ask to join** (§16) still serves addresses outside every Hood.
 
 ### Web
-`/admin/hoods/new` and the Boundary map on `/admin/hoods/:id` draw the Hoods around the centre (from `GET /admin/hoods/near`, so not limited to one city or one page) and a dashed line where circles cross. Archived Hoods appear as a faint dotted outline marked "(archived)", with no dividing line, and don't count towards the form's checks. The new-Hood form shows the same 409 messages before submitting, and lists the Hoods it shares ground with. The mock store applies the same rules (`apps/web/src/lib/hood-placement.ts`).
+`/admin/hoods/new` and the Boundary map on `/admin/hoods/:id` draw the Hoods around the centre (from `GET /admin/hoods/near`, so not limited to one city or one page) and a dashed line where circles cross. Archived Hoods appear as a faint dotted outline marked "(archived)", with no dividing line, and don't count towards the form's checks. The new-Hood form and the "Edit boundary" dialog on `/admin/hoods/:id` show the same 409 messages before submitting, and list the Hoods the circle shares ground with. On both, the admin sets the centre by clicking the map or dragging its pin (to 6 decimal places), by typing it, or by pasting "lat, lng" into either box; typed points move the pin. The mock store applies the same rules (`apps/web/src/lib/hood-placement.ts`).
+
+## 29. Seeing your Hood before joining it (2026-10-14)
+
+**Why:** neighbours were verified into the wrong Hood with no chance to stop it. A typed address was looked up with fallbacks that could drop the street (matching the middle of the city, or a street of the same name elsewhere), a failed GPS fell back to the network's location (a city at best), and verification put them in whichever Hood the point landed in, without saying which.
+
+### API
+| Request | Response |
+| --- | --- |
+| `POST /users/me/verify-location/preview` `{ lat, lng }` | Changes and records nothing. Inside a Hood: `{ hood: { id, name, city }, distanceMeters, nearbyHoods: [] }`, plus `cannotJoin` (the §26 message) when a verified neighbour may not move Hood yet. Outside every Hood: `{ hood: null, nearbyHoods }` as in §16. `400` for an invalid point. 30 a minute. |
+| `POST /users/me/verify-location` with `neighborhoodId` | Optional: the Hood the neighbour confirmed from the preview. When the point isn't in it, `409` and nothing changes or is recorded: `"That pin is in {actual}, not {chosen}. Check it and confirm again."`, or `"That pin isn't in {chosen} any more. Check it and confirm again."` outside every Hood. Without it, unchanged. |
+
+### Web onboarding
+- **Location first.** `/onboarding` asks for the device's GPS location on arrival (high accuracy), unless there's already an address from a draft or an earlier attempt. The address found there fills the fields, which stay editable; editing them keeps the GPS pin ("Find the address above instead" looks up the typed address instead, for someone not at home). There is no network (IP) fallback any more: `/api/ip-location` is no longer used by onboarding.
+- **Street, area and city, all required.** `GET /api/geocode?street&area&city` (each up to 100 characters; `400` without all three) returns `{ lat, lng, precision }`. A street counts only within 3 km of the area's middle; otherwise `precision: "area"` and the pin is the area's middle, which the neighbour must move onto their home before going on. `404` when neither the address nor the area is found. `GET /api/reverse-geocode` now returns `{ address, parts: { street, area, city } }`.
+- **Confirm on the map.** The pin can be dragged, or the map tapped to move it. Each time it settles, the page asks the preview and shows the Hood ("This pin is in Bodija"), and the button reads "Yes, join Bodija". It passes that Hood as `neighborhoodId`; a `409` brings them back to the map with the message.

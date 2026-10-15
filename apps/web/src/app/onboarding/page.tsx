@@ -16,8 +16,9 @@ import {
   saveOnboardingDraft,
 } from "@/features/onboarding/draft";
 import { OnboardingShell } from "@/features/onboarding/onboarding-shell";
-import { ConfirmStep, DetailsStep, NearbyHoodsStep, RequestSentStep, VerifyStep } from "@/features/onboarding/steps";
-import type { NearbyHood } from "@/lib/api/types";
+import { addressProblem, EMPTY_ADDRESS, joinAddress, pinFollowsAddress, splitAddress, type AddressParts, type PinSource } from "@/features/onboarding/address";
+import { ConfirmStep, DetailsStep, NearbyHoodsStep, RequestSentStep, VerifyStep, type LocateState } from "@/features/onboarding/steps";
+import type { LocationPreview, NearbyHood } from "@/lib/api/types";
 
 // How long to hold checklist step 1 ("Checking address coordinates") visible
 // before moving to step 2. That check is really just "do we have coordinates
@@ -26,6 +27,9 @@ import type { NearbyHood } from "@/lib/api/types";
 // visually tick together. Step 2 onward has no floor: each is held open for
 // exactly as long as its real network call takes.
 const LOCAL_CHECK_MIN_MS = 300;
+
+// How long the pin must stay put before asking which Hood it's in.
+const PREVIEW_SETTLE_MS = 250;
 
 // Same bounds as the API's OnboardingDto.displayName (2–60 characters).
 const NAME_MIN = 2;
@@ -55,18 +59,29 @@ export default function OnboardingPage() {
     refreshProfile,
     completeOnboarding,
     verifyLocation,
+    previewLocation,
     requestHood,
     loading,
   } = useAuth();
   const neighbourhood = useNeighbourhood();
   const [step, setStep] = useState(1);
   const [name, setName] = useState("");
-  const [address, setAddress] = useState("");
+  const [address, setAddress] = useState<AddressParts>(EMPTY_ADDRESS);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(
     null,
   );
-  const [detecting, setDetecting] = useState(false);
+  const [pinSource, setPinSource] = useState<PinSource | null>(null);
+  const [accuracyM, setAccuracyM] = useState<number | null>(null);
+  const [locate, setLocate] = useState<LocateState>({ status: "idle" });
   const [geocoding, setGeocoding] = useState(false);
+  // Step 2: the Hood the pin is in, asked again whenever the pin moves.
+  const [preview, setPreview] = useState<LocationPreview | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewNonce, setPreviewNonce] = useState(0);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
+  // The Hood they said yes to: the API refuses to put them anywhere else.
+  const [confirmedHoodId, setConfirmedHoodId] = useState<string | null>(null);
   const [verifyingStatus, setVerifyingStatus] = useState(0);
   const [onboardingError, setOnboardingError] = useState<string | null>(null);
   const [verificationOutcome, setVerificationOutcome] = useState<
@@ -91,23 +106,27 @@ export default function OnboardingPage() {
   // shouldn't have to retype their address), then the Firebase display name.
   // Runs once, when the profile is known.
   const restoredRef = useRef(false);
+  const [restored, setRestored] = useState(false);
   useEffect(() => {
     if (restoredRef.current || !user || profileStatus !== "ready") return;
     restoredRef.current = true;
+    setRestored(true);
     const draft = readOnboardingDraft(user.uid);
-    if (draft?.name || draft?.address) {
-      setName(draft.name);
-      setAddress(draft.address);
-      setCoords(draft.coords);
-      if (draft.step === 2 && draft.coords) setStep(2);
+    if (draft?.name || joinAddress(draft?.address ?? EMPTY_ADDRESS)) {
+      setName(draft!.name);
+      setAddress(draft!.address);
+      setCoords(draft!.coords);
+      setPinSource(draft!.pinSource);
+      if (draft!.step === 2 && draft!.coords) setStep(2);
     } else if (profile?.displayName || profile?.location?.address) {
       setName(profile.displayName || user.displayName || "");
-      if (profile.location?.address) setAddress(profile.location.address);
+      if (profile.location?.address) setAddress(splitAddress(profile.location.address));
       if (
         typeof profile.location?.lat === "number" &&
         typeof profile.location?.lng === "number"
       ) {
         setCoords({ lat: profile.location.lat, lng: profile.location.lng });
+        setPinSource("saved");
       }
     } else if (user.displayName) {
       setName(user.displayName);
@@ -119,9 +138,9 @@ export default function OnboardingPage() {
   // saved draft with the initial empty fields.
   useEffect(() => {
     if (!restoredRef.current || !user || step > 2) return;
-    if (!name.trim() && !address.trim()) return;
-    saveOnboardingDraft(user.uid, { name, address, coords, step });
-  }, [user, name, address, coords, step]);
+    if (!name.trim() && !joinAddress(address)) return;
+    saveOnboardingDraft(user.uid, { name, address, coords, pinSource, step });
+  }, [user, name, address, coords, pinSource, step]);
 
   // Redirect away only if the person is fully done (onboarded *and*
   // verified) when they first land here, and only check this once. It must
@@ -142,84 +161,71 @@ export default function OnboardingPage() {
     }
   }, [loading, profile, profileStatus, router]);
 
-  // Sets coords + a placeholder address immediately, then replaces it with a
-  // real reverse-geocoded address once that resolves (left as-is if it fails).
-  const applyDetectedLocation = async (
-    lat: number,
-    lng: number,
-    approximate: boolean,
-  ) => {
-    setCoords({ lat, lng });
-    setAddress(
-      approximate
-        ? `Approximate location (Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)})`
-        : `Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)} (Detected Location)`,
-    );
-    try {
-      const res = await fetch(`/api/reverse-geocode?lat=${lat}&lng=${lng}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.address) setAddress(data.address);
-      }
-    } catch (err) {
-      console.error("Reverse geocoding failed", err);
-    }
-  };
-
-  const handleDetectLocation = () => {
+  // The device's location, and the address there to check and edit. GPS only: a network (IP) location
+  // is a city at best, and matching on it put people in the wrong Hood. `auto`: on arrival, so a refusal
+  // is no error, and fields the neighbour has already typed in are kept.
+  const detectLocation = (auto = false) => {
     if (!navigator.geolocation) {
-      setOnboardingError("Geolocation is not supported by your browser.");
+      setLocate({ status: "failed", message: "Your browser can't share your location. Type your address below." });
       return;
     }
-    setDetecting(true);
+    setLocate({ status: "detecting" });
     setOnboardingError(null);
     navigator.geolocation.getCurrentPosition(
       async (position) => {
-        await applyDetectedLocation(
-          position.coords.latitude,
-          position.coords.longitude,
-          false,
-        );
-        setDetecting(false);
-      },
-      async (error) => {
-        console.error(error);
-
-        // GPS failed — fall back to an approximate location derived from the
-        // request itself (hosting-platform geo headers, e.g. Vercel/
-        // Cloudflare, or an IP-address lookup as a last resort).
+        const { latitude: lat, longitude: lng, accuracy } = position.coords;
+        setCoords({ lat, lng });
+        setPinSource("gps");
+        setAccuracyM(accuracy);
+        setLocate({ status: "found", accuracyM: accuracy });
         try {
-          const res = await fetch("/api/ip-location");
-          if (res.ok) {
-            const data = await res.json();
-            await applyDetectedLocation(data.lat, data.lng, true);
-            setOnboardingError(
-              "We couldn't get your exact GPS location, so we used your approximate network location instead. Please check the address below and adjust it if it's not quite right.",
-            );
-            setDetecting(false);
-            return;
-          }
-        } catch (ipErr) {
-          console.error("IP location fallback failed", ipErr);
+          const res = await fetch(`/api/reverse-geocode?lat=${lat}&lng=${lng}`);
+          if (!res.ok) return;
+          const found = ((await res.json()) as { parts?: AddressParts }).parts;
+          if (!found) return;
+          setAddress((typed) => ({
+            street: (auto && typed.street.trim()) || found.street || typed.street,
+            area: (auto && typed.area.trim()) || found.area || typed.area,
+            city: (auto && typed.city.trim()) || found.city || typed.city,
+          }));
+        } catch (err) {
+          // They can still type the address; the pin is what matters.
+          console.error("Reverse geocoding failed", err);
         }
-
-        if (error.code === error.PERMISSION_DENIED) {
-          setOnboardingError(
-            "Location permission was denied. Please allow location access for this site, or enter your address manually.",
-          );
-        } else if (error.code === error.POSITION_UNAVAILABLE) {
-          setOnboardingError(
-            "Your device couldn't determine a location just now — check that Location Services are enabled for your browser in your system settings, or enter your address manually.",
-          );
-        } else {
-          setOnboardingError(
-            "Location detection timed out. Please enter your address manually.",
-          );
-        }
-        setDetecting(false);
       },
-      { timeout: 10000 },
+      (error) => {
+        console.error(error);
+        setLocate({
+          status: "failed",
+          message:
+            error.code === error.PERMISSION_DENIED
+              ? auto
+                ? "Location is off for this site. Type your address below, or allow location and tap here."
+                : "Location access was denied. Allow it for this site and tap here, or type your address below."
+              : error.code === error.POSITION_UNAVAILABLE
+                ? "Your device couldn't find its location just now. Check Location Services is on, or type your address below."
+                : "Finding your location took too long. Tap to try again, or type your address below.",
+        });
+      },
+      { enableHighAccuracy: true, timeout: 15_000, maximumAge: 60_000 },
     );
+  };
+
+  // Find them as soon as they arrive, unless they already have an address (a draft, or an earlier try).
+  const autoLocatedRef = useRef(false);
+  useEffect(() => {
+    if (autoLocatedRef.current || !restored || step !== 1) return;
+    autoLocatedRef.current = true;
+    if (!coords && !joinAddress(address)) detectLocation(true);
+    // Once, after the restore.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restored, step]);
+
+  const forgetPin = () => {
+    setCoords(null);
+    setPinSource(null);
+    setAccuracyM(null);
+    setLocate({ status: "idle" });
   };
 
   const handleNextStep = async () => {
@@ -237,10 +243,9 @@ export default function OnboardingPage() {
         setOnboardingError(`Please keep your name to ${NAME_MAX} characters or fewer.`);
         return;
       }
-      if (!address.trim()) {
-        setOnboardingError(
-          "Add your home address, or use your current location.",
-        );
+      const problem = addressProblem(address);
+      if (problem) {
+        setOnboardingError(problem);
         return;
       }
       setOnboardingError(null);
@@ -248,27 +253,63 @@ export default function OnboardingPage() {
       if (!coords) {
         setGeocoding(true);
         try {
-          const res = await fetch(
-            `/api/geocode?address=${encodeURIComponent(address)}`,
-          );
-          if (!res.ok) throw new Error("Address not found");
-          const data = await res.json();
+          const query = new URLSearchParams({ street: address.street.trim(), area: address.area.trim(), city: address.city.trim() });
+          const res = await fetch(`/api/geocode?${query}`);
+          if (res.status === 404) {
+            setOnboardingError(`We couldn't find ${address.area.trim()} in ${address.city.trim()}. Check the spelling, or use your current location.`);
+            return;
+          }
+          if (!res.ok) throw new Error(`Geocoding failed: ${res.status}`);
+          const data = (await res.json()) as { lat: number; lng: number; precision: "street" | "area" };
           setCoords({ lat: data.lat, lng: data.lng });
+          setPinSource(data.precision);
         } catch (err) {
           console.error("Geocoding failed", err);
-          setOnboardingError(
-            "We couldn't find that address. Add your area and city (e.g. “Admiralty Way, Lekki Phase 1, Lagos”), or use your current location.",
-          );
-          setGeocoding(false);
+          setOnboardingError("We couldn't look up your address just now. Try again, or use your current location.");
           return;
+        } finally {
+          setGeocoding(false);
         }
-        setGeocoding(false);
       }
 
+      setConfirmError(null);
       setStep(2);
-    } else if (step === 2) {
-      setStep(3);
     }
+  };
+
+  // Step 2: ask which Hood the pin is in, each time it settles somewhere new. Not while it's only in the
+  // middle of an area: it has to be placed on their home first.
+  const previewLocationRef = useRef(previewLocation);
+  useEffect(() => {
+    previewLocationRef.current = previewLocation;
+  }, [previewLocation]);
+  useEffect(() => {
+    if (step !== 2 || !coords || pinSource === "area") return;
+    let cancelled = false;
+    setPreviewing(true);
+    setPreviewError(null);
+    const timer = setTimeout(async () => {
+      try {
+        const next = await previewLocationRef.current(coords);
+        if (!cancelled) setPreview(next);
+      } catch (err) {
+        if (cancelled || isSessionError(err)) return;
+        console.error("Neighbourhood preview failed", err);
+        setPreviewError(err instanceof ApiError ? err.message : "We couldn't check which neighbourhood this is.");
+      } finally {
+        if (!cancelled) setPreviewing(false);
+      }
+    }, PREVIEW_SETTLE_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [step, coords, pinSource, previewNonce]);
+
+  const handleConfirm = () => {
+    setConfirmedHoodId(preview?.hood?.id ?? null);
+    setConfirmError(null);
+    setStep(3);
   };
 
   const handleSkip = () => {
@@ -299,7 +340,7 @@ export default function OnboardingPage() {
         await completeOnboarding({
           displayName: name.trim(),
           location: {
-            address,
+            address: joinAddress(address),
             lat: coords?.lat || 0,
             lng: coords?.lng || 0,
           },
@@ -320,10 +361,13 @@ export default function OnboardingPage() {
     setVerifyingStatus(3); // step 3: the real location check starts now
     let outcome: "success" | "unverified" | "nearby" | "error" = "success";
     try {
-      const result = await verifyLocation({
-        lat: coords?.lat || 0,
-        lng: coords?.lng || 0,
-      });
+      const result = await verifyLocation(
+        {
+          lat: coords?.lat || 0,
+          lng: coords?.lng || 0,
+        },
+        confirmedHoodId ?? undefined,
+      );
       if (result.verificationStatus === "unverified") {
         const nearby = result.nearbyHoods ?? [];
         setNearbyHoods(nearby);
@@ -333,6 +377,13 @@ export default function OnboardingPage() {
       }
     } catch (verifyErr) {
       if (isSessionError(verifyErr)) return;
+      // Refused, with nothing changed: the pin isn't in the Hood they confirmed (or they can't move Hood
+      // yet). Back to the map to look again; their details are already saved.
+      if (verifyErr instanceof ApiError && verifyErr.status === 409) {
+        setConfirmError(verifyErr.message);
+        setStep(2);
+        return;
+      }
       // A failed *check* (network blip, backend hiccup) is not the same as
       // "outside coverage" — surface it distinctly instead of silently
       // treating it as success, which used to send people straight to the
@@ -351,7 +402,7 @@ export default function OnboardingPage() {
     }
     // The other outcomes stop here and wait for the user to choose what to
     // do next — see the buttons rendered for each state below.
-  }, [coords, name, address, user, verifyLocation, completeOnboarding, router]);
+  }, [coords, confirmedHoodId, name, address, user, verifyLocation, completeOnboarding, router]);
 
   // runVerification's identity changes on every AuthProvider re-render
   // (verifyLocation/completeOnboarding/router aren't stable references
@@ -441,22 +492,47 @@ export default function OnboardingPage() {
         <DetailsStep
           name={name}
           address={address}
-          hasCoords={!!coords}
-          detecting={detecting}
+          locate={locate}
+          pinKept={coords !== null && !pinFollowsAddress(pinSource)}
           geocoding={geocoding}
           error={onboardingError}
           onName={setName}
           onAddress={(value) => {
             setAddress(value);
-            // Manual edits invalidate any previously detected coordinates.
-            setCoords(null);
+            // A pin looked up from the address is out of date once the address changes. One from GPS or
+            // placed on the map stays: they're correcting how the address reads, not where home is.
+            if (pinFollowsAddress(pinSource)) {
+              setCoords(null);
+              setPinSource(null);
+            }
           }}
-          onDetect={handleDetectLocation}
+          onDetect={() => detectLocation()}
+          onUseTypedAddress={forgetPin}
           onNext={() => void handleNextStep()}
         />
       )}
       {step === 2 && (
-        <ConfirmStep address={address} coords={coords} onBack={() => setStep(1)} onNext={() => void handleNextStep()} />
+        <ConfirmStep
+          address={address}
+          coords={coords}
+          pinSource={pinSource}
+          accuracyM={accuracyM}
+          preview={preview}
+          previewing={previewing}
+          previewError={previewError}
+          error={confirmError}
+          onPick={(point) => {
+            setCoords(point);
+            setPinSource("pin");
+            setConfirmError(null);
+          }}
+          onRetryPreview={() => setPreviewNonce((n) => n + 1)}
+          onBack={() => {
+            setConfirmError(null);
+            setStep(1);
+          }}
+          onConfirm={handleConfirm}
+        />
       )}
       {step === 3 && verificationOutcome === "nearby" && (
         <NearbyHoodsStep

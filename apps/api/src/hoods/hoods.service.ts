@@ -15,6 +15,9 @@ export interface HoodInput {
   radiusMeters: number;
 }
 
+/** A staff change to a Hood. `center` moves it. */
+export type HoodPatch = Partial<Pick<Neighborhood, "name" | "description" | "radiusMeters" | "status">> & { center?: { lat: number; lng: number } };
+
 /** A Hood close to (but not covering) an address, offered as "ask to join" (contract §16). */
 export interface NearbyHood {
   id: string;
@@ -95,13 +98,7 @@ export class HoodsService {
   async create(input: HoodInput, session?: ClientSession): Promise<NeighborhoodDocument> {
     const nameTaken = await this.hoods.exists({ name: { $regex: `^${escape(input.name)}$`, $options: "i" } });
     if (nameTaken) throw new ConflictException(`A Hood called “${input.name}” already exists.`);
-    const others = await this.centresAround(input.center);
-    const inside = others.filter((o) => o.distanceMeters < o.radiusMeters);
-    if (inside.length) throw new ConflictException(`This centre is inside ${names(inside)}. Hoods can overlap, but not over another Hood's centre: move it.`);
-    const covered = others.filter((o) => o.distanceMeters < input.radiusMeters);
-    if (covered.length) {
-      throw new ConflictException(`This radius would cover the centre of ${names(covered)}. Hoods can overlap, but not over another Hood's centre: shrink it or move the centre.`);
-    }
+    await this.assertPlacement(input.center, input.radiusMeters);
     const [hood] = await this.hoods.create(
       [
         {
@@ -120,19 +117,26 @@ export class HoodsService {
   }
 
   /**
-   * 409 if a larger radius would take in another Hood's centre, the rule on creation. Growing into
-   * another Hood is fine; only this Hood's radius changes, so that is the only thing to check.
+   * A moved centre is checked as on creation (409 if it sits inside another Hood, or the radius takes
+   * in another's centre). Without a move, 409 only if a larger radius would take in another's centre:
+   * growing into another Hood is fine, and only this Hood's radius changes, so that is all to check.
    */
-  async update(id: string, patch: Partial<Pick<Neighborhood, "name" | "description" | "radiusMeters" | "status">>, session?: ClientSession): Promise<NeighborhoodDocument> {
-    if (patch.radiusMeters !== undefined) {
+  async update(id: string, patch: HoodPatch, session?: ClientSession): Promise<NeighborhoodDocument> {
+    const { center, ...fields } = patch;
+    const $set: Partial<Neighborhood> = fields;
+    if (center !== undefined || patch.radiusMeters !== undefined) {
       const current = await this.findById(id);
       const [lng, lat] = current.location?.coordinates ?? [];
-      if (lng !== undefined && lat !== undefined && patch.radiusMeters > current.radiusMeters) {
-        const covered = (await this.centresAround({ lat, lng }, id)).filter((o) => o.distanceMeters < patch.radiusMeters!);
+      const radiusMeters = patch.radiusMeters ?? current.radiusMeters;
+      if (center && (center.lat !== lat || center.lng !== lng)) {
+        await this.assertPlacement(center, radiusMeters, id);
+        $set.location = { type: "Point", coordinates: [center.lng, center.lat] };
+      } else if (lng !== undefined && lat !== undefined && radiusMeters > current.radiusMeters) {
+        const covered = (await this.centresAround({ lat, lng }, id)).filter((o) => o.distanceMeters < radiusMeters);
         if (covered.length) throw new ConflictException(`That radius would cover the centre of ${names(covered)}. Hoods can overlap, but not over another Hood's centre: choose a smaller one.`);
       }
     }
-    const hood = await this.hoods.findByIdAndUpdate(id, { $set: patch }, { returnDocument: "after", runValidators: true, session }).exec();
+    const hood = await this.hoods.findByIdAndUpdate(id, { $set }, { returnDocument: "after", runValidators: true, session }).exec();
     if (!hood) throw new NotFoundException("That neighbourhood doesn't exist.");
     return hood;
   }
@@ -157,7 +161,7 @@ export class HoodsService {
     });
   }
 
-  updateAudited(actor: Viewer, id: string, patch: Partial<Pick<Neighborhood, "name" | "description" | "radiusMeters" | "status">>, reason?: string): Promise<NeighborhoodDocument> {
+  updateAudited(actor: Viewer, id: string, patch: HoodPatch, reason?: string): Promise<NeighborhoodDocument> {
     return withTransaction(this.connection, async (session) => {
       const hood = await this.update(id, patch, session);
       await this.audit.record(actor, patch.status === "archived" ? "hood_archive" : "hood_update", { type: "hood", id, label: hood.name }, { reason }, session);
@@ -271,9 +275,20 @@ export class HoodsService {
     });
   }
 
+  /** 409 if a Hood here would sit over another Hood's centre. `exceptId`: the Hood being moved. */
+  private async assertPlacement(center: { lat: number; lng: number }, radiusMeters: number, exceptId?: string) {
+    const others = await this.centresAround(center, exceptId);
+    const inside = others.filter((o) => o.distanceMeters < o.radiusMeters);
+    if (inside.length) throw new ConflictException(`This centre is inside ${names(inside)}. Hoods can overlap, but not over another Hood's centre: move it.`);
+    const covered = others.filter((o) => o.distanceMeters < radiusMeters);
+    if (covered.length) {
+      throw new ConflictException(`This radius would cover the centre of ${names(covered)}. Hoods can overlap, but not over another Hood's centre: shrink it or move the centre.`);
+    }
+  }
+
   /**
    * Hoods (not archived: a paused one may reopen) whose centre is close enough to a point here for one
-   * circle to reach the other's centre. `exceptId`: the Hood being resized.
+   * circle to reach the other's centre. `exceptId`: the Hood being moved or resized.
    */
   private async centresAround(center: { lat: number; lng: number }, exceptId?: string) {
     return this.hoods

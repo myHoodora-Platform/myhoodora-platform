@@ -21,6 +21,8 @@ export interface ActionDialogProps {
   destructive?: boolean;
   /** Extra fields (duration, Hood picker, message to the neighbour…). */
   children?: React.ReactNode;
+  /** For extra fields that need room, such as a map. */
+  wide?: boolean;
   /** Disable confirm until extra fields are valid. */
   ready?: boolean;
   onConfirm: (input: { reason: string; note?: string }) => Promise<void>;
@@ -40,6 +42,7 @@ export function ActionDialog({
   confirmLabel,
   destructive,
   children,
+  wide,
   ready = true,
   onConfirm,
 }: ActionDialogProps) {
@@ -73,7 +76,7 @@ export function ActionDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !busy && onOpenChange(o)}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className={wide ? "max-h-[92vh] max-w-2xl overflow-y-auto" : "max-w-lg"}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription asChild>

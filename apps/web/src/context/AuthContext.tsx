@@ -17,13 +17,14 @@ import {
   fetchUserProfile,
   completeOnboardingApi,
   verifyLocationApi,
+  previewLocationApi,
   updateProfileApi,
   revokeAllSessionsApi,
   logoutUser,
   requestHoodApi,
   cancelHoodRequestApi,
 } from "@/lib/firebase/auth";
-import type { VerifyLocationResult } from "@/lib/api/types";
+import type { LocationPreview, VerifyLocationResult } from "@/lib/api/types";
 import { ApiError, FRIENDLY_MESSAGES } from "@/lib/api/client";
 import {
   parseProfile,
@@ -78,7 +79,10 @@ interface AuthContextType {
     displayName?: string;
     location?: { lat?: number; lng?: number; address?: string };
   }) => Promise<void>;
-  verifyLocation: (coords: { lat: number; lng: number }) => Promise<VerifyLocationResult>;
+  /** `neighborhoodId`: the Hood they confirmed from previewLocation; the API refuses to put them anywhere else. */
+  verifyLocation: (coords: { lat: number; lng: number }, neighborhoodId?: string) => Promise<VerifyLocationResult>;
+  /** Which Hood a point would join, without verifying. */
+  previewLocation: (coords: { lat: number; lng: number }) => Promise<LocationPreview>;
   /** Ask to join a nearby Hood (address outside every Hood). Staff approve it. */
   requestHood: (hoodId: string) => Promise<void>;
   /** Withdraw a pending join request. */
@@ -277,11 +281,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     acceptProfile(user.uid, updatedProfile);
   };
 
-  const verifyLocation = async (coords: { lat: number; lng: number }) => {
+  const verifyLocation = async (coords: { lat: number; lng: number }, neighborhoodId?: string) => {
     if (!user) throw new ApiError(FRIENDLY_MESSAGES.auth, 401, "auth");
-    const result = await withSessionCheck(() => verifyLocationApi(user, coords));
+    const result = await withSessionCheck(() => verifyLocationApi(user, coords, neighborhoodId));
     await refreshProfile();
     return result;
+  };
+
+  const previewLocation = async (coords: { lat: number; lng: number }) => {
+    if (!user) throw new ApiError(FRIENDLY_MESSAGES.auth, 401, "auth");
+    return withSessionCheck(() => previewLocationApi(user, coords));
   };
 
   const requestHood = async (hoodId: string) => {
@@ -371,6 +380,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         refreshProfile,
         completeOnboarding,
         verifyLocation,
+        previewLocation,
         requestHood,
         cancelHoodRequest,
         updateProfile,

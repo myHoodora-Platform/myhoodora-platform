@@ -72,6 +72,30 @@ export class VerifyLocationDto {
   @IsString()
   @MaxLength(200)
   address?: string;
+
+  /**
+   * The Hood the neighbour confirmed, from `POST /users/me/verify-location/preview`. When the point
+   * isn't in it (it moved, or the Hood's boundary changed), 409 and nothing changes.
+   * @example 66f1a2b3c4d5e6f7a8b9c0d1
+   */
+  @IsOptional()
+  @IsMongoId()
+  neighborhoodId?: string;
+}
+
+/** A point to check without verifying: `POST /users/me/verify-location/preview`. */
+export class LocationPointDto {
+  /**
+   * @example 6.4474
+   */
+  @IsLatitude()
+  lat!: number;
+
+  /**
+   * @example 3.472
+   */
+  @IsLongitude()
+  lng!: number;
 }
 
 /** Ask to join a Hood offered by the last address check (contract §16). */
