@@ -37,7 +37,7 @@ export function VerificationPage() {
     // Live: join requests and withdrawals appear without a reload.
     ["queue.changed"],
   );
-  const [pending, setPending] = useState<{ action: NeighbourAction; c: VerificationCase; hoodId?: string } | null>(null);
+  const [pending, setPending] = useState<{ action: NeighbourAction; c: VerificationCase; hood?: { id: string; name: string } } | null>(null);
 
   return (
     <div className="space-y-5">
@@ -107,7 +107,7 @@ export function VerificationPage() {
                   </div>
                   {can("verification.review") && (
                     <div className="flex shrink-0 flex-wrap gap-2">
-                      <Button size="sm" onClick={() => setPending({ action: "verify", c, hoodId: approveInto?.id })}>
+                      <Button size="sm" onClick={() => setPending({ action: "verify", c, hood: approveInto && { id: approveInto.id, name: approveInto.name } })}>
                         {approveInto ? `Approve into ${approveInto.name}` : "Approve…"}
                       </Button>
                       <Button size="sm" variant="outline" onClick={() => setPending({ action: "reject_verification", c })}>
@@ -125,7 +125,8 @@ export function VerificationPage() {
 
       <NeighbourActionDialog
         action={pending?.action ?? null}
-        targets={pending ? [{ uid: pending.c.uid, displayName: pending.c.displayName, hoodId: pending.hoodId }] : []}
+        targets={pending ? [{ uid: pending.c.uid, displayName: pending.c.displayName, hood: pending.hood }] : []}
+        near={pending?.c.point}
         onClose={() => setPending(null)}
         onDone={() => void cases.refetch()}
       />

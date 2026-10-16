@@ -23,18 +23,25 @@ export function UserAvatar({
   size?: keyof typeof SIZES;
   className?: string;
 }) {
+  const isOrganisation = person.kind === "organisation";
   return (
     <Avatar className={cn(SIZES[size], "shrink-0", className)}>
       {/* Square, face-aware crop at the size shown, not the full-size upload. */}
       {person.photoURL && <AvatarImage src={imageUrl(person.photoURL, { width: PX[size], aspect: 1 })} alt="" />}
-      <AvatarFallback
-        className={cn(
-          "font-bold",
-          person.kind === "organisation" && "bg-primary text-primary-foreground",
-        )}
-      >
-        {initialsFrom(person.displayName)}
+      {/* No photo (or it won't load): a business keeps its initials, a person gets the default avatar. */}
+      <AvatarFallback className={cn("font-bold", isOrganisation && "bg-primary text-primary-foreground")}>
+        {isOrganisation ? initialsFrom(person.displayName) : <DefaultAvatar />}
       </AvatarFallback>
     </Avatar>
+  );
+}
+
+/** Head and shoulders, cropped by the round avatar; scales with it. */
+function DefaultAvatar() {
+  return (
+    <svg viewBox="0 0 40 40" className="size-full text-primary/45" fill="currentColor" aria-hidden>
+      <circle cx="20" cy="15.5" r="7.5" />
+      <path d="M5 38c0-8.3 6.7-14 15-14s15 5.7 15 14v2H5z" />
+    </svg>
   );
 }

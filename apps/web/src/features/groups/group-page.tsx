@@ -9,6 +9,7 @@ import { Button } from "@myhoodora/ui/button";
 import { Skeleton } from "@myhoodora/ui/skeleton";
 import { cn } from "@myhoodora/ui/utils";
 import { BackLink } from "@/components/shared/back-link";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { ImageWithFallback } from "@/components/shared/image-with-fallback";
 import { EmptyState, PreviewNotice } from "@/components/shared/states";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -43,6 +44,7 @@ export function GroupPage({ id }: { id: string }) {
   const [posting, setPosting] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [joiningByInvite, setJoiningByInvite] = useState(false);
+  const [confirmingRemove, setConfirmingRemove] = useState<GroupPost | null>(null);
 
   const canRead = group && (group.privacy === "open" || group.membership === "member");
 
@@ -251,7 +253,7 @@ export function GroupPage({ id }: { id: string }) {
                       {canRemove && (
                         <button
                           type="button"
-                          onClick={() => void removePost(p._id)}
+                          onClick={() => setConfirmingRemove(p)}
                           aria-label={p.authorUid === user?.uid ? "Delete your post" : "Remove post as admin"}
                           className="flex size-9 items-center justify-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                         >
@@ -269,6 +271,23 @@ export function GroupPage({ id }: { id: string }) {
       )}
 
       <InviteDialog group={group} open={inviteOpen} onOpenChange={setInviteOpen} justCreated={createdFlow} />
+      {/* The removal itself is optimistic (and undone on failure), so the dialog closes straight away. */}
+      <ConfirmDialog
+        open={confirmingRemove !== null}
+        onOpenChange={(o) => !o && setConfirmingRemove(null)}
+        {...(confirmingRemove?.authorUid === user?.uid
+          ? { title: "Delete your post?", description: "It's removed from the group for everyone. This can't be undone.", confirmLabel: "Delete post" }
+          : {
+              title: "Remove this post?",
+              description: `You're removing ${confirmingRemove ? resolveAuthor(confirmingRemove.authorUid, viewer).displayName : "a member"}'s post as a group admin. Members won't see it any more.`,
+              confirmLabel: "Remove post",
+            })}
+        destructive
+        onConfirm={() => {
+          if (confirmingRemove) void removePost(confirmingRemove._id);
+          setConfirmingRemove(null);
+        }}
+      />
     </div>
   );
 }
