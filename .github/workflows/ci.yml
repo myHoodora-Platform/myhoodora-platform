@@ -51,6 +51,14 @@ jobs:
       - name: Build
         run: pnpm run build
 
+      # The mobile app (apps/mobile) has no `build` task: native builds run on EAS, never here.
+      # These check that its dependencies match the Expo SDK and that it bundles for both platforms.
+      - name: Mobile dependency check
+        run: pnpm --filter @myhoodora/mobile exec expo install --check
+
+      - name: Mobile bundle (iOS and Android)
+        run: pnpm --filter @myhoodora/mobile run export:check
+
   browser:
     name: Browser tests (signed-out flows)
     runs-on: ubuntu-latest

@@ -32,7 +32,7 @@
     "@myhoodora/eslint-config": "workspace:*",
     "@myhoodora/typescript-config": "workspace:*",
     "@types/node": "^22.15.3",
-    "@types/react": "19.2.2",
+    "@types/react": "~19.2.4",
     "@types/react-dom": "19.2.2",
     "eslint": "^9.39.1",
     "next": "16.2.0",
