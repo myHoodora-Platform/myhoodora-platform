@@ -86,6 +86,22 @@ export class EmailVerificationService implements OnModuleInit {
     }
   }
 
+  /**
+   * The address changed before it was confirmed: links to the old one must stop working (deleted, not
+   * just spent), and the new one gets a fresh link.
+   */
+  async restartFor(user: Pick<User, "uid" | "email" | "displayName">): Promise<void> {
+    await this.tokens.deleteMany({ uid: user.uid }).exec();
+    const raw = await this.issue(user.uid);
+    await this.comms.sendEmail({
+      uid: user.uid,
+      to: user.email,
+      type: "verify_email",
+      email: verifyEmail({ name: user.displayName, verifyUrl: this.verifyUrl(raw) }),
+      idempotencyKey: `verify:${user.uid}:${hashToken(raw).slice(0, 16)}`,
+    });
+  }
+
   /** POST /auth/email-verification/resend — always 202 to the client; rate-limited per user. */
   async resend(uid: string): Promise<void> {
     const user = await this.users.findOne({ uid }).exec();

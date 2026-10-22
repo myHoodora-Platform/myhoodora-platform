@@ -2,11 +2,12 @@ import { Injectable, NotFoundException, type OnModuleInit } from "@nestjs/common
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import { CommunicationsService } from "../communications/communications.service";
+import { PushService } from "../push/push.service";
 import { RealtimeService } from "../realtime/realtime.service";
 import type { RenderedEmail } from "../communications/templates/email-templates";
 import { AccountLifecycle } from "../users/account-lifecycle";
 import { User, UserDocument } from "../users/schemas/user.schema";
-import type { NotificationCategory } from "../users/domain/preferences";
+import { DEFAULT_PREFERENCES, type NotificationCategory } from "../users/domain/preferences";
 import { Notification, NotificationDocument, type NotificationKind, type NotificationType } from "./notification.schema";
 
 export interface NotifyInput {
@@ -58,7 +59,7 @@ function clip(text: string, max: number): string {
  * The one entry point for telling someone something happened. Decides who
  * actually gets it (not the actor, not people who blocked the actor,
  * deactivated accounts skipped) and which channels (in-app always, email per
- * preferences). Push/SMS plug in here later.
+ * preferences, push to the mobile app per preferences). SMS would plug in here.
  */
 @Injectable()
 export class NotificationsService implements OnModuleInit {
@@ -68,6 +69,7 @@ export class NotificationsService implements OnModuleInit {
     private readonly comms: CommunicationsService,
     private readonly realtime: RealtimeService,
     private readonly accounts: AccountLifecycle,
+    private readonly push: PushService,
   ) {}
 
   onModuleInit() {
@@ -128,6 +130,12 @@ export class NotificationsService implements OnModuleInit {
     }
     // Every notification in the app goes through here, so they're all live.
     this.realtime.toUsers(recipients.map((r) => r.uid), "notification.created");
+    // Push follows each person's setting for the category (defaults if they never changed it). Notices
+    // without a category (account and safety notices) are always pushed, as they are always in-app.
+    const pushTo = recipients
+      .filter((r) => !input.category || (r.preferences?.notifications?.[input.category]?.push ?? DEFAULT_PREFERENCES.notifications[input.category].push))
+      .map((r) => r.uid);
+    this.push.deliver(pushTo, { title, body, href: input.href, type: input.type, kind: input.kind, subjectId: input.subjectId });
     return recipients.length;
   }
 
@@ -141,6 +149,7 @@ export class NotificationsService implements OnModuleInit {
     const rows = input.uids.map((uid) => ({ uid, type: input.type, title: input.title, body: input.body, href: input.href, dedupeKey: input.dedupeKey(uid) }));
     const written = await this.insertSkippingDuplicates(rows);
     this.realtime.toUsers(input.uids, "notification.created");
+    this.push.deliver(input.uids, { title: input.title, body: input.body, href: input.href, type: input.type });
     return written;
   }
 

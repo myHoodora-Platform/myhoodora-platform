@@ -4,7 +4,7 @@ import { Throttle } from "@nestjs/throttler";
 import type { DecodedIdToken } from "firebase-admin/auth";
 import { CurrentUser } from "../shared/auth/current-user.decorator";
 import { AllowSuspended, CurrentViewer, type Viewer } from "../shared/auth/viewer";
-import { BlockDto, DeactivateDto, HoodRequestDto, LocationPointDto, OnboardingDto, PreferencesDto, UpdateMeDto, UserSearchQuery, VerifyLocationDto } from "./dto/users.dto";
+import { BlockDto, ChangeEmailDto, DeactivateDto, HoodRequestDto, LocationPointDto, OnboardingDto, PreferencesDto, UpdateMeDto, UserSearchQuery, VerifyLocationDto } from "./dto/users.dto";
 import { UsersService } from "./users.service";
 import { ApiNotFound, ApiStandardErrors, ErrorResponse } from "../shared/http/api-docs";
 
@@ -28,6 +28,19 @@ export class UsersController {
   async updateMe(@CurrentViewer() viewer: Viewer, @CurrentUser() token: DecodedIdToken, @Body() body: UpdateMeDto) {
     await this.users.ensureAccount(viewer, token);
     return this.users.updateMe(viewer.uid, body);
+  }
+
+  @Post("me/email")
+  @HttpCode(200)
+  @Throttle({ medium: { limit: 5, ttl: 3_600_000 } })
+  @ApiOperation({
+    summary: "Change your email while it's still unconfirmed",
+    description:
+      "Email-and-password accounts whose address isn't confirmed yet. Needs a sign-in from the last 5 minutes (403 otherwise: sign in again, e.g. re-enter the password). 409 when the address is confirmed or already used by another account. Updates sign-in and the account together, deletes links sent to the old address, and emails a new one.",
+  })
+  @ApiOkResponse({ description: "Your updated profile (same shape as GET /users/me)" })
+  changeEmail(@CurrentViewer() viewer: Viewer, @CurrentUser() token: DecodedIdToken, @Body() body: ChangeEmailDto) {
+    return this.users.changeEmail(viewer, token, body.email);
   }
 
   @Patch("me/onboarding")

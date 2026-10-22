@@ -74,7 +74,8 @@ export class CommentsService implements OnModuleInit {
    * comments were stored and never shown.)
    */
   async list(viewer: Viewer, postId: string, q: ThreadPageQuery = {}): Promise<CommentView[]> {
-    await this.posts.loadVisible(viewer, postId);
+    // Reading a thread is open to secondary Hoods too; writing in it isn't (create uses loadVisible).
+    await this.posts.loadReadable(viewer, postId);
     const hidden = await this.users.hiddenAuthorsFor(viewer.uid);
     const filter: QueryFilter<Comment> = { postId, deletedAt: null, removedAt: null, ...(hidden.length && { authorUid: { $nin: hidden } }) };
     if (q.before) {

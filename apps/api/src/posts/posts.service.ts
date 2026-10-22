@@ -334,7 +334,8 @@ export class PostsService implements OnModuleInit {
    */
   async feed(viewer: Viewer, hoodId: string, q: FeedQuery): Promise<PostView[]> {
     const staff = viewer.capabilities.includes("admin.access");
-    if (!staff && hoodId !== viewer.hoodId) throw new NotFoundException("This neighbourhood isn't available.");
+    // Home, or a secondary Hood they may read (contract §31).
+    if (!staff && !viewer.readableHoodIds.includes(hoodId)) throw new NotFoundException("This neighbourhood isn't available.");
     const hidden = await this.users.hiddenAuthorsFor(viewer.uid);
     const filter: QueryFilter<FeedPost> = {
       neighborhoodId: hoodId,
@@ -363,11 +364,23 @@ export class PostsService implements OnModuleInit {
     return Types.ObjectId.isValid(id) ? this.posts.findById(id).lean<FeedPost & { _id: Types.ObjectId }>().exec() : null;
   }
 
-  /** Load a post the viewer may see, or 404 (deleted, removed, other Hood, blocked, or its author has deactivated). */
-  async loadVisible(viewer: Viewer, id: string): Promise<FeedPost & { _id: Types.ObjectId }> {
+  /**
+   * Load a post the viewer may act on, in their home Hood, or 404 (deleted, removed, other Hood,
+   * blocked, or its author has deactivated). Everything that writes uses this.
+   */
+  loadVisible(viewer: Viewer, id: string): Promise<FeedPost & { _id: Types.ObjectId }> {
+    return this.load(viewer, id, viewer.hoodId ? [viewer.hoodId] : []);
+  }
+
+  /** Load a post the viewer may read: home, or a secondary Hood (contract §31). For reading only. */
+  loadReadable(viewer: Viewer, id: string): Promise<FeedPost & { _id: Types.ObjectId }> {
+    return this.load(viewer, id, viewer.readableHoodIds);
+  }
+
+  private async load(viewer: Viewer, id: string, hoodIds: string[]): Promise<FeedPost & { _id: Types.ObjectId }> {
     const p = Types.ObjectId.isValid(id) ? await this.posts.findById(id).lean<FeedPost & { _id: Types.ObjectId }>().exec() : null;
     const staff = viewer.capabilities.includes("admin.access");
-    if (!p || (!staff && (!p.isActive || p.removedAt || p.authorDeactivated || p.neighborhoodId !== viewer.hoodId))) {
+    if (!p || (!staff && (!p.isActive || p.removedAt || p.authorDeactivated || !hoodIds.includes(p.neighborhoodId)))) {
       throw new NotFoundException("This post isn't available.");
     }
     if (!staff) {
@@ -378,7 +391,7 @@ export class PostsService implements OnModuleInit {
   }
 
   async get(viewer: Viewer, id: string): Promise<PostView> {
-    const p = await this.loadVisible(viewer, id);
+    const p = await this.loadReadable(viewer, id);
     return (await this.toViews([p], viewer))[0]!;
   }
 
