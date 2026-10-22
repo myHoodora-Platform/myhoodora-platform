@@ -23,16 +23,22 @@ Two things to hold on to:
 apps/
   web/        Next.js 16 app (marketing, signed-in app, admin)
   api/        NestJS 10 API
-  mobile/     Expo starter. Post-MVP, outside the pnpm workspace
+  mobile/     Expo (React Native) app for iOS and Android
 packages/
-  ui/                  shared React components
+  ui/                  shared React components (web only: DOM, Radix, Tailwind)
+  api-contract/        API types, error wording, form and address rules (web + mobile)
+  design-tokens/       colours, type, spacing as TypeScript (mobile; checked against globals.css)
   eslint-config/       shared ESLint config
   typescript-config/   shared tsconfig bases
 docs/         this documentation
 brand/        brand system (logos, palette)
 ```
 
-pnpm workspace (`apps/*`, `packages/*`, minus `apps/mobile`), orchestrated by Turborepo (`turbo.json`).
+pnpm workspace (`apps/*`, `packages/*`), orchestrated by Turborepo (`turbo.json`).
+
+## Mobile app (`apps/mobile`)
+
+Expo SDK 57 with Expo Router. Like the browser, it calls the API directly with the person's Firebase ID token; it has no session cookie and never calls `/auth/session*`. It uses the web server only for the address lookups (`/api/geocode`, `/api/reverse-geocode`), with the same Bearer token. Routes reuse the web's paths, so a notification's `href` opens the same screen in either app. The API pushes notifications to registered phones through Expo's push service (contract §30). Details: [`mobile/`](./mobile/) and [`apps/mobile/README.md`](../apps/mobile/README.md).
 
 ## Web app (`apps/web`)
 
@@ -90,7 +96,7 @@ Rules the code follows:
 - **Capabilities, not role checks.** `shared/authz/roles.ts` derives what someone can do from their role *and* account state.
 - **Scope comes from the server.** A person's Hood is read from their record, never from the request. Content outside it answers 404.
 - **Multi-document writes use transactions**, so MongoDB must be a replica set.
-- **Ports and adapters for infrastructure:** email (`EmailProvider`), storage (`StorageProvider`), realtime bus (Redis / Mongo change streams / memory), SMS (port only). Swapping a vendor is one adapter.
+- **Ports and adapters for infrastructure:** email (`EmailProvider`), push (`PushProvider`: Expo, or a log for tests), storage (`StorageProvider`), realtime bus (Redis / Mongo change streams / memory), SMS (port only). Swapping a vendor is one adapter.
 - **Side effects after commit.** Emails and notifications are sent once the write has succeeded.
 - **One error shape:** `{ statusCode, message }`.
 - **Long work doesn't hold a request.** Admin broadcasts answer immediately and deliver in batches; each notification has a unique key, so delivery is safe to repeat.

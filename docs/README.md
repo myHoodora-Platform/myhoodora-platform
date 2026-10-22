@@ -19,6 +19,7 @@ This directory is the project's documentation of record. If a README or a commen
 | [implementation-progress.md](./implementation-progress.md) | The audit, item by item: status, what was built, how it was tested |
 | [IMPLEMENTATION_NOTES.md](./IMPLEMENTATION_NOTES.md) | Decisions still needed, where the audit's plan was changed, and problems found along the way |
 | [api-contract.md](./api-contract.md) | Every API route and shape the web app relies on |
+| [mobile/](./mobile/) | The Expo app: Phase 0 audit, architecture decisions (several still proposed), UI and API inventories, dependency baseline |
 | [product/](./product/) | Product research that shaped the design (Nextdoor study) |
 | [archive/](./archive/) | Old plans, audits and worklogs, kept for history. **Not current.** |
 

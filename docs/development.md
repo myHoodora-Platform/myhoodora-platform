@@ -64,4 +64,8 @@ Per app: `pnpm --filter web <script>` and `pnpm --filter @myhoodora/api <script>
 
 ## The mobile app
 
-`apps/mobile` is an Expo starter kept for later (see `roadmap.md`). It is not part of the pnpm workspace. To work on it: `cd apps/mobile && npm install && npx expo start`.
+`apps/mobile` (Expo SDK 57) is part of the workspace: `pnpm install` at the root installs it, and `pnpm lint`, `pnpm check-types` and `pnpm test` include it. How to run it on a phone, and what it needs, is in [`apps/mobile/README.md`](../apps/mobile/README.md). Decisions and inventories: [`mobile/`](./mobile/).
+
+- **Shared code** goes in `packages/api-contract` (API types, error wording, form rules, address rules) or `packages/design-tokens` (colours, type, spacing), never by importing one app from the other. Both apps import them; the web re-exports them from its old paths.
+- **Colours:** change one in `apps/web/src/app/globals.css` and in `packages/design-tokens` together; `apps/web/src/app/design-tokens.test.ts` fails otherwise.
+- **Native dependencies** are added with `npx expo install` from `apps/mobile`, so the version matches the Expo SDK; then `pnpm --filter @myhoodora/mobile doctor`.

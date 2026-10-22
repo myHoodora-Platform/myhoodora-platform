@@ -72,6 +72,7 @@ Only 400/422 `message` strings (and a 429 without `Retry-After`) are shown verba
 | `settings` | ✅ live | `GET/PATCH /users/me/preferences`, `PATCH /users/me` (displayName, bio, photoURL), `GET/POST /users/me/blocks`, `DELETE /users/me/blocks/:uid`, `POST /users/me/deactivate` |
 | `support.threads` | ✅ live | `GET /support/threads`, `GET /support/threads/:id`, `POST /support/threads/:id/messages`, `GET /support/threads/unread-count`; staff `POST /admin/inbox` (§18) |
 | realtime | ✅ live | `GET /realtime/stream` (SSE, §19) |
+| push | ✅ live | `PUT /push/devices`, `DELETE /push/devices/:token` (mobile app, §30) |
 | `users.hoodRequest` | ✅ live | `verify-location` adds `nearbyHoods`; `POST/DELETE /users/me/hood-request`; `Me.requestedHood`; `VerificationCase.requestedHood` (§16) |
 | `media` | ✅ live | `POST /media` (multipart), `DELETE /media/:id` (§20) |
 | `search` | ✅ live | `GET /search?q&type&limit`; `q` on `GET /posts/neighborhood/:id` and `GET /listings` (§21) |
@@ -1031,6 +1032,34 @@ interface RealtimeEvent {
 
 ---
 
+## 31. Email changes, secondary neighbourhoods and move requests (2026-10-22)
+
+### Changing an unconfirmed email: `POST /users/me/email { email }` → `Me`
+- Only while the address is **unconfirmed**, and only for **email-and-password** accounts. A confirmed address (or a Google sign-in, which is confirmed from the start) can't be changed: `409` / `400`.
+- Needs a **sign-in from the last 5 minutes** (the app asks for the password again first): `403 "For your security, enter your password again…"` otherwise.
+- `409` when another account uses the address (ours or Firebase's). The address is trimmed and lower-cased.
+- Firebase (sign-in) and our record change together; if ours fails, Firebase is put back. Every link sent to the old address is **deleted**, and the new address gets a fresh one. Audited as `email_change`. 5 an hour.
+
+### Neighbourhoods: home, secondary, and requests
+- **Home** (`neighborhoodId`) is where a neighbour posts, sells and messages. Since this change **a verified neighbour never moves themselves**: `POST /users/me/verify-location` with a point in another Hood is `409` and points them to a move request (it used to allow one move every 90 days; `HOOD_CHANGE_COOLDOWN_DAYS` is gone).
+- **Secondary Hoods** (`secondaryHoods` on `Me`): up to **2**, any open Hood in any city, added only by staff. They grant **read and alerts only**: the feed, posts and comments of that Hood, its live updates, and its alert notifications. Posting, commenting, reacting, polls, RSVPs, selling and messaging stay at home (they use `hoodId`; reads use `readableHoodIds`).
+
+| Method & path | Who | Notes |
+| --- | --- | --- |
+| `GET /users/me/hoods` | verified neighbour | `{ home, secondary[], requests[] (pending, then the last 5 decided), maxSecondary }` |
+| `POST /users/me/hood-requests` | verified neighbour | `{ kind: "secondary", hoodId, reason }` or `{ kind: "move", address, lat, lng, reason }`. Reason 10–500 chars. Secondary: open Hood, not home, not already followed or asked for, and followed + pending ≤ 2 (`409`). Move: one pending at a time; the server works out which Hood the address is in. `403` unless verified. 10 an hour |
+| `DELETE /users/me/hood-requests/:id` | neighbour | Withdraw a pending request (`404` otherwise) |
+| `DELETE /users/me/secondary-hoods/:hoodId` | neighbour | Stop following one |
+| `GET /admin/hood-requests?status&kind&page` | `verification.review` | Pending oldest first; decided newest first. `address`/`point` only with `neighbours.address` |
+| `POST /admin/hood-requests/:id/approve { hoodId?, note? }` | `verification.review` | Secondary: added (re-checked in the write: never more than 2, never twice, never home). Move: the staff `change_hood` (audited) plus the new address, to `hoodId` if staff chose another Hood. `note` is staff-only |
+| `POST /admin/hood-requests/:id/decline { reason, note? }` | `verification.review` | `reason` is shown to the neighbour |
+| `POST /admin/hood-requests/:id/chat { body }` | `verification.review` | Opens a support conversation about the request (§18) the first time, replies to it after; `threadId` is stored on the request and shown to the neighbour |
+| `POST /admin/neighbours/:uid/secondary-hoods/:hoodId/remove { reason, note? }` | `verification.review` | Takes one away; the neighbour is told why |
+
+- Every decision notifies the neighbour (link: `/settings/neighbourhoods`) and, where access changes, sends `session.changed` so the app reconnects with the right channels. Requests emit `queue.changed` to staff. Audit actions: `hood_request_secondary`, `hood_request_move`, `hood_request_decline`, `secondary_hood_add`, `secondary_hood_remove`, `change_hood`.
+- `GET /admin/neighbours/:uid` adds `secondaryHoods`; the overview's `attention` adds `pendingHoodRequests`.
+- Shared types: `MyHoods`, `HoodRequestView`, `AdminHoodRequest` in `@myhoodora/api-contract/types`; support conversations' types moved to `@myhoodora/api-contract/support`.
+
 ## 12. Post-MVP (not built, not scheduled)
 
 Search and the kindness check moved out of this list: see §21 and §22. These are deferred until after launch (see `docs/roadmap.md`); nothing in the web app or API depends on them.
@@ -1247,7 +1276,7 @@ The web server's own checks follow the same rule: `POST /api/auth/session` answe
 - **A Hood counts only for a verified neighbour.** An account that is unverified, pending or rejected gets 404 (or an empty list) from every Hood-scoped route, whatever `neighborhoodId` is on its record.
 - **`reject_verification` removes the Hood.** The neighbour's `neighborhoodId` is cleared (kept as `lastNeighborhoodId` for staff). `verify` gives one back.
 - **`change_hood` needs a verified neighbour**, otherwise `400 "This neighbour isn't verified yet. Verify them to place them in a Hood."` The admin page only offered it for verified neighbours already.
-- **`POST /users/me/verify-location` can move a verified neighbour to a different Hood once every 90 days** (`HOOD_CHANGE_COOLDOWN_DAYS`). Sooner: `409` with a message naming their Hood, and they stay in it. The attempt is recorded with `result: "mismatch"`. A move that is allowed writes an audit record, action `hood_self_change`.
+- **`POST /users/me/verify-location` never moves a verified neighbour to a different Hood** (changed 2026-10-22, §31; it used to allow one move every 90 days). It answers `409` with a message naming their Hood and pointing to a move request, and they stay where they are. The attempt is recorded with `result: "mismatch"`.
 - **`GET /neighborhoods`, `/neighborhoods/nearby`, `/neighborhoods/:id`** return the full record (centre, radius) only to staff and to a Hood's own verified members. Everyone else gets `{ _id, name, city, country }`. **Breaking** for a client that drew other Hoods' circles; the web never did.
 - `HOOD_ACCESS_STRICT=false` turns all five off (a temporary rollback switch).
 
@@ -1284,6 +1313,8 @@ See §10. `author` / `seller` / `participants[]` cards for someone who has deact
 
 ### Web server lookup routes (B14)
 `/api/geocode`, `/api/reverse-geocode` and `/api/ip-location` need a valid session cookie (`401` without), allow 20 calls a minute per person (`429` with `Retry-After`), and answer `504` when the third party is too slow.
+
+**Mobile (2026-10-20):** they also accept `Authorization: Bearer <Firebase ID token>`, which is how the mobile app calls them (it has no cookie). The token is checked locally, as the cookie is, and both count against the same per-person allowance. A Bearer header takes precedence over a cookie.
 
 ### Staff actions (B19, B21, B22, B24)
 - A group whose last member leaves is archived.
@@ -1375,3 +1406,24 @@ With that rule, every Hood keeps its own centre and the ground around it.
 - **Location first.** `/onboarding` asks for the device's GPS location on arrival (high accuracy), unless there's already an address from a draft or an earlier attempt. The address found there fills the fields, which stay editable; editing them keeps the GPS pin ("Find the address above instead" looks up the typed address instead, for someone not at home). There is no network (IP) fallback any more: `/api/ip-location` is no longer used by onboarding.
 - **Street, area and city, all required.** `GET /api/geocode?street&area&city` (each up to 100 characters; `400` without all three) returns `{ lat, lng, precision }`. A street counts only within 3 km of the area's middle; otherwise `precision: "area"` and the pin is the area's middle, which the neighbour must move onto their home before going on. `404` when neither the address nor the area is found. `GET /api/reverse-geocode` now returns `{ address, parts: { street, area, city } }`.
 - **Confirm on the map.** The pin can be dragged, or the map tapped to move it. Each time it settles, the page asks the preview and shows the Hood ("This pin is in Bodija"), and the button reads "Yes, join Bodija". It passes that Hood as `neighborhoodId`; a `409` brings them back to the map with the message.
+
+## 30. Push to the mobile app (2026-10-20)
+
+The mobile app (`apps/mobile`) registers each phone for push. Every notification already goes through `NotificationsService.notify()` (and `notifyBulk()` for broadcasts); both now also push, after the notification is stored.
+
+### Endpoints (signed in; open to suspended accounts, whose notices are notifications too)
+| Request | Response |
+| --- | --- |
+| `PUT /push/devices` `{ token, platform: "ios" \| "android" }` | `204`. Idempotent: the app calls it on each launch. The token moves to the caller if another account had it (a shared phone). At most 10 phones per person; the one unused longest is dropped. `400` for a token the push provider can't use (Expo: `ExponentPushToken[…]`). 10 a minute |
+| `DELETE /push/devices/:token` (URL-encoded) | `204`. Logout on this phone. Removes it only if it is the caller's; otherwise does nothing |
+
+`POST /auth/logout-everywhere` also removes every phone. Account deletion removes them (`AccountLifecycle`, counted as `pushDevices` in the dry run).
+
+### What is pushed
+- **Who:** the recipients `notify()` already chose (not the actor, not people who blocked them, no deactivated accounts).
+- **Preferences:** a notification with a `category` is pushed only if the person's `preferences.notifications[category].push` is on, using the defaults (contract §10) when they never changed it. Urgent alerts can't be turned off (§10). Notifications without a category (account and safety notices) and broadcasts are always pushed.
+- **Payload:** `title` and `body` as stored; `data: { href, type, kind?, subjectId? }`. `href` is the web route (`/p/<id>`); the app opens the same path, or its notifications list for a screen it doesn't have yet.
+- **Delivery:** in the background, never holding up the request. A failure is logged and dropped (the notification is already in the app). Tokens the provider reports as unregistered (`DeviceNotRegistered`) are deleted.
+
+### Provider
+`PUSH_PROVIDER` picks the adapter, like `EMAIL_PROVIDER`: `expo` (default, Expo's push service, which reaches both FCM and APNs with the credentials stored in the app's EAS project) or `log` (tests). `EXPO_ACCESS_TOKEN` is only needed when "enhanced push security" is on for the Expo project. Only push tickets are read; receipts are not fetched yet.

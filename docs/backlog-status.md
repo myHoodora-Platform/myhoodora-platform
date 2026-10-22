@@ -40,7 +40,8 @@ _As of 2 October 2026. Each line was checked against the code or by running it; 
 
 | Item | Status | Detail |
 | --- | --- | --- |
-| Mobile app | ⏳ | Removed from the pnpm workspace, CI, and the README's product description. The Expo project is kept in `apps/mobile` |
+| Mobile app | 🟡 foundation | In the workspace and CI (lint, types, tests, iOS/Android bundle). Sign-in, onboarding, Hood feed (read), notifications and push are built and tested in code; not yet run on a phone (no dev build made). See `docs/mobile/` |
+| Push notifications | ✅ API · 🟡 device | `PUT/DELETE /push/devices`, every notification pushed per preference (`push.e2e-spec`). Needs FCM and APNs credentials in the EAS project before a phone receives one (`apps/mobile/README.md`) |
 | Apple sign-in | ⏳ | Removed from the UI; one flag (`APPLE_SIGN_IN_ENABLED`) restores it. Not enabled in Firebase |
 | Google sign-in: button | ✅ wired · 🟡 click-test | Enabled in Firebase (confirmed with Firebase's API). Browser test: opens Google's window; cancelling is silent. Completing a sign-in needs a real Google account |
 | Google One Tap on the landing, login and register pages | ✅ wired · 🟡 console + click-test | Uses Google Identity Services with FedCM; loads within the content policy; never shown to signed-in users. Needs `NEXT_PUBLIC_GOOGLE_CLIENT_ID` and the site's origin under the OAuth client's Authorised JavaScript origins |
@@ -67,7 +68,7 @@ _As of 2 October 2026. Each line was checked against the code or by running it; 
 | `users.service.ts` TODO | ✅ removed | Obsolete: "join the nearest Hood when none matches" is the hood-request feature (contract §16), already built |
 | Roadmap and current state | ✅ | `roadmap.md`, `current-state.md` |
 | Dead files, unused UI, `JWT_*` | ✅ | Removed after a repository-wide reference check: `lib/firebase.ts`, `confirm-overlay.tsx`, `lib/coming-soon.ts`, six unused UI components and two Radix dependencies, `JWT_SECRET` / `JWT_EXPIRES_IN` |
-| Mobile package manager / TypeScript | ⏳ | Resolved by taking mobile out of the workspace: it no longer affects installs. Align it when mobile work starts |
+| Mobile package manager / TypeScript | ✅ | Mobile is in the pnpm workspace (its `package-lock.json` removed). It keeps TypeScript 6.0 (the Expo SDK 57 template); the rest of the repository is on 5.9 |
 
 ## Known issues left open
 
