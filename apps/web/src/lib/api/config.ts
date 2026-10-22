@@ -67,6 +67,7 @@ export const ENDPOINTS = {
   "admin.businesses": "live",
   "admin.marketplace": "live",
   "admin.groups": "live",
+  "admin.hoodRequests": "live",
   "admin.signups": "live",
   "admin.inbox": "live",
   "admin.broadcasts": "live",

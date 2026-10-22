@@ -3,11 +3,14 @@ import {
   BarChart3,
   Building2,
   FileText,
+  Flag,
   History,
   Inbox,
   LayoutDashboard,
   MapPin,
+  MapPinned,
   Megaphone,
+  Scale,
   ShoppingBag,
   Siren,
   SlidersHorizontal,
@@ -15,8 +18,6 @@ import {
   UserCog,
   Users,
   UsersRound,
-  Flag,
-  Scale,
 } from "lucide-react";
 import type { AdminOverview, Capability } from "@/lib/api/admin/types";
 
@@ -37,12 +38,26 @@ export interface AdminNavSection {
 
 /** Information architecture — docs/archive/2026-09-29-admin-target-architecture.md §3. */
 export const ADMIN_NAV: AdminNavSection[] = [
-  { label: "", items: [{ title: "Overview", href: "/admin", icon: LayoutDashboard }] },
+  {
+    label: "",
+    items: [{ title: "Overview", href: "/admin", icon: LayoutDashboard }],
+  },
   {
     label: "Moderation",
     items: [
-      { title: "Queue", href: "/admin/moderation", icon: Flag, badge: "openReports" },
-      { title: "Appeals", href: "/admin/moderation/appeals", icon: Scale, badge: "openAppeals", capability: "moderation.act" },
+      {
+        title: "Queue",
+        href: "/admin/moderation",
+        icon: Flag,
+        badge: "openReports",
+      },
+      {
+        title: "Appeals",
+        href: "/admin/moderation/appeals",
+        icon: Scale,
+        badge: "openAppeals",
+        capability: "moderation.act",
+      },
       { title: "History", href: "/admin/moderation/history", icon: History },
     ],
   },
@@ -51,35 +66,83 @@ export const ADMIN_NAV: AdminNavSection[] = [
     items: [
       { title: "Hoods", href: "/admin/hoods", icon: MapPin },
       { title: "Neighbours", href: "/admin/neighbours", icon: Users },
-      { title: "Verification", href: "/admin/verification", icon: UserCheck, badge: "pendingVerifications" },
+      {
+        title: "Verification",
+        href: "/admin/verification",
+        icon: UserCheck,
+        badge: "pendingVerifications",
+      },
+      {
+        title: "Neighbourhood requests",
+        href: "/admin/hood-requests",
+        icon: MapPinned,
+        badge: "pendingHoodRequests",
+        capability: "verification.review",
+      },
     ],
   },
   {
     label: "Content",
     items: [
       { title: "Posts", href: "/admin/posts", icon: FileText },
-      { title: "Safety alerts", href: "/admin/alerts", icon: Siren, badge: "liveUrgentAlerts" },
+      {
+        title: "Safety alerts",
+        href: "/admin/alerts",
+        icon: Siren,
+        badge: "liveUrgentAlerts",
+      },
       { title: "Groups", href: "/admin/groups", icon: UsersRound },
       { title: "Marketplace", href: "/admin/marketplace", icon: ShoppingBag },
     ],
   },
   {
     label: "Businesses",
-    items: [{ title: "Businesses", href: "/admin/businesses", icon: Building2, badge: "businessApplications", capability: "businesses.review" }],
+    items: [
+      {
+        title: "Businesses",
+        href: "/admin/businesses",
+        icon: Building2,
+        badge: "businessApplications",
+        capability: "businesses.review",
+      },
+    ],
   },
   {
     label: "Support",
     items: [
-      { title: "Inbox", href: "/admin/inbox", icon: Inbox, badge: "unansweredInbox" },
-      { title: "Broadcasts", href: "/admin/broadcasts", icon: Megaphone, capability: "broadcasts.send" },
+      {
+        title: "Inbox",
+        href: "/admin/inbox",
+        icon: Inbox,
+        badge: "unansweredInbox",
+      },
+      {
+        title: "Broadcasts",
+        href: "/admin/broadcasts",
+        icon: Megaphone,
+        capability: "broadcasts.send",
+      },
     ],
   },
-  { label: "Insights", items: [{ title: "Insights", href: "/admin/insights", icon: BarChart3 }] },
+  {
+    label: "Insights",
+    items: [{ title: "Insights", href: "/admin/insights", icon: BarChart3 }],
+  },
   {
     label: "Settings",
     items: [
-      { title: "Team & roles", href: "/admin/settings/team", icon: UserCog, capability: "team.manage" },
-      { title: "Platform", href: "/admin/settings/platform", icon: SlidersHorizontal, capability: "settings.manage" },
+      {
+        title: "Team & roles",
+        href: "/admin/settings/team",
+        icon: UserCog,
+        capability: "team.manage",
+      },
+      {
+        title: "Platform",
+        href: "/admin/settings/platform",
+        icon: SlidersHorizontal,
+        capability: "settings.manage",
+      },
     ],
   },
 ];
@@ -91,7 +154,7 @@ export const ADMIN_NAV: AdminNavSection[] = [
 export function isNavItemActive(pathname: string, href: string): boolean {
   if (pathname === href) return true;
   if (href === "/admin") return false;
-  if (href === "/admin/moderation") return pathname.startsWith("/admin/moderation/reports");
+  if (href === "/admin/moderation")
+    return pathname.startsWith("/admin/moderation/reports");
   return pathname.startsWith(`${href}/`);
 }
-

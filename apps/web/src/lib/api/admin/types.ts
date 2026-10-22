@@ -177,6 +177,8 @@ export interface VerificationAttempt {
 
 export interface NeighbourDetail extends AdminNeighbour {
   location?: { address: string; lat: number; lng: number };
+  /** Neighbourhoods they read and hear alerts from besides home (contract §31). */
+  secondaryHoods?: { id: string; name: string; city?: string; since: string }[];
   verificationAttempts: VerificationAttempt[];
   timeline: AuditEvent[];
 }
@@ -385,6 +387,8 @@ export interface AdminOverview {
     liveUrgentAlerts: number;
     /** Appeals waiting for a reviewer. */
     openAppeals?: number;
+    /** Requests to follow another neighbourhood or to move, waiting for staff (contract §31). */
+    pendingHoodRequests?: number;
   };
   pulse: { newNeighbours: Trend; posts: Trend; activeHoods: Trend; medianResolveHours: Trend };
   recentActions: AuditEvent[];
