@@ -41,3 +41,9 @@ example
 # generated native folders
 /ios
 /android
+
+# Local env (only .env.example is tracked)
+.env
+
+# Intermediate captures; the app uses the resized assets/screens/*.webp
+assets/screens/raw/
