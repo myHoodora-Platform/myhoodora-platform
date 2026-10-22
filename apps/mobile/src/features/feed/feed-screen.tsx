@@ -1,0 +1,231 @@
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useRouter } from "expo-router";
+import { ArrowUp, Bell, ChevronDown, Hourglass, MapPin, MessageCircle } from "lucide-react-native";
+import { useCallback, useRef, useState } from "react";
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
+import type { ApiPost } from "@myhoodora/api-contract/types";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAuth, useSignedInUser } from "@/core/auth/auth-provider";
+import { hasHood } from "@/core/auth/session-phase";
+import { tint, useTheme } from "@/shared/theme/theme";
+import { Avatar } from "@/shared/ui/avatar";
+import { InlineAlert } from "@/shared/ui/inline-alert";
+import { FixedHeader, useHeaderEstimate } from "@/shared/ui/fixed-header";
+import { useTabBarSpace } from "@/shared/ui/floating-tab-bar";
+import { HoodMapBadge } from "@/shared/ui/hood-map-badge";
+import { Button } from "@/shared/ui/button";
+import { Chip } from "@/shared/ui/chip";
+import { IconButton } from "@/shared/ui/icon-button";
+import { FeedSkeleton } from "@/shared/ui/skeleton";
+import { EmptyState, ErrorState } from "@/shared/ui/states";
+import { Text } from "@/shared/ui/text";
+import { useUnreadMessages } from "@/features/chat/use-unread-messages";
+import { useUnreadCount } from "@/features/notifications";
+import { liveStore, useLive } from "@/features/live/live-store";
+import { underHeader, usePullRefresh } from "@/shared/hooks/use-pull-refresh";
+import { FeedBanner } from "./feed-banners";
+import { HoodSheet } from "./hood-sheet";
+import { FEED_FILTERS, feedKeys, getHood, listFeed, nextCursor, type FeedFilter } from "./feed-api";
+import { PostCard } from "./post-card";
+
+/**
+ * The fixed header: your neighbourhood (a tiny map, tap for details and invites) on the left;
+ * notifications, messages and you on the right, each with its count.
+ */
+function TopBar({ hood, updating = false, viewing, onView }: { hood?: { name: string; city?: string }; updating?: boolean; viewing?: string | null; onView?: (id: string | null) => void }) {
+  const t = useTheme();
+  const router = useRouter();
+  const { profile } = useAuth();
+  const notifications = useUnreadCount();
+  const messages = useUnreadMessages();
+  const [open, setOpen] = useState(false);
+  return (
+    <View style={styles.topBar}>
+      <Pressable
+        onPress={() => setOpen(true)}
+        accessibilityRole="button"
+        accessibilityLabel={`${hood?.name ?? "Your neighbourhood"}. Neighbourhood details`}
+        hitSlop={6}
+        style={({ pressed }) => [styles.hood, { opacity: pressed ? 0.7 : 1 }]}
+      >
+        <HoodMapBadge size={36} />
+        <Text variant="label" style={styles.hoodName} numberOfLines={1}>
+          {hood?.name ?? "Your neighbourhood"}
+        </Text>
+        {updating ? <ActivityIndicator size="small" color={t.colors.mutedForeground} accessibilityLabel="Updating" /> : <ChevronDown size={16} color={t.colors.mutedForeground} />}
+      </Pressable>
+      <View style={styles.actions}>
+        <IconButton Icon={Bell} label="Notifications" badge={notifications} onPress={() => router.push("/notifications")} />
+        <IconButton Icon={MessageCircle} label="Messages" badge={messages} onPress={() => router.push("/inbox")} />
+        <Pressable onPress={() => router.push("/more")} accessibilityRole="button" accessibilityLabel="Your profile and settings" hitSlop={6} style={[styles.avatarRing, { borderColor: t.colors.border }]}>
+          <Avatar name={profile?.displayName} photoURL={profile?.photoURL} size={32} />
+        </Pressable>
+      </View>
+      <HoodSheet visible={open} onClose={() => setOpen(false)} viewing={viewing ?? null} onView={(id) => onView?.(id)} />
+    </View>
+  );
+}
+
+/** Onboarded, but not in a Hood yet: skipped, or waiting for staff to approve a request. */
+function NotInHoodYet() {
+  const t = useTheme();
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { profile } = useAuth();
+  const pending = profile?.verificationStatus === "pending_review";
+  return (
+    <ScrollView contentContainerStyle={[styles.padded, { paddingTop: insets.top + 8 }]} style={{ backgroundColor: t.colors.canvas }}>
+      <TopBar />
+      <View style={[styles.joinCard, { backgroundColor: t.colors.card }]}>
+        <View style={[styles.joinIcon, { backgroundColor: tint(t.colors.primary) }]}>{pending ? <Hourglass size={26} color={t.colors.primary} /> : <MapPin size={26} color={t.colors.primary} />}</View>
+        <Text variant="title" style={styles.centred}>
+          {pending ? `Waiting to join ${profile?.requestedHood?.name ?? "your neighbourhood"}` : "Finish joining your neighbourhood"}
+        </Text>
+        <Text tone="muted" style={styles.centred}>
+          {pending
+            ? "Our team is reviewing your request. We'll send you a notification when you're in."
+            : "Confirm where you live to see alerts, recommendations and posts from verified neighbours."}
+        </Text>
+        {!pending ? <Button label="Confirm my address" onPress={() => router.push("/onboarding")} /> : null}
+      </View>
+    </ScrollView>
+  );
+}
+
+export function FeedScreen() {
+  const t = useTheme();
+  const user = useSignedInUser();
+  const { profile } = useAuth();
+  const router = useRouter();
+  const [filter, setFilter] = useState<FeedFilter>("all");
+  const homeId = hasHood(profile) ? profile.neighborhoodId : null;
+  // Home, or a neighbourhood they follow (read only, contract §31). Falls back home if it was removed.
+  const [viewing, setViewing] = useState<string | null>(null);
+  const followed = profile?.secondaryHoods ?? [];
+  const hoodId = viewing && followed.some((h) => h.id === viewing) ? viewing : homeId;
+  const away = !!hoodId && hoodId !== homeId;
+  const category = FEED_FILTERS.find((f) => f.id === filter)?.category;
+
+  const hood = useQuery({ queryKey: feedKeys.hoodName(hoodId ?? ""), queryFn: () => getHood(user, hoodId!), enabled: !!hoodId, staleTime: Infinity });
+  const feed = useInfiniteQuery({
+    queryKey: feedKeys.hood(hoodId ?? "", filter),
+    queryFn: ({ pageParam }) => listFeed(user, hoodId!, pageParam, category),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: nextCursor,
+    enabled: !!hoodId,
+  });
+
+  const renderItem = useCallback(({ item }: { item: ApiPost }) => <PostCard post={item} />, []);
+  const [headerHeight, setHeaderHeight] = useState(useHeaderEstimate());
+  const pull = usePullRefresh(feed.refetch);
+  const list = useRef<FlatList<ApiPost>>(null);
+  const { newPosts } = useLive();
+  // "N new posts": load them and go to the top only when asked, so reading is never interrupted.
+  const showNew = () => {
+    liveStore.clearNewPosts();
+    list.current?.scrollToOffset({ offset: 0, animated: true });
+    void feed.refetch();
+  };
+  const bottomSpace = useTabBarSpace();
+
+  if (!hoodId) return <NotInHoodYet />;
+
+  const posts = feed.data?.pages.flat() ?? [];
+  const { padTop, padBottom, progressViewOffset, ...scroll } = underHeader(headerHeight, bottomSpace);
+  // Refreshing in the background (not a pull): a small spinner in the header, nothing moves.
+  const quietlyRefreshing = feed.isRefetching && !pull.refreshing && !feed.isFetchingNextPage;
+  const label = FEED_FILTERS.find((f) => f.id === filter)?.label.toLowerCase();
+  const header = (
+    <View style={styles.header}>
+      <Text style={[styles.title, { color: t.colors.foreground, fontFamily: t.fonts.bold }]}>{away ? `Today in ${hood.data?.name ?? "this neighbourhood"}` : "Today in your neighbourhood"}</Text>
+      {away ? (
+        <InlineAlert tone="info" action={<Text variant="label" tone="primary" onPress={() => setViewing(null)} accessibilityRole="button">Back to my neighbourhood</Text>}>
+          You follow this neighbourhood: you can read it and hear its alerts. You post and sell in your home neighbourhood.
+        </InlineAlert>
+      ) : null}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} style={styles.chipsRow}>
+        {FEED_FILTERS.map((f) => (
+          <Chip key={f.id} label={f.label} selected={f.id === filter} onPress={() => setFilter(f.id)} />
+        ))}
+      </ScrollView>
+      {away ? null : <FeedBanner hoodName={hood.data?.name} />}
+    </View>
+  );
+
+  return (
+    <View style={[styles.flex, { backgroundColor: t.colors.canvas }]}>
+    <FlatList
+      ref={list}
+      {...scroll}
+      contentContainerStyle={[styles.list, { paddingTop: padTop + 12, paddingBottom: padBottom + 12 }]}
+      data={feed.isPending || (feed.isError && !feed.data) ? [] : posts}
+      keyExtractor={(p) => p._id}
+      renderItem={renderItem}
+      ListHeaderComponent={header}
+      ListEmptyComponent={
+        feed.isPending ? (
+          <FeedSkeleton label="Loading your neighbourhood feed" />
+        ) : feed.isError ? (
+          <ErrorState error={feed.error} onRetry={() => void feed.refetch()} />
+        ) : filter === "all" ? (
+          <EmptyState title="It's quiet here" body="Nothing has been posted in your neighbourhood yet. Start the conversation." action={{ label: "Write a post", onPress: () => router.push("/compose") }} />
+        ) : (
+          <EmptyState title={`No ${label} yet`} body="Nothing like this has been posted in your neighbourhood yet." action={{ label: "Show everything", onPress: () => setFilter("all") }} />
+        )
+      }
+      ListFooterComponent={
+        feed.isFetchingNextPage ? (
+          <ActivityIndicator style={styles.footer} color={t.colors.primary} accessibilityLabel="Loading more posts" />
+        ) : feed.isFetchNextPageError ? (
+          <ErrorState error={feed.error} onRetry={() => void feed.fetchNextPage()} title="Couldn't load more" />
+        ) : posts.length > 0 && !feed.hasNextPage ? (
+          <Text variant="caption" tone="muted" style={[styles.centred, styles.footer]}>
+            You&apos;re all caught up.
+          </Text>
+        ) : null
+      }
+      onEndReached={() => feed.hasNextPage && !feed.isFetchingNextPage && !feed.isFetchNextPageError && void feed.fetchNextPage()}
+      onEndReachedThreshold={0.5}
+      refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={() => void pull.onRefresh()} tintColor={t.colors.primary} colors={[t.colors.primary]} progressViewOffset={progressViewOffset} />}
+      removeClippedSubviews
+      windowSize={7}
+    />
+    {newPosts > 0 ? (
+      <Pressable
+        onPress={showNew}
+        accessibilityRole="button"
+        accessibilityLiveRegion="polite"
+        style={[styles.newPosts, { top: headerHeight + 10, backgroundColor: t.colors.primary }]}
+      >
+        <ArrowUp size={16} color={t.colors.primaryForeground} />
+        <Text variant="label" style={{ color: t.colors.primaryForeground }}>
+          {newPosts === 1 ? "1 new post" : `${newPosts} new posts`}
+        </Text>
+      </Pressable>
+    ) : null}
+    <FixedHeader onHeight={setHeaderHeight}>
+      <TopBar hood={hood.data ? { name: hood.data.name, city: hood.data.city } : undefined} updating={quietlyRefreshing} viewing={hoodId} onView={setViewing} />
+    </FixedHeader>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  list: { padding: 16, gap: 14, flexGrow: 1 },
+  header: { gap: 14, marginBottom: 2 },
+  topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  flex: { flex: 1 },
+  newPosts: { position: "absolute", alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 9, borderRadius: 999, shadowColor: "#000", shadowOpacity: 0.18, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 6 },
+  hood: { flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 1, minHeight: 44 },
+  hoodName: { fontSize: 16, flexShrink: 1 },
+  actions: { flexDirection: "row", alignItems: "center", gap: 2 },
+  avatarRing: { borderRadius: 22, borderWidth: 2, padding: 2, marginLeft: 4 },
+  title: { fontSize: 24, lineHeight: 30 },
+  chipsRow: { marginHorizontal: -16 },
+  chips: { gap: 8, paddingHorizontal: 16 },
+  padded: { padding: 16, gap: 16, flexGrow: 1 },
+  joinCard: { borderRadius: 24, padding: 24, gap: 12, alignItems: "stretch" },
+  joinIcon: { width: 64, height: 64, borderRadius: 32, alignItems: "center", justifyContent: "center", alignSelf: "center" },
+  centred: { textAlign: "center" },
+  footer: { paddingVertical: 20 },
+});
