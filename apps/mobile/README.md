@@ -52,6 +52,15 @@ Before pushes reach real phones, once per Expo project:
 2. **iOS:** let EAS create an APNs key for `com.myhoodora.app` (`npx eas-cli credentials` → iOS → Push Notifications). Needs the Apple Developer account.
 3. If "enhanced push security" is turned on for the Expo project, create an access token and set it as `EXPO_ACCESS_TOKEN` on the API.
 
+## Crash reporting (Sentry)
+
+`src/core/monitoring/`: on in **preview** and **production** builds that have `EXPO_PUBLIC_SENTRY_DSN`; off in development, where `reportError()` logs to the console instead. Use `reportError(error, "<feature>")` for failures the team should hear about; don't add `console.warn`.
+
+- **Privacy:** every event and breadcrumb goes through `scrub.ts`: no request bodies, headers or query strings; emails, phone numbers, tokens (Bearer, JWT, Expo push) redacted; values under keys like `message`, `content`, `address`, `email` filtered; tapped components keep their name but not their label; the device's name is removed. The user is the Firebase uid only. No screenshots, view hierarchy or session replay. Tests: `src/core/monitoring/__tests__/scrub.test.ts`.
+- **Crash screen:** a render error anywhere shows "Something went wrong / Restart" (`shared/ui/crash-screen.tsx`, via `Sentry.ErrorBoundary` in `app/_layout.tsx`) instead of a white screen.
+- **Tags:** `environment` (development/preview/production), `app_version`, `build_number`; Sentry's release is `com.myhoodora.app@<version>+<build>`. Once `expo-updates` is installed, Sentry adds the update ID by itself (`ota_updates` context).
+- **Readable stack traces:** EAS builds upload source maps and debug symbols through the config plugin when the EAS environment has `SENTRY_ORG`, `SENTRY_PROJECT` (plain) and `SENTRY_AUTH_TOKEN` (**secret**). After `eas update`, upload that update's maps: `npx sentry-expo-upload-sourcemaps dist` (same three variables). Local `pnpm … ios|android` builds skip uploads.
+
 ## Builds and releases
 
 `eas.json` has three profiles, each with its own channel and EAS environment: `development` (dev client, internal), `preview` (internal testing), `production` (store). Set the `EXPO_PUBLIC_*` values per environment with `eas env:create`. `runtimeVersion` follows the app version, so an over-the-air update never reaches a binary with different native code; anything that changes native code (a new native package, `app.config.ts` plugins, permissions) needs a new build. Store submission and production updates are a release decision, not something CI does.

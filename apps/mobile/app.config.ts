@@ -20,6 +20,21 @@ const googleSignInPlugin: [string, { iosUrlScheme: string }][] = googleIosClient
   ? [["@react-native-google-signin/google-signin", { iosUrlScheme: `com.googleusercontent.apps.${googleIosClientId.replace(/\.apps\.googleusercontent\.com$/, "")}` }]]
   : [];
 
+/**
+ * Crash reporting: links Sentry's native SDKs and uploads source maps and debug symbols from EAS
+ * builds, so stack traces are readable. Org and project are build variables (SENTRY_ORG,
+ * SENTRY_PROJECT); the auth token is the EAS secret SENTRY_AUTH_TOKEN, never written here.
+ * Local builds skip the upload (package.json sets SENTRY_DISABLE_AUTO_UPLOAD).
+ */
+const sentryPlugin: [string, Record<string, string>] = [
+  "@sentry/react-native/expo",
+  {
+    url: process.env.SENTRY_URL?.trim() || "https://sentry.io/",
+    ...(process.env.SENTRY_ORG?.trim() && { organization: process.env.SENTRY_ORG.trim() }),
+    ...(process.env.SENTRY_PROJECT?.trim() && { project: process.env.SENTRY_PROJECT.trim() }),
+  },
+];
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "myHoodora",
@@ -69,6 +84,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     ...googleSignInPlugin,
+    sentryPlugin,
   ],
   experiments: {
     typedRoutes: true,

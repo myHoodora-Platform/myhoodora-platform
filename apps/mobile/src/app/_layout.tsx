@@ -1,4 +1,5 @@
 import { Outfit_400Regular, Outfit_600SemiBold, Outfit_700Bold, useFonts } from "@expo-google-fonts/outfit";
+import * as Sentry from "@sentry/react-native";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -9,11 +10,16 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { createQueryClient, wireQueryEnvironment } from "@/core/api/query-client";
 import { AuthProvider, useAuth } from "@/core/auth/auth-provider";
 import { configResult } from "@/core/config/env";
+import { initMonitoring, monitoringActive } from "@/core/monitoring/monitoring";
 import { AppearanceProvider } from "@/core/preferences/appearance";
 import { usePushNotifications } from "@/core/push/use-push-notifications";
 import { useTheme } from "@/shared/theme/theme";
+import { CrashScreen } from "@/shared/ui/crash-screen";
 import { Text } from "@/shared/ui/text";
 import { ToastProvider } from "@/shared/ui/toast";
+
+// First, so a crash anywhere after this is reported (only in preview and production with a DSN).
+if (configResult.ok) initMonitoring(configResult.config);
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -73,7 +79,24 @@ function ConfigProblem({ problems }: { problems: string[] }) {
   );
 }
 
-export default function RootLayout() {
+/** A render error anywhere below: the crash screen (reported to Sentry by the boundary), never a white screen. */
+function CrashFallback({ resetError }: { resetError: () => void }) {
+  useEffect(() => void SplashScreen.hideAsync(), []);
+  return <CrashScreen onRestart={resetError} />;
+}
+
+function RootLayout() {
+  return (
+    <Sentry.ErrorBoundary fallback={({ resetError }) => <CrashFallback resetError={resetError} />}>
+      <App />
+    </Sentry.ErrorBoundary>
+  );
+}
+
+// Sentry's wrapper (touch breadcrumbs, app-start timing) only when reporting is on; it warns otherwise.
+export default monitoringActive() ? Sentry.wrap(RootLayout) : RootLayout;
+
+function App() {
   const [queryClient] = useState(createQueryClient);
   useEffect(() => wireQueryEnvironment(), []);
   const [fontsLoaded, fontError] = useFonts({ Outfit_400Regular, Outfit_600SemiBold, Outfit_700Bold });

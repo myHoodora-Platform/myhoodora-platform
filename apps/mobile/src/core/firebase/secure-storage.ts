@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
+import { reportError } from "@/core/monitoring/monitoring";
 
 /**
  * Where Firebase keeps the signed-in session (its long-lived refresh token): the Keychain on iOS,
@@ -27,7 +28,8 @@ export const secureStorage = {
       await SecureStore.setItemAsync(secureKey(key), value);
       await AsyncStorage.removeItem(FALLBACK_PREFIX + key);
     } catch (err) {
-      console.warn(`Secure storage refused a value (${(err as Error).message}); keeping it in app storage instead.`);
+      // The error only, never the key's value (it is the session).
+      reportError(err, "secure-storage");
       await AsyncStorage.setItem(FALLBACK_PREFIX + key, value);
     }
   },

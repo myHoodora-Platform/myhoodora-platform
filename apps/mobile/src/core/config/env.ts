@@ -14,6 +14,8 @@ const schema = z.object({
   webUrl: z.string().url().transform((u) => u.replace(/\/$/, "")),
   /** Google sign-in: optional, the button explains when it isn't set up. Public OAuth client IDs. */
   google: z.object({ webClientId: z.string().optional(), iosClientId: z.string().optional() }),
+  /** Crash reporting (Sentry). Its DSN is a public key by design. Unset: reporting is off. */
+  sentryDsn: z.string().url().optional(),
   firebase: z.object({
     apiKey: z.string().min(1),
     authDomain: z.string().min(1),
@@ -32,6 +34,7 @@ export function parseConfig(raw: Record<string, string | undefined>): ConfigResu
     apiUrl: raw.EXPO_PUBLIC_API_URL,
     webUrl: raw.EXPO_PUBLIC_WEB_URL,
     google: { webClientId: raw.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || undefined, iosClientId: raw.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || undefined },
+    sentryDsn: raw.EXPO_PUBLIC_SENTRY_DSN || undefined,
     firebase: {
       apiKey: raw.EXPO_PUBLIC_FIREBASE_API_KEY,
       authDomain: raw.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -53,6 +56,7 @@ export const configResult = parseConfig({
   EXPO_PUBLIC_FIREBASE_APP_ID: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
   EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
   EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+  EXPO_PUBLIC_SENTRY_DSN: process.env.EXPO_PUBLIC_SENTRY_DSN,
 });
 
 /** The validated config. Only read after the root layout has checked `configResult.ok`. */

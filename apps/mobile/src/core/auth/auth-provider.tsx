@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { apiFetch, setUnauthorizedHandler } from "@/core/api/client";
 import { firebaseAuth } from "@/core/firebase/auth";
+import { setMonitoringUser } from "@/core/monitoring/monitoring";
 import { hasSeenIntro, markIntroSeen, resetIntro } from "@/core/intro/intro-flag";
 import { noteFirstRunEligibility } from "@/core/onboarding/first-run";
 import { clearDraft, hasSkippedOnboarding, markOnboardingSkipped } from "@/core/onboarding/onboarding-store";
@@ -94,6 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     return onAuthStateChanged(firebaseAuth(), (next) => {
       currentUid.current = next?.uid ?? null;
+      setMonitoringUser(next?.uid ?? null);
       setUser(next);
       setProfile(null);
       setProfileError(null);
