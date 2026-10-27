@@ -3,7 +3,7 @@ import { ApiError, apiFetch, apiUpload } from "./client";
 import { isLive } from "./config";
 
 /** Where an upload will be used; the API picks the folder and allowed types from it. */
-export type MediaPurpose = "post" | "listing" | "group" | "avatar";
+export type MediaPurpose = "post" | "listing" | "group" | "avatar" | "ad";
 
 export interface UploadedMedia {
   id: string;
@@ -80,7 +80,7 @@ export async function uploadMedia(
   onProgress?: (fraction: number) => void,
 ): Promise<UploadedMedia> {
   const video = isVideoFile(file);
-  const problem = video ? (purpose === "post" ? null : "Only photos can be added here.") : checkPhoto(file);
+  const problem = video ? (purpose === "post" || purpose === "ad" ? null : "Only photos can be added here.") : checkPhoto(file);
   if (problem) throw new ApiError(problem, 400, "client");
   if (!isLive("media")) {
     // Mock mode: a local preview URL for this tab only.

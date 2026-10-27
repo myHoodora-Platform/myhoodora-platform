@@ -33,6 +33,8 @@ export type Capability =
   | "broadcasts.send"
   | "team.manage"
   | "settings.manage"
+  /** Sponsored items in the feed. */
+  | "ads.manage"
   /** Owner only: grant or revoke admin/owner. */
   | "team.manage.admins";
 
