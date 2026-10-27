@@ -7,7 +7,7 @@ import { useRouter } from "@/core/navigation/use-router";
 import { useTheme } from "@/shared/theme/theme";
 import { ProfilePreview } from "@/features/profile/profile-preview";
 import { useOpenProfile } from "@/features/profile/use-open-profile";
-import { feedKeys, listComments } from "./feed-api";
+import { feedKeys, listThread, nextOffset } from "./feed-api";
 import { MediaGrid } from "./media-grid";
 import { CategoryBadge, isUrgent, PostActionBar, PostAuthor, PostCounts, PostMenuButton, PostResolved, postText } from "./post-parts";
 import { FEED_LINES } from "./see-more";
@@ -30,7 +30,8 @@ export const PostCard = memo(function PostCard({ post, onComments }: { post: Api
   const user = useSignedInUser();
   const open = () => router.push(`/p/${post._id}`);
   // Start loading the comments on touch-down: by the time they open they're on their way.
-  const warm = () => void client.prefetchQuery({ queryKey: feedKeys.comments(post._id), queryFn: () => listComments(user, post._id), staleTime: 30_000 });
+  const warm = () =>
+    void client.prefetchInfiniteQuery({ queryKey: feedKeys.thread(post._id, "top"), queryFn: ({ pageParam }) => listThread(user, post._id, { sort: "top", offset: pageParam }), initialPageParam: 0, getNextPageParam: nextOffset, staleTime: 30_000 });
   // Comments slide up in a sheet over the feed.
   const comments = onComments ? () => onComments(post) : () => router.push(`/p/${post._id}/comments`);
   const urgent = isUrgent(post);

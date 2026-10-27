@@ -3,6 +3,7 @@ import { useRouter } from "@/core/navigation/use-router";
 import { ChevronLeft } from "lucide-react-native";
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { KeyboardAvoidingView, Platform, StyleSheet, View } from "react-native";
+import Animated, { useAnimatedKeyboard, useAnimatedStyle } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/shared/theme/theme";
 import { FixedHeader, useHeaderEstimate } from "./fixed-header";
@@ -71,8 +72,8 @@ export function AppScreen({
   const [top, setTop] = useState(useHeaderEstimate(52));
   const [footerHeight, setFooterHeight] = useState(0);
   const bottom = footer ? footerHeight : safe.bottom;
-  return (
-    <KeyboardAvoidingView style={[styles.flex, { backgroundColor: canvas ? t.colors.canvas : t.colors.background }]} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+  const body = (
+    <>
       <ScreenInsetsContext.Provider value={{ top, bottom }}>
         <View style={styles.flex}>{children}</View>
       </ScreenInsetsContext.Provider>
@@ -80,8 +81,26 @@ export function AppScreen({
       <FixedHeader onHeight={setTop} compact>
         <HeaderBar {...header} />
       </FixedHeader>
+    </>
+  );
+  const background = { backgroundColor: canvas ? t.colors.canvas : t.colors.background };
+  if (Platform.OS === "android") return <AndroidKeyboardRoom style={background}>{body}</AndroidKeyboardRoom>;
+  return (
+    <KeyboardAvoidingView style={[styles.flex, background]} behavior="padding">
+      {body}
     </KeyboardAvoidingView>
   );
+}
+
+/**
+ * Android draws the app edge to edge, so the window no longer shrinks for the keyboard (adjustResize
+ * does nothing): the screen makes that room itself, and its footer (a reply box, a send bar) rides on
+ * top of the keyboard.
+ */
+function AndroidKeyboardRoom({ style, children }: { style: { backgroundColor: string }; children: ReactNode }) {
+  const keyboard = useAnimatedKeyboard();
+  const room = useAnimatedStyle(() => ({ paddingBottom: keyboard.height.get() }));
+  return <Animated.View style={[styles.flex, style, room]}>{children}</Animated.View>;
 }
 
 const styles = StyleSheet.create({

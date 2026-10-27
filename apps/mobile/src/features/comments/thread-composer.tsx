@@ -3,7 +3,7 @@ import { ArrowUp, X } from "lucide-react-native";
 import { forwardRef, useEffect, useState } from "react";
 import { Pressable, StyleSheet, TextInput, View } from "react-native";
 import { useAuth } from "@/core/auth/auth-provider";
-import { COMMENT_MAX, ComposerLock, composerLocked } from "@/features/feed/comment-composer";
+import { COMMENT_MAX, ComposerLock, composerLocked } from "./composer-lock";
 import { MIN_TOUCH, useTheme } from "@/shared/theme/theme";
 import { Avatar } from "@/shared/ui/avatar";
 import { Text } from "@/shared/ui/text";
@@ -17,8 +17,18 @@ const QUICK = ["❤️", "🙌", "🔥", "👏", "😢", "😍", "😮", "😂"]
  * while typing, "Replying to Tunde ✕" when answering someone, and send (off while empty). What you
  * type is kept per post if you close the sheet. `send` returns false when nothing was sent.
  */
-export const ThreadComposer = forwardRef<TextInput, { post: ApiPost; replyTo?: Draft["replyTo"]; onCancelReply: () => void; send: (text: string, replyTo?: Draft["replyTo"]) => boolean }>(function ThreadComposer(
-  { post, replyTo, onCancelReply, send },
+export const ThreadComposer = forwardRef<
+  TextInput,
+  {
+    post: ApiPost;
+    replyTo?: Draft["replyTo"];
+    onCancelReply: () => void;
+    send: (text: string, replyTo?: Draft["replyTo"]) => boolean;
+    /** At the bottom of a screen (not a sheet, which handles it): room for the home indicator while the keyboard is down. */
+    safeBottom?: number;
+  }
+>(function ThreadComposer(
+  { post, replyTo, onCancelReply, send, safeBottom = 0 },
   ref,
 ) {
   const t = useTheme();
@@ -29,7 +39,7 @@ export const ThreadComposer = forwardRef<TextInput, { post: ApiPost; replyTo?: D
 
   if (composerLocked(post, profile)) {
     return (
-      <View style={[styles.wrap, { borderTopColor: t.colors.border, backgroundColor: t.colors.background }]}>
+      <View style={[styles.wrap, { borderTopColor: t.colors.border, backgroundColor: t.colors.background, paddingBottom: Math.max(10, safeBottom) }]}>
         <ComposerLock post={post} />
       </View>
     );
@@ -45,7 +55,7 @@ export const ThreadComposer = forwardRef<TextInput, { post: ApiPost; replyTo?: D
   };
   const first = profile?.displayName?.split(/\s+/)[0] ?? "you";
   return (
-    <View style={[styles.wrap, { borderTopColor: t.colors.border, backgroundColor: t.colors.background }]}>
+    <View style={[styles.wrap, { borderTopColor: t.colors.border, backgroundColor: t.colors.background, paddingBottom: focused ? 10 : Math.max(10, safeBottom) }]}>
       {focused || text ? (
         <View style={styles.quick} accessibilityRole="toolbar" accessibilityLabel="Quick emoji">
           {QUICK.map((e) => (

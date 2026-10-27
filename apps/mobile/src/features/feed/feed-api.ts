@@ -51,10 +51,6 @@ export function getPost(user: User, id: string): Promise<ApiPost> {
   return apiFetch<ApiPost>(user, `/posts/${id}`);
 }
 
-export function listComments(user: User, postId: string): Promise<Comment[]> {
-  return apiFetch<Comment[]>(user, `/posts/${postId}/comments`);
-}
-
 export function getHood(user: User, id: string): Promise<{ _id: string; name: string; city?: string }> {
   return apiFetch(user, `/neighborhoods/${id}`);
 }

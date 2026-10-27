@@ -42,14 +42,15 @@ export function Replies({ parent, postId, open: forced, onReply, onLike }: { par
           style={styles.toggle}
         >
           <ChevronDown size={16} color={t.colors.mutedForeground} />
-          <Text variant="label" tone="muted" style={styles.small}>
+          {/* One line, measured simply: Android's default line breaking measured this a little narrow and hid "reply". */}
+          <Text variant="label" tone="muted" style={styles.small} numberOfLines={1} textBreakStrategy="simple">
             {open ? `View ${left} more ${left === 1 ? "reply" : "replies"}` : `View ${count} ${count === 1 ? "reply" : "replies"}`}
           </Text>
         </Pressable>
       ) : opened && !forced ? (
         <Pressable onPress={() => setOpened(false)} accessibilityRole="button" hitSlop={6} style={styles.toggle}>
           <ChevronUp size={16} color={t.colors.mutedForeground} />
-          <Text variant="label" tone="muted" style={styles.small}>
+          <Text variant="label" tone="muted" style={styles.small} numberOfLines={1} textBreakStrategy="simple">
             Hide replies
           </Text>
         </Pressable>
@@ -60,6 +61,6 @@ export function Replies({ parent, postId, open: forced, onReply, onLike }: { par
 
 const styles = StyleSheet.create({
   toggle: { flexDirection: "row", alignItems: "center", gap: 6, paddingLeft: 62, paddingVertical: 6, minHeight: 32 },
-  small: { fontSize: 13 },
+  small: { fontSize: 13, flexShrink: 0 },
   spinner: { paddingVertical: 8 },
 });
