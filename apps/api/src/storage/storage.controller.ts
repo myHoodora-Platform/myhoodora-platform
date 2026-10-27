@@ -18,6 +18,11 @@ import { removeTemp, UPLOAD_TMP_DIR } from "./temp-files";
  * onboarding asks for one before the address is verified.
  */
 function assertMayUpload(viewer: Viewer, purpose: MediaPurpose): void {
+  // Ad creative is staff work: only people who manage ads.
+  if (purpose === "ad") {
+    if (viewer.capabilities.includes("ads.manage")) return;
+    throw new ForbiddenException("Only admins can upload ad media.");
+  }
   if (viewer.capabilities.includes(purpose === "avatar" ? "profile.manage" : "content.create")) return;
   // The same words CapabilityGuard uses for content.create.
   throw new ForbiddenException(whyNoWriting(viewer));
@@ -56,7 +61,7 @@ export class StorageController {
   @ApiOperation({
     summary: "Upload a photo or video",
     description:
-      "Multipart form: `file` plus `purpose` (post | listing | group | avatar). Photos (JPG, PNG, WebP, GIF, HEIC) up to 10 MB; videos (MP4, MOV, WebM) up to 100 MB and 60 s, posts only. The type is read from the file's bytes, not its name. The file streams to disk and then to storage (videos in chunks), so it's never held in memory. Returns the HTTPS `url` to put in `mediaUrls`, `photos` or `photoURL`, and an `id` for `DELETE /media/:id`. 503 if the server is busy with other uploads; retry shortly.",
+      "Multipart form: `file` plus `purpose` (post | listing | group | avatar | ad). Photos (JPG, PNG, WebP, GIF, HEIC) up to 10 MB; videos (MP4, MOV, WebM) up to 100 MB and 60 s, for posts and ads only. `ad` is for admins who manage ads. The type is read from the file's bytes, not its name. The file streams to disk and then to storage (videos in chunks), so it's never held in memory. Returns the HTTPS `url` to put in `mediaUrls`, `photos` or `photoURL`, and an `id` for `DELETE /media/:id`. 503 if the server is busy with other uploads; retry shortly.",
   })
   @ApiConsumes("multipart/form-data")
   @ApiBody({

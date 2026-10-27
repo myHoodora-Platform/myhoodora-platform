@@ -1449,3 +1449,43 @@ The mobile app (`apps/mobile`) registers each phone for push. Every notification
 
 ### Provider
 `PUSH_PROVIDER` picks the adapter, like `EMAIL_PROVIDER`: `expo` (default, Expo's push service, which reaches both FCM and APNs with the credentials stored in the app's EAS project) or `log` (tests). `EXPO_ACCESS_TOKEN` is only needed when "enhanced push security" is on for the Expo project. Only push tickets are read; receipts are not fetched yet.
+
+## 32. Sponsored items in the feed (2026-10-27)
+Ads admins run in neighbourhood feeds (spec: `docs/feed-redesign-spec.md` §5). Types: `@myhoodora/api-contract/ads`.
+
+### The feed with ads: `GET /feed/hood/:id`
+Query: `session` (required: an id the app makes up whenever the feed opens or is refreshed, 8–64 of `A–Z a–z 0–9 - _`), `limit` (1–30, default 10), `cursor` (the previous page's `nextCursor`, as given), `category`.
+
+Returns `{ items, nextCursor }`. Each item is `{ type: "post", data: Post }` or `{ type: "ad", slotId, data: FeedAd }`; `nextCursor` is null at the end. The posts, their order and the access rules are exactly those of `GET /posts/neighborhood/:id`, **which is unchanged**, so older app builds keep working.
+
+- **Placement** (defaults, admin-tunable): no ad before the 4th item; then one every 6–8 posts; never two in a row; never the last item of the feed; none on a page with fewer than 3 posts; none in a filtered feed (`category`). The cursor carries the placement, so pages continue as one feed: slots never move or repeat, and the same page asked for again has the same ads. A cursor that doesn't decode answers `400` ("refresh").
+- **Which ad:** live now (`active`, between `startsAt` and `endsAt`, not deleted), aimed at this neighbourhood (everyone, these neighbourhoods, or every neighbourhood in these cities), not hidden by this neighbour, and seen fewer times today (Lagos time) than its daily cap, counting this session's placements. Chosen by priority (1–10), avoiding the previous ad's format when another is eligible.
+- **`FeedAd`** has only what's shown: `advertiser { name, logoUrl }`, `primaryText`, `headline`, `cta { type, label, url | phone } | null`, `media[]` (`url`, `kind`, `posterUrl` for videos), `cards[]` (carousel: `imageUrl`, `headline`, `url`), `background` (announcements: a colour name), `why` (for "Why am I seeing this?"). Never its targeting, stats or internal title. Label it **Sponsored**.
+
+### What neighbours do
+- `POST /ads/events` body `{ events: [{ adId, type: "impression" | "click", sessionId }] }` (1–50) → `{ recorded }`. Send an impression once an ad has been at least half on screen for a second, once per feed session; a click when the button, media or advertiser is tapped. Each counts **once per neighbour, ad, feed session and kind** (a unique key), so resending is safe. Unknown ads are ignored. Fire and forget: never hold up the screen.
+- `POST /ads/:id/hide` body `{ sessionId? }` → `{ hidden: true }`. Never shown to them again. Repeat-safe.
+- `POST /ads/:id/report` body `{ reason, sessionId? }` (`reason` as for other reports) → `{ reported: true }`. Counted once per neighbour (in the ad's stats) and hides it for them.
+
+### Managing ads (admins and the owner: capability `ads.manage`)
+Every change below is in the audit log (`ad_create`, `ad_update`, `ad_activate`, `ad_pause`, `ad_end`, `ad_to_draft`, `ad_delete`, `ad_settings`). Others get `403`.
+
+- `GET /admin/ads?status&q` → `AdminAd[]` with quick `stats`. `GET /admin/ads/:id` → one.
+- `POST /admin/ads` → a draft. `PATCH /admin/ads/:id` → edit (send what changes). `PUT /admin/ads/:id/status` body `{ status: "active" | "paused" | "ended" | "draft" }`.
+- `DELETE /admin/ads/:id` → `204`. Soft: it leaves the feed and the list; its stats stay (`GET /admin/ads/:id/stats` still answers).
+- `GET /admin/ads/:id/stats?from&to` (default the last 30 days) → `{ impressions, reach, clicks, ctr, hides, reports, from, to, daily: [{ day, impressions, clicks }] }`. `ctr` is clicks per 100 impressions.
+- `GET /admin/ads/settings` · `PATCH /admin/ads/settings` → `{ enabled, firstAfter, minGap, maxGap, minOrganic }`.
+
+**Media:** upload with `purpose: "ad"` (`POST /media`, `/media/direct`; admins only; photos and videos, the usual type and size checks). An ad may only use files uploaded through myHoodora; images must be at least 600 px wide. The storage sweep keeps an ad's files while the ad exists.
+
+**Formats and what going live needs** (a draft may be unfinished):
+
+| Format | Needs |
+|---|---|
+| `image` | text, one image, a button |
+| `video` | text, one video with its poster image, a button |
+| `carousel` | 2–10 cards (image, headline, link) |
+| `announcement` | text; no media; optional `background` and button |
+| `business` | text, the business's logo, one image, a button |
+
+A `call` button needs `ctaPhone`; any other needs `ctaUrl` (https). The end date must be after the start date.

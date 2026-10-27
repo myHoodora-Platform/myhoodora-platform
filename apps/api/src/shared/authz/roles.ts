@@ -36,6 +36,8 @@ export type Capability =
   | "broadcasts.send"
   | "team.manage"
   | "settings.manage"
+  /** Sponsored items in the feed: create, edit, pause, delete, see their stats. */
+  | "ads.manage"
   // Owner only: grant/revoke admin
   | "team.manage.admins";
 
@@ -52,6 +54,7 @@ const STAFF: Record<Exclude<Role, "member">, Capability[]> = {
     "broadcasts.send",
     "team.manage",
     "settings.manage",
+    "ads.manage",
   ],
   owner: [
     "admin.access",
@@ -64,6 +67,7 @@ const STAFF: Record<Exclude<Role, "member">, Capability[]> = {
     "broadcasts.send",
     "team.manage",
     "settings.manage",
+    "ads.manage",
     "team.manage.admins",
   ],
 };

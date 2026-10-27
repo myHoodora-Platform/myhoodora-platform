@@ -37,7 +37,7 @@ const UNUSED_UPLOAD_KEPT_MS = DAY_MS;
 /** Files looked at per sweep. */
 const SWEEP_BATCH = 200;
 /** Everything that keeps stored files. A sweep without all of them would delete files the missing one is using. */
-const REFERENCE_SOURCES = ["posts", "listings", "groups", "users"] as const;
+const REFERENCE_SOURCES = ["posts", "listings", "groups", "users", "ads"] as const;
 
 /** A module that keeps URLs of stored files, and can say which of a set it still needs. */
 export interface MediaReferenceSource {
@@ -79,7 +79,7 @@ const ACCEPTED: Record<string, StorageResourceType> = {
 };
 
 /** The purposes that take video; profile photos, listings and group covers are photos only. */
-const VIDEO_PURPOSES: readonly MediaPurpose[] = ["post"];
+const VIDEO_PURPOSES: readonly MediaPurpose[] = ["post", "ad"];
 
 /** An uploaded file: on disk (multer disk storage, downloaded links) or, for small ones, in memory. */
 export interface UploadedFileInput {
@@ -442,6 +442,19 @@ export class StorageService implements OnModuleInit {
       .lean<Pick<MediaAsset, "url" | "width" | "height">[]>()
       .exec();
     return new Map(rows.map((r) => [r.url, Number((r.width! / r.height!).toFixed(4))]));
+  }
+
+  /**
+   * What we stored at these URLs (kind, size, dimensions), for content that must use our own files
+   * (ads): a URL we didn't store is simply absent.
+   */
+  async describe(urls: string[]): Promise<Map<string, Pick<MediaAsset, "url" | "resourceType" | "width" | "height" | "bytes" | "purpose">>> {
+    if (!urls.length) return new Map();
+    const rows = await this.assets
+      .find({ url: { $in: [...new Set(urls)] }, status: { $ne: "pending" } }, { url: 1, resourceType: 1, width: 1, height: 1, bytes: 1, purpose: 1 })
+      .lean<Pick<MediaAsset, "url" | "resourceType" | "width" | "height" | "bytes" | "purpose">[]>()
+      .exec();
+    return new Map(rows.map((r) => [r.url, r]));
   }
 
   /** Delivery URL for a stored file (e.g. after changing delivery settings). */
