@@ -75,9 +75,13 @@ export interface FeedPageQuery {
 }
 
 /** POST /ads/events: each counts once per neighbour, ad, feed session and kind. */
+export const AD_TRACKED_TYPES = ["impression", "click", "video_play", "unmute", "swipe", "why"] as const;
+export type AdTrackedType = (typeof AD_TRACKED_TYPES)[number];
+
 export interface AdEventInput {
   adId: string;
-  type: "impression" | "click";
+  /** impression · click · video_play (started playing) · unmute (sound on) · swipe (carousel) · why ("Why am I seeing this?") */
+  type: AdTrackedType;
   sessionId: string;
 }
 
@@ -90,6 +94,10 @@ export interface AdStats {
   ctr: number;
   hides: number;
   reports: number;
+  videoPlays: number;
+  unmutes: number;
+  swipes: number;
+  whyOpens: number;
 }
 
 /** An ad as admins see it (GET /admin/ads, /admin/ads/:id). */

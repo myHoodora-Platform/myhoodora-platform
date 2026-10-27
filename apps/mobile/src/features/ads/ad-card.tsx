@@ -51,6 +51,8 @@ export const AdCard = memo(function AdCard({ entry, session, active }: { entry: 
   const [reporting, setReporting] = useState(false);
   const ad = entry.ad;
 
+  // Every interaction is counted (once per feed session and kind): the admin sees it in the ad's results.
+  const track = (type: "video_play" | "unmute" | "swipe" | "why") => adTracker.track(user, { adId: ad._id, type, sessionId: session });
   const open = (url?: string) => {
     adTracker.track(user, { adId: ad._id, type: "click", sessionId: session });
     const target = ad.cta?.type === "call" && ad.cta.phone && !url ? `tel:${ad.cta.phone}` : (url ?? ad.cta?.url);
@@ -96,9 +98,9 @@ export const AdCard = memo(function AdCard({ entry, session, active }: { entry: 
         </View>
       ) : null}
 
-      {ad.format === "carousel" ? <Carousel ad={ad} onOpen={open} /> : null}
+      {ad.format === "carousel" ? <Carousel ad={ad} onOpen={open} onSwipe={() => track("swipe")} /> : null}
       {(ad.format === "image" || ad.format === "business") && ad.media[0] ? <AdImage media={ad.media[0]} onPress={() => open()} /> : null}
-      {ad.format === "video" && ad.media[0] ? <AdVideo media={ad.media[0]} active={active} onPress={() => open()} /> : null}
+      {ad.format === "video" && ad.media[0] ? <AdVideo media={ad.media[0]} active={active} onPress={() => open()} onPlay={() => track("video_play")} onUnmute={() => track("unmute")} /> : null}
 
       {ad.cta && ad.format !== "carousel" ? (
         <View style={[styles.ctaBar, { backgroundColor: announcement ? "transparent" : t.colors.muted }]}>
@@ -133,7 +135,15 @@ export const AdCard = memo(function AdCard({ entry, session, active }: { entry: 
         groups={[
           [
             { key: "hide", label: "Hide ad", hint: "You won't see this ad again", Icon: EyeOff, onPress: hide },
-            { key: "why", label: "Why am I seeing this?", Icon: Info, onPress: () => setTimeout(() => Alert.alert("Why you're seeing this ad", ad.why), 350) },
+            {
+              key: "why",
+              label: "Why am I seeing this?",
+              Icon: Info,
+              onPress: () => {
+              track("why");
+              setTimeout(() => Alert.alert("Why you're seeing this ad", ad.why), 350);
+            },
+          },
           ],
           [{ key: "report", label: "Report ad", hint: "Private: the advertiser isn't told who", Icon: Flag, onPress: () => setTimeout(() => setReporting(true), 350) }],
         ]}
@@ -177,7 +187,7 @@ function AdImage({ media, onPress }: { media: AdMedia; onPress: () => void }) {
  * Plays muted, looping, only while it's on screen (§5.1); the poster shows until the first frame.
  * The speaker button turns the sound on. Tapping the video opens the advertiser's link.
  */
-function AdVideo({ media, active, onPress }: { media: AdMedia; active: boolean; onPress: () => void }) {
+function AdVideo({ media, active, onPress, onPlay, onUnmute }: { media: AdMedia; active: boolean; onPress: () => void; onPlay: () => void; onUnmute: () => void }) {
   const t = useTheme();
   const { width } = useWindowDimensions();
   const aspect = clampAspect(media.aspect, 0.8, 1.78);
@@ -187,6 +197,10 @@ function AdVideo({ media, active, onPress }: { media: AdMedia; active: boolean; 
     p.loop = true;
   });
   const { muted } = useEvent(player, "mutedChange", { muted: player.muted });
+  const { isPlaying } = useEvent(player, "playingChange", { isPlaying: player.playing });
+  useEffect(() => {
+    if (isPlaying) onPlay();
+  }, [isPlaying, onPlay]);
   useEffect(() => {
     if (active) player.play();
     else player.pause();
@@ -198,7 +212,10 @@ function AdVideo({ media, active, onPress }: { media: AdMedia; active: boolean; 
         {!ready && media.posterUrl ? <Image source={{ uri: sizedImage(media.posterUrl, width) }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityIgnoresInvertColors /> : null}
       </Pressable>
       <Pressable
-        onPress={() => toggleSound(player)}
+        onPress={() => {
+          if (player.muted) onUnmute();
+          toggleSound(player);
+        }}
         accessibilityRole="button"
         accessibilityLabel={muted ? "Turn sound on" : "Turn sound off"}
         hitSlop={8}
@@ -215,7 +232,7 @@ function toggleSound(player: VideoPlayer) {
 }
 
 /** 2–10 square cards to swipe through, each with its own headline and link. */
-function Carousel({ ad, onOpen }: { ad: FeedAd; onOpen: (url: string) => void }) {
+function Carousel({ ad, onOpen, onSwipe }: { ad: FeedAd; onOpen: (url: string) => void; onSwipe: () => void }) {
   const t = useTheme();
   const { width } = useWindowDimensions();
   const cardWidth = Math.round(width * 0.72);
@@ -227,6 +244,7 @@ function Carousel({ ad, onOpen }: { ad: FeedAd; onOpen: (url: string) => void })
       showsHorizontalScrollIndicator={false}
       snapToInterval={cardWidth + 8}
       decelerationRate="fast"
+      onMomentumScrollEnd={(e) => e.nativeEvent.contentOffset.x > 0 && onSwipe()}
       contentContainerStyle={styles.carousel}
       renderItem={({ item }) => (
         <Pressable onPress={() => onOpen(item.url)} accessibilityRole="link" accessibilityLabel={`${item.headline}. Opens the link`} style={[styles.carouselCard, { width: cardWidth, borderColor: t.colors.border, backgroundColor: t.colors.card }]}>

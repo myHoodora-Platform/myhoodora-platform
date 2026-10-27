@@ -15,7 +15,10 @@ export type AdCta = (typeof AD_CTAS)[number];
 export const AD_BACKGROUNDS = ["green", "blue", "amber", "rose", "slate"] as const;
 export type AdBackground = (typeof AD_BACKGROUNDS)[number];
 
-export const AD_EVENT_TYPES = ["impression", "click", "hide", "report"] as const;
+export const AD_EVENT_TYPES = ["impression", "click", "hide", "report", "video_play", "unmute", "swipe", "why"] as const;
+/** What the app reports in batches (hide and report have their own routes). */
+export const AD_TRACKED_TYPES = ["impression", "click", "video_play", "unmute", "swipe", "why"] as const;
+export type AdTrackedType = (typeof AD_TRACKED_TYPES)[number];
 export type AdEventType = (typeof AD_EVENT_TYPES)[number];
 
 export type AdDocument = HydratedDocument<Ad>;

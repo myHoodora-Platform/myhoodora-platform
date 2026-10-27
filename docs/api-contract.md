@@ -1463,7 +1463,7 @@ Returns `{ items, nextCursor }`. Each item is `{ type: "post", data: Post }` or 
 - **`FeedAd`** has only what's shown: `advertiser { name, logoUrl }`, `primaryText`, `headline`, `cta { type, label, url | phone } | null`, `media[]` (`url`, `kind`, `posterUrl` for videos), `cards[]` (carousel: `imageUrl`, `headline`, `url`), `background` (announcements: a colour name), `why` (for "Why am I seeing this?"). Never its targeting, stats or internal title. Label it **Sponsored**.
 
 ### What neighbours do
-- `POST /ads/events` body `{ events: [{ adId, type: "impression" | "click", sessionId }] }` (1–50) → `{ recorded }`. Send an impression once an ad has been at least half on screen for a second, once per feed session; a click when the button, media or advertiser is tapped. Each counts **once per neighbour, ad, feed session and kind** (a unique key), so resending is safe. Unknown ads are ignored. Fire and forget: never hold up the screen.
+- `POST /ads/events` body `{ events: [{ adId, type, sessionId }] }` (1–50) → `{ recorded }`. `type`: `impression`, `click`, `video_play` (a video started playing), `unmute` (sound turned on), `swipe` (a carousel swiped), `why` ("Why am I seeing this?" opened). Send an impression once an ad has been at least half on screen for a second, once per feed session; a click when the button, media or advertiser is tapped. Each counts **once per neighbour, ad, feed session and kind** (a unique key), so resending is safe. Unknown ads are ignored. Fire and forget: never hold up the screen.
 - `POST /ads/:id/hide` body `{ sessionId? }` → `{ hidden: true }`. Never shown to them again. Repeat-safe.
 - `POST /ads/:id/report` body `{ reason, sessionId? }` (`reason` as for other reports) → `{ reported: true }`. Counted once per neighbour (in the ad's stats) and hides it for them.
 
@@ -1473,7 +1473,7 @@ Every change below is in the audit log (`ad_create`, `ad_update`, `ad_activate`,
 - `GET /admin/ads?status&q` → `AdminAd[]` with quick `stats`. `GET /admin/ads/:id` → one.
 - `POST /admin/ads` → a draft. `PATCH /admin/ads/:id` → edit (send what changes). `PUT /admin/ads/:id/status` body `{ status: "active" | "paused" | "ended" | "draft" }`.
 - `DELETE /admin/ads/:id` → `204`. Soft: it leaves the feed and the list; its stats stay (`GET /admin/ads/:id/stats` still answers).
-- `GET /admin/ads/:id/stats?from&to` (default the last 30 days) → `{ impressions, reach, clicks, ctr, hides, reports, from, to, daily: [{ day, impressions, clicks }] }`. `ctr` is clicks per 100 impressions.
+- `GET /admin/ads/:id/stats?from&to` (default the last 30 days) → `{ impressions, reach, clicks, ctr, hides, reports, videoPlays, unmutes, swipes, whyOpens, from, to, daily: [{ day, impressions, clicks }] }`. `ctr` is clicks per 100 impressions.
 - `GET /admin/ads/settings` · `PATCH /admin/ads/settings` → `{ enabled, firstAfter, minGap, maxGap, minOrganic }`.
 
 **Media:** upload with `purpose: "ad"` (`POST /media`, `/media/direct`; admins only; photos and videos, the usual type and size checks). An ad may only use files uploaded through myHoodora; images must be at least 600 px wide. The storage sweep keeps an ad's files while the ad exists.

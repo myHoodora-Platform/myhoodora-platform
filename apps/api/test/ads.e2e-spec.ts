@@ -215,6 +215,12 @@ describe("Sponsored items: admin, placement, targeting, caps, events", () => {
       expect(stats.daily.reduce((n: number, d: { impressions: number }) => n + d.impressions, 0)).toBe(2);
     });
 
+    it("every other interaction counts once too: video plays, sound on, swipes, 'why' opened", async () => {
+      const kinds = ["video_play", "unmute", "swipe", "why"].map((type) => ({ adId: ad, type, sessionId: "session888" }));
+      expect((await events("bola", [...kinds, ...kinds])).body).toEqual({ recorded: 4 });
+      expect((await t.http.get(`/api/admin/ads/${ad}/stats`).set(admin()).expect(200)).body).toMatchObject({ videoPlays: 1, unmutes: 1, swipes: 1, whyOpens: 1 });
+    });
+
     it("an unknown ad's events are ignored; a malformed batch is refused", async () => {
       expect((await events("bola", [{ adId: "64b7f0c2a1b2c3d4e5f60718", type: "impression", sessionId: "session111" }])).body).toEqual({ recorded: 0 });
       await t.http.post("/api/ads/events").set(t.auth("bola")).send({ events: [{ adId: ad, type: "hide", sessionId: "session111" }] }).expect(400);

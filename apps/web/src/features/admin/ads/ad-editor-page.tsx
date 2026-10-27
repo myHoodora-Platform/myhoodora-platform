@@ -482,6 +482,10 @@ function StatsPanel({ id }: { id: string }) {
                 ["CTR", `${stats.ctr.toFixed(2)}%`],
                 ["Hidden", stats.hides.toLocaleString()],
                 ["Reports", stats.reports.toLocaleString()],
+                ["Video plays", stats.videoPlays.toLocaleString()],
+                ["Sound turned on", stats.unmutes.toLocaleString()],
+                ["Carousel swipes", stats.swipes.toLocaleString()],
+                ["“Why this ad?” opened", stats.whyOpens.toLocaleString()],
               ] as const
             ).map(([label, value]) => (
               <div key={label} className="rounded-xl bg-muted/60 p-3">

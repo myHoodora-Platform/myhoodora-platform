@@ -20,7 +20,7 @@ import {
 } from "class-validator";
 import { POST_CATEGORIES, type PostCategory } from "../posts/domain/post-meta";
 import { REPORT_REASONS } from "../platform/platform-settings.schema";
-import { AD_BACKGROUNDS, AD_CTAS, AD_FORMATS, AD_STATUSES, type AdBackground, type AdCta, type AdFormat, type AdStatus } from "./ad.schema";
+import { AD_BACKGROUNDS, AD_CTAS, AD_FORMATS, AD_STATUSES, AD_TRACKED_TYPES, type AdTrackedType, type AdBackground, type AdCta, type AdFormat, type AdStatus } from "./ad.schema";
 
 const HTTPS = { protocols: ["https"], require_protocol: true };
 /** A feed session id the app makes up when the feed opens or refreshes. */
@@ -98,7 +98,8 @@ export class AdFeedQuery {
 
 class AdEventDto {
   @IsMongoId() adId!: string;
-  @IsIn(["impression", "click"]) type!: "impression" | "click";
+  /** impression · click · video_play (started playing) · unmute (sound on) · swipe (carousel) · why ("Why am I seeing this?") */
+  @IsIn(AD_TRACKED_TYPES) type!: AdTrackedType;
   @Matches(SESSION) sessionId!: string;
 }
 

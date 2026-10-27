@@ -7,7 +7,7 @@ import type { Viewer } from "../shared/auth/viewer";
 import { withTransaction } from "../shared/db/transaction";
 import { searchRegex } from "../shared/http/pagination";
 import { StorageService } from "../storage/storage.service";
-import { Ad, AdEvent, AdHide, AdSettings, type AdCta, type AdDocument, type AdEventType, type AdFormat, type AdStatus } from "./ad.schema";
+import { Ad, AdEvent, AdHide, AdSettings, type AdTrackedType, type AdCta, type AdDocument, type AdEventType, type AdFormat, type AdStatus } from "./ad.schema";
 import type { AdInputDto, AdSettingsDto } from "./ads.dto";
 import { DEFAULT_RULES, type Candidate, type PlacementRules } from "./domain/placement";
 
@@ -50,6 +50,11 @@ export interface AdStats {
   ctr: number;
   hides: number;
   reports: number;
+  /** Videos that started playing, sound turned on, carousels swiped, "Why am I seeing this?" opened. */
+  videoPlays: number;
+  unmutes: number;
+  swipes: number;
+  whyOpens: number;
 }
 
 export interface AdAdminView extends Omit<Ad, "startsAt" | "endsAt" | "deletedAt" | "createdAt" | "updatedAt"> {
@@ -267,7 +272,7 @@ export class AdsService implements OnModuleInit {
   // ── What neighbours do ───────────────────────────────────────────────────
 
   /** Impressions and clicks, a batch at a time. Each counts once per neighbour, ad, feed session and kind. */
-  async record(viewer: Viewer, batch: { adId: string; type: "impression" | "click"; sessionId: string }[]): Promise<{ recorded: number }> {
+  async record(viewer: Viewer, batch: { adId: string; type: AdTrackedType; sessionId: string }[]): Promise<{ recorded: number }> {
     const known = new Set((await this.ads.find({ _id: { $in: [...new Set(batch.map((e) => e.adId))] } }).select({ _id: 1 }).lean<{ _id: Types.ObjectId }[]>().exec()).map((a) => String(a._id)));
     const rows = batch
       .filter((e) => known.has(e.adId))
@@ -402,7 +407,11 @@ export class AdsService implements OnModuleInit {
         s.reach = r.people;
       } else if (r._id.type === "click") s.clicks = r.n;
       else if (r._id.type === "hide") s.hides = r.n;
-      else s.reports = r.n;
+      else if (r._id.type === "report") s.reports = r.n;
+      else if (r._id.type === "video_play") s.videoPlays = r.n;
+      else if (r._id.type === "unmute") s.unmutes = r.n;
+      else if (r._id.type === "swipe") s.swipes = r.n;
+      else if (r._id.type === "why") s.whyOpens = r.n;
       out.set(r._id.adId, s);
     }
     for (const s of out.values()) s.ctr = s.impressions ? Math.round((s.clicks / s.impressions) * 10_000) / 100 : 0;
@@ -411,5 +420,5 @@ export class AdsService implements OnModuleInit {
 }
 
 function emptyStats(): AdStats {
-  return { impressions: 0, reach: 0, clicks: 0, ctr: 0, hides: 0, reports: 0 };
+  return { impressions: 0, reach: 0, clicks: 0, ctr: 0, hides: 0, reports: 0, videoPlays: 0, unmutes: 0, swipes: 0, whyOpens: 0 };
 }
