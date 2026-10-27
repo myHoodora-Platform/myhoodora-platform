@@ -23,6 +23,17 @@ describe("parseConfig", () => {
     expect(!result.ok && result.problems.join(" ")).toMatch(/apiUrl.*firebase\.appId|firebase\.appId.*apiUrl/);
   });
 
+  it("turns test tools on only when asked, and never in production", () => {
+    const qa = (env: Record<string, string | undefined>) => {
+      const result = parseConfig({ ...good, ...env });
+      return result.ok && result.config.qaTools;
+    };
+    expect(qa({})).toBe(false);
+    expect(qa({ EXPO_PUBLIC_QA_TOOLS: "true" })).toBe(true);
+    expect(qa({ EXPO_PUBLIC_QA_TOOLS: "1" })).toBe(false);
+    expect(qa({ EXPO_PUBLIC_QA_TOOLS: "true", EXPO_PUBLIC_APP_ENV: "production" })).toBe(false);
+  });
+
   it("defaults to development, and refuses an unknown environment", () => {
     expect(parseConfig({ ...good, EXPO_PUBLIC_APP_ENV: undefined }).ok).toBe(true);
     expect(parseConfig({ ...good, EXPO_PUBLIC_APP_ENV: "staging" }).ok).toBe(false);

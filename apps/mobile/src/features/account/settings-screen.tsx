@@ -17,6 +17,7 @@ import { Sheet, SheetItem } from "@/shared/ui/sheet";
 import { Text } from "@/shared/ui/text";
 import { useToast } from "@/shared/ui/toast";
 import { deactivate } from "./account-api";
+import { DiagnosticsGroup } from "./diagnostics-group";
 
 const PUSH_LABEL = { granted: "On", denied: "Off", undetermined: "Off", unsupported: "Not available" } as const;
 
@@ -149,6 +150,8 @@ function SettingsContent() {
         <SettingsRow Icon={MonitorSmartphone} label="Sign out everywhere" description="Every phone and browser, this one included" onPress={confirmEverywhere} />
         <SettingsRow Icon={UserX} label="Deactivate account" destructive onPress={() => setLeaving(true)} />
       </SettingsGroup>
+
+      <DiagnosticsGroup />
 
       <Text variant="caption" tone="muted" style={styles.version}>
         myHoodora {Constants.expoConfig?.version} · {config().appEnv}

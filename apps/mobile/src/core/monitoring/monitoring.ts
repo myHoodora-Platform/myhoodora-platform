@@ -56,3 +56,28 @@ export function reportError(error: unknown, where: string): void {
   if (__DEV__) console.warn(`[${where}]`, error instanceof Error ? error.message : error);
   if (enabled) Sentry.captureException(error, { tags: { where } });
 }
+
+/**
+ * Test reports for checking crash reporting in a preview build (Settings → Diagnostics). Each one
+ * carries made-up personal details, so Sentry should show them as [Filtered], never in the clear.
+ */
+export const TEST_PII = { email: "qa.tester@example.com", phone: "08012345678", token: "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJxYSJ9.c2lnbmF0dXJl" };
+
+/** A handled error, with a breadcrumb and extra data that the scrubber must clean. */
+export function sendTestError(): void {
+  Sentry.addBreadcrumb({ category: "qa", message: `Signed in as ${TEST_PII.email}, ${TEST_PII.phone}` });
+  Sentry.captureException(new Error(`WP-1 test error for ${TEST_PII.email} (${TEST_PII.token})`), {
+    tags: { where: "qa-diagnostics" },
+    extra: { email: TEST_PII.email, authorization: TEST_PII.token, note: `call ${TEST_PII.phone}` },
+  });
+}
+
+/** An unhandled promise rejection: nothing catches it, Sentry's global handler should. */
+export function sendTestRejection(): void {
+  void Promise.reject(new Error(`WP-1 test rejection for ${TEST_PII.email}`));
+}
+
+/** Kills the app from native code. The report is sent the next time the app starts. */
+export function crashNatively(): void {
+  Sentry.nativeCrash();
+}

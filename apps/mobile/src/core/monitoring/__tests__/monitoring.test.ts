@@ -1,7 +1,8 @@
 import * as Sentry from "@sentry/react-native";
-import { initMonitoring, monitoringEnabled, reportError, setMonitoringUser } from "../monitoring";
+import { crashNatively, initMonitoring, monitoringEnabled, reportError, sendTestError, setMonitoringUser, TEST_PII } from "../monitoring";
+import { scrubBreadcrumb, scrubEvent } from "../scrub";
 
-jest.mock("@sentry/react-native", () => ({ init: jest.fn(), setTags: jest.fn(), setUser: jest.fn(), captureException: jest.fn() }));
+jest.mock("@sentry/react-native", () => ({ init: jest.fn(), setTags: jest.fn(), setUser: jest.fn(), captureException: jest.fn(), addBreadcrumb: jest.fn(), nativeCrash: jest.fn() }));
 jest.mock("expo-application", () => ({ nativeApplicationVersion: "1.0.0", nativeBuildVersion: "42" }));
 
 const DSN = "https://public@o1.ingest.sentry.io/1";
@@ -56,5 +57,23 @@ describe("initMonitoring", () => {
     initMonitoring({ appEnv: "production", sentryDsn: DSN });
     const { beforeSend } = (Sentry.init as jest.Mock).mock.calls[0][0];
     expect(beforeSend({ type: undefined, user: { id: "u", email: "a@b.co" } }).user).toEqual({ id: "u" });
+  });
+});
+
+describe("diagnostics", () => {
+  it("sends a test error whose made-up personal details the scrubber removes", () => {
+    sendTestError();
+    const [error, hint] = (Sentry.captureException as jest.Mock).mock.calls[0];
+    const crumb = (Sentry.addBreadcrumb as jest.Mock).mock.calls[0][0];
+    const event = scrubEvent({ type: undefined, exception: { values: [{ type: "Error", value: (error as Error).message }] }, extra: hint.extra, breadcrumbs: [crumb] });
+    const sent = JSON.stringify(event);
+    for (const secret of [TEST_PII.email, TEST_PII.phone, TEST_PII.token.replace("Bearer ", "")]) expect(sent).not.toContain(secret);
+    expect(sent).toContain("[Filtered]");
+    expect(scrubBreadcrumb(crumb)?.message).not.toContain(TEST_PII.email);
+  });
+
+  it("crashes natively through Sentry", () => {
+    crashNatively();
+    expect(Sentry.nativeCrash).toHaveBeenCalled();
   });
 });
