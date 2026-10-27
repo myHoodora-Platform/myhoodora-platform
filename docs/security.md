@@ -68,6 +68,17 @@ If the web app is ever served through **Firebase Hosting rewrites**, the product
 - `?next=` after login only accepts paths inside the app (`safeNextPath`).
 - Non-staff get an ordinary 404 for `/admin`; the server checks before sending any admin code.
 
+## Dependency overrides
+
+`package.json` → `pnpm.overrides` forces two packages that `@nestjs/platform-express` 10 pins to exact, vulnerable versions. Even its newest 10.x release keeps them, and Nest 11 still pins a vulnerable multer, so a Nest upgrade would not remove the need.
+
+| Override | Fixes | Remove when |
+| --- | --- | --- |
+| `@nestjs/platform-express>multer: ^2.5.0` | Upload-form denial of service (GHSA-v52c-386h-88mc, GHSA-xf7r-hgr6-v32p, GHSA-5528-5vmv-3xc2, GHSA-72gw-mp4g-v24j, GHSA-wc9g-mqfw-jrwm, GHSA-535w-7cp7-47q4, GHSA-q7qp-rjg7-q26m) | `@nestjs/platform-express` itself depends on multer ≥ 2.5.0 |
+| `@nestjs/platform-express>body-parser: ^1.20.9` | A compressed body with trailing bytes crashes the process (GHSA-27r3-jxmh-p828) | it depends on body-parser ≥ 1.20.9 |
+
+multer's guards against crafted field names (`fieldNestingDepth`, `fieldArrayIndexLimit`) are off unless set, so `POST /media` sets both to 0 (`storage.controller.ts`). The exception filter maps multer and body-parser errors by code and status, because Nest 10 matches multer errors by message text, which multer 2.4 changed.
+
 ## Secrets
 
 - All secrets are API-side. The web app needs none except the geocoding key (server-side only).
