@@ -19,6 +19,12 @@
     "typescript": "5.9.2"
   },
   "packageManager": "pnpm@9.15.9",
+  "pnpm": {
+    "overrides": {
+      "@nestjs/platform-express>multer": "^2.5.0",
+      "@nestjs/platform-express>body-parser": "^1.20.9"
+    }
+  },
   "engines": {
     "node": "24.x"
   }
