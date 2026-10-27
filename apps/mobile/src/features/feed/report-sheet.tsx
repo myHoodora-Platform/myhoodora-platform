@@ -16,7 +16,10 @@ const REASONS: { id: ReportReason; label: string }[] = [
   { id: "other", label: "Something else" },
 ];
 
-/** "Report", then why. Private: the person reported is never told who. One tap sends it. */
+/**
+ * "Report", then why. Private: the person reported is never told who. One tap sends it: the sheet
+ * closes at once (no wait on the network), and a note says when it's in, or why it isn't.
+ */
 export function ReportSheet({ visible, onClose, targetType, targetId }: { visible: boolean; onClose: () => void; targetType: "post" | "comment" | "listing" | "user"; targetId: string }) {
   const user = useSignedInUser();
   const toast = useToast();
@@ -24,12 +27,12 @@ export function ReportSheet({ visible, onClose, targetType, targetId }: { visibl
   const send = async (reason: ReportReason) => {
     if (sending) return;
     setSending(true);
+    onClose();
     try {
       await report(user, targetType, targetId, reason);
-      onClose();
       toast("Thanks. Our team and your Neighbourhood Leads will review it.");
     } catch (err) {
-      toast(errorMessage(err), "error");
+      toast(`Your report wasn't sent: ${errorMessage(err)}`, "error");
     } finally {
       setSending(false);
     }

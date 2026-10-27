@@ -16,6 +16,7 @@ import {
   blockUser,
   getPublicProfile,
 } from "@/features/account/account-api";
+import { rememberBlocked } from "@/features/account/blocked-names";
 import { feedKeys } from "@/features/feed/feed-api";
 import { PostCard } from "@/features/feed/post-card";
 import { ReportSheet } from "@/features/feed/report-sheet";
@@ -137,6 +138,8 @@ export function NeighbourScreen({ uid }: { uid: string }) {
           onPress: async () => {
             try {
               await blockUser(user, uid);
+              await rememberBlocked(uid, { name, photoURL: profile.data?.photoURL });
+              void client.invalidateQueries({ queryKey: accountKeys.blocks });
               toast(
                 `${firstName(name) || "They"} won't see you, and you won't see them.`,
               );
