@@ -1,23 +1,19 @@
-import { errorMessage } from "@myhoodora/api-contract/errors";
 import type { ApiPost, PostCategory, ReactionType } from "@myhoodora/api-contract/types";
-import { useQueryClient, type InfiniteData } from "@tanstack/react-query";
-import { CheckCircle2, Ellipsis, Flag, MapPin, MessageCircle, Share2, ThumbsUp, Trash2 } from "lucide-react-native";
+import { CheckCircle2, MapPin, MessageCircle, Share2, ThumbsUp } from "lucide-react-native";
 import { useRef, useState } from "react";
-import { Alert, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
+import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { fonts, MIN_TOUCH, tint, useTheme, type Theme } from "@/shared/theme/theme";
 import { Avatar } from "@/shared/ui/avatar";
 import { Text } from "@/shared/ui/text";
-import { shareLink } from "@/shared/utils/share";
 import { timeAgo } from "@/shared/utils/time";
-import { ActionSheet, type ActionItem } from "@/shared/ui/action-sheet";
-import { useToast } from "@/shared/ui/toast";
-import { useAuth, useSignedInUser } from "@/core/auth/auth-provider";
-import { deletePost, feedKeys } from "./feed-api";
+import { useAuth } from "@/core/auth/auth-provider";
 import { pickerLayout, ReactionPicker, reactionAt } from "./reaction-picker";
 import { REACTIONS, reactionDef, topReactions } from "./reactions";
-import { ReportSheet } from "./report-sheet";
+import { usePostActions } from "./use-post-actions";
 import { useReaction } from "./use-reaction";
+
+export { PostMenuButton } from "./post-menu";
 
 /**
  * The pieces of a post, shared by the feed's card and the post's own screen so both read the same:
@@ -77,7 +73,7 @@ export function CategoryBadge({ post }: { post: ApiPost }) {
 export function PostAuthor({ post, size = 40, compact = false, onAuthor, onAuthorLongPress }: { post: ApiPost; size?: number; compact?: boolean; onAuthor?: () => void; onAuthorLongPress?: () => void }) {
   const t = useTheme();
   const name = post.author?.displayName ?? "myHoodora user";
-  const meta = [post.author?.neighborhoodName, timeAgo(post.createdAt)].filter(Boolean).join(" · ");
+  const meta = [post.author?.neighborhoodName, timeAgo(post.createdAt), post.editedAt ? "Edited" : null].filter(Boolean).join(" · ");
   const body = (
     <>
       <Avatar name={post.author?.displayName} photoURL={post.author?.photoURL} size={size} />
@@ -138,12 +134,13 @@ export function PostText({ post, lines, size = 16 }: { post: ApiPost; lines?: nu
   );
 }
 
-/** Left: the top reactions and how many; right: "N comments" (opens them). A zero is never shown. */
+/** Left: the top reactions and how many; right: "N comments" (opens them) and "N shares". A zero is never shown. */
 export function PostCounts({ post, onComments }: { post: ApiPost; onComments?: () => void }) {
   const t = useTheme();
   const reactions = post.reactionTotal ?? 0;
   const comments = post.commentCount ?? 0;
-  if (!reactions && !comments) return null;
+  const shares = post.shareCount ?? 0;
+  if (!reactions && !comments && !shares) return null;
   const top = topReactions(post.reactionCounts);
   return (
     <View style={styles.counts}>
@@ -163,13 +160,25 @@ export function PostCounts({ post, onComments }: { post: ApiPost; onComments?: (
       ) : (
         <View />
       )}
-      {comments ? (
-        <Pressable onPress={onComments} disabled={!onComments} accessibilityRole="button" hitSlop={8}>
+      <View style={styles.row}>
+        {comments ? (
+          <Pressable onPress={onComments} disabled={!onComments} accessibilityRole="button" hitSlop={8}>
+            <Text variant="caption" tone="muted">
+              {comments} {comments === 1 ? "comment" : "comments"}
+            </Text>
+          </Pressable>
+        ) : null}
+        {comments && shares ? (
           <Text variant="caption" tone="muted">
-            {comments} {comments === 1 ? "comment" : "comments"}
+            ·
           </Text>
-        </Pressable>
-      ) : null}
+        ) : null}
+        {shares ? (
+          <Text variant="caption" tone="muted">
+            {shares} {shares === 1 ? "share" : "shares"}
+          </Text>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -184,6 +193,7 @@ export function PostActionBar({ post, onComment }: { post: ApiPost; onComment?: 
   // A neighbourhood they only follow: read and share, but reacting stays at home (contract §31).
   const readOnly = !!profile?.neighborhoodId && post.neighborhoodId !== profile.neighborhoodId;
   const react = useReaction();
+  const { share } = usePostActions();
   const likeRef = useRef<View>(null);
   const { width } = useWindowDimensions();
   const [picker, setPicker] = useState<{ x: number; y: number } | null>(null);
@@ -244,7 +254,7 @@ export function PostActionBar({ post, onComment }: { post: ApiPost; onComment?: 
         </Text>
       </Pressable>
       <Pressable
-        onPress={() => void shareLink(`/p/${post._id}`, `${post.author?.displayName ?? "A neighbour"} on myHoodora: ${postText(post).slice(0, 120)}`)}
+        onPress={() => void share(post)}
         accessibilityRole="button"
         accessibilityLabel="Share"
         style={({ pressed }) => [styles.barItem, pressed && { backgroundColor: t.colors.muted }]}
@@ -256,51 +266,6 @@ export function PostActionBar({ post, onComment }: { post: ApiPost; onComment?: 
       </Pressable>
       <ReactionPicker anchor={picker} screenWidth={width} hovered={hovered} current={mine} onPick={send} onClose={() => setPicker(null)} />
     </View>
-  );
-}
-
-/** The "⋯" button and its menu: report someone else's post, delete your own (the API checks it's yours). */
-export function PostMenuButton({ post, onDeleted }: { post: ApiPost; onDeleted?: () => void }) {
-  const t = useTheme();
-  const user = useSignedInUser();
-  const client = useQueryClient();
-  const toast = useToast();
-  const [open, setOpen] = useState(false);
-  const [reporting, setReporting] = useState(false);
-  const mine = post.authorUid === user.uid;
-  const remove = () =>
-    Alert.alert("Delete your post?", "It will be removed for everyone, with its comments.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await deletePost(user, post._id);
-            client.setQueriesData<InfiniteData<ApiPost[]>>({ queryKey: feedKeys.all }, (data) => (data ? { ...data, pages: data.pages.map((page) => page.filter((p) => p._id !== post._id)) } : data));
-            client.removeQueries({ queryKey: feedKeys.post(post._id) });
-            toast("Post deleted.");
-            onDeleted?.();
-          } catch (err) {
-            toast(errorMessage(err), "error");
-          }
-        },
-      },
-    ]);
-  // Share lives in the action bar only; this menu holds what the bar doesn't.
-  const groups: ActionItem[][] = [
-    mine
-      ? [{ key: "delete", label: "Delete post", Icon: Trash2, destructive: true, onPress: remove }]
-      : [{ key: "report", label: "Report post", hint: "Private: they won't know it was you", Icon: Flag, onPress: () => setTimeout(() => setReporting(true), 350) }],
-  ];
-  return (
-    <>
-      <Pressable onPress={() => setOpen(true)} accessibilityRole="button" accessibilityLabel="Post options" hitSlop={8} style={({ pressed }) => [styles.iconAction, pressed && { backgroundColor: t.colors.muted }]}>
-        <Ellipsis size={20} color={t.colors.mutedForeground} />
-      </Pressable>
-      <ActionSheet visible={open} onClose={() => setOpen(false)} groups={groups} label="Post options" />
-      {!mine ? <ReportSheet visible={reporting} onClose={() => setReporting(false)} targetType="post" targetId={post._id} /> : null}
-    </>
   );
 }
 
@@ -319,5 +284,4 @@ const styles = StyleSheet.create({
   barItem: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: MIN_TOUCH - 4, borderRadius: 10 },
   barEmoji: { fontSize: 18, lineHeight: 22 },
   dim: { opacity: 0.5 },
-  iconAction: { width: MIN_TOUCH - 4, height: MIN_TOUCH - 4, borderRadius: 999, alignItems: "center", justifyContent: "center" },
 });

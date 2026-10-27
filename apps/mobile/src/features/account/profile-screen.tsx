@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "@/core/navigation/use-router";
-import { Calendar, Camera, Mail, MapPin, Settings, ShieldCheck } from "lucide-react-native";
+import { Bookmark, Calendar, Camera, Mail, MapPin, Settings, ShieldCheck } from "lucide-react-native";
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useAuth, useSignedInUser } from "@/core/auth/auth-provider";
@@ -106,6 +106,10 @@ function ProfileContent() {
         )}
         <Button label="Edit profile" variant="secondary" onPress={edit} style={styles.editButton} />
       </View>
+
+      <SettingsGroup>
+        <SettingsRow Icon={Bookmark} label="Saved posts" description="Posts you saved to come back to" onPress={() => router.push("/saved")} />
+      </SettingsGroup>
 
       <Segmented
         label="Profile sections"

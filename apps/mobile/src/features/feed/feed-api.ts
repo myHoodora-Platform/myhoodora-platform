@@ -30,6 +30,8 @@ export const feedKeys = {
   thread: (id: string, sort: CommentSort) => ["post", id, "comments", "thread", sort] as const,
   replies: (id: string, parentId: string) => ["post", id, "comments", "replies", parentId] as const,
   hoodName: (id: string) => ["hood", id] as const,
+  /** Under `all`, so a post changed anywhere (a reaction, an edit) is changed here too. */
+  saved: ["feed", "saved"] as const,
 };
 
 /** `GET /posts/neighborhood/:id?limit&before&category`. `before` is the last post's createdAt (cursor paging). */
@@ -143,4 +145,31 @@ export function deleteComment(user: User, commentId: string): Promise<void> {
 /** Your own post (the API checks it's yours; anyone else gets 403/404). */
 export function deletePost(user: User, postId: string): Promise<void> {
   return apiFetch<void>(user, `/posts/${postId}`, { method: "DELETE" });
+}
+
+/** Save for later, or unsave (contract §1, the post menu). */
+export function setSaved(user: User, postId: string, saved: boolean): Promise<{ saved: boolean }> {
+  return apiFetch(user, `/posts/${postId}/save`, { method: saved ? "PUT" : "DELETE" });
+}
+
+/** `GET /posts/saved`: newest saved first; `before` is the last one's `savedAt`. */
+export function listSaved(user: User, before?: string): Promise<(ApiPost & { savedAt: string })[]> {
+  const params = new URLSearchParams({ limit: String(FEED_PAGE) });
+  if (before) params.set("before", before);
+  return apiFetch(user, `/posts/saved?${params}`);
+}
+
+/** Turn a post's notifications on (follow) or off (mute). */
+export function setFollowing(user: User, postId: string, on: boolean): Promise<{ following: boolean }> {
+  return apiFetch(user, `/posts/${postId}/follow`, { method: "PUT", json: { on } });
+}
+
+/** Counts a share (once per neighbour), after the share sheet was used. */
+export function recordShare(user: User, postId: string): Promise<{ shareCount: number }> {
+  return apiFetch(user, `/posts/${postId}/share`, { method: "POST" });
+}
+
+/** The author changes the text; returns the post. */
+export function editPost(user: User, postId: string, message: string): Promise<ApiPost> {
+  return apiFetch(user, `/posts/${postId}`, { method: "PATCH", json: { message } });
 }
