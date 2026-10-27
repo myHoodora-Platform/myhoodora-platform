@@ -23,6 +23,13 @@ function assertMayUpload(viewer: Viewer, purpose: MediaPurpose): void {
   throw new ForbiddenException(whyNoWriting(viewer));
 }
 
+/**
+ * Limits for the upload form, which has only flat fields (`file`, `purpose`). The last two turn
+ * away crafted field names like `a[a][a]…` or `list[999999999]`, which multer allows by default.
+ * Declared apart because Nest 10's MulterOptions type doesn't list them yet.
+ */
+const UPLOAD_LIMITS = { fileSize: MAX_UPLOAD_BYTES, files: 1, fields: 5, fieldNestingDepth: 0, fieldArrayIndexLimit: 0 };
+
 export class DirectUploadDto {
   @IsIn(MEDIA_PURPOSES) purpose!: MediaPurpose;
   /** The file's type, e.g. video/mp4. @example "video/mp4" */
@@ -52,7 +59,7 @@ export class StorageController {
   @Post()
   @Throttle({ medium: { limit: 30, ttl: 60_000 } })
   // Streams to a temp file on disk (never the whole file in memory); removed after it's stored.
-  @UseInterceptors(FileInterceptor("file", { dest: UPLOAD_TMP_DIR, limits: { fileSize: MAX_UPLOAD_BYTES, files: 1, fields: 5 } }))
+  @UseInterceptors(FileInterceptor("file", { dest: UPLOAD_TMP_DIR, limits: UPLOAD_LIMITS }))
   @ApiOperation({
     summary: "Upload a photo or video",
     description:
