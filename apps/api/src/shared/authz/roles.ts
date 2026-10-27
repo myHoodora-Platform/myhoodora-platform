@@ -38,6 +38,8 @@ export type Capability =
   | "settings.manage"
   /** Sponsored items in the feed: create, edit, pause, delete, see their stats. */
   | "ads.manage"
+  /** Feedback prompts to neighbours, their answers, and when the app asks for store reviews. */
+  | "feedback.manage"
   // Owner only: grant/revoke admin
   | "team.manage.admins";
 
@@ -55,6 +57,7 @@ const STAFF: Record<Exclude<Role, "member">, Capability[]> = {
     "team.manage",
     "settings.manage",
     "ads.manage",
+    "feedback.manage",
   ],
   owner: [
     "admin.access",
@@ -68,6 +71,7 @@ const STAFF: Record<Exclude<Role, "member">, Capability[]> = {
     "team.manage",
     "settings.manage",
     "ads.manage",
+    "feedback.manage",
     "team.manage.admins",
   ],
 };

@@ -1489,3 +1489,27 @@ Every change below is in the audit log (`ad_create`, `ad_update`, `ad_activate`,
 | `business` | text, the business's logo, one image, a button |
 
 A `call` button needs `ctaPhone`; any other needs `ctaUrl` (https). The end date must be after the start date.
+
+## 33. Feedback prompts and store reviews (2026-10-27)
+Questions admins ask neighbours in the app, and when the app asks for an App Store / Play Store review. Types: `@myhoodora/api-contract/prompts`.
+
+### Kinds and layouts
+- **Kinds:** `stars` (1–5), `thumbs` (1 up, 0 down), `poll` (2–6 options, each `{ id, label, emoji? }`), `nps` (0–10, "how likely are you to recommend…"), `open` (a written answer). Each may take a comment: `commentMode` `off`, `optional` or `required` (`open` always requires it).
+- **Layouts:** `sheet` (from the bottom), `dialog` (a card in the middle), `feed` (a card at the top of the feed). `accent` names a colour; `emoji` heads it.
+
+### When a prompt shows
+The app reports what the neighbour does: `POST /engagement/signal` body `{ key, subjectId? }` → `{ prompt | null, storeReview }`. Keys: `app_open`; actions `post_created`, `comment_created`, `listing_created`, `listing_sold`, `event_rsvp`, `message_sent`, `address_verified`, `recommendation_posted`; features `search`, `for_sale`, `events`, `groups`, `messages`, `notifications`, `saved`, `profile`. Fire and forget; counts each one.
+
+A prompt is returned when it is live (active, within its dates), its trigger matches (`action`/`feature` from the `triggerCount`th time; `open` on app open; `manual` on app open once sent), the neighbour is in its audience (neighbourhoods, cities, days since joining), hasn't answered it, hasn't been shown it `maxShows` times, and wasn't shown any prompt within the cooldown (default 14 days; manual prompts skip it). Highest `priority` first. Show it after `delaySeconds`.
+
+- `POST /prompts/:id/shown` when it appears (counts toward its limit, starts the cooldown). `POST /prompts/:id/dismiss` when closed unanswered.
+- `POST /prompts/:id/respond` body `{ value?, optionId?, comment?, contextKey?, subjectId?, platform? }` → `{ thanks }`. Once per neighbour (`409` after). Checked against the kind.
+- `GET /prompts/:id` (opened from a notification): `404` once closed, `409` if already answered.
+
+**Store review:** `storeReview: true` means call the platform's review prompt now (`expo-store-review`). It's true exactly at a milestone (default: 5th post, 1st sale, 3rd RSVP), once they've been here 7 days, and at most every 120 days; the stores cap it further. No question is asked first (Google Play forbids asking "do you like us?" before its card), and never both a prompt and a review at once.
+
+### Managing (admins and the owner: `feedback.manage`; audited)
+- `GET /admin/prompts?status&q` (with `shown` and `responses`), `GET /admin/prompts/:id`, `POST /admin/prompts` (a draft), `PATCH /admin/prompts/:id` (once answered, the kind, question and options are fixed: `409`), `PUT /admin/prompts/:id/status`, `DELETE /admin/prompts/:id` (soft).
+- `POST /admin/prompts/:id/send`: manual prompts only, once. Live from then; with `push: true` its audience also gets a notification opening `/feedback/<id>`.
+- `GET /admin/prompts/:id/results` → `{ shown, dismissed, responses, responseRate, average, distribution, nps?, comments[] }` (comments carry the neighbour's name and Hood: staff only). `GET /admin/prompts/:id/export.csv`: every answer, formulas defused.
+- `GET /admin/prompts/settings` → `{ cooldownDays, storeReview: { enabled, milestones, minDaysSinceJoin, cooldownDays } }`; `PATCH` takes `cooldownDays`, `storeReviewEnabled`, `storeReviewMilestones`, `storeReviewMinDaysSinceJoin`, `storeReviewCooldownDays`.
