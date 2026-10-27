@@ -53,7 +53,9 @@ export function FloatingTabBar({ items, action }: { items: TabItem[]; action?: T
               accessibilityLabel={badge ? `${label}, ${badge} unread` : label}
               style={styles.item}
             >
-              <View style={[styles.pill, focused && { backgroundColor: t.colors.primary }]}>
+              {/* Always painted (transparent when not current) and never flattened: Android otherwise drew
+                  the colour added on focus as a square, ignoring the radius. */}
+              <View collapsable={false} style={[styles.pill, { backgroundColor: focused ? t.colors.primary : "transparent" }]}>
                 <Icon size={22} color={focused ? t.colors.primaryForeground : t.colors.foreground} />
                 {badge ? (
                   <View style={[styles.badge, { backgroundColor: t.colors.destructive, borderColor: t.colors.card }]}>
