@@ -70,6 +70,23 @@ _As of 2 October 2026. Each line was checked against the code or by running it; 
 | Dead files, unused UI, `JWT_*` | ✅ | Removed after a repository-wide reference check: `lib/firebase.ts`, `confirm-overlay.tsx`, `lib/coming-soon.ts`, six unused UI components and two Radix dependencies, `JWT_SECRET` / `JWT_EXPIRES_IN` |
 | Mobile package manager / TypeScript | ✅ | Mobile is in the pnpm workspace (its `package-lock.json` removed). It keeps TypeScript 6.0 (the Expo SDK 57 template); the rest of the repository is on 5.9 |
 
+## Open from 26 October 2026 (WP-1 verification and security patch)
+
+| Item | Status | Detail |
+| --- | --- | --- |
+| Run the WP-1 crash-reporting checks | 🟡 | Preview build with Settings → Diagnostics (shown only when `EXPO_PUBLIC_QA_TOOLS=true`, never in production): test error, unhandled rejection, render crash (crash screen), native crash. Check readable stack traces and that the made-up email, phone and token arrive as `[Filtered]` in Sentry (`myhoodora-mobile`, EU region). Resolve the transport-check issue MYHOODORA-MOBILE-1 afterwards |
+| Logins fail while the API is waking up | ❌ | The API on Render's free tier sleeps when idle and takes about 50 s to wake; the apps give up after 15 s (`REQUEST_TIMEOUT_MS`). Suggested: a longer first request with a "waking up" message, or keep the API awake (paid plan or a scheduled ping to `/api/health`) |
+| Google sign-in on iOS | 🟡 | `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` is unset in EAS and locally, so the iOS button says it isn't set up. Add the iOS OAuth client (Firebase → iOS app `com.myhoodora.app`) |
+| Google Play signing fingerprint | 🟡 at store setup | The EAS keystore's SHA-1/SHA-256 are in Firebase. When the app goes on Google Play, add Play's app-signing fingerprints too (Play Console → Setup → App signing), or Google sign-in fails for store installs |
+| Back up the Android signing key | 🟡 | Created by EAS on 26 October 2026. `eas credentials -p android` → Keystore → download; keep it outside git. It becomes the Play upload key |
+| Real-iPhone builds | 🟡 | Needs one interactive Apple sign-in and device registration: `eas build -p ios --profile preview`. Until then, use the `preview-simulator` profile |
+| `expo-updates` for build channels | ⏳ suggestion | `eas.json` sets channels, but `expo-updates` isn't installed, so over-the-air updates do nothing |
+| Commit the mobile changes | 🟡 | Uncommitted on `deps-sdk57-patch-updates`: Diagnostics panel and `qaTools` flag, `@sentry/cli` as a direct devDependency, `eas.json` (simulator profile, `SHARP_IGNORE_GLOBAL_LIBVIPS`), `ITSAppUsesNonExemptEncryption`, `.env.example` |
+| Web/API security patch | 🟡 decision | Branch `security-patch-web-api` (uncommitted): Next.js 16.4.3, maplibre-gl 6, multer and body-parser overrides, upload-form limits, `upload-limits.e2e-spec.ts`. All checks pass. To decide: commit and PR, then deploy the API first (it closes an unauthenticated crash). maplibre 6 needs WebGL2 (iOS 15+) |
+| Remaining audit findings | ⏳ suggestion | 12 runtime rows after the patch (zod, firebase-admin's busboy and grpc-js, js-yaml under swagger, tailwind's postcss/nanoid/source-map-js). Most look fixable by a lockfile-only refresh; zod needs v4 |
+| Deeply nested JSON returns 500 | ❌ | A body nested about 5,000 levels overflows the validation pipe's stack. Caught, so the API keeps running, but logged as a server error. Limit nesting depth before validation |
+| Connect Sentry in the Expo dashboard | ⏳ suggestion | Optional: shows Sentry errors next to builds in Expo. Not needed for reporting |
+
 ## Known issues left open
 
 - The page gate remembers "live" per server instance for 60 seconds.
