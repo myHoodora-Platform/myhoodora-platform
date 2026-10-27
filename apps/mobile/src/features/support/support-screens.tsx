@@ -9,6 +9,7 @@ import { ActivityIndicator, FlatList, Pressable, StyleSheet, TextInput, View } f
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSignedInUser } from "@/core/auth/auth-provider";
 import { useLive } from "@/features/live/live-store";
+import { useTypingIndicator, useTypingSignal } from "@/features/live/use-typing";
 import { MIN_TOUCH, tint, useTheme } from "@/shared/theme/theme";
 import { AppScreen, useScreenInsets } from "@/shared/ui/app-screen";
 import { Button } from "@/shared/ui/button";
@@ -19,7 +20,7 @@ import { Sheet } from "@/shared/ui/sheet";
 import { EmptyState, ErrorState, LoadingState } from "@/shared/ui/states";
 import { Text } from "@/shared/ui/text";
 import { timeAgo } from "@/shared/utils/time";
-import { contactSupport, getSupportThread, listSupportThreads, replyToSupport, supportKeys, supportUnread } from "./support-api";
+import { contactSupport, getSupportThread, listSupportThreads, replyToSupport, sendSupportTyping, supportKeys, supportUnread } from "./support-api";
 
 const STATUS_LABEL = { open: "Waiting for the team", waiting: "The team replied", resolved: "Resolved" } as const;
 /** Only while the live connection is down (contract §19). */
@@ -214,6 +215,9 @@ export function SupportThreadScreen({ id }: { id: string }) {
       void client.invalidateQueries({ queryKey: supportKeys.list });
     },
   });
+  // As on the web: the team sees you typing, and you see them.
+  useTypingSignal(text, () => sendSupportTyping(user, id));
+  const teamTyping = useTypingIndicator("support.typing", ["support.message"], (e) => e.threadId === id);
   const body = text.trim();
   const canSend = body.length > 0 && !send.isPending;
 
@@ -250,7 +254,11 @@ export function SupportThreadScreen({ id }: { id: string }) {
             <Text variant="label" numberOfLines={1}>
               {thread.data?.subject ?? "myHoodora Support"}
             </Text>
-            {thread.data ? (
+            {teamTyping ? (
+              <Text variant="caption" tone="primary" accessibilityLiveRegion="polite">
+                The team is typing…
+              </Text>
+            ) : thread.data ? (
               <Text variant="caption" tone="muted">
                 {STATUS_LABEL[thread.data.status]}
               </Text>

@@ -4,6 +4,7 @@ import { AppState } from "react-native";
 import { useAuth, useSignedInUser } from "@/core/auth/auth-provider";
 import { config } from "@/core/config/env";
 import { openEventStream } from "@/core/realtime/sse-client";
+import { liveBus } from "./live-bus";
 import { applyLiveEvent, type LiveEvent } from "./live-events";
 import { liveStore } from "./live-store";
 
@@ -60,6 +61,7 @@ export function useLiveUpdates() {
           } catch {
             return;
           }
+          liveBus.emit(parsed);
           if (applyLiveEvent(client, parsed)) {
             // Hood, verification or role changed: new channels, and a new profile.
             void refreshProfile();

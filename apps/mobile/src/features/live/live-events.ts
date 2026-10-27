@@ -12,6 +12,8 @@ export interface LiveEvent {
   id?: string;
   postId?: string;
   conversationId?: string;
+  /** Support conversations (support.message, support.typing). */
+  threadId?: string;
   at?: string;
 }
 

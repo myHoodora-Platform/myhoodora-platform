@@ -23,6 +23,11 @@ export function getSupportThread(user: User, id: string): Promise<SupportThread>
   return apiFetch<SupportThread>(user, `/support/threads/${id}`);
 }
 
+/** `POST /support/threads/:id/typing`: ephemeral, lets the team see you're typing. */
+export function sendSupportTyping(user: User, id: string): Promise<void> {
+  return apiFetch<void>(user, `/support/threads/${encodeURIComponent(id)}/typing`, { method: "POST" });
+}
+
 export function replyToSupport(user: User, id: string, body: string): Promise<SupportThread> {
   return apiFetch<SupportThread>(user, `/support/threads/${id}/messages`, { method: "POST", json: { body } });
 }

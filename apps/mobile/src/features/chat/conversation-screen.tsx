@@ -18,7 +18,8 @@ import { Text } from "@/shared/ui/text";
 import { formatNaira } from "@/shared/utils/format";
 import { timeAgo } from "@/shared/utils/time";
 import { useLive } from "@/features/live/live-store";
-import { chatKeys, getConversation, listMessages, sendMessage } from "./chat-api";
+import { useTypingIndicator, useTypingSignal } from "@/features/live/use-typing";
+import { chatKeys, getConversation, listMessages, sendMessage, sendTyping } from "./chat-api";
 import { otherPerson } from "./inbox-screen";
 
 /** New messages arrive over the live connection; only while it's down does an open thread check (contract §19). */
@@ -49,6 +50,10 @@ export function ConversationScreen({ id }: { id: string }) {
   useEffect(() => {
     if (count) void client.invalidateQueries({ queryKey: chatKeys.unread });
   }, [count, client]);
+
+  // "typing…" both ways, as on the web: their signal shows under the name; ours goes while we write.
+  useTypingSignal(text, () => sendTyping(user, id));
+  const otherTyping = useTypingIndicator("chat.typing", ["chat.message"], (e) => e.conversationId === id);
 
   const other = convo.data ? otherPerson(convo.data, user.uid) : undefined;
   const body = text.trim();
@@ -83,9 +88,16 @@ export function ConversationScreen({ id }: { id: string }) {
       center={
         <View style={styles.who}>
           <Avatar name={other?.displayName} photoURL={other?.photoURL} size={32} />
-          <Text variant="label" numberOfLines={1} style={styles.shrink}>
-            {other?.displayName ?? "Message"}
-          </Text>
+          <View style={styles.shrink}>
+            <Text variant="label" numberOfLines={1}>
+              {other?.displayName ?? "Message"}
+            </Text>
+            {otherTyping ? (
+              <Text variant="caption" tone="primary" accessibilityLiveRegion="polite">
+                typing…
+              </Text>
+            ) : null}
+          </View>
         </View>
       }
       footer={composer}

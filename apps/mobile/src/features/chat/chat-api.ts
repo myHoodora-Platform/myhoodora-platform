@@ -31,6 +31,11 @@ export function startConversation(user: User, recipientUid: string, listing?: Pi
   return apiFetch<Conversation>(user, "/conversations", { method: "POST", json: { recipientUid, ...(listing && { context: { type: "listing", id: listing._id } }) } });
 }
 
+/** `POST /conversations/:id/typing`: ephemeral, tells the other person you're typing (contract §19). */
+export function sendTyping(user: User, id: string): Promise<void> {
+  return apiFetch<void>(user, `/conversations/${id}/typing`, { method: "POST" });
+}
+
 export function sendMessage(user: User, id: string, body: string): Promise<Message> {
   return apiFetch<Message>(user, `/conversations/${id}/messages`, { method: "POST", json: { body } });
 }
