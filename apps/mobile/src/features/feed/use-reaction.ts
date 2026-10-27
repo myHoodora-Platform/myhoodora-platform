@@ -1,15 +1,15 @@
 import { errorMessage } from "@myhoodora/api-contract/errors";
-import type { ApiPost } from "@myhoodora/api-contract/types";
+import type { ApiPost, ReactionType } from "@myhoodora/api-contract/types";
 import { useMutation, useQueryClient, type InfiniteData, type QueryClient } from "@tanstack/react-query";
 import { useSignedInUser } from "@/core/auth/auth-provider";
 import { useToast } from "@/shared/ui/toast";
-import { feedKeys, setLiked } from "./feed-api";
-import { withLike } from "./reactions";
+import { feedKeys, setReaction } from "./feed-api";
+import { withReaction } from "./reactions";
 
 type FeedPages = InfiniteData<ApiPost[], string | undefined>;
 
 /** Every cached copy of the post (each feed filter, and its own page), changed the same way. */
-function updateEverywhere(client: QueryClient, id: string, change: (post: ApiPost) => ApiPost) {
+export function updatePostEverywhere(client: QueryClient, id: string, change: (post: ApiPost) => ApiPost) {
   client.setQueriesData<FeedPages>({ queryKey: feedKeys.all }, (data) =>
     data ? { ...data, pages: data.pages.map((page) => page.map((p) => (p._id === id ? change(p) : p))) } : data,
   );
@@ -17,24 +17,25 @@ function updateEverywhere(client: QueryClient, id: string, change: (post: ApiPos
 }
 
 /**
- * Like or un-like, optimistically: the heart changes on tap, and goes back (with a message) if the API
- * refuses. A reaction is one per neighbour and can be undone, so rolling back is always safe.
+ * React, change your reaction or take it back (`null`), optimistically: the bar changes on tap, and goes
+ * back (with a message) if the API refuses. One reaction per neighbour that can be undone, so rolling
+ * back is always safe. Callers ignore taps while `isPending`, so one post never has two in flight.
  */
-export function useLike() {
+export function useReaction() {
   const user = useSignedInUser();
   const client = useQueryClient();
   const toast = useToast();
   return useMutation({
-    mutationFn: ({ post, liked }: { post: ApiPost; liked: boolean }) => setLiked(user, post._id, liked),
-    onMutate: async ({ post, liked }) => {
+    mutationFn: ({ post, type }: { post: ApiPost; type: ReactionType | null }) => setReaction(user, post._id, type),
+    onMutate: async ({ post, type }) => {
       await client.cancelQueries({ queryKey: feedKeys.all });
-      updateEverywhere(client, post._id, (p) => withLike(p, liked));
+      updatePostEverywhere(client, post._id, (p) => withReaction(p, type));
       return { before: post };
     },
     onError: (err, { post }, context) => {
-      updateEverywhere(client, post._id, () => context?.before ?? post);
+      updatePostEverywhere(client, post._id, () => context?.before ?? post);
       toast(errorMessage(err), "error");
     },
-    onSuccess: (fresh) => updateEverywhere(client, fresh._id, (p) => ({ ...p, ...fresh })),
+    onSuccess: (fresh) => updatePostEverywhere(client, fresh._id, (p) => ({ ...p, ...fresh })),
   });
 }

@@ -1,4 +1,5 @@
-import { useRouter, type Href } from "expo-router";
+import { type Href } from "expo-router";
+import { useRouter } from "@/core/navigation/use-router";
 import { ChevronLeft } from "lucide-react-native";
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { KeyboardAvoidingView, Platform, StyleSheet, View } from "react-native";

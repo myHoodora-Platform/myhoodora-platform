@@ -1,6 +1,7 @@
 import type { AppNotification } from "@myhoodora/api-contract/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRouter, type Href } from "expo-router";
+import { type Href } from "expo-router";
+import { useRouter } from "@/core/navigation/use-router";
 import { Image } from "expo-image";
 import { BadgeCheck, CalendarDays, CheckCheck, Heart, Megaphone, MessageCircle, Send, ShieldCheck, TriangleAlert, Users, type LucideIcon } from "lucide-react-native";
 import { memo, useCallback, useMemo } from "react";

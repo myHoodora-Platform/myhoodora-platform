@@ -2,7 +2,7 @@ import { errorMessage } from "@myhoodora/api-contract/errors";
 import { SUPPORT_TOPICS, type SupportMessage, type SupportThreadSummary, type SupportTopic } from "@myhoodora/api-contract/support";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
-import { useRouter } from "expo-router";
+import { useRouter } from "@/core/navigation/use-router";
 import { ArrowUp, Pin } from "lucide-react-native";
 import { useRef, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, TextInput, View } from "react-native";

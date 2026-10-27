@@ -2,7 +2,7 @@ import { errorMessage } from "@myhoodora/api-contract/errors";
 import type { Message } from "@myhoodora/api-contract/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
-import { useRouter } from "expo-router";
+import { useRouter } from "@/core/navigation/use-router";
 import { ArrowUp } from "lucide-react-native";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, TextInput, View } from "react-native";

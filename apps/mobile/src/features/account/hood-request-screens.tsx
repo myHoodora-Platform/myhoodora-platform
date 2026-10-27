@@ -1,7 +1,7 @@
 import { ApiError, errorMessage } from "@myhoodora/api-contract/errors";
 import { addressIssue, EMPTY_ADDRESS, joinAddress, type AddressParts } from "@myhoodora/api-contract/lookups";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
+import { useRouter } from "@/core/navigation/use-router";
 import { ChevronRight, LocateFixed, Search, X } from "lucide-react-native";
 import { useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, SectionList, StyleSheet, TextInput, View } from "react-native";

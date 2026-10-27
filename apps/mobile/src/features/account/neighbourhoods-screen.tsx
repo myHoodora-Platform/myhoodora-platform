@@ -1,7 +1,7 @@
 import { errorMessage } from "@myhoodora/api-contract/errors";
 import type { HoodRequestView } from "@myhoodora/api-contract/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
+import { useRouter } from "@/core/navigation/use-router";
 import { Home, MessagesSquare, Plus, Truck, X } from "lucide-react-native";
 import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useAuth, useSignedInUser } from "@/core/auth/auth-provider";

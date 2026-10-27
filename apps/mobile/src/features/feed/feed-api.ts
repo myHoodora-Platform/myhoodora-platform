@@ -1,5 +1,5 @@
 import type { User } from "@firebase/auth";
-import type { AlertCategory, ApiPost, Comment, PostCategory, ReportReason } from "@myhoodora/api-contract/types";
+import type { AlertCategory, ApiPost, Comment, PostCategory, ReactionType, ReportReason } from "@myhoodora/api-contract/types";
 import type { InfiniteData, QueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/core/api/client";
 
@@ -54,10 +54,10 @@ export function getHood(user: User, id: string): Promise<{ _id: string; name: st
   return apiFetch(user, `/neighborhoods/${id}`);
 }
 
-/** Like a post, or take your reaction back (contract §1: one reaction per neighbour). Returns the post. */
-export function setLiked(user: User, postId: string, liked: boolean): Promise<ApiPost> {
-  return liked
-    ? apiFetch<ApiPost>(user, `/posts/${postId}/reaction`, { method: "PUT", json: { type: "like" } })
+/** Set your reaction, or take it back with `null` (contract §1: one reaction per neighbour). Returns the post. */
+export function setReaction(user: User, postId: string, type: ReactionType | null): Promise<ApiPost> {
+  return type
+    ? apiFetch<ApiPost>(user, `/posts/${postId}/reaction`, { method: "PUT", json: { type } })
     : apiFetch<ApiPost>(user, `/posts/${postId}/reaction`, { method: "DELETE" });
 }
 
@@ -116,4 +116,9 @@ export function cachedPost(client: QueryClient, id: string): ApiPost | undefined
 /** Your own comment (or, for leads and staff, anyone's in the Hood: the API decides). */
 export function deleteComment(user: User, commentId: string): Promise<void> {
   return apiFetch<void>(user, `/comments/${commentId}`, { method: "DELETE" });
+}
+
+/** Your own post (the API checks it's yours; anyone else gets 403/404). */
+export function deletePost(user: User, postId: string): Promise<void> {
+  return apiFetch<void>(user, `/posts/${postId}`, { method: "DELETE" });
 }

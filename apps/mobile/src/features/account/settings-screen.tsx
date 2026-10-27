@@ -1,9 +1,9 @@
 import { DEACTIVATION_REASONS, type DeactivationReason } from "@myhoodora/api-contract/settings";
 import { errorMessage } from "@myhoodora/api-contract/errors";
 import Constants from "expo-constants";
-import { useRouter } from "expo-router";
+import { useRouter } from "@/core/navigation/use-router";
 import * as WebBrowser from "expo-web-browser";
-import { BellRing, BookOpen, FileText, HelpCircle, LifeBuoy, LogOut, Lock, MapPinned, MonitorSmartphone, ShieldCheck, SlidersHorizontal, UserX } from "lucide-react-native";
+import { BellRing, BookOpen, FileText, HelpCircle, LayoutList, LifeBuoy, LogOut, Lock, MapPinned, MonitorSmartphone, ShieldCheck, SlidersHorizontal, UserX } from "lucide-react-native";
 import { useState } from "react";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
 import { useAuth, useSignedInUser } from "@/core/auth/auth-provider";
@@ -151,6 +151,11 @@ function SettingsContent() {
         <SettingsRow Icon={UserX} label="Deactivate account" destructive onPress={() => setLeaving(true)} />
       </SettingsGroup>
 
+      {__DEV__ || config().qaTools ? (
+        <SettingsGroup title="Layouts">
+          <SettingsRow Icon={LayoutList} label="Feed layout gallery" description="Made-up posts of every shape" onPress={() => router.push("/qa-feed")} />
+        </SettingsGroup>
+      ) : null}
       <DiagnosticsGroup />
 
       <Text variant="caption" tone="muted" style={styles.version}>

@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
+import { useRouter } from "@/core/navigation/use-router";
 import { ArrowUp, Bell, ChevronDown, Hourglass, MapPin, MessageCircle } from "lucide-react-native";
 import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
@@ -64,6 +64,11 @@ function TopBar({ hood, updating = false, viewing, onView }: { hood?: { name: st
       <HoodSheet visible={open} onClose={() => setOpen(false)} viewing={viewing ?? null} onView={(id) => onView?.(id)} />
     </View>
   );
+}
+
+/** The grey between posts: the canvas showing through, not a border. */
+function CardGap() {
+  return <View style={styles.gap} />;
 }
 
 /** Onboarded, but not in a Hood yet: skipped, or waiting for staff to approve a request. */
@@ -161,6 +166,7 @@ export function FeedScreen() {
       data={feed.isPending || (feed.isError && !feed.data) ? [] : posts}
       keyExtractor={(p) => p._id}
       renderItem={renderItem}
+      ItemSeparatorComponent={CardGap}
       ListHeaderComponent={header}
       ListEmptyComponent={
         feed.isPending ? (
@@ -211,8 +217,9 @@ export function FeedScreen() {
 }
 
 const styles = StyleSheet.create({
-  list: { padding: 16, gap: 14, flexGrow: 1 },
-  header: { gap: 14, marginBottom: 2 },
+  list: { flexGrow: 1 },
+  header: { gap: 14, paddingHorizontal: 16, paddingBottom: 12 },
+  gap: { height: 8 },
   topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
   flex: { flex: 1 },
   newPosts: { position: "absolute", alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 9, borderRadius: 999, shadowColor: "#000", shadowOpacity: 0.18, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 6 },
@@ -227,5 +234,5 @@ const styles = StyleSheet.create({
   joinCard: { borderRadius: 24, padding: 24, gap: 12, alignItems: "stretch" },
   joinIcon: { width: 64, height: 64, borderRadius: 32, alignItems: "center", justifyContent: "center", alignSelf: "center" },
   centred: { textAlign: "center" },
-  footer: { paddingVertical: 20 },
+  footer: { paddingVertical: 20, paddingHorizontal: 16 },
 });

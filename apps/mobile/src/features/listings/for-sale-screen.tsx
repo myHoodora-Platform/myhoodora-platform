@@ -1,6 +1,6 @@
 import type { Listing } from "@myhoodora/api-contract/types";
 import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
+import { useRouter } from "@/core/navigation/use-router";
 import { Plus } from "lucide-react-native";
 import { useCallback, useState } from "react";
 import { FlatList, RefreshControl, ScrollView, StyleSheet, View } from "react-native";

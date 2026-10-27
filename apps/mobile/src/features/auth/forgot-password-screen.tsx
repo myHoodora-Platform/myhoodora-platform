@@ -1,5 +1,5 @@
 import { forgotPasswordSchema } from "@myhoodora/api-contract/auth-validation";
-import { useRouter } from "expo-router";
+import { useRouter } from "@/core/navigation/use-router";
 import { useState } from "react";
 import { Button } from "@/shared/ui/button";
 import { TextField } from "@/shared/ui/text-field";

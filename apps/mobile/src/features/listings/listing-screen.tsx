@@ -1,7 +1,7 @@
 import { errorMessage } from "@myhoodora/api-contract/errors";
 import type { Listing } from "@myhoodora/api-contract/types";
 import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
+import { useRouter } from "@/core/navigation/use-router";
 import { ArrowRight, ChevronLeft, Ellipsis, Package, Share2 } from "lucide-react-native";
 import { useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from "react-native";

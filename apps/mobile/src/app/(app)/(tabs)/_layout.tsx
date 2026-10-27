@@ -1,4 +1,5 @@
-import { Tabs, useRouter } from "expo-router";
+import { Tabs } from "expo-router";
+import { useRouter } from "@/core/navigation/use-router";
 import { Home, Search, ShoppingBag, SquarePen } from "lucide-react-native";
 import type { ComponentProps } from "react";
 import { useTheme } from "@/shared/theme/theme";

@@ -4,6 +4,7 @@ import { ArrowUpDown } from "lucide-react-native";
 import { useMemo, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, View, type TextInput } from "react-native";
 import { useSignedInUser } from "@/core/auth/auth-provider";
+import { useRouter } from "@/core/navigation/use-router";
 import { useTheme } from "@/shared/theme/theme";
 import { AppScreen, useScreenInsets } from "@/shared/ui/app-screen";
 import { PhotoPager } from "@/shared/ui/photo-pager";
@@ -13,7 +14,7 @@ import { Text } from "@/shared/ui/text";
 import { CommentComposer } from "./comment-composer";
 import { CommentRow } from "./comment-row";
 import { cachedPost, feedKeys, getPost, listComments } from "./feed-api";
-import { CategoryBadge, PostActions, PostAuthor, PostText } from "./post-parts";
+import { CategoryBadge, PostActionBar, PostAuthor, PostCounts, PostMenuButton, PostText } from "./post-parts";
 
 type Order = "oldest" | "newest";
 
@@ -28,7 +29,8 @@ function PostBody({ post, onComment, count, order, onOrder }: { post: ApiPost; o
       </View>
       <PhotoPager photos={post.mediaUrls} aspects={post.mediaAspects} label="Photo in the post" />
       <View style={[styles.actions, { borderBottomColor: t.colors.border }]}>
-        <PostActions post={post} onComment={onComment} />
+        <PostCounts post={post} />
+        <PostActionBar post={post} onComment={onComment} />
       </View>
       <View style={styles.commentsHead}>
         <Text variant="heading">Comments{count !== undefined ? ` (${count})` : ""}</Text>
@@ -104,6 +106,7 @@ export function PostScreen({ id }: { id: string }) {
   const list = useRef<FlatList<Comment>>(null);
   const post = useQuery({ queryKey: feedKeys.post(id), queryFn: () => getPost(user, id), placeholderData: () => cachedPost(client, id) });
   const comments = useComments(id);
+  const router = useRouter();
 
   if (!post.data) {
     return (
@@ -122,6 +125,7 @@ export function PostScreen({ id }: { id: string }) {
     <AppScreen
       canvas={false}
       center={<PostAuthor post={post.data} size={34} compact />}
+      right={<PostMenuButton post={post.data} onDeleted={() => router.back()} />}
       footer={<CommentComposer ref={input} post={post.data} onSent={() => setTimeout(() => list.current?.scrollToEnd({ animated: true }), 150)} />}
     >
       <PostList post={post.data} comments={comments} onComment={() => input.current?.focus()} list={list} />
@@ -143,7 +147,7 @@ function LoadingPost() {
 
 const styles = StyleSheet.create({
   text: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 14, gap: 10, alignItems: "flex-start" },
-  actions: { paddingHorizontal: 8, paddingVertical: 4, borderBottomWidth: StyleSheet.hairlineWidth },
+  actions: { paddingTop: 8, paddingBottom: 4, gap: 4, borderBottomWidth: StyleSheet.hairlineWidth },
   commentsHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4 },
   sort: { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
   separator: { height: StyleSheet.hairlineWidth, marginLeft: 64 },

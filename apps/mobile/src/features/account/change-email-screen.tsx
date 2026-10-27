@@ -1,6 +1,6 @@
 import { EmailAuthProvider, reauthenticateWithCredential } from "@firebase/auth";
 import { ApiError, errorMessage } from "@myhoodora/api-contract/errors";
-import { useRouter } from "expo-router";
+import { useRouter } from "@/core/navigation/use-router";
 import { MailCheck } from "lucide-react-native";
 import { useRef, useState } from "react";
 import { ScrollView, StyleSheet, View, type TextInput } from "react-native";

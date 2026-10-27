@@ -1,7 +1,7 @@
 import { errorMessage } from "@myhoodora/api-contract/errors";
 import { BIO_MAX, DISPLAY_NAME_MAX } from "@myhoodora/api-contract/settings";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
+import { useRouter } from "@/core/navigation/use-router";
 import { Camera, Images, Lock, Mail, MapPin, Trash2 } from "lucide-react-native";
 import { useRef, useState } from "react";
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";

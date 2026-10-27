@@ -1,7 +1,7 @@
 import type { Conversation } from "@myhoodora/api-contract/types";
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
-import { useRouter } from "expo-router";
+import { useRouter } from "@/core/navigation/use-router";
 import { FlatList, Pressable, RefreshControl, StyleSheet, View } from "react-native";
 import { useSignedInUser } from "@/core/auth/auth-provider";
 import { usePullRefresh } from "@/shared/hooks/use-pull-refresh";
