@@ -17,7 +17,7 @@ import { UsersService } from "../users/users.service";
 import { eventDateProblem, hasEnded } from "./domain/event-time";
 import { decodePostContent, encodePostContent, postTypeFor, type PostMeta } from "./domain/post-meta";
 import type { CreatePostDto, FeedQuery } from "./dto/posts.dto";
-import { FeedPost, PollVote, Reaction, Rsvp, type PostDocument, type ReactionType } from "./schemas/post.schema";
+import { FeedPost, PollVote, PostFollow, Reaction, Rsvp, SavedPost, type PostDocument, type ReactionType } from "./schemas/post.schema";
 
 const URGENT_PER_USER_HOURS = 6;
 const HOUR = 3_600_000;
@@ -56,6 +56,14 @@ export interface PostView {
   reactionTotal: number;
   myReaction: ReactionType | null;
   commentCount: number;
+  /** Different neighbours who shared it. */
+  shareCount: number;
+  /** The viewer saved it. */
+  saved: boolean;
+  /** The viewer hears about new comments on it: its author unless they muted it, others once they follow it. */
+  following: boolean;
+  /** When the author last changed the text, or null. */
+  editedAt: string | null;
   commentsDisabled: boolean;
   activeUntil?: string;
   resolvedAt: string | null;
@@ -90,6 +98,8 @@ export class PostsService implements OnModuleInit {
     @InjectModel(Reaction.name) private readonly reactions: Model<Reaction>,
     @InjectModel(PollVote.name) private readonly votes: Model<PollVote>,
     @InjectModel(Rsvp.name) private readonly rsvps: Model<Rsvp>,
+    @InjectModel(SavedPost.name) private readonly saves: Model<SavedPost>,
+    @InjectModel(PostFollow.name) private readonly follows: Model<PostFollow>,
     private readonly users: UsersService,
     private readonly hoods: HoodsService,
     private readonly settings: PlatformSettingsService,
@@ -147,7 +157,18 @@ export class PostsService implements OnModuleInit {
           authorUid: p.authorUid,
           hoodId: p.neighborhoodId,
           removed: Boolean(p.removedAt),
-          content: { kind: "post", message, category: meta.category, createdAt: p.createdAt?.toISOString(), media: p.mediaUrls, urgent: p.urgent, removed: Boolean(p.removedAt) },
+          content: {
+            kind: "post",
+            message,
+            category: meta.category,
+            createdAt: p.createdAt?.toISOString(),
+            media: p.mediaUrls,
+            urgent: p.urgent,
+            removed: Boolean(p.removedAt),
+            // What it said before the author edited it: a report may be about the earlier words.
+            editedAt: p.editedAt?.toISOString(),
+            earlierVersions: p.editHistory?.map((e) => ({ message: e.message, replacedAt: e.at.toISOString() })),
+          },
         };
       },
       setRemoved: (id, removed, actorUid, session) => this.setRemoved(id, removed, actorUid, session),
@@ -390,6 +411,20 @@ export class PostsService implements OnModuleInit {
     return p;
   }
 
+  /** Authors whose posts this viewer mustn't see (blocked either way); none for staff. */
+  hiddenAuthors(viewer: Viewer): Promise<string[]> {
+    return viewer.capabilities.includes("admin.access") ? Promise.resolve([]) : this.users.hiddenAuthorsFor(viewer.uid);
+  }
+
+  /**
+   * Who chose to hear about this post: `followers` turned its notifications on, `muted` turned them
+   * off (the author included). Everyone else gets the defaults (CommentsService decides those).
+   */
+  async notificationChoices(postId: string): Promise<{ followers: string[]; muted: Set<string> }> {
+    const rows = await this.follows.find({ postId }).select({ uid: 1, on: 1 }).lean<Pick<PostFollow, "uid" | "on">[]>().exec();
+    return { followers: rows.filter((r) => r.on).map((r) => r.uid), muted: new Set(rows.filter((r) => !r.on).map((r) => r.uid)) };
+  }
+
   async get(viewer: Viewer, id: string): Promise<PostView> {
     const p = await this.loadReadable(viewer, id);
     return (await this.toViews([p], viewer))[0]!;
@@ -454,14 +489,18 @@ export class PostsService implements OnModuleInit {
   async toViews(docs: (FeedPost & { _id?: unknown })[], viewer: Viewer): Promise<PostView[]> {
     if (!docs.length) return [];
     const ids = docs.map((d) => String(d._id));
-    const [authors, mine, polls, rsvps, aspects] = await Promise.all([
+    const [authors, mine, polls, rsvps, aspects, saved, choices] = await Promise.all([
       // A neighbour never receives a deactivated author's post at all; staff do, and need to know whose it is.
       this.users.authorCards(docs.map((d) => d.authorUid), { forStaff: viewer.capabilities.includes("admin.access") }),
       this.reactions.find({ postId: { $in: ids }, uid: viewer.uid }).lean<Reaction[]>().exec(),
       this.pollResultsFor(docs.filter((d) => d.poll), viewer.uid),
       this.rsvpSummariesFor(docs.filter((d) => this.read(d).meta.category === "event"), viewer.uid),
       this.storage.aspectRatios(docs.flatMap((d) => d.mediaUrls ?? [])),
+      this.saves.find({ uid: viewer.uid, postId: { $in: ids } }).select({ postId: 1 }).lean<Pick<SavedPost, "postId">[]>().exec(),
+      this.follows.find({ uid: viewer.uid, postId: { $in: ids } }).select({ postId: 1, on: 1 }).lean<Pick<PostFollow, "postId" | "on">[]>().exec(),
     ]);
+    const savedIds = new Set(saved.map((r) => r.postId));
+    const choice = new Map(choices.map((r) => [r.postId, r.on]));
     const hoods = await this.hoods.findManyByIds([...new Set([...authors.values()].map((a) => a.neighborhoodId).filter(Boolean) as string[])]);
     const myReaction = new Map(mine.map((r) => [r.postId, r.type]));
 
@@ -496,6 +535,10 @@ export class PostsService implements OnModuleInit {
         reactionTotal: Object.values(counts).reduce((n, c) => n + (c ?? 0), 0),
         myReaction: myReaction.get(id) ?? null,
         commentCount: d.commentCount ?? 0,
+        shareCount: d.shareCount ?? 0,
+        saved: savedIds.has(id),
+        following: choice.get(id) ?? d.authorUid === viewer.uid,
+        editedAt: d.editedAt?.toISOString() ?? null,
         commentsDisabled: Boolean(d.commentsDisabled),
         activeUntil: d.activeUntil?.toISOString(),
         resolvedAt: d.resolvedAt?.toISOString() ?? null,

@@ -69,6 +69,15 @@ export class FeedPost {
   @Prop({ default: 0, min: 0 })
   commentCount!: number;
 
+  /** Different neighbours who shared it (one each, however often: post_shares). */
+  @Prop({ default: 0, min: 0 })
+  shareCount!: number;
+
+  /** When the author last changed the text; null if never. */
+  @Prop({ type: Date, default: null }) editedAt?: Date | null;
+  /** The text before each edit, newest last (up to 20), so moderators see what was said. Never sent to clients. */
+  @Prop({ type: [{ message: String, at: Date, _id: false }], default: undefined }) editHistory?: { message: string; at: Date }[];
+
   @Prop({ default: false })
   commentsDisabled!: boolean;
 
@@ -141,3 +150,38 @@ export class Rsvp {
 export const RsvpSchema = SchemaFactory.createForClass(Rsvp);
 RsvpSchema.index({ postId: 1, uid: 1 }, { unique: true });
 RsvpSchema.index({ postId: 1, status: 1 });
+
+/** A post someone saved for later ("Saved" in their menu). Private to them. */
+@Schema({ timestamps: { createdAt: true, updatedAt: false }, collection: "saved_posts" })
+export class SavedPost {
+  @Prop({ required: true }) uid!: string;
+  @Prop({ required: true }) postId!: string;
+  createdAt?: Date;
+}
+export const SavedPostSchema = SchemaFactory.createForClass(SavedPost);
+SavedPostSchema.index({ uid: 1, postId: 1 }, { unique: true });
+SavedPostSchema.index({ uid: 1, createdAt: -1, _id: -1 });
+
+/**
+ * Notifications for one post, chosen by one person: `on` follows it (hear about new comments), `off`
+ * mutes it (the author, or someone in a thread, stops hearing about it). No row: the default (the
+ * author and the people answered hear; nobody else does).
+ */
+@Schema({ timestamps: true, collection: "post_follows" })
+export class PostFollow {
+  @Prop({ required: true }) postId!: string;
+  @Prop({ required: true }) uid!: string;
+  @Prop({ required: true }) on!: boolean;
+}
+export const PostFollowSchema = SchemaFactory.createForClass(PostFollow);
+PostFollowSchema.index({ postId: 1, uid: 1 }, { unique: true });
+PostFollowSchema.index({ postId: 1, on: 1 });
+
+/** Who has shared a post: one row per neighbour, so sharing again doesn't inflate `shareCount`. */
+@Schema({ timestamps: { createdAt: true, updatedAt: false }, collection: "post_shares" })
+export class PostShare {
+  @Prop({ required: true }) postId!: string;
+  @Prop({ required: true }) uid!: string;
+}
+export const PostShareSchema = SchemaFactory.createForClass(PostShare);
+PostShareSchema.index({ postId: 1, uid: 1 }, { unique: true });

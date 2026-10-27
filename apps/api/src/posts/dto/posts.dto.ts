@@ -122,3 +122,30 @@ export class RsvpDto {
 export class ResolveAlertDto {
   @IsBoolean() resolved!: boolean;
 }
+
+/** PATCH /posts/:id: the author changes the text (nothing else). */
+export class EditPostDto {
+  @IsString()
+  @MaxLength(8192)
+  message!: string;
+}
+
+/** PUT /posts/:id/follow: hear about new comments (true) or nothing more from this post (false). */
+export class FollowPostDto {
+  @IsBoolean()
+  on!: boolean;
+}
+
+/** GET /posts/saved: newest saved first; `before` is the last one's `savedAt`. */
+export class SavedQuery {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit = 20;
+
+  @IsOptional()
+  @IsDateString()
+  before?: string;
+}

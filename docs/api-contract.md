@@ -137,6 +137,15 @@ Returns a `Post` (same shape as the list). 404 if deleted, removed by staff, fro
 
 **Later, for link previews:** a public variant that returns `{ message snippet, first image, neighbourhood name }` only for `visibility = anyone`. The page uses it in `generateMetadata` so links shared on WhatsApp show the real post.
 
+### The post menu: save, notifications, share, edit ✅
+Every `Post` also carries `saved`, `following`, `shareCount` and `editedAt` (null if never edited).
+
+- `PUT /posts/:id/save` · `DELETE /posts/:id/save` → `{ saved }`. Repeat-safe. Any post you can read; unsaving works even once it's gone.
+- `GET /posts/saved?limit&before` → `Post[]` plus `savedAt` each, newest saved first. Page with `before` = the last `savedAt`. Posts that are deleted, removed, from someone blocked or outside your neighbourhoods are left out.
+- `PUT /posts/:id/follow` body `{ on: boolean }` → `{ following }`. `on: true` follows: you're told when someone comments (bundled per post while unread: "Ada and Bola commented on a post you follow"). `on: false` mutes: nothing more from this post, even as its author or when someone answers you. With no choice made, the author hears about comments and people hear about replies to them.
+- `POST /posts/:id/share` → `{ shareCount }`. Call it when someone shares; each neighbour counts once however often they share.
+- `PATCH /posts/:id` body `{ message }` → `Post`. Author only (403 otherwise); 1 to 8,192 characters. Only the text changes: kind, photos, event details stay. Sets `editedAt` (unchanged text isn't an edit). The earlier text is kept for moderators (the report's content shows `earlierVersions`), never sent to clients.
+
 ### `PUT /posts/:id/reaction` · `DELETE /posts/:id/reaction` ✅
 Body `{ type: "like" | "helpful" | "agree" | "haha" | "wow" | "sad" }`, returns the updated `Post`.
 

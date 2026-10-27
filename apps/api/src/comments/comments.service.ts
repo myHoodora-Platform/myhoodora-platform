@@ -192,11 +192,18 @@ export class CommentsService implements OnModuleInit {
     const who = viewer.displayName ?? "A neighbour";
     const body = text.slice(0, 140);
     const href = `/p/${postId}`;
-    // Whoever was answered (and whoever started the thread) hears about the reply; the post's author hears about anything new on it.
-    const answered = parent ? [...new Set([parent.authorUid, ...(rootId !== String(parent._id) ? [await this.authorOf(rootId!)] : [])])].filter((u): u is string => !!u) : [];
+    // Whoever was answered (and whoever started the thread) hears about the reply; the post's author hears about
+    // anything new on it; so do its followers. Nobody who muted the post hears anything more from it.
+    const { followers, muted } = await this.posts.notificationChoices(postId);
+    const answered = (parent ? [...new Set([parent.authorUid, ...(rootId !== String(parent._id) ? [await this.authorOf(rootId!)] : [])])] : []).filter((u): u is string => !!u && !muted.has(u));
     if (answered.length) await this.notifications.notify({ uids: answered, type: "comment", actorUid: viewer.uid, title: `${who} replied to your comment`, body, href, category: "comments" });
-    if (!answered.includes(post.authorUid)) {
+    if (!answered.includes(post.authorUid) && !muted.has(post.authorUid)) {
       await this.notifications.notify({ uids: [post.authorUid], type: "comment", actorUid: viewer.uid, title: parent ? `${who} replied to a comment on your post` : `${who} commented on your post`, body, href, category: "comments" });
+    }
+    const others = followers.filter((u) => u !== post.authorUid && !answered.includes(u));
+    if (others.length) {
+      // Bundled per post while unread: a busy thread is one notification, not one per comment.
+      await this.notifications.notify({ uids: others, type: "comment", actorUid: viewer.uid, title: `${who} commented on a post you follow`, body, href, category: "comments", groupKey: `post-follow:${postId}` });
     }
     this.announce(post, "comment.created", String(created._id));
     return (await this.toViews([created.toObject()], viewer.uid))[0]!;

@@ -72,6 +72,14 @@ export interface ApiPost {
   reactionTotal?: number;
   myReaction?: ReactionType | null;
   commentCount?: number;
+  /** Different neighbours who shared it. */
+  shareCount?: number;
+  /** You saved it (GET /posts/saved lists them). */
+  saved?: boolean;
+  /** You hear about new comments on it: its author unless muted, others once they follow it. */
+  following?: boolean;
+  /** When the author last edited the text, or null. */
+  editedAt?: string | null;
   commentsDisabled?: boolean;
   activeUntil?: string;
   resolvedAt?: string | null;
