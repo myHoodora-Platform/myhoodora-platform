@@ -12,3 +12,9 @@ export function timeAgo(iso: string, now = Date.now()): string {
   if (d < 7) return `${d}d`;
   return new Date(then).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
+
+/** "October 2026", or null for a date it can't read. */
+export function monthYear(iso?: string): string | null {
+  const d = iso ? new Date(iso) : null;
+  return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString("en-GB", { month: "long", year: "numeric" }) : null;
+}

@@ -74,7 +74,7 @@ export function CategoryBadge({ post }: { post: ApiPost }) {
 }
 
 /** Avatar, name, and "Neighbourhood · 2h". Tapping the face or name opens who posted, when `onAuthor` is given. */
-export function PostAuthor({ post, size = 40, compact = false, onAuthor }: { post: ApiPost; size?: number; compact?: boolean; onAuthor?: () => void }) {
+export function PostAuthor({ post, size = 40, compact = false, onAuthor, onAuthorLongPress }: { post: ApiPost; size?: number; compact?: boolean; onAuthor?: () => void; onAuthorLongPress?: () => void }) {
   const t = useTheme();
   const name = post.author?.displayName ?? "myHoodora user";
   const meta = [post.author?.neighborhoodName, timeAgo(post.createdAt)].filter(Boolean).join(" · ");
@@ -96,7 +96,17 @@ export function PostAuthor({ post, size = 40, compact = false, onAuthor }: { pos
   );
   if (!onAuthor || !post.author) return <View style={styles.author}>{body}</View>;
   return (
-    <Pressable onPress={onAuthor} accessibilityRole="link" accessibilityLabel={`${name}. ${meta}`} accessibilityHint="Opens their profile" hitSlop={4} style={({ pressed }) => [styles.author, { opacity: pressed ? 0.7 : 1 }]}>
+    <Pressable
+      onPress={onAuthor}
+      onLongPress={onAuthorLongPress}
+      delayLongPress={350}
+      accessibilityRole="link"
+      accessibilityLabel={`${name}. ${meta}`}
+      accessibilityHint="Opens their profile"
+      accessibilityActions={onAuthorLongPress ? [{ name: "activate" }, { name: "longpress", label: "Preview their profile" }] : undefined}
+      onAccessibilityAction={(e) => (e.nativeEvent.actionName === "longpress" ? onAuthorLongPress?.() : onAuthor())}
+      hitSlop={4}
+      style={({ pressed }) => [styles.author, { opacity: pressed ? 0.7 : 1 }]}>
       {body}
     </Pressable>
   );

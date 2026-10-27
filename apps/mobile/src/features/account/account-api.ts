@@ -18,6 +18,11 @@ export function getPublicProfile(user: User, uid: string): Promise<PublicProfile
   return apiFetch<PublicProfile>(user, `/users/${uid}/public`);
 }
 
+/** Block a neighbour (contract §8): they disappear from your feed and messages, and can't see your profile. They aren't told. */
+export function blockUser(user: User, uid: string): Promise<void> {
+  return apiFetch<void>(user, "/users/me/blocks", { method: "POST", json: { uid } });
+}
+
 export function getPreferences(user: User): Promise<Preferences> {
   return apiFetch<Preferences>(user, "/users/me/preferences");
 }

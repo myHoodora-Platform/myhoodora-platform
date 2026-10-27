@@ -14,33 +14,56 @@ import { PostCard } from "./post-card";
  * on a real phone. Their buttons call the API with ids it doesn't know, so actions fail politely.
  */
 export function LayoutGallery() {
+  return (
+    <AppScreen title="Feed layouts" canvas={false}>
+      <Gallery />
+    </AppScreen>
+  );
+}
+
+/** Inside AppScreen, so it knows how tall the header is. */
+function Gallery() {
   const t = useTheme();
   const user = useSignedInUser();
   const insets = useScreenInsets();
   const [loading, setLoading] = useState(false);
   const posts = useMemo(() => layoutFixtures(user.uid), [user.uid]);
   return (
-    <AppScreen title="Feed layouts" canvas={false}>
-      <FlatList<ApiPost>
-        style={{ backgroundColor: t.colors.canvas }}
-        contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + 24 }}
-        data={loading ? [] : posts}
-        keyExtractor={(p) => p._id}
-        renderItem={({ item }) => <PostCard post={item} />}
-        ItemSeparatorComponent={() => <View style={styles.gap} />}
-        ListHeaderComponent={
-          <View style={styles.chips}>
-            <Chip label="Posts" selected={!loading} onPress={() => setLoading(false)} />
-            <Chip label="Loading" selected={loading} onPress={() => setLoading(true)} />
-          </View>
-        }
-        ListEmptyComponent={<FeedSkeleton />}
-      />
-    </AppScreen>
+    <FlatList<ApiPost>
+      style={{ backgroundColor: t.colors.canvas }}
+      contentContainerStyle={{
+        paddingTop: insets.top + 8,
+        paddingBottom: insets.bottom + 24,
+      }}
+      data={loading ? [] : posts}
+      keyExtractor={(p) => p._id}
+      renderItem={({ item }) => <PostCard post={item} />}
+      ItemSeparatorComponent={() => <View style={styles.gap} />}
+      ListHeaderComponent={
+        <View style={styles.chips}>
+          <Chip
+            label="Posts"
+            selected={!loading}
+            onPress={() => setLoading(false)}
+          />
+          <Chip
+            label="Loading"
+            selected={loading}
+            onPress={() => setLoading(true)}
+          />
+        </View>
+      }
+      ListEmptyComponent={<FeedSkeleton />}
+    />
   );
 }
 
 const styles = StyleSheet.create({
   gap: { height: 8 },
-  chips: { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingBottom: 12 },
+  chips: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
 });

@@ -9,6 +9,7 @@ import { feedKeys, deleteComment } from "@/features/feed/feed-api";
 import { ReportSheet } from "@/features/feed/report-sheet";
 import { SeeMoreText } from "@/features/feed/see-more-text";
 import { updatePostEverywhere } from "@/features/feed/use-reaction";
+import { useOpenProfile } from "@/features/profile/use-open-profile";
 import { MIN_TOUCH, tint, useTheme } from "@/shared/theme/theme";
 import { ActionSheet } from "@/shared/ui/action-sheet";
 import { Avatar } from "@/shared/ui/avatar";
@@ -44,6 +45,7 @@ export const CommentItem = memo(function CommentItem({
   const toast = useToast();
   const [menu, setMenu] = useState(false);
   const [reporting, setReporting] = useState(false);
+  const openProfile = useOpenProfile();
   const mine = comment.authorUid === user.uid;
   const size = reply ? 28 : 36;
 
@@ -86,10 +88,14 @@ export const CommentItem = memo(function CommentItem({
       onAccessibilityAction={(e) => e.nativeEvent.actionName === "longpress" && setMenu(true)}
       style={({ pressed }) => [styles.row, reply && styles.reply, pressed && { backgroundColor: tint(t.colors.foreground, 0.04) }]}
     >
-      <Avatar name={comment.author?.displayName} photoURL={comment.author?.photoURL} size={size} />
+      <Pressable onPress={() => openProfile(comment.authorUid)} accessibilityRole="link" accessibilityLabel={`${name}'s profile`} hitSlop={4}>
+        <Avatar name={comment.author?.displayName} photoURL={comment.author?.photoURL} size={size} />
+      </Pressable>
       <View style={styles.body}>
         <Text variant="caption" numberOfLines={1}>
-          <Text variant="label">{name}</Text>
+          <Text variant="label" onPress={() => openProfile(comment.authorUid)} suppressHighlighting>
+            {name}
+          </Text>
           <Text variant="caption" tone="muted">{`  ${timeAgo(comment.createdAt)}`}</Text>
         </Text>
         <SeeMoreText id={comment._id} text={comment.content} lines={COMMENT_LINES} style={styles.text} />

@@ -110,7 +110,7 @@ export function setCommentLiked(user: User, commentId: string, liked: boolean): 
 }
 
 /** Private: never tells anyone who reported (contract §9). */
-export function report(user: User, targetType: "post" | "comment" | "listing" | "message", targetId: string, reason: ReportReason): Promise<void> {
+export function report(user: User, targetType: "post" | "comment" | "listing" | "message" | "user", targetId: string, reason: ReportReason): Promise<void> {
   return apiFetch<void>(user, "/reports", { method: "POST", json: { targetType, targetId, reason } });
 }
 

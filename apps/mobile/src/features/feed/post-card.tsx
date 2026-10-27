@@ -1,10 +1,12 @@
 import type { ApiPost } from "@myhoodora/api-contract/types";
 import { useQueryClient } from "@tanstack/react-query";
-import { memo } from "react";
+import { memo, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useSignedInUser } from "@/core/auth/auth-provider";
 import { useRouter } from "@/core/navigation/use-router";
 import { useTheme } from "@/shared/theme/theme";
+import { ProfilePreview } from "@/features/profile/profile-preview";
+import { useOpenProfile } from "@/features/profile/use-open-profile";
 import { feedKeys, listComments } from "./feed-api";
 import { MediaGrid } from "./media-grid";
 import { CategoryBadge, isUrgent, PostActionBar, PostAuthor, PostCounts, PostMenuButton, PostResolved, postText } from "./post-parts";
@@ -14,12 +16,15 @@ import { SeeMoreText } from "./see-more-text";
 export { postText } from "./post-parts";
 
 /**
- * One post in a list (feed, search), edge to edge: who posted (tap for their profile), the text
+ * One post in a list (feed, search), edge to edge: who posted (tap for their profile, hold for a
+ * preview), the text
  * ("See more" when it overflows), photos, counts and Like · Comment · Share. Tapping the text area opens
  * the post. Memoised: the feed re-renders often while paging.
  */
-export const PostCard = memo(function PostCard({ post, onComments, onAuthor }: { post: ApiPost; onComments?: (post: ApiPost) => void; onAuthor?: (post: ApiPost) => void }) {
+export const PostCard = memo(function PostCard({ post, onComments }: { post: ApiPost; onComments?: (post: ApiPost) => void }) {
   const t = useTheme();
+  const openProfile = useOpenProfile();
+  const [preview, setPreview] = useState(false);
   const router = useRouter();
   const client = useQueryClient();
   const user = useSignedInUser();
@@ -34,7 +39,8 @@ export const PostCard = memo(function PostCard({ post, onComments, onAuthor }: {
   return (
     <View style={[styles.card, { backgroundColor: t.colors.card }, urgent && { borderLeftWidth: 4, borderLeftColor: t.colors.destructive }]}>
       <View style={styles.header}>
-        <PostAuthor post={post} onAuthor={onAuthor && post.author ? () => onAuthor(post) : undefined} />
+        {/* A departed author ("myHoodora user") has no profile to open. */}
+        <PostAuthor post={post} onAuthor={post.author ? () => openProfile(post.authorUid) : undefined} onAuthorLongPress={post.author ? () => setPreview(true) : undefined} />
         <View style={styles.headerEnd}>
           <CategoryBadge post={post} />
           <PostMenuButton post={post} />
@@ -49,6 +55,7 @@ export const PostCard = memo(function PostCard({ post, onComments, onAuthor }: {
       {post.mediaUrls.length ? <MediaGrid urls={post.mediaUrls} aspects={post.mediaAspects} recyclingKey={post._id} /> : null}
       <PostCounts post={post} onComments={comments} />
       <PostActionBar post={post} onComment={comments} />
+      {preview ? <ProfilePreview uid={post.authorUid} onClose={() => setPreview(false)} /> : null}
     </View>
   );
 });

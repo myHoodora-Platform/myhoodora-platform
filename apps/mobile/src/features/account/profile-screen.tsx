@@ -16,13 +16,8 @@ import { Segmented, SettingsGroup, SettingsRow } from "@/shared/ui/settings";
 import { Skeleton } from "@/shared/ui/skeleton";
 import { EmptyState } from "@/shared/ui/states";
 import { Text } from "@/shared/ui/text";
+import { monthYear } from "@/shared/utils/time";
 import { accountKeys, getPublicProfile } from "./account-api";
-
-/** "October 2026". */
-function monthYear(iso?: string): string | null {
-  const d = iso ? new Date(iso) : null;
-  return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString("en-GB", { month: "long", year: "numeric" }) : null;
-}
 
 type Tab = "listings" | "about";
 

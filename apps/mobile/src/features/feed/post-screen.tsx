@@ -5,6 +5,7 @@ import { useMemo, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, View, type TextInput } from "react-native";
 import { useSignedInUser } from "@/core/auth/auth-provider";
 import { useRouter } from "@/core/navigation/use-router";
+import { useOpenProfile } from "@/features/profile/use-open-profile";
 import { useTheme } from "@/shared/theme/theme";
 import { AppScreen, useScreenInsets } from "@/shared/ui/app-screen";
 import { PhotoPager } from "@/shared/ui/photo-pager";
@@ -107,6 +108,7 @@ export function PostScreen({ id }: { id: string }) {
   const post = useQuery({ queryKey: feedKeys.post(id), queryFn: () => getPost(user, id), placeholderData: () => cachedPost(client, id) });
   const comments = useComments(id);
   const router = useRouter();
+  const openProfile = useOpenProfile();
 
   if (!post.data) {
     return (
@@ -124,7 +126,7 @@ export function PostScreen({ id }: { id: string }) {
   return (
     <AppScreen
       canvas={false}
-      center={<PostAuthor post={post.data} size={34} compact />}
+      center={<PostAuthor post={post.data} size={34} compact onAuthor={post.data.author ? () => openProfile(post.data!.authorUid) : undefined} />}
       right={<PostMenuButton post={post.data} onDeleted={() => router.back()} />}
       footer={<CommentComposer ref={input} post={post.data} onSent={() => setTimeout(() => list.current?.scrollToEnd({ animated: true }), 150)} />}
     >

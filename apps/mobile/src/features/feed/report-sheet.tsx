@@ -17,7 +17,7 @@ const REASONS: { id: ReportReason; label: string }[] = [
 ];
 
 /** "Report", then why. Private: the person reported is never told who. One tap sends it. */
-export function ReportSheet({ visible, onClose, targetType, targetId }: { visible: boolean; onClose: () => void; targetType: "post" | "comment" | "listing"; targetId: string }) {
+export function ReportSheet({ visible, onClose, targetType, targetId }: { visible: boolean; onClose: () => void; targetType: "post" | "comment" | "listing" | "user"; targetId: string }) {
   const user = useSignedInUser();
   const toast = useToast();
   const [sending, setSending] = useState(false);
@@ -35,7 +35,7 @@ export function ReportSheet({ visible, onClose, targetType, targetId }: { visibl
     }
   };
   return (
-    <Sheet visible={visible} title={`Why are you reporting this ${targetType === "listing" ? "listing" : targetType}?`} onClose={onClose}>
+    <Sheet visible={visible} title={targetType === "user" ? "Why are you reporting this neighbour?" : `Why are you reporting this ${targetType}?`} onClose={onClose}>
       {REASONS.map((r) => (
         <SheetItem key={r.id} label={r.label} onPress={() => void send(r.id)} />
       ))}

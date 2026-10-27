@@ -8,7 +8,7 @@ import { useTheme } from "@/shared/theme/theme";
 
 /** Sizes the sheet rests at, as parts of the screen's height: where it opens, and pulled up. */
 const DETENTS = [0.6, 0.95] as const;
-/** A short thread still opens at least this tall, so the sheet never looks cramped. */
+/** By default a short thread still opens at least this tall, so the sheet never looks cramped. */
 const MIN_OPEN = 0.55;
 /** Dragged this far below the smaller size (or flicked down), it closes. */
 const CLOSE_DRAG = 90;
@@ -25,7 +25,24 @@ const SPRING = { damping: 26, stiffness: 260, mass: 0.9 };
  * enough (at least 55% of the screen) and isn't pulled up into empty space; a long one opens at 60%
  * and pulls up to 95%. It grows as the content does.
  */
-export function BottomSheet({ header, footer, children, onClose, label, contentHeight }: { header: (close: () => void) => ReactNode; footer?: ReactNode; children: ReactNode; onClose: () => void; label: string; contentHeight?: number }) {
+export function BottomSheet({
+  header,
+  footer,
+  children,
+  onClose,
+  label,
+  contentHeight,
+  minOpen = MIN_OPEN,
+}: {
+  header: (close: () => void) => ReactNode;
+  footer?: ReactNode;
+  children: ReactNode;
+  onClose: () => void;
+  label: string;
+  contentHeight?: number;
+  /** Smallest opening size, as part of the screen (0 to fit small content exactly, like a preview card). */
+  minOpen?: number;
+}) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const { height: screen } = useWindowDimensions();
@@ -35,7 +52,7 @@ export function BottomSheet({ header, footer, children, onClose, label, contentH
   const [footerHeight, setFooterHeight] = useState(0);
   // Where it rests when opened, and how far it pulls up: the content's height, within the sizes above.
   const fit = contentHeight === undefined || !chrome ? undefined : chrome + contentHeight + footerHeight;
-  const restAt = fit === undefined ? screen * DETENTS[0] : Math.min(screen * DETENTS[0], Math.max(screen * MIN_OPEN, fit));
+  const restAt = fit === undefined ? screen * DETENTS[0] : Math.min(screen * DETENTS[0], Math.max(screen * minOpen, fit));
   const topAt = fit === undefined ? screen * DETENTS[1] : Math.min(screen * DETENTS[1], Math.max(restAt, fit));
   const rest = useSharedValue(restAt);
   const top = useSharedValue(topAt);
