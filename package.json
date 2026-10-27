@@ -10,7 +10,9 @@
     "test": "turbo run test --continue",
     "prepare": "husky",
     "test:e2e:api": "pnpm --filter @myhoodora/api test:e2e",
-    "test:e2e:web": "pnpm --filter web test:e2e"
+    "test:e2e:web": "pnpm --filter web test:e2e",
+    "db:up": "docker compose up -d --wait mongo",
+    "db:down": "docker compose stop mongo"
   },
   "devDependencies": {
     "husky": "^9.1.7",

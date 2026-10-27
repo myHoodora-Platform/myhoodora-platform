@@ -5,7 +5,7 @@
 - Node.js 24
 - pnpm 9 (`corepack enable` picks up the version in `package.json`)
 - A Firebase project with Email/Password (and Google) sign-in enabled
-- MongoDB as a **replica set** (Atlas is one; a standalone local `mongod` is not, and transactions will fail)
+- MongoDB as a **replica set** (Atlas is one; a standalone local `mongod` is not, and transactions will fail). For local work use Docker: see [Local database](#local-database)
 
 ## First run
 
@@ -19,6 +19,25 @@ pnpm dev                                        # web on :3000, API on :3001
 What to put in each file is in [`environment.md`](./environment.md). Locally the API can read Firebase Admin credentials from a service-account file: download it from the Firebase console, save it as `apps/api/serviceAccountKey.json` (git-ignored), and set `GOOGLE_APPLICATION_CREDENTIALS` to its path.
 
 To seed the launch neighbourhoods: `pnpm --filter @myhoodora/api seed:neighborhoods`.
+
+### Local database
+
+Develop against a MongoDB on your machine, not Atlas: the API creates any missing indexes when it starts, and testing on a phone writes real data.
+
+```bash
+pnpm db:up      # MongoDB 8.2 in Docker, a one-node replica set on localhost:27017
+pnpm db:down    # stop it; the data stays in the mongo-data volume
+```
+
+In `apps/api/.env`: `MONGODB_URI=mongodb://localhost:27017/myhoodora?directConnection=true`.
+
+To start from a copy of another database (read-only on the source), once:
+
+```bash
+SRC='mongodb+srv://…/myhoodora' # the source URI, including the database name
+docker exec -e SRC="$SRC" myhoodora-mongo sh -c 'mongodump --uri="$SRC" --archive --quiet' \
+  | docker exec -i myhoodora-mongo mongorestore --archive --quiet --nsInclude='myhoodora.*'
+```
 
 ### Without a backend
 
