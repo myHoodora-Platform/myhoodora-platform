@@ -20,7 +20,20 @@ const REASONS: { id: ReportReason; label: string }[] = [
  * "Report", then why. Private: the person reported is never told who. One tap sends it: the sheet
  * closes at once (no wait on the network), and a note says when it's in, or why it isn't.
  */
-export function ReportSheet({ visible, onClose, targetType, targetId }: { visible: boolean; onClose: () => void; targetType: "post" | "comment" | "listing" | "user"; targetId: string }) {
+export function ReportSheet({
+  visible,
+  onClose,
+  targetType,
+  targetId,
+  send: sendReport,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  targetType: "post" | "comment" | "listing" | "user" | "ad";
+  targetId: string;
+  /** Where the report goes, when not the usual reports queue (ads have their own). */
+  send?: (reason: ReportReason) => Promise<unknown>;
+}) {
   const user = useSignedInUser();
   const toast = useToast();
   const [sending, setSending] = useState(false);
@@ -29,8 +42,9 @@ export function ReportSheet({ visible, onClose, targetType, targetId }: { visibl
     setSending(true);
     onClose();
     try {
-      await report(user, targetType, targetId, reason);
-      toast("Thanks. Our team and your Neighbourhood Leads will review it.");
+      if (sendReport) await sendReport(reason);
+      else if (targetType !== "ad") await report(user, targetType, targetId, reason);
+      toast(targetType === "ad" ? "Thanks. Our team will look at this ad, and you won't see it again." : "Thanks. Our team and your Neighbourhood Leads will review it.");
     } catch (err) {
       toast(`Your report wasn't sent: ${errorMessage(err)}`, "error");
     } finally {

@@ -3,7 +3,6 @@ import type { ApiPost } from "@myhoodora/api-contract/types";
 import {
   useQuery,
   useQueryClient,
-  type InfiniteData,
 } from "@tanstack/react-query";
 import { Ban, Ellipsis, Flag } from "lucide-react-native";
 import { useMemo, useState, type ReactNode } from "react";
@@ -17,7 +16,7 @@ import {
   getPublicProfile,
 } from "@/features/account/account-api";
 import { rememberBlocked } from "@/features/account/blocked-names";
-import { feedKeys } from "@/features/feed/feed-api";
+import { cachedFeedPosts, feedKeys } from "@/features/feed/feed-api";
 import { PostCard } from "@/features/feed/post-card";
 import { ReportSheet } from "@/features/feed/report-sheet";
 import { ListingCard } from "@/features/listings/listing-card";
@@ -43,12 +42,7 @@ function usePostsSeen(uid: string): ApiPost[] {
   const client = useQueryClient();
   return useMemo(() => {
     const seen = new Map<string, ApiPost>();
-    for (const [, data] of client.getQueriesData<InfiniteData<ApiPost[]>>({
-      queryKey: feedKeys.all,
-    })) {
-      for (const p of data?.pages?.flat() ?? [])
-        if (p.authorUid === uid) seen.set(p._id, p);
-    }
+    for (const p of cachedFeedPosts(client)) if (p.authorUid === uid) seen.set(p._id, p);
     return [...seen.values()].sort((a, b) =>
       b.createdAt.localeCompare(a.createdAt),
     );

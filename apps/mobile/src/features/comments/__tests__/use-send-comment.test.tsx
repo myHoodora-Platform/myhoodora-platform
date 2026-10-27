@@ -7,6 +7,8 @@ const mockAdd = jest.fn();
 jest.mock("@/core/auth/auth-provider", () => ({ useSignedInUser: () => ({ uid: "u1" }) }));
 jest.mock("@/features/feed/feed-api", () => ({
   addComment: (...a: unknown[]) => mockAdd(...a),
+  updateFeedEntries: jest.fn(),
+  isAd: () => false,
   feedKeys: {
     all: ["feed"],
     post: (id: string) => ["post", id],

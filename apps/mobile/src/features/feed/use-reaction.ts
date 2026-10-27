@@ -1,19 +1,15 @@
 import { errorMessage } from "@myhoodora/api-contract/errors";
 import type { ApiPost, ReactionType } from "@myhoodora/api-contract/types";
-import { useQueryClient, type InfiniteData, type QueryClient } from "@tanstack/react-query";
+import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { useSignedInUser } from "@/core/auth/auth-provider";
 import { useToast } from "@/shared/ui/toast";
-import { feedKeys, setReaction } from "./feed-api";
+import { feedKeys, isAd, setReaction, updateFeedEntries } from "./feed-api";
 import { nextToSend, withReaction, type ReactionSync } from "./reactions";
-
-type FeedPages = InfiniteData<ApiPost[], string | undefined>;
 
 /** Every cached copy of the post (each feed filter, and its own page), changed the same way. */
 export function updatePostEverywhere(client: QueryClient, id: string, change: (post: ApiPost) => ApiPost) {
-  client.setQueriesData<FeedPages>({ queryKey: feedKeys.all }, (data) =>
-    data ? { ...data, pages: data.pages.map((page) => page.map((p) => (p._id === id ? change(p) : p))) } : data,
-  );
+  updateFeedEntries(client, (entries) => entries.map((e) => (!isAd(e) && e._id === id ? change(e) : e)));
   client.setQueryData<ApiPost>(feedKeys.post(id), (p) => (p ? change(p) : p));
 }
 

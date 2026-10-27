@@ -102,6 +102,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         microphonePermission: false,
       },
     ],
+    // Video ads in the feed play muted in place: no background audio, no picture-in-picture.
+    ["expo-video", { supportsBackgroundPlayback: false, supportsPictureInPicture: false }],
     ...googleSignInPlugin,
     sentryPlugin,
   ],

@@ -1,4 +1,6 @@
 import type { User } from "@firebase/auth";
+import { ApiError } from "@myhoodora/api-contract/errors";
+import type { AdEventInput, FeedAd, FeedPage } from "@myhoodora/api-contract/ads";
 import type { AlertCategory, ApiPost, Comment, CommentSort, PostCategory, ReactionType, ReportReason } from "@myhoodora/api-contract/types";
 import type { InfiniteData, QueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/core/api/client";
@@ -40,6 +42,74 @@ export function listFeed(user: User, hoodId: string, before?: string, category?:
   if (before) params.set("before", before);
   if (category) params.set("category", category);
   return apiFetch<ApiPost[]>(user, `/posts/neighborhood/${hoodId}?${params}`);
+}
+
+/** A sponsored item in a feed page, where it was placed. Its `_id` never matches a post's. */
+export interface AdEntry {
+  kind: "ad";
+  _id: string;
+  slotId: string;
+  ad: FeedAd;
+}
+export type FeedEntry = ApiPost | AdEntry;
+export const isAd = (e: FeedEntry): e is AdEntry => (e as AdEntry).kind === "ad";
+
+/** A page of the neighbourhood feed: posts with ads among them, and where the next page starts. */
+export interface HoodPage {
+  entries: FeedEntry[];
+  next: string | null;
+}
+/** Any page kept under `feedKeys.all`: a hood feed page, or a plain list of posts (saved, search). */
+export type AnyFeedPage = HoodPage | FeedEntry[];
+
+export const pageEntries = (page: AnyFeedPage): FeedEntry[] => (Array.isArray(page) ? page : page.entries);
+export const pagePosts = (page: AnyFeedPage): ApiPost[] => pageEntries(page).filter((e): e is ApiPost => !isAd(e));
+
+/** Changes every feed page held (any filter, saved): `change` gets each page's entries. */
+export function updateFeedEntries(client: QueryClient, change: (entries: FeedEntry[]) => FeedEntry[]) {
+  client.setQueriesData<InfiniteData<AnyFeedPage>>({ queryKey: feedKeys.all }, (data) =>
+    data?.pages ? { ...data, pages: data.pages.map((page) => (Array.isArray(page) ? change(page) : { ...page, entries: change(page.entries) })) } : data,
+  );
+}
+
+/** Every post the feed caches hold right now. */
+export function cachedFeedPosts(client: QueryClient): ApiPost[] {
+  return client.getQueriesData<InfiniteData<AnyFeedPage>>({ queryKey: feedKeys.all }).flatMap(([, data]) => data?.pages?.flatMap(pagePosts) ?? []);
+}
+
+/**
+ * `GET /feed/hood/:id`: the feed with sponsored items placed by the API (contract §32). `session`
+ * is this feed session's id. Against an API that doesn't have the route yet, the plain feed (no ads).
+ */
+export async function listHoodPage(user: User, hoodId: string, opts: { cursor?: string; category?: PostCategory; session: string }): Promise<HoodPage> {
+  const params = new URLSearchParams({ limit: String(FEED_PAGE), session: opts.session });
+  if (opts.cursor) params.set("cursor", opts.cursor);
+  if (opts.category) params.set("category", opts.category);
+  try {
+    const page = await apiFetch<FeedPage>(user, `/feed/hood/${hoodId}?${params}`);
+    return {
+      entries: page.items.map((i) => (i.type === "post" ? i.data : { kind: "ad", _id: `ad:${i.slotId}`, slotId: i.slotId, ad: i.data })),
+      next: page.nextCursor,
+    };
+  } catch (err) {
+    // An older API: the route itself is missing ("Cannot GET"), not the neighbourhood.
+    if (!(err instanceof ApiError && err.status === 404 && /^Cannot GET/.test(err.message))) throw err;
+    const posts = await listFeed(user, hoodId, opts.cursor, opts.category);
+    return { entries: posts, next: nextCursor(posts) ?? null };
+  }
+}
+
+/** Impressions and clicks, a batch at a time (each counts once per ad, session and kind). */
+export function sendAdEvents(user: User, events: AdEventInput[]): Promise<{ recorded: number }> {
+  return apiFetch(user, "/ads/events", { method: "POST", json: { events } });
+}
+
+export function hideAd(user: User, adId: string, sessionId?: string): Promise<{ hidden: true }> {
+  return apiFetch(user, `/ads/${adId}/hide`, { method: "POST", json: { sessionId } });
+}
+
+export function reportAd(user: User, adId: string, reason: ReportReason, sessionId?: string): Promise<{ reported: true }> {
+  return apiFetch(user, `/ads/${adId}/report`, { method: "POST", json: { reason, sessionId } });
 }
 
 /** The cursor for the next page, or undefined when this page was the last. */
@@ -122,10 +192,8 @@ export function kindnessCheck(user: User, text: string): Promise<{ flagged: bool
  * fresh copy loads. Undefined when it isn't cached (opened from a push or a link).
  */
 export function cachedPost(client: QueryClient, id: string): ApiPost | undefined {
-  for (const [, data] of client.getQueriesData<InfiniteData<ApiPost[]>>({ queryKey: feedKeys.all })) {
-    const found = data?.pages?.flat().find((p) => p._id === id);
-    if (found) return found;
-  }
+  const found = cachedFeedPosts(client).find((p) => p._id === id);
+  if (found) return found;
   for (const [, data] of client.getQueriesData<{ posts?: ApiPost[] }>({ queryKey: ["search"] })) {
     const found = data?.posts?.find((p) => p._id === id);
     if (found) return found;

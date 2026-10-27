@@ -35,7 +35,8 @@ export interface AdView {
   primaryText: string;
   headline?: string;
   cta: { type: AdCta; label: string; url?: string; phone?: string } | null;
-  media: { url: string; kind: "image" | "video"; posterUrl?: string }[];
+  /** `aspect`: width ÷ height when known, so the app can frame it before it loads. */
+  media: { url: string; kind: "image" | "video"; posterUrl?: string; aspect?: number }[];
   cards: { imageUrl: string; headline: string; url: string }[];
   background?: string;
   /** For "Why am I seeing this?". */
@@ -247,7 +248,7 @@ export class AdsService implements OnModuleInit {
     };
   }
 
-  toView(r: AdRow, hoodName?: string): AdView {
+  toView(r: AdRow, hoodName?: string, aspects?: Map<string, number>): AdView {
     const aimed = r.hoodIds.length || r.cities.length;
     return {
       _id: String(r._id),
@@ -256,8 +257,8 @@ export class AdsService implements OnModuleInit {
       primaryText: r.primaryText,
       headline: r.headline,
       cta: r.ctaType ? { type: r.ctaType, label: CTA_LABELS[r.ctaType], url: r.ctaUrl, phone: r.ctaPhone } : null,
-      media: r.media,
-      cards: r.cards,
+      media: r.media.map((m) => ({ url: m.url, kind: m.kind, posterUrl: m.posterUrl, aspect: aspects?.get(m.url) })),
+      cards: r.cards.map((c) => ({ imageUrl: c.imageUrl, headline: c.headline, url: c.url })),
       background: r.background,
       why: aimed && hoodName ? `You're seeing this because ${r.advertiserName} chose to reach neighbours in ${hoodName}. Ads never use your posts, messages or exact location.` : `You're seeing this because ${r.advertiserName} is shown to neighbours across myHoodora. Ads never use your posts, messages or exact location.`,
     };

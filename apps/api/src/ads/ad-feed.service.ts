@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { HoodsService } from "../hoods/hoods.service";
 import { PostsService, type PostView } from "../posts/posts.service";
+import { StorageService } from "../storage/storage.service";
 import type { Viewer } from "../shared/auth/viewer";
 import type { AdFeedQuery } from "./ads.dto";
 import { AdsService, type AdView } from "./ads.service";
@@ -43,6 +44,7 @@ export class AdFeedService {
     private readonly posts: PostsService,
     private readonly ads: AdsService,
     private readonly hoods: HoodsService,
+    private readonly storage: StorageService,
   ) {}
 
   async page(viewer: Viewer, hoodId: string, q: AdFeedQuery): Promise<{ items: FeedItem[]; nextCursor: string | null }> {
@@ -60,7 +62,9 @@ export class AdFeedService {
       const { candidates, ads } = await this.ads.candidatesFor(viewer, { id: hoodId, city: hood?.city });
       const placed = placeAds(posts, candidates, state, { session: q.session, rules, more });
       next = placed.state;
-      items = placed.items.map((i) => (i.type === "post" ? i : { type: "ad", slotId: i.slotId, data: this.ads.toView(ads.get(i.adId)!, hood?.name) }));
+      const placedAds = placed.items.flatMap((i) => (i.type === "ad" ? [ads.get(i.adId)!] : []));
+      const aspects = await this.storage.aspectRatios(placedAds.flatMap((a) => a.media.map((m) => m.url)));
+      items = placed.items.map((i) => (i.type === "post" ? i : { type: "ad", slotId: i.slotId, data: this.ads.toView(ads.get(i.adId)!, hood?.name, aspects) }));
     }
     const last = posts[posts.length - 1];
     return { items, nextCursor: more && last ? encodeCursor({ v: 1, before: last.createdAt, state: next }) : null };

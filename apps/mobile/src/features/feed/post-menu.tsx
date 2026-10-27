@@ -1,6 +1,6 @@
 import { errorMessage } from "@myhoodora/api-contract/errors";
 import type { ApiPost } from "@myhoodora/api-contract/types";
-import { useQueryClient, type InfiniteData } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { Bell, BellOff, Bookmark, BookmarkMinus, Ellipsis, Flag, Pencil, Trash2 } from "lucide-react-native";
 import { useState } from "react";
 import { Alert, Pressable, StyleSheet } from "react-native";
@@ -9,7 +9,7 @@ import { useRouter } from "@/core/navigation/use-router";
 import { MIN_TOUCH, useTheme } from "@/shared/theme/theme";
 import { ActionSheet, type ActionItem } from "@/shared/ui/action-sheet";
 import { useToast } from "@/shared/ui/toast";
-import { deletePost, feedKeys } from "./feed-api";
+import { deletePost, feedKeys, updateFeedEntries } from "./feed-api";
 import { ReportSheet } from "./report-sheet";
 import { usePostActions } from "./use-post-actions";
 
@@ -36,7 +36,7 @@ export function PostMenuButton({ post, onDeleted }: { post: ApiPost; onDeleted?:
         onPress: async () => {
           try {
             await deletePost(user, post._id);
-            client.setQueriesData<InfiniteData<ApiPost[]>>({ queryKey: feedKeys.all }, (data) => (data ? { ...data, pages: data.pages.map((page) => page.filter((p) => p._id !== post._id)) } : data));
+            updateFeedEntries(client, (entries) => entries.filter((e) => e._id !== post._id));
             client.removeQueries({ queryKey: feedKeys.post(post._id) });
             toast("Post deleted.");
             onDeleted?.();

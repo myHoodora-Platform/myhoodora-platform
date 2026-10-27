@@ -33,6 +33,8 @@ export interface AdMedia {
   kind: "image" | "video";
   /** Videos: the still shown before it plays. */
   posterUrl?: string;
+  /** Feed only: width ÷ height when known, to frame it before it loads. */
+  aspect?: number;
 }
 
 export interface AdCard {
