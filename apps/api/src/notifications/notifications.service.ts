@@ -6,6 +6,7 @@ import { PushService } from "../push/push.service";
 import { RealtimeService } from "../realtime/realtime.service";
 import type { RenderedEmail } from "../communications/templates/email-templates";
 import { AccountLifecycle } from "../users/account-lifecycle";
+import { FeedPost, PostDocument } from "../posts/schemas/post.schema";
 import { User, UserDocument } from "../users/schemas/user.schema";
 import { DEFAULT_PREFERENCES, type NotificationCategory } from "../users/domain/preferences";
 import { Notification, NotificationDocument, type NotificationKind, type NotificationType } from "./notification.schema";
@@ -32,12 +33,24 @@ export interface NotifyInput {
   email?: { type: string; render: (name?: string) => RenderedEmail; idempotencyKey: (uid: string) => string; force?: boolean };
 }
 
+export interface NotificationActor {
+  uid: string;
+  displayName: string;
+  photoURL?: string;
+}
+
 export interface AppNotification {
   _id: string;
   type: NotificationType;
   kind?: NotificationKind;
   subjectId?: string;
   actorUid?: string;
+  /** The people behind it, most recent first (up to three), from GET /notifications. */
+  actors?: NotificationActor[];
+  /** How many people in all, when more than one (a grouped row). */
+  actorCount?: number;
+  /** A picture of what it's about (the post's first photo), when there is one. */
+  preview?: { image: string };
   title: string;
   body?: string;
   href: string;
@@ -47,6 +60,10 @@ export interface AppNotification {
 
 /** Recipients written per database round trip. */
 const WRITE_BATCH = 1_000;
+/** People remembered per grouped row (enough to count "and 49 others" without growing without bound). */
+const MAX_ACTORS = 50;
+/** Faces sent with each notification (the client stacks two or three). */
+const ACTORS_SHOWN = 3;
 /** The schema's limits. Callers build titles from names and reasons of any length; they are shortened here, never refused. */
 const MAX_TITLE = 140;
 const MAX_BODY = 280;
@@ -66,6 +83,7 @@ export class NotificationsService implements OnModuleInit {
   constructor(
     @InjectModel(Notification.name) private readonly notifications: Model<NotificationDocument>,
     @InjectModel(User.name) private readonly users: Model<UserDocument>,
+    @InjectModel(FeedPost.name) private readonly posts: Model<PostDocument>,
     private readonly comms: CommunicationsService,
     private readonly realtime: RealtimeService,
     private readonly accounts: AccountLifecycle,
@@ -97,24 +115,30 @@ export class NotificationsService implements OnModuleInit {
       const batch = recipients.slice(i, i + WRITE_BATCH);
       if (input.groupKey) {
         // Their unread notification for this group is brought up to date; if they have none (or have read it), a new one is added.
+        // An update pipeline, so the actor joins the front of `actorUids` without appearing twice. Literal values
+        // are wrapped in $literal: a title starting with "$" must not be read as a field path.
         const now = new Date();
-        await this.notifications.bulkWrite(
-          batch.map((r) => ({
-            updateOne: {
-              filter: { uid: r.uid, groupKey: input.groupKey, readAt: null },
-              update: {
-                $set: { title, ...(body !== undefined && { body }), ...(input.actorUid !== undefined && { actorUid: input.actorUid }), createdAt: now },
-                $setOnInsert: { type: input.type, href: input.href, ...(input.kind !== undefined && { kind: input.kind }), ...(input.subjectId !== undefined && { subjectId: input.subjectId }) },
-              },
-              upsert: true,
-              // `createdAt` is set above (it is "when this last changed"); Mongoose must not add its own.
-              timestamps: false,
-            },
-          })),
+        const actor = input.actorUid;
+        const keep = (field: string, value: unknown) => (value === undefined ? `$${field}` : { $ifNull: [`$${field}`, { $literal: value }] });
+        const stage = {
+          title: { $literal: title },
+          ...(body !== undefined && { body: { $literal: body } }),
+          ...(actor !== undefined && {
+            actorUid: { $literal: actor },
+            actorUids: { $slice: [{ $concatArrays: [[{ $literal: actor }], { $filter: { input: { $ifNull: ["$actorUids", []] }, cond: { $ne: ["$$this", actor] } } }] }, MAX_ACTORS] },
+          }),
+          createdAt: now,
+          type: keep("type", input.type),
+          href: keep("href", input.href),
+          ...(input.kind !== undefined && { kind: keep("kind", input.kind) }),
+          ...(input.subjectId !== undefined && { subjectId: keep("subjectId", input.subjectId) }),
+        };
+        await this.notifications.collection.bulkWrite(
+          batch.map((r) => ({ updateOne: { filter: { uid: r.uid, groupKey: input.groupKey, readAt: null }, update: [{ $set: stage }], upsert: true } })),
           { ordered: false },
         );
       } else {
-        const rows = batch.map((r) => ({ uid: r.uid, type: input.type, kind: input.kind, subjectId: input.subjectId, actorUid: input.actorUid, title, body, href: input.href, ...(input.dedupeKey && { dedupeKey: input.dedupeKey(r.uid) }) }));
+        const rows = batch.map((r) => ({ uid: r.uid, type: input.type, kind: input.kind, subjectId: input.subjectId, actorUid: input.actorUid, ...(input.actorUid && { actorUids: [input.actorUid] }), title, body, href: input.href, ...(input.dedupeKey && { dedupeKey: input.dedupeKey(r.uid) }) }));
         if (input.dedupeKey) await this.insertSkippingDuplicates(rows);
         else await this.notifications.insertMany(rows);
       }
@@ -166,9 +190,33 @@ export class NotificationsService implements OnModuleInit {
     }
   }
 
+  /**
+   * Newest first, each with the people behind it (name and photo, up to three) and a picture of what
+   * it's about, so a list can show faces and thumbnails without a request per row: one query for the
+   * people and one for the posts, whatever the length.
+   */
   async list(uid: string, limit = 50): Promise<AppNotification[]> {
     const rows = await this.notifications.find({ uid }).sort({ createdAt: -1 }).limit(Math.min(limit, 100)).lean().exec();
-    return rows.map(toApp);
+    const shownActors = (n: Notification) => (n.actorUids?.length ? n.actorUids : n.actorUid ? [n.actorUid] : []).slice(0, ACTORS_SHOWN);
+    const actorUids = [...new Set(rows.flatMap(shownActors))];
+    const postIds = [...new Set(rows.map((n) => postIdFrom(n.href)).filter((id): id is string => !!id))];
+    const [people, posts] = await Promise.all([
+      actorUids.length
+        ? this.users.find({ uid: { $in: actorUids } }).select({ uid: 1, displayName: 1, photoURL: 1 }).lean<Pick<User, "uid" | "displayName" | "photoURL">[]>().exec()
+        : [],
+      postIds.length
+        ? this.posts.find({ _id: { $in: postIds }, isActive: true, removedAt: null }).select({ mediaUrls: 1 }).lean<{ _id: unknown; mediaUrls?: string[] }[]>().exec()
+        : [],
+    ]);
+    const personBy = new Map(people.map((p) => [p.uid, { uid: p.uid, displayName: p.displayName ?? "A neighbour", ...(p.photoURL && { photoURL: p.photoURL }) }]));
+    const imageBy = new Map(posts.map((p) => [String(p._id), p.mediaUrls?.find(isImage)]));
+    return rows.map((n) => {
+      const actors = shownActors(n).map((a) => personBy.get(a)).filter((a): a is NotificationActor => !!a);
+      const actorCount = n.actorUids?.length ?? (n.actorUid ? 1 : 0);
+      const postId = postIdFrom(n.href);
+      const image = postId ? imageBy.get(postId) : undefined;
+      return { ...toApp(n), title: groupedTitle(n.title, actors, actorCount), ...(actors.length && { actors }), ...(actorCount > 1 && { actorCount }), ...(image && { preview: { image } }) };
+    });
   }
 
   async markRead(uid: string, id: string): Promise<AppNotification> {
@@ -187,6 +235,29 @@ export class NotificationsService implements OnModuleInit {
   async unreadCount(uid: string): Promise<number> {
     return this.notifications.countDocuments({ uid, readAt: null }).exec();
   }
+}
+
+/** The post a notification links to (`/p/<id>`), if any. */
+function postIdFrom(href: string): string | undefined {
+  return /^\/p\/([a-f0-9]{24})(?:[/?#]|$)/i.exec(href)?.[1];
+}
+
+/** A photo, not a video: thumbnails are still images. */
+function isImage(url: string): boolean {
+  return !/\/video\/upload\/|\.(mp4|mov|webm|m4v)(\?|$)/i.test(url);
+}
+
+/**
+ * A grouped row's title names only the latest person ("Tunde reacted to your post"). With others behind
+ * it, it says so: "Tunde and Ada reacted…" or "Tunde and 3 others reacted…". Left alone when the title
+ * doesn't start with that person's name (it was worded another way).
+ */
+export function groupedTitle(title: string, actors: NotificationActor[], actorCount: number): string {
+  const latest = actors[0]?.displayName;
+  if (actorCount < 2 || !latest || !title.startsWith(`${latest} `)) return title;
+  const rest = title.slice(latest.length);
+  const others = actorCount === 2 && actors[1] ? actors[1].displayName : `${actorCount - 1} ${actorCount === 2 ? "other" : "others"}`;
+  return `${latest} and ${others}${rest}`;
 }
 
 function toApp(n: Notification & { _id: unknown }): AppNotification {

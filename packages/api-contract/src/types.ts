@@ -341,6 +341,12 @@ export interface AppNotification {
   /** What it's about (e.g. the event's post id). */
   subjectId?: string;
   actorUid?: string;
+  /** The people behind it, most recent first (up to three): faces for the row. */
+  actors?: { uid: string; displayName: string; photoURL?: string }[];
+  /** How many people in all, when more than one (a grouped row: "Ada and 3 others"). */
+  actorCount?: number;
+  /** A picture of what it's about (the post's first photo), when there is one. */
+  preview?: { image: string };
   title: string;
   body?: string;
   href: string;

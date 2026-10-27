@@ -304,8 +304,13 @@ interface AppNotification {
   actorUid?; title; body?;
   href: string;             // in-app route, e.g. /p/<id>, /inbox/<id>
   createdAt; read: boolean;
+  actors?: { uid; displayName; photoURL? }[];  // GET only: the people behind it, latest first, up to 3
+  actorCount?: number;      // GET only: how many people in all, when more than one
+  preview?: { image: string }; // GET only: the linked post's first photo (never a video)
 }
 ```
+
+Grouped rows (same `groupKey`, still unread) remember everyone behind them, so `GET /notifications` says "Tunde and 2 others reacted to your post" (or "Tunde and Ada …" for two) and sends their faces. Rows written before this change have only `actorUid`; they come back with one actor and no count. All three fields are optional: older clients ignore them.
 
 | Method | Path |
 | --- | --- |
