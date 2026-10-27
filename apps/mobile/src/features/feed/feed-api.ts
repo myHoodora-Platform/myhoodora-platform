@@ -1,5 +1,5 @@
 import type { User } from "@firebase/auth";
-import type { AlertCategory, ApiPost, Comment, PostCategory, ReactionType, ReportReason } from "@myhoodora/api-contract/types";
+import type { AlertCategory, ApiPost, Comment, CommentSort, PostCategory, ReactionType, ReportReason } from "@myhoodora/api-contract/types";
 import type { InfiniteData, QueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/core/api/client";
 
@@ -26,6 +26,9 @@ export const feedKeys = {
   hood: (hoodId: string, filter: FeedFilter = "all") => ["feed", hoodId, filter] as const,
   post: (id: string) => ["post", id] as const,
   comments: (id: string) => ["post", id, "comments"] as const,
+  /** Under `comments`, so invalidating a post's comments refreshes these too. */
+  thread: (id: string, sort: CommentSort) => ["post", id, "comments", "thread", sort] as const,
+  replies: (id: string, parentId: string) => ["post", id, "comments", "replies", parentId] as const,
   hoodName: (id: string) => ["hood", id] as const,
 };
 
@@ -83,8 +86,27 @@ export function createPost(user: User, hoodId: string, post: NewPost): Promise<A
   return apiFetch<ApiPost>(user, "/posts", { method: "POST", json: { neighborhoodId: hoodId, ...post } });
 }
 
-export function addComment(user: User, postId: string, content: string): Promise<Comment> {
-  return apiFetch<Comment>(user, `/posts/${postId}/comments`, { method: "POST", json: { content } });
+export function addComment(user: User, postId: string, content: string, extra: { parentId?: string; clientId?: string } = {}): Promise<Comment> {
+  return apiFetch<Comment>(user, `/posts/${postId}/comments`, { method: "POST", json: { content, ...extra } });
+}
+
+/** Comments per page in the sheet. */
+export const THREAD_PAGE = 20;
+
+/** The threaded view (contract §2): top-level comments in `sort` order, or with `parentId` that comment's replies. Offset paging. */
+export function listThread(user: User, postId: string, opts: { sort?: CommentSort; parentId?: string; offset?: number }): Promise<Comment[]> {
+  const params = new URLSearchParams({ thread: opts.parentId ?? "root", limit: String(THREAD_PAGE), offset: String(opts.offset ?? 0) });
+  if (!opts.parentId && opts.sort) params.set("sort", opts.sort);
+  return apiFetch<Comment[]>(user, `/posts/${postId}/comments?${params}`);
+}
+
+/** Next offset, or undefined after a short page. */
+export function nextOffset(page: Comment[], pages: Comment[][]): number | undefined {
+  return page.length < THREAD_PAGE ? undefined : pages.reduce((n, p) => n + p.length, 0);
+}
+
+export function setCommentLiked(user: User, commentId: string, liked: boolean): Promise<{ likeCount: number; liked: boolean }> {
+  return apiFetch(user, `/comments/${commentId}/like`, { method: liked ? "PUT" : "DELETE" });
 }
 
 /** Private: never tells anyone who reported (contract §9). */

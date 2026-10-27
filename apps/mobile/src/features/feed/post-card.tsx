@@ -26,7 +26,8 @@ export const PostCard = memo(function PostCard({ post, onComments, onAuthor }: {
   const open = () => router.push(`/p/${post._id}`);
   // Start loading the comments on touch-down: by the time they open they're on their way.
   const warm = () => void client.prefetchQuery({ queryKey: feedKeys.comments(post._id), queryFn: () => listComments(user, post._id), staleTime: 30_000 });
-  const comments = onComments ? () => onComments(post) : open;
+  // Comments slide up in a sheet over the feed.
+  const comments = onComments ? () => onComments(post) : () => router.push(`/p/${post._id}/comments`);
   const urgent = isUrgent(post);
   const text = postText(post).trim();
 

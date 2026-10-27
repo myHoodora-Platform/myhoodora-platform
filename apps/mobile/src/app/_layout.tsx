@@ -17,6 +17,7 @@ import { useTheme } from "@/shared/theme/theme";
 import { CrashScreen } from "@/shared/ui/crash-screen";
 import { Text } from "@/shared/ui/text";
 import { ToastProvider } from "@/shared/ui/toast";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 // First, so a crash anywhere after this is reported (only in preview and production with a DSN).
 if (configResult.ok) initMonitoring(configResult.config);
@@ -106,6 +107,7 @@ function App() {
   if (!configResult.ok) return <ConfigProblem problems={configResult.problems} />;
 
   return (
+    <GestureHandlerRootView style={styles.root}>
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
@@ -117,9 +119,11 @@ function App() {
         </AuthProvider>
       </QueryClientProvider>
     </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1 },
   problem: { padding: 24, paddingTop: 80, gap: 12 },
 });

@@ -33,7 +33,6 @@ export const CommentComposer = forwardRef<TextInput, { post: ApiPost; onSent?: (
   const user = useSignedInUser();
   const { profile } = useAuth();
   const client = useQueryClient();
-  const toast = useToast();
   const [text, setText] = useState("");
   const [focused, setFocused] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -75,35 +74,8 @@ export const CommentComposer = forwardRef<TextInput, { post: ApiPost; onSent?: (
     <GlassSurface style={[styles.wrap, { borderTopColor: t.colors.border, paddingBottom: focused ? 8 : Math.max(insets.bottom, 8) }]}>{children}</GlassSurface>
   );
 
-  // A neighbourhood they only follow: they can read the conversation, not join it (contract §31).
-  if (profile?.neighborhoodId && post.neighborhoodId !== profile.neighborhoodId) {
-    return shell(
-      <View style={styles.locked}>
-        <Text variant="caption" tone="muted" style={styles.flex}>
-          You follow this neighbourhood, so you can read along. Comments are for neighbours who live here.
-        </Text>
-      </View>,
-    );
-  }
-
-  if (profile?.emailVerified === false) {
-    return shell(
-      <View style={styles.locked}>
-        <MailCheck size={20} color={t.colors.primary} />
-        <Text variant="caption" style={styles.flex}>
-          Confirm your email to join the conversation.
-        </Text>
-        <Text
-          variant="label"
-          tone="primary"
-          accessibilityRole="button"
-          onPress={() => resendVerificationEmail(user).then(() => toast(`New link sent to ${profile.email ?? user.email ?? "your email"}.`), (err: unknown) => toast(errorMessage(err), "error"))}
-        >
-          Resend link
-        </Text>
-      </View>,
-    );
-  }
+  const locked = <ComposerLock post={post} />;
+  if (composerLocked(post, profile)) return shell(locked);
 
   return shell(
     <>
@@ -142,6 +114,51 @@ export const CommentComposer = forwardRef<TextInput, { post: ApiPost; onSent?: (
     </>,
   );
 });
+
+/** Why this person can't comment here, or null when they can. */
+export function composerLocked(post: Pick<ApiPost, "neighborhoodId">, profile: { neighborhoodId?: string | null; emailVerified?: boolean } | null | undefined): "follows" | "email" | null {
+  // A neighbourhood they only follow: they can read the conversation, not join it (contract §31).
+  if (profile?.neighborhoodId && post.neighborhoodId !== profile.neighborhoodId) return "follows";
+  if (profile?.emailVerified === false) return "email";
+  return null;
+}
+
+/** The message in place of the reply box when they can't comment (see composerLocked). */
+export function ComposerLock({ post }: { post: Pick<ApiPost, "neighborhoodId"> }) {
+  const t = useTheme();
+  const user = useSignedInUser();
+  const { profile } = useAuth();
+  const toast = useToast();
+  const why = composerLocked(post, profile);
+  if (why === "follows") {
+    return (
+      <View style={styles.locked}>
+        <Text variant="caption" tone="muted" style={styles.flex}>
+          You follow this neighbourhood, so you can read along. Comments are for neighbours who live here.
+        </Text>
+      </View>
+    );
+  }
+  if (why === "email") {
+    return (
+      <View style={styles.locked}>
+        <MailCheck size={20} color={t.colors.primary} />
+        <Text variant="caption" style={styles.flex}>
+          Confirm your email to join the conversation.
+        </Text>
+        <Text
+          variant="label"
+          tone="primary"
+          accessibilityRole="button"
+          onPress={() => resendVerificationEmail(user).then(() => toast(`New link sent to ${profile?.email ?? user.email ?? "your email"}.`), (err: unknown) => toast(errorMessage(err), "error"))}
+        >
+          Resend link
+        </Text>
+      </View>
+    );
+  }
+  return null;
+}
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },

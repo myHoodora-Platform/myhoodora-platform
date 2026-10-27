@@ -3,7 +3,8 @@ import type { ApiPost, PostCategory, ReactionType } from "@myhoodora/api-contrac
 import { useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { CheckCircle2, Ellipsis, Flag, MapPin, MessageCircle, Share2, ThumbsUp, Trash2 } from "lucide-react-native";
 import { useRef, useState } from "react";
-import { Alert, Pressable, StyleSheet, View } from "react-native";
+import { Alert, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { fonts, MIN_TOUCH, tint, useTheme, type Theme } from "@/shared/theme/theme";
 import { Avatar } from "@/shared/ui/avatar";
 import { Text } from "@/shared/ui/text";
@@ -13,8 +14,8 @@ import { ActionSheet, type ActionItem } from "@/shared/ui/action-sheet";
 import { useToast } from "@/shared/ui/toast";
 import { useAuth, useSignedInUser } from "@/core/auth/auth-provider";
 import { deletePost, feedKeys } from "./feed-api";
-import { ReactionPicker } from "./reaction-picker";
-import { reactionDef, topReactions } from "./reactions";
+import { pickerLayout, ReactionPicker, reactionAt } from "./reaction-picker";
+import { REACTIONS, reactionDef, topReactions } from "./reactions";
 import { ReportSheet } from "./report-sheet";
 import { useReaction } from "./use-reaction";
 
@@ -174,35 +175,58 @@ export function PostActionBar({ post, onComment }: { post: ApiPost; onComment?: 
   const readOnly = !!profile?.neighborhoodId && post.neighborhoodId !== profile.neighborhoodId;
   const react = useReaction();
   const likeRef = useRef<View>(null);
+  const { width } = useWindowDimensions();
   const [picker, setPicker] = useState<{ x: number; y: number } | null>(null);
+  const [hovered, setHovered] = useState<number | null>(null);
   const mine = post.myReaction ?? null;
   const def = mine ? reactionDef(mine) : null;
-  const send = (type: ReactionType | null) => {
-    if (!react.isPending) react.mutate({ post, type });
-  };
+  // Never ignored: each tap shows at once and only your latest choice is sent (useReaction).
+  const send = (type: ReactionType | null) => react(post, type);
+  const toggle = () => send(mine ? null : "like");
   const openPicker = () => likeRef.current?.measureInWindow((x, y) => setPicker({ x, y }));
+  // Press and hold, then slide along the row and let go on a reaction (or let go elsewhere and tap one).
+  const slide = (x: number, y: number) => setHovered(picker ? reactionAt(x, y, pickerLayout(picker, width)) : null);
+  const release = () => {
+    if (hovered !== null) {
+      const chosen = REACTIONS[hovered]!.id;
+      setPicker(null);
+      send(chosen === mine ? null : chosen);
+    }
+    setHovered(null);
+  };
+  const gesture = Gesture.Exclusive(
+    Gesture.Pan()
+      .activateAfterLongPress(300)
+      .enabled(!readOnly)
+      .runOnJS(true)
+      // The button's corner on screen: where the finger is, less where it is within the button.
+      .onStart((e) => setPicker({ x: e.absoluteX - e.x, y: e.absoluteY - e.y }))
+      .onUpdate((e) => slide(e.absoluteX, e.absoluteY))
+      .onEnd(release),
+    Gesture.Tap().enabled(!readOnly).runOnJS(true).onEnd((_e, ok) => ok && toggle()),
+  );
   const color = t.colors.mutedForeground;
   return (
     <View style={[styles.bar, { borderTopColor: t.colors.border }]}>
-      <Pressable
-        ref={likeRef}
-        onPress={() => send(mine ? null : "like")}
-        onLongPress={readOnly ? undefined : openPicker}
-        delayLongPress={300}
-        disabled={readOnly}
-        accessibilityRole="button"
-        accessibilityLabel={def ? `${def.label}. Take your reaction back` : "Like"}
-        accessibilityHint={readOnly ? "You can react in your home neighbourhood" : "Long press for more reactions"}
-        accessibilityState={{ selected: !!mine, disabled: readOnly }}
-        accessibilityActions={readOnly ? undefined : [{ name: "longpress", label: "Choose a reaction" }]}
-        onAccessibilityAction={(e) => e.nativeEvent.actionName === "longpress" && openPicker()}
-        style={({ pressed }) => [styles.barItem, pressed && { backgroundColor: t.colors.muted }, readOnly && styles.dim]}
-      >
-        {def && def.id !== "like" ? <Text style={styles.barEmoji}>{def.emoji}</Text> : <ThumbsUp size={20} color={mine ? t.colors.primary : color} fill={mine ? tint(t.colors.primary, 0.2) : "transparent"} />}
-        <Text variant="label" style={{ color: mine ? t.colors.primary : color }}>
-          {def?.label ?? "Like"}
-        </Text>
-      </Pressable>
+      <GestureDetector gesture={gesture}>
+        <View
+          ref={likeRef}
+          collapsable={false}
+          accessible
+          accessibilityRole="button"
+          accessibilityLabel={def ? `${def.label}. Take your reaction back` : "Like"}
+          accessibilityHint={readOnly ? "You can react in your home neighbourhood" : "Hold for more reactions"}
+          accessibilityState={{ selected: !!mine, disabled: readOnly }}
+          accessibilityActions={readOnly ? undefined : [{ name: "activate" }, { name: "longpress", label: "Choose a reaction" }]}
+          onAccessibilityAction={(e) => (e.nativeEvent.actionName === "longpress" ? openPicker() : !readOnly && toggle())}
+          style={[styles.barItem, readOnly && styles.dim]}
+        >
+          {def && def.id !== "like" ? <Text style={styles.barEmoji}>{def.emoji}</Text> : <ThumbsUp size={20} color={mine ? t.colors.primary : color} fill={mine ? tint(t.colors.primary, 0.2) : "transparent"} />}
+          <Text variant="label" style={{ color: mine ? t.colors.primary : color }}>
+            {def?.label ?? "Like"}
+          </Text>
+        </View>
+      </GestureDetector>
       <Pressable onPress={onComment} disabled={!onComment} accessibilityRole="button" accessibilityLabel="Comment" style={({ pressed }) => [styles.barItem, pressed && { backgroundColor: t.colors.muted }]}>
         <MessageCircle size={20} color={color} />
         <Text variant="label" style={{ color }}>
@@ -220,7 +244,7 @@ export function PostActionBar({ post, onComment }: { post: ApiPost; onComment?: 
           Share
         </Text>
       </Pressable>
-      <ReactionPicker anchor={picker} current={mine} onPick={send} onClose={() => setPicker(null)} />
+      <ReactionPicker anchor={picker} screenWidth={width} hovered={hovered} current={mine} onPick={send} onClose={() => setPicker(null)} />
     </View>
   );
 }

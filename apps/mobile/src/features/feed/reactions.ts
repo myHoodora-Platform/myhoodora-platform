@@ -33,3 +33,16 @@ export function topReactions(counts: ApiPost["reactionCounts"], n = 3): Reaction
     .slice(0, n)
     .map((r) => r.id);
 }
+
+/** One post's reaction on its way: what you last chose, what the API last confirmed, and whether a request is out. */
+export interface ReactionSync {
+  wanted: ReactionType | null;
+  confirmed: ApiPost;
+  sending: boolean;
+}
+
+/** What to send next, or null while one is out or when the API already has what you want. */
+export function nextToSend(sync: ReactionSync): { type: ReactionType | null } | null {
+  if (sync.sending) return null;
+  return (sync.confirmed.myReaction ?? null) === sync.wanted ? null : { type: sync.wanted };
+}

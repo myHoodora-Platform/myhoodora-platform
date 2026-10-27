@@ -173,7 +173,19 @@ export interface Comment {
   content: string;
   createdAt: string;
   likes: string[];
+  /** A reply: the top-level comment it sits under (one level), and whom it answers. */
+  parentId?: string;
+  replyToUid?: string;
+  /** Sent by the live API (contract §2); optional for older payloads. */
+  likeCount?: number;
+  replyCount?: number;
+  /** Whether you like it. */
+  liked?: boolean;
+  /** A deleted comment kept as a placeholder because it has replies (no author, no words). */
+  deleted?: boolean;
 }
+
+export type CommentSort = "top" | "newest" | "oldest";
 
 // ── For Sale & Free (planned) ───────────────────────────────────────────────
 

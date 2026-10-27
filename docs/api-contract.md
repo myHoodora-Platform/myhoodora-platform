@@ -198,16 +198,24 @@ Alerts must not pile up into a wall. The model follows Nextdoor's green/yellow/r
 ## 2. Comments ✅
 
 ```ts
-interface Comment { _id; postId; authorUid; content; createdAt; likes: string[] }
+interface Comment {
+  _id; postId; authorUid; content; createdAt; likes: string[];
+  parentId?; replyToUid?;          // a reply: its top-level comment, and whom it answers
+  likeCount; replyCount; liked;    // liked = you like it
+  deleted?: true;                  // threaded view only: a deleted comment kept because it has replies (no author, no words)
+}
 ```
 
 | Method | Path | Body | Returns |
 | --- | --- | --- | --- |
-| GET | `/posts/:id/comments?before&limit` | — | `Comment[]`: the newest page (up to 500), oldest first. `before=<comment id>` gives the page before it (§26) |
-| POST | `/posts/:id/comments` | `{ content }` (1–1000 chars) | `Comment` |
+| GET | `/posts/:id/comments?before&limit` | — | `Comment[]`: the newest page (up to 500), oldest first, replies included as plain comments. `before=<comment id>` gives the page before it (§26). What app builds before the comments sheet use. |
+| GET | `/posts/:id/comments?thread=root&sort=top\|newest\|oldest&offset&limit` | — | Threaded view: top-level comments only (default `sort=top`: replies count ×3, likes ×2, then newest). `limit` up to 100, default 20; a full page means there may be more |
+| GET | `/posts/:id/comments?thread=<comment id>&offset&limit` | — | That comment's replies, oldest first |
+| POST | `/posts/:id/comments` | `{ content, parentId?, clientId? }` | `Comment`. `parentId` makes it a reply (a reply to a reply joins the same thread). Same `clientId` again (8–64 of `A-Za-z0-9_-`) returns the first comment instead of a second |
+| PUT / DELETE | `/comments/:id/like` | — | `{ likeCount, liked }`. One like per neighbour; repeating is harmless. Home Hood only, like reactions |
 | DELETE | `/comments/:id` | — | 204 (author, or neighbourhood lead/admin) |
 
-Increment and decrement `post.commentCount`, and create a `comment` notification for the post author.
+Every comment and reply moves `post.commentCount`. Notifications: the post's author ("commented on your post", or "replied to a comment on your post"); the person answered and the thread's starter ("replied to your comment"); a comment's author when it's liked (grouped: "Tunde and 2 others liked your comment").
 
 ---
 
