@@ -46,6 +46,8 @@ src/shared/       theme (from @myhoodora/design-tokens), UI components, utilitie
 
 The API pushes every notification the person would see in the app, following their per-category settings (contract §30). The app registers the phone after sign-in once notifications are allowed (the feed asks, in context, before the system prompt), removes it on logout, and opens the matching screen when a push is tapped.
 
+**Firebase native config files.** `google-services.json` (Android: FCM) and `GoogleService-Info.plist` (iOS: Google sign-in) come from Firebase console → Project settings → Your apps (project `myhoodora-e9ba5`, `com.myhoodora.app`). They are git-ignored everywhere and must never be committed. Locally, keep them in `apps/mobile/` (not in `ios/` or `android/`, which `expo prebuild --clean` regenerates); `app.config.ts` picks them up. For EAS builds, store each as an EAS **file** variable per environment: `eas env:set --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --visibility secret --environment development --environment preview --environment production` (and `GOOGLE_SERVICE_INFO_PLIST` likewise). Without them a build still works, minus Android push.
+
 Before pushes reach real phones, once per Expo project:
 
 1. **Android:** upload an FCM V1 service-account key: `npx eas-cli credentials` → Android → Google Service Account → FCM V1.

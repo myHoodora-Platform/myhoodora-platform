@@ -45,5 +45,11 @@ example
 # Local env (only .env.example is tracked)
 .env
 
+# Firebase native config (FCM, Google sign-in). Never committed: kept locally and as EAS file variables.
+google-services*.json
+GoogleService-Info*.plist
+# Firebase service-account keys (private keys). Upload to EAS, never keep in the repo.
+*firebase-adminsdk*.json
+
 # Intermediate captures; the app uses the resized assets/screens/*.webp
 assets/screens/raw/

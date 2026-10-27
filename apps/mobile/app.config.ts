@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import type { ConfigContext, ExpoConfig } from "expo/config";
 
 /**
@@ -19,6 +20,20 @@ const googleIosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID?.trim();
 const googleSignInPlugin: [string, { iosUrlScheme: string }][] = googleIosClientId
   ? [["@react-native-google-signin/google-signin", { iosUrlScheme: `com.googleusercontent.apps.${googleIosClientId.replace(/\.apps\.googleusercontent\.com$/, "")}` }]]
   : [];
+
+/**
+ * Firebase's native config files (Android: FCM for push; iOS: Google sign-in). Never committed
+ * (.gitignore). EAS builds get them from the file variables GOOGLE_SERVICES_JSON and
+ * GOOGLE_SERVICE_INFO_PLIST; locally they sit next to this file. Missing: left out, and the build
+ * still works, without Android push.
+ */
+function nativeFirebaseFile(envVar: string, localPath: string): string | undefined {
+  const fromEnv = process.env[envVar]?.trim();
+  if (fromEnv) return fromEnv;
+  return existsSync(localPath) ? localPath : undefined;
+}
+const androidGoogleServices = nativeFirebaseFile("GOOGLE_SERVICES_JSON", "./google-services.json");
+const iosGoogleServices = nativeFirebaseFile("GOOGLE_SERVICE_INFO_PLIST", "./GoogleService-Info.plist");
 
 /**
  * Crash reporting: links Sentry's native SDKs and uploads source maps and debug symbols from EAS
@@ -50,6 +65,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   owner: "myhoodora-mvp",
   ios: {
     bundleIdentifier: "com.myhoodora.app",
+    ...(iosGoogleServices && { googleServicesFile: iosGoogleServices }),
     supportsTablet: false,
     infoPlist: {
       NSLocationWhenInUseUsageDescription: "myHoodora uses your location once, to find the neighbourhood you live in.",
@@ -57,6 +73,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     package: "com.myhoodora.app",
+    ...(androidGoogleServices && { googleServicesFile: androidGoogleServices }),
     adaptiveIcon: {
       backgroundColor: LIGHT_BG,
       foregroundImage: "./assets/images/android-icon-foreground.png",
