@@ -4,6 +4,7 @@ import { ApiError, FRIENDLY_MESSAGES } from "@myhoodora/api-contract/errors";
 import type { UserProfile } from "@myhoodora/api-contract/types";
 import { useQueryClient } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { AppState } from "react-native";
 import { apiFetch, setUnauthorizedHandler } from "@/core/api/client";
 import { firebaseAuth } from "@/core/firebase/auth";
 import { setMonitoringUser } from "@/core/monitoring/monitoring";
@@ -11,7 +12,7 @@ import { hasSeenIntro, markIntroSeen, resetIntro } from "@/core/intro/intro-flag
 import { noteFirstRunEligibility } from "@/core/onboarding/first-run";
 import { clearDraft, hasSkippedOnboarding, markOnboardingSkipped } from "@/core/onboarding/onboarding-store";
 import { unregisterPush } from "@/core/push/push";
-import { sessionPhase, type ProfileStatus, type SessionPhase } from "./session-phase";
+import { foregroundRefreshDue, sessionPhase, type ProfileStatus, type SessionPhase } from "./session-phase";
 
 interface AuthContextValue {
   phase: SessionPhase;
@@ -140,6 +141,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const refreshProfile = useCallback(async () => (user ? loadProfile(user) : false), [user, loadProfile]);
+
+  // Back in the foreground: reload the profile quietly (the one on screen stays while it loads).
+  const lastForegroundRefresh = useRef(0);
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (status) => {
+      if (status !== "active" || !user || !foregroundRefreshDue(!!profile, lastForegroundRefresh.current)) return;
+      lastForegroundRefresh.current = Date.now();
+      void loadProfile(user);
+    });
+    return () => subscription.remove();
+  }, [user, profile, loadProfile]);
 
   const value = useMemo<AuthContextValue>(
     () => ({

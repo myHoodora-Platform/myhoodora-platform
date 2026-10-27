@@ -1006,7 +1006,7 @@ interface RealtimeEvent {
 | `listing.created` / `listing.updated` | hood | Listed / sold / deleted / removed |
 | `support.message` | the neighbour | Staff reply or start, status change, or their own reply from another tab |
 | `inbox.updated` / `queue.changed` | staff | Support thread activity / report filed, claimed, released or decided |
-| `session.changed` | user | Hood move, verification, restriction, suspension, reinstatement or role change. **The client reconnects** (new channels) and refreshes the profile |
+| `session.changed` | user | Hood move, verification, email confirmed, restriction, suspension, reinstatement or role change. **The client reconnects** (new channels) and refreshes the profile |
 
 **Client rules**:
 - Reconnect with jittered backoff (1 s → 30 s), and use a fresh ID token each time.
