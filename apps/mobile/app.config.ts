@@ -69,6 +69,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     supportsTablet: false,
     infoPlist: {
       NSLocationWhenInUseUsageDescription: "myHoodora uses your location once, to find the neighbourhood you live in.",
+      // Only standard HTTPS encryption, so App Store Connect asks no export-compliance questions.
+      ITSAppUsesNonExemptEncryption: false,
     },
   },
   android: {
