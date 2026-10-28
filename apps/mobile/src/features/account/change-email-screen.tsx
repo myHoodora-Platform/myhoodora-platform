@@ -15,6 +15,7 @@ import { Text } from "@/shared/ui/text";
 import { TextField } from "@/shared/ui/text-field";
 import { changeEmail } from "./account-api";
 import { canChangeEmail } from "./account-rules";
+import { FormScrollView } from "@/shared/ui/form-scroll-view";
 
 const emailSchema = z.string().trim().email("Enter a valid email address.").max(254);
 
@@ -116,7 +117,7 @@ function ChangeEmailContent() {
   }
 
   return (
-    <ScrollView contentContainerStyle={[styles.content, padding]} keyboardShouldPersistTaps="handled">
+    <FormScrollView contentContainerStyle={[styles.content, padding]} keyboardShouldPersistTaps="handled">
       <Text tone="muted">
         {`Your email (${current}) isn't confirmed yet, so you can change it. Once an address is confirmed, it can't be changed.`}
       </Text>
@@ -154,7 +155,7 @@ function ChangeEmailContent() {
         error={errors?.password}
       />
       <Button label="Change email" onPress={() => void submit()} loading={busy} />
-    </ScrollView>
+    </FormScrollView>
   );
 }
 

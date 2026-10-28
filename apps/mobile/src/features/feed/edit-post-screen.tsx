@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigation } from "expo-router";
 import { usePreventRemove } from "expo-router/react-navigation";
 import { useEffect, useRef, useState } from "react";
-import { Alert, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { Alert, StyleSheet, TextInput, View } from "react-native";
 import { useSignedInUser } from "@/core/auth/auth-provider";
 import { useRouter } from "@/core/navigation/use-router";
 import { useTheme } from "@/shared/theme/theme";
@@ -17,6 +17,7 @@ import { useToast } from "@/shared/ui/toast";
 import { cachedPost, editPost, feedKeys, getPost } from "./feed-api";
 import { PostAuthor, postText } from "./post-parts";
 import { updatePostEverywhere } from "./use-reaction";
+import { FormScrollView } from "@/shared/ui/form-scroll-view";
 
 /** The API's limit (contract §1), and where a counter starts helping. */
 const POST_MAX = 8192;
@@ -105,7 +106,7 @@ function EditorBody({ post, text, onChange, problem }: { post: NonNullable<Retur
     return () => clearTimeout(timer);
   }, []);
   return (
-    <ScrollView contentContainerStyle={[styles.body, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled">
+    <FormScrollView contentContainerStyle={[styles.body, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled">
       <PostAuthor post={{ ...post, editedAt: null }} compact />
       {problem ? <InlineAlert>{`Your changes weren't saved: ${problem}`}</InlineAlert> : null}
       <TextInput
@@ -130,7 +131,7 @@ function EditorBody({ post, text, onChange, problem }: { post: NonNullable<Retur
           Photos and details stay as posted. To change them, delete the post and post again.
         </Text>
       ) : null}
-    </ScrollView>
+    </FormScrollView>
   );
 }
 

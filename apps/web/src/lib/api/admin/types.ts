@@ -1,3 +1,4 @@
+import type { SupportAttachment } from "@myhoodora/api-contract/support";
 /**
  * Admin API types — mirror docs/api-contract.md §13 exactly. When the
  * backend ships an endpoint, these shapes are what it must return.
@@ -347,7 +348,7 @@ export interface InboxThread {
   status: InboxStatus;
   priority: "low" | "normal" | "high";
   assignee?: { uid: string; displayName: string };
-  messages: { from: "user" | "staff"; body: string; at: string; by?: string }[];
+  messages: { from: "user" | "staff"; body: string; at: string; by?: string; attachments?: SupportAttachment[] }[];
   createdAt: string;
   updatedAt: string;
 }

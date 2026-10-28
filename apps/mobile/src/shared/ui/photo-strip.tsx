@@ -1,8 +1,8 @@
 import { Image } from "expo-image";
-import { Camera, ImagePlus, Images, RotateCcw, X } from "lucide-react-native";
+import { Camera, FileText, ImagePlus, Images, RotateCcw, X } from "lucide-react-native";
 import { useState } from "react";
 import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
-import { pickPhotos, takePhoto, type PickResult } from "@/core/media/media";
+import { type PickResult, pickDocuments, pickPhotos, takePhoto } from "@/core/media/media";
 import type { PhotoUploads } from "@/core/media/use-photo-uploads";
 import { tint, useTheme } from "@/shared/theme/theme";
 import { InlineAlert } from "./inline-alert";
@@ -19,7 +19,8 @@ const SIZE = 92;
  * Adding photos to a draft: the "choose or take" sheet, then into `uploads`, with a note when the
  * camera is off or there wasn't room. Shared by the photo strip and the chat composer.
  */
-export function usePhotoPicking(uploads: PhotoUploads) {
+/** Photos from the library or camera; with `documents`, also a PDF from the phone's files (support). */
+export function usePhotoPicking(uploads: PhotoUploads, { documents = false }: { documents?: boolean } = {}) {
   const t = useTheme();
   const [choosing, setChoosing] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -39,10 +40,24 @@ export function usePhotoPicking(uploads: PhotoUploads) {
     if (left > 0) setNote(`There was room for ${room} more, so ${left} ${left === 1 ? "wasn't" : "weren't"} added.`);
   };
 
+  const takeDocuments = async () => {
+    setChoosing(false);
+    setNote(null);
+    if (Platform.OS === "ios") await new Promise((r) => setTimeout(r, 450));
+    const result = await pickDocuments(room);
+    if (!result.ok) {
+      if (result.reason === "too_big") setNote("That file is over 10 MB. Send a smaller PDF, or a photo of the page.");
+      return;
+    }
+    const left = uploads.addDocuments(result.documents);
+    if (left > 0) setNote(`There was room for ${room} more, so ${left} ${left === 1 ? "wasn't" : "weren't"} added.`);
+  };
+
   const sheet = (
-    <Sheet visible={choosing} title="Add photos" onClose={() => setChoosing(false)}>
+    <Sheet visible={choosing} title={documents ? "Attach" : "Add photos"} onClose={() => setChoosing(false)}>
       <SheetItem label="Choose from your photos" icon={<Images size={20} color={t.colors.primary} />} onPress={() => void take(() => pickPhotos(room))} />
       <SheetItem label="Take a photo" icon={<Camera size={20} color={t.colors.primary} />} onPress={() => void take(takePhoto)} />
+      {documents ? <SheetItem label="A document (PDF)" icon={<FileText size={20} color={t.colors.primary} />} onPress={() => void takeDocuments()} /> : null}
     </Sheet>
   );
   const noteView = note ? (

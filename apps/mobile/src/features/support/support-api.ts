@@ -28,8 +28,9 @@ export function sendSupportTyping(user: User, id: string): Promise<void> {
   return apiFetch<void>(user, `/support/threads/${encodeURIComponent(id)}/typing`, { method: "POST" });
 }
 
-export function replyToSupport(user: User, id: string, body: string): Promise<SupportThread> {
-  return apiFetch<SupportThread>(user, `/support/threads/${id}/messages`, { method: "POST", json: { body } });
+/** Words, attachments (photos or PDFs uploaded for "support"), or both. */
+export function replyToSupport(user: User, id: string, body: string, attachments: { url: string; name?: string }[] = []): Promise<SupportThread> {
+  return apiFetch<SupportThread>(user, `/support/threads/${id}/messages`, { method: "POST", json: { body, ...(attachments.length && { attachments }) } });
 }
 
 /** A new question to the team; the reply arrives in the same conversation. */

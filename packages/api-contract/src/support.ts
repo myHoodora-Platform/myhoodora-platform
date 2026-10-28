@@ -12,12 +12,26 @@ export type SupportTopic = (typeof SUPPORT_TOPICS)[number]["id"];
 
 export type SupportStatus = "open" | "waiting" | "resolved";
 
+/** A photo or PDF in a support conversation (2026-10-28). Uploaded with POST /media purpose "support". */
+export interface SupportAttachment {
+  url: string;
+  kind: "image" | "document";
+  /** The file's name, for documents ("Utility bill.pdf"). */
+  name?: string;
+  bytes?: number;
+}
+
+/** Per message, either way (neighbour or team). */
+export const SUPPORT_ATTACHMENTS_MAX = 4;
+
 export interface SupportMessage {
   from: "user" | "staff";
+  /** May be empty when the message is only attachments. */
   body: string;
   at: string;
   /** Staff member's name on team messages. */
   by?: string;
+  attachments?: SupportAttachment[];
 }
 
 export interface SupportThread {

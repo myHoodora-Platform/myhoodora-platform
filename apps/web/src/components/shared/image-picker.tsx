@@ -190,7 +190,7 @@ export function PhotoPicker({ value, onChange, purpose, max = 10, allowVideo = f
           if (mixes) toast.error(allowVideo ? "Add photos or one video, not both." : "Only photos can be added here.");
           return commit(others);
         }
-        commit(latest.current.map((p) => (p.key === item.key ? { ...p, kind: media.resourceType, url: media.url, preview: media.url, mediaId: media.id, uploading: false } : p)));
+        commit(latest.current.map((p) => (p.key === item.key ? { ...p, kind: media.resourceType === "video" ? "video" : "image", url: media.url, preview: media.url, mediaId: media.id, uploading: false } : p)));
       })
       .catch((err) => {
         toast.error(errorMessage(err, "We couldn't add that link. Upload the file instead."));

@@ -3,7 +3,9 @@ import { Camera, GeoJSONSource, Layer, Map, type CameraRef } from "@maplibre/map
 import { LocateFixed, MapPin, Search, X } from "lucide-react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Modal, Pressable, StyleSheet, TextInput, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import Animated, { useAnimatedStyle } from "react-native-reanimated";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useKeyboardHeight } from "@/shared/hooks/use-keyboard-height";
 import { useSignedInUser } from "@/core/auth/auth-provider";
 import { currentPosition, geocode, reverseGeocode } from "@/core/location/location";
 import { MIN_TOUCH, useTheme } from "@/shared/theme/theme";
@@ -50,6 +52,10 @@ function Picker({ hood, initial, onClose, onConfirm }: { hood: HoodArea; initial
   const area = useMemo(() => circle(hood.centre[0], hood.centre[1], hood.radiusMeters), [hood]);
   const centre = { lat: hood.centre[1], lng: hood.centre[0] };
   const ok = withinReach(centre, hood.radiusMeters, point);
+  // The name box sits at the bottom: the card rides above the keyboard (this is its own window, a Modal).
+  const safe = useSafeAreaInsets();
+  const keyboardHeight = useKeyboardHeight();
+  const lift = useAnimatedStyle(() => ({ paddingBottom: Math.max(safe.bottom, keyboardHeight.get()) + 12 }));
 
   // The map settled somewhere new: suggest that place's name (unless they wrote their own).
   const settled = (lng: number, lat: number) => {
@@ -158,7 +164,7 @@ function Picker({ hood, initial, onClose, onConfirm }: { hood: HoodArea; initial
         </Text>
       </SafeAreaView>
 
-      <SafeAreaView edges={["bottom"]} style={styles.bottom} pointerEvents="box-none">
+      <Animated.View style={[styles.bottom, lift]} pointerEvents="box-none">
         <Pressable
           onPress={() => void locate()}
           accessibilityRole="button"
@@ -196,7 +202,7 @@ function Picker({ hood, initial, onClose, onConfirm }: { hood: HoodArea; initial
           )}
           <Button label="Use this place" disabled={!ok} onPress={() => onConfirm({ lat: point.lat, lng: point.lng, ...(cleanLabel(label) && { label: cleanLabel(label) }) })} />
         </View>
-      </SafeAreaView>
+      </Animated.View>
     </View>
   );
 }
@@ -212,7 +218,7 @@ const styles = StyleSheet.create({
   search: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 999, paddingHorizontal: 14, minHeight: MIN_TOUCH, elevation: 3, shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
   searchInput: { flex: 1, fontSize: 16, paddingVertical: 8 },
   hint: { alignSelf: "center", paddingHorizontal: 12, paddingVertical: 4, borderRadius: 999, overflow: "hidden" },
-  bottom: { position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: 12, paddingBottom: 12, gap: 10 },
+  bottom: { position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: 12, gap: 10 },
   locate: { alignSelf: "flex-end" },
   card: { borderRadius: 22, borderWidth: StyleSheet.hairlineWidth, padding: 16, gap: 10 },
   nameBox: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderRadius: 14, paddingHorizontal: 12, minHeight: MIN_TOUCH },

@@ -4,7 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "@/core/navigation/use-router";
 import { ArrowRight, ChevronLeft, Ellipsis, Package, Share2 } from "lucide-react-native";
 import { useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, TextInput, useWindowDimensions, View } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSignedInUser } from "@/core/auth/auth-provider";
 import { sendMessage, startConversation } from "@/features/chat/chat-api";
@@ -140,8 +141,9 @@ export function ListingScreen({ id }: { id: string }) {
   const l = listing.data;
   const free = l.priceNaira === null;
   return (
-    <KeyboardAvoidingView style={[styles.flex, { backgroundColor: t.colors.background }]} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 24 }} keyboardShouldPersistTaps="handled">
+    <View style={[styles.flex, { backgroundColor: t.colors.background }]}>
+      {/* "Message the seller" is near the bottom: it scrolls above the keyboard when typed in. */}
+      <KeyboardAwareScrollView style={styles.flex} contentContainerStyle={{ paddingBottom: insets.bottom + 24 }} keyboardShouldPersistTaps="handled" bottomOffset={24}>
         <Photos listing={l} />
         <View style={styles.content}>
           <View style={styles.group}>
@@ -186,10 +188,10 @@ export function ListingScreen({ id }: { id: string }) {
           </View>
           {l.sellerUid === user.uid ? <SellerTools listing={l} /> : <MessageSeller listing={l} />}
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
       {topBar}
       <ReportSheet visible={reporting} onClose={() => setReporting(false)} targetType="listing" targetId={l._id} />
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

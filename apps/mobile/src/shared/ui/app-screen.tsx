@@ -2,8 +2,11 @@ import { type Href } from "expo-router";
 import { useRouter } from "@/core/navigation/use-router";
 import { ChevronLeft } from "lucide-react-native";
 import { createContext, useContext, useState, type ReactNode } from "react";
-import { KeyboardAvoidingView, Platform, StyleSheet, View } from "react-native";
-import Animated, { useAnimatedKeyboard, useAnimatedStyle } from "react-native-reanimated";
+import { Platform, StyleSheet, View } from "react-native";
+// The same component as React Native's, but it also works inside modals and edge to edge.
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import Animated, { useAnimatedStyle } from "react-native-reanimated";
+import { useKeyboardHeight } from "@/shared/hooks/use-keyboard-height";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/shared/theme/theme";
 import { FixedHeader, useHeaderEstimate } from "./fixed-header";
@@ -98,8 +101,8 @@ export function AppScreen({
  * top of the keyboard.
  */
 function AndroidKeyboardRoom({ style, children }: { style: { backgroundColor: string }; children: ReactNode }) {
-  const keyboard = useAnimatedKeyboard();
-  const room = useAnimatedStyle(() => ({ paddingBottom: keyboard.height.get() }));
+  const keyboardHeight = useKeyboardHeight();
+  const room = useAnimatedStyle(() => ({ paddingBottom: keyboardHeight.get() }));
   return <Animated.View style={[styles.flex, style, room]}>{children}</Animated.View>;
 }
 

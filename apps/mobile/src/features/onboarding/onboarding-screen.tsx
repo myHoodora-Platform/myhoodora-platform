@@ -1,7 +1,8 @@
 import { useRouter } from "@/core/navigation/use-router";
 import { X } from "lucide-react-native";
 import { useEffect, useState, type ReactNode } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { KeyboardAwareScrollView, KeyboardStickyView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/core/auth/auth-provider";
 import { MIN_TOUCH, useTheme } from "@/shared/theme/theme";
@@ -20,6 +21,9 @@ const STEP_NUMBER: Record<Step, number> = { loading: 1, details: 1, confirm: 2, 
  * Onboarding, after sign-up (or from the feed's "Finish joining"). The form scrolls under a fixed header
  * and the step's actions stay at the bottom, within thumb reach and above the keyboard.
  */
+/** Room kept under the field being typed in for the step's buttons (they sit just above the keyboard). */
+const ACTIONS_ROOM = 110;
+
 export function OnboardingScreen() {
   const t = useTheme();
   const router = useRouter();
@@ -60,12 +64,15 @@ export function OnboardingScreen() {
       <View style={styles.progress}>
         <StepProgress step={STEP_NUMBER[o.step]} steps={STEPS} />
       </View>
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+      {/* The field being typed in stays above the keyboard and the buttons, which ride on top of it. */}
+      <View style={styles.flex}>
+        <KeyboardAwareScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" bottomOffset={ACTIONS_ROOM}>
           <Body o={o} />
-        </ScrollView>
-        <Actions o={o} onLogout={() => void logout()} showLogout={!openedFromApp && o.step === "details"} />
-      </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
+        <KeyboardStickyView>
+          <Actions o={o} onLogout={() => void logout()} showLogout={!openedFromApp && o.step === "details"} />
+        </KeyboardStickyView>
+      </View>
     </SafeAreaView>
   );
 }

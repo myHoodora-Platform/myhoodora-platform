@@ -3,7 +3,8 @@ import { useRouter } from "@/core/navigation/use-router";
 import { StatusBar } from "expo-status-bar";
 import { ChevronLeft } from "lucide-react-native";
 import type { ReactNode } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View, type ImageSourcePropType } from "react-native";
+import { Pressable, StyleSheet, useWindowDimensions, View, type ImageSourcePropType } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/shared/theme/theme";
 import { Text } from "@/shared/ui/text";
@@ -29,8 +30,7 @@ export function AuthShell({ photo, title, subtitle, children }: { photo: ImageSo
   return (
     <View style={[styles.flex, { backgroundColor: t.colors.background }]}>
       <StatusBar style="light" />
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <ScrollView contentContainerStyle={styles.grow} keyboardShouldPersistTaps="handled" bounces={false}>
+      <KeyboardAwareScrollView style={styles.flex} contentContainerStyle={styles.grow} keyboardShouldPersistTaps="handled" bounces={false} bottomOffset={24}>
           <Image source={photo} style={{ height: photoHeight }} contentFit="cover" accessible={false} />
           <View style={[styles.sheet, { backgroundColor: t.colors.background, paddingBottom: insets.bottom + 24 }]}>
             <View style={styles.heading}>
@@ -39,8 +39,7 @@ export function AuthShell({ photo, title, subtitle, children }: { photo: ImageSo
             </View>
             {children}
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
       {router.canGoBack() ? (
         <Pressable
           onPress={() => router.back()}

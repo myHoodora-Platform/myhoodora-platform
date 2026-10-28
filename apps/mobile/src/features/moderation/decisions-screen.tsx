@@ -5,7 +5,7 @@ import { useNavigation } from "expo-router";
 import { usePreventRemove } from "expo-router/react-navigation";
 import { Scale } from "lucide-react-native";
 import { useEffect, useRef, useState } from "react";
-import { Alert, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { Alert, FlatList, Pressable, RefreshControl, StyleSheet, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSignedInUser } from "@/core/auth/auth-provider";
 import { useRouter } from "@/core/navigation/use-router";
@@ -21,6 +21,7 @@ import { useToast } from "@/shared/ui/toast";
 import { openWeb } from "@/shared/utils/open-web";
 import { timeAgo } from "@/shared/utils/time";
 import { ACTION_LABEL, APPEAL_LABEL, APPEAL_MAX, APPEAL_MIN, fileAppeal, getMyDecisions, moderationKeys } from "./moderation-api";
+import { FormScrollView } from "@/shared/ui/form-scroll-view";
 
 /**
  * `/settings/moderation` (the web's Decisions & appeals, where moderation notifications lead):
@@ -196,7 +197,7 @@ function AppealBody({ decision, reason, onChange, problem }: { decision: MyDecis
   }, []);
   const short = reason.trim().length < APPEAL_MIN;
   return (
-    <ScrollView contentContainerStyle={[styles.form, { paddingTop: insets.top + 16, paddingBottom: 24 }]} keyboardShouldPersistTaps="handled">
+    <FormScrollView contentContainerStyle={[styles.form, { paddingTop: insets.top + 16, paddingBottom: 24 }]} keyboardShouldPersistTaps="handled">
       <View style={[styles.quote, { backgroundColor: t.colors.muted }]}>
         <Scale size={18} color={t.colors.mutedForeground} />
         <View style={styles.flex}>
@@ -228,7 +229,7 @@ function AppealBody({ decision, reason, onChange, problem }: { decision: MyDecis
       <Text variant="caption" tone="muted" style={styles.count}>
         {short ? `At least ${APPEAL_MIN} characters` : `${reason.length} / ${APPEAL_MAX}`}
       </Text>
-    </ScrollView>
+    </FormScrollView>
   );
 }
 

@@ -1004,6 +1004,15 @@ type SupportThreadSummary = Omit<SupportThread, "messages"> & { lastMessage?: Su
 - **Reaching the neighbour** (staff reply or start, one helper): `support.message` live event, an in-app notification linking to `/inbox/support/<id>`, and an email whose button opens the conversation ("Reply in the app…"). Email replies aren't read by the system, so app users are pointed back to the app. Public contact-form threads (no account) keep plain email replies.
 - `inbound_messages` gains `userReadAt` and the `staff` source; indexed by `{ uid, updatedAt }`.
 
+### Attachments (2026-10-28)
+
+Support messages carry photos and PDFs both ways, so the team can ask for a document (a utility bill to confirm an address) and send one back (a form).
+
+- Upload with `POST /media` and `purpose: "support"` (any signed-in person, and staff). This is the only purpose that takes PDFs (`resourceType: "document"`, up to 10 MB, recognised by its first bytes `%PDF-`; Office files are refused).
+- `POST /support/threads/:id/messages` and `POST /admin/inbox/:id/reply` accept `attachments: { url, name? }[]` (up to 4) beside `body`, which may then be empty. Each file must be one the sender uploaded for support, else `400`.
+- Messages return `attachments?: { url, kind: "image" | "document", name?, bytes? }[]`. A message that is only files previews as "📷 Photo", "📎 <name>" or "📎 N files".
+- The unused-file sweep keeps any file a support message carries (reference source `support`).
+
 ---
 
 ## 19. Real-time (2026-09-30)
@@ -1115,7 +1124,7 @@ Uploads go **through the API**, never straight from the browser to a vendor. Bus
 | Field | |
 | --- | --- |
 | `file` | Photo: JPG, PNG, WebP, GIF, HEIC, up to 10 MB. Video: MP4, MOV, WebM, up to 50 MB (**posts only**). |
-| `purpose` | `post` \| `listing` \| `group` \| `avatar` (decides the folder and whether video is allowed) |
+| `purpose` | `post` \| `listing` \| `group` \| `avatar` \| `ad` \| `message` \| `support` (decides the folder and whether video or PDF is allowed: video for `post` and `ad`, PDF for `support` only, §18) |
 
 ```ts
 { id: string; url: string; resourceType: "image" | "video"; format?: string; bytes: number; width?: number; height?: number; durationSeconds?: number }

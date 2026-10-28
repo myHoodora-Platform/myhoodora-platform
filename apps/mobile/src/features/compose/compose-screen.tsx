@@ -4,7 +4,7 @@ import { useRouter } from "@/core/navigation/use-router";
 import { X } from "lucide-react-native";
 import { useRef, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import { FormScrollView } from "@/shared/ui/form-scroll-view";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth, useSignedInUser } from "@/core/auth/auth-provider";
 import { usePhotoUploads } from "@/core/media/use-photo-uploads";
@@ -132,7 +132,7 @@ export function ComposeScreen({ kind: startKind }: { kind?: string }) {
         <Button label="Post" onPress={() => void submit()} loading={busy} style={styles.post} />
       </View>
       {/* Whatever is being typed in stays above the keyboard, however far down the form it is. */}
-      <KeyboardAwareScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" bottomOffset={24}>
+      <FormScrollView style={styles.flex} contentContainerStyle={styles.content}>
           {profile.emailVerified === false ? (
             <InlineAlert tone="warning">Confirm your email address to post. We sent you a link when you signed up; you can ask for a new one on your feed.</InlineAlert>
           ) : null}
@@ -197,7 +197,7 @@ export function ComposeScreen({ kind: startKind }: { kind?: string }) {
           {errors?.message ? <InlineAlert>{errors.message}</InlineAlert> : null}
           {draft.category === "poll" ? <PollFields draft={draft} errors={errors} edit={edit} /> : null}
           <PhotoStrip uploads={photos} />
-      </KeyboardAwareScrollView>
+      </FormScrollView>
       {area ? (
         <PlacePicker
           visible={picking}

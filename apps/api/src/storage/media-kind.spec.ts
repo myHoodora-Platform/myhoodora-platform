@@ -29,8 +29,10 @@ describe("sniffMediaType", () => {
     expect(sniffMediaType(b([0, 0, 0, 0x14], "ftypqt  "))).toBe("video/quicktime");
     expect(sniffMediaType(b([0, 0, 0, 0x18], "ftypheic"))).toBe("image/heic");
   });
+  it("recognises a PDF (taken only for support: StorageService checks the purpose)", () => {
+    expect(sniffMediaType(b("%PDF-1.7"))).toBe("application/pdf");
+  });
   it("refuses anything else, whatever it's called", () => {
-    expect(sniffMediaType(b("%PDF-1.7"))).toBeNull();
     expect(sniffMediaType(b("<html><body>"))).toBeNull();
     expect(sniffMediaType(Buffer.alloc(0))).toBeNull();
   });

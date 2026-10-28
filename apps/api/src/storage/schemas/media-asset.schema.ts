@@ -2,7 +2,7 @@ import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import { HydratedDocument } from "mongoose";
 import type { StorageResourceType } from "../providers/storage-provider";
 
-export const MEDIA_PURPOSES = ["post", "listing", "group", "avatar", "ad", "message"] as const;
+export const MEDIA_PURPOSES = ["post", "listing", "group", "avatar", "ad", "message", "support"] as const;
 export type MediaPurpose = (typeof MEDIA_PURPOSES)[number];
 
 export type MediaAssetDocument = HydratedDocument<MediaAsset>;
@@ -23,7 +23,7 @@ export class MediaAsset {
   @Prop({ required: true })
   providerId!: string;
 
-  @Prop({ required: true, enum: ["image", "video"] })
+  @Prop({ required: true, enum: ["image", "video", "document"] })
   resourceType!: StorageResourceType;
 
   @Prop({ required: true, enum: MEDIA_PURPOSES })

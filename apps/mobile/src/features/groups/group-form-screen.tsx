@@ -5,7 +5,7 @@ import { Image } from "expo-image";
 import { X } from "lucide-react-native";
 import { useRef, useState, type ComponentType } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import { FormScrollView } from "@/shared/ui/form-scroll-view";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth, useSignedInUser } from "@/core/auth/auth-provider";
 import { hasHood } from "@/core/auth/session-phase";
@@ -108,7 +108,7 @@ function GroupForm({ hoodId, existing }: { hoodId?: string; existing?: Group }) 
         <Text variant="heading">{existing ? "Edit group" : "Start a group"}</Text>
         <Button label={existing ? "Save" : "Create"} onPress={() => void submit()} loading={busy} style={styles.save} />
       </View>
-      <KeyboardAwareScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" bottomOffset={24}>
+      <FormScrollView style={styles.flex} contentContainerStyle={styles.content}>
           {problem ? <InlineAlert>{problem}</InlineAlert> : null}
           {savedCover && !photos.items.length ? (
             <View style={styles.group}>
@@ -147,7 +147,7 @@ function GroupForm({ hoodId, existing }: { hoodId?: string; existing?: Group }) 
           <Text variant="caption" tone="muted">
             Community guidelines apply in groups too. As an admin you can remove posts and members.
           </Text>
-      </KeyboardAwareScrollView>
+      </FormScrollView>
     </SafeAreaView>
   );
 }

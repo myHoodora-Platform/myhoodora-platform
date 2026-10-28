@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { BackHandler, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, { Easing, interpolate, runOnJS, useAnimatedKeyboard, useAnimatedReaction, useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
+import Animated, { Easing, interpolate, runOnJS, useAnimatedReaction, useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useKeyboardHeight } from "@/shared/hooks/use-keyboard-height";
 import { useReducedMotion } from "@/shared/hooks/use-reduced-motion";
 import { useTheme } from "@/shared/theme/theme";
 
@@ -47,7 +48,7 @@ export function BottomSheet({
   const insets = useSafeAreaInsets();
   const { height: screen } = useWindowDimensions();
   const reduced = useReducedMotion();
-  const keyboard = useAnimatedKeyboard();
+  const keyboardHeight = useKeyboardHeight();
   const [chrome, setChrome] = useState(0);
   const [footerHeight, setFooterHeight] = useState(0);
   // Where it rests when opened, and how far it pulls up: the content's height, within the sizes above.
@@ -92,7 +93,7 @@ export function BottomSheet({
 
   // Typing needs room: the keyboard opening pulls the sheet up to its full size.
   useAnimatedReaction(
-    () => keyboard.height.get() > 0,
+    () => keyboardHeight.get() > 0,
     (open, was) => {
       if (open && !was && visible.get() > 0 && visible.get() < top.get()) go(top.get());
     },
@@ -121,11 +122,11 @@ export function BottomSheet({
 
   const sheet = useAnimatedStyle(() => {
     // With the keyboard up, the sheet sits on it and never goes past the top of the screen.
-    const room = screen - keyboard.height.get() - insets.top - 8;
-    return { height: Math.min(visible.get(), room), bottom: keyboard.height.get() };
+    const room = screen - keyboardHeight.get() - insets.top - 8;
+    return { height: Math.min(visible.get(), room), bottom: keyboardHeight.get() };
   });
   // Above the keyboard there's no home indicator to clear.
-  const footerPad = useAnimatedStyle(() => ({ paddingBottom: keyboard.height.get() > 0 ? 0 : insets.bottom }));
+  const footerPad = useAnimatedStyle(() => ({ paddingBottom: keyboardHeight.get() > 0 ? 0 : insets.bottom }));
   const backdrop = useAnimatedStyle(() => ({ opacity: interpolate(visible.get(), [0, rest.get()], [0, 1], "clamp") }));
 
   return (

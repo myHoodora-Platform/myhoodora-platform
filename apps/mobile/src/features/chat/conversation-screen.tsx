@@ -2,26 +2,24 @@ import { errorMessage } from "@myhoodora/api-contract/errors";
 import type { Conversation, Message } from "@myhoodora/api-contract/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
-import { ArrowUp, BellOff, ChevronRight, ImagePlus, MoreVertical, RotateCcw, X } from "lucide-react-native";
+import { BellOff, ChevronRight, MoreVertical } from "lucide-react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { FlatList, Pressable, StyleSheet, View } from "react-native";
 import { useSignedInUser } from "@/core/auth/auth-provider";
-import { usePhotoUploads, type PhotoUploads } from "@/core/media/use-photo-uploads";
+import { usePhotoUploads } from "@/core/media/use-photo-uploads";
 import { useRouter } from "@/core/navigation/use-router";
-import { MIN_TOUCH, useTheme } from "@/shared/theme/theme";
+import { useTheme } from "@/shared/theme/theme";
 import { AppScreen, useScreenInsets } from "@/shared/ui/app-screen";
 import { Avatar } from "@/shared/ui/avatar";
-import { GlassSurface } from "@/shared/ui/glass-surface";
+import { ChatBubble, ChatComposer, DayLine, withDays, type DayRows } from "@/shared/ui/chat";
 import { IconButton } from "@/shared/ui/icon-button";
-import { InlineAlert } from "@/shared/ui/inline-alert";
 import { PhotoViewer } from "@/shared/ui/photo-viewer";
 import { usePhotoPicking } from "@/shared/ui/photo-strip";
 import { ErrorState, LoadingState } from "@/shared/ui/states";
 import { Text } from "@/shared/ui/text";
 import { formatNaira } from "@/shared/utils/format";
 import { sizedImage } from "@/shared/utils/media";
-import { clock, dayLabel } from "@/shared/utils/time";
+import { clock } from "@/shared/utils/time";
 import { useLive } from "@/features/live/live-store";
 import { useTypingIndicator, useTypingSignal } from "@/features/live/use-typing";
 import { signal } from "@/features/feedback/engagement";
@@ -32,25 +30,22 @@ import { ConversationActions } from "./conversation-actions";
 const FALLBACK_POLL_MS = 15_000;
 const MAX_PHOTOS = 4;
 
-type Row = { kind: "day"; key: string; label: string } | { kind: "message"; key: string; message: Message; seen: boolean };
+type Row = DayRows<{ message: Message; seen: boolean }>[number];
 
 /** Messages with a day line wherever the day changes, and "Seen" under your last one they've read. */
 function rowsFor(messages: Message[], me: string, theirLastRead?: string): Row[] {
-  const rows: Row[] = [];
   const lastMine = [...messages].reverse().find((m) => m.senderUid === me);
   const seenUpTo = theirLastRead ? new Date(theirLastRead).getTime() : 0;
-  messages.forEach((m, i) => {
-    const day = dayLabel(m.createdAt);
-    if (i === 0 || dayLabel(messages[i - 1]!.createdAt) !== day) rows.push({ kind: "day", key: `day-${m._id}`, label: day });
-    rows.push({ kind: "message", key: m._id, message: m, seen: m === lastMine && new Date(m.createdAt).getTime() <= seenUpTo });
-  });
-  return rows;
+  return withDays(
+    messages.map((m) => ({ message: m, seen: m === lastMine && new Date(m.createdAt).getTime() <= seenUpTo })),
+    (r) => r.message.createdAt,
+    (r) => r.message._id,
+  );
 }
 
 /** `/inbox/<id>`: one conversation. Opening it marks it read. */
 export function ConversationScreen({ id }: { id: string }) {
   const t = useTheme();
-  const insets = useSafeAreaInsets();
   const user = useSignedInUser();
   const client = useQueryClient();
   const router = useRouter();
@@ -90,32 +85,22 @@ export function ConversationScreen({ id }: { id: string }) {
   const submit = () => canSend && send.mutate({ body, urls: photos.uploading ? [] : photos.urls });
 
   const composer = (
-    <GlassSurface style={[styles.composer, { borderTopColor: t.colors.border, paddingBottom: Math.max(insets.bottom, 8) }]}>
-      {send.isError ? <InlineAlert>{`Not sent: ${errorMessage(send.error)}`}</InlineAlert> : null}
-      {picking.note}
-      {photos.items.length ? <Tray uploads={photos} /> : null}
-      <View style={styles.composerRow}>
-        {photos.room > 0 ? <IconButton Icon={ImagePlus} label="Add photos" onPress={picking.choose} /> : null}
-        <View style={[styles.input, { backgroundColor: t.colors.muted }]}>
-          <TextInput
-            value={text}
-            onChangeText={setText}
-            placeholder={photos.items.length ? "Add a message (optional)" : "Write a message"}
-            placeholderTextColor={t.colors.mutedForeground}
-            multiline
-            maxLength={2000}
-            accessibilityLabel="Write a message"
-            style={[styles.inputText, { color: t.colors.foreground, fontFamily: t.fonts.regular }]}
-          />
-          {canSend || send.isPending ? (
-            <Pressable onPress={submit} accessibilityRole="button" accessibilityLabel="Send" style={[styles.send, { backgroundColor: t.colors.primary }]}>
-              {send.isPending ? <ActivityIndicator size="small" color={t.colors.primaryForeground} /> : <ArrowUp size={18} color={t.colors.primaryForeground} />}
-            </Pressable>
-          ) : null}
-        </View>
-      </View>
-      {picking.sheet}
-    </GlassSurface>
+    <ChatComposer
+      text={text}
+      onText={setText}
+      placeholder="Write a message"
+      uploads={photos}
+      onAttach={picking.choose}
+      onSend={submit}
+      sending={send.isPending}
+      error={send.isError ? errorMessage(send.error) : null}
+      above={
+        <>
+          {picking.note}
+          {picking.sheet}
+        </>
+      }
+    />
   );
 
   const muted = convo.data ? isMuted(convo.data) : false;
@@ -150,33 +135,6 @@ export function ConversationScreen({ id }: { id: string }) {
       <Thread convo={convo.data} me={user.uid} other={other?.displayName} messages={messages} list={list} />
       {convo.data ? <ConversationActions convo={convo.data} visible={menu} onClose={() => setMenu(false)} inside onGone={() => (router.canGoBack() ? router.back() : router.replace("/inbox"))} /> : null}
     </AppScreen>
-  );
-}
-
-/** The photos about to go, each with its upload state; tap ✕ to leave one out. */
-function Tray({ uploads }: { uploads: PhotoUploads }) {
-  const t = useTheme();
-  return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tray} keyboardShouldPersistTaps="handled">
-      {uploads.items.map((p, i) => (
-        <View key={p.key} style={[styles.trayTile, { backgroundColor: t.colors.muted }]}>
-          <Image source={p.uri} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityLabel={`Photo ${i + 1}${p.status === "uploading" ? ", uploading" : p.status === "failed" ? ", didn't upload" : ""}`} />
-          {p.status === "uploading" ? (
-            <View style={styles.trayCover}>
-              <ActivityIndicator color="#ffffff" size="small" />
-            </View>
-          ) : null}
-          {p.status === "failed" ? (
-            <Pressable onPress={() => uploads.retry(p.key)} accessibilityRole="button" accessibilityLabel={`Retry photo ${i + 1}`} style={[styles.trayCover, styles.trayFailed]}>
-              <RotateCcw size={18} color="#ffffff" />
-            </Pressable>
-          ) : null}
-          <Pressable onPress={() => uploads.remove(p.key)} accessibilityRole="button" accessibilityLabel={`Remove photo ${i + 1}`} hitSlop={8} style={styles.trayRemove}>
-            <X size={12} color="#ffffff" />
-          </Pressable>
-        </View>
-      ))}
-    </ScrollView>
   );
 }
 
@@ -233,35 +191,16 @@ function Thread({
           ) : null
         }
         renderItem={({ item }) => {
-          if (item.kind === "day") {
-            return (
-              <Text variant="caption" tone="muted" style={styles.day} accessibilityRole="header">
-                {item.label}
-              </Text>
-            );
-          }
-          const m = item.message;
-          const mine = m.senderUid === me;
-          const fg = mine ? t.colors.primaryForeground : t.colors.foreground;
+          if (item.kind === "day") return <DayLine label={item.label} />;
+          const m = item.item.message;
           return (
-            <View style={[styles.bubbleRow, mine && styles.mine]}>
-              <View style={[styles.bubble, { backgroundColor: mine ? t.colors.primary : t.colors.card }, mine ? styles.bubbleMine : styles.bubbleTheirs, m.photos?.length ? styles.bubblePhotos : null]}>
-                {m.photos?.length ? (
-                  <View style={[styles.photos, m.photos.length > 1 && styles.photosGrid]}>
-                    {m.photos.map((url, i) => (
-                      <Pressable key={url} onPress={() => setViewing({ photos: m.photos!, start: i })} accessibilityRole="imagebutton" accessibilityLabel={`Photo ${i + 1} of ${m.photos!.length}. Opens full screen`}>
-                        <Image source={sizedImage(url, m.photos!.length > 1 ? 120 : 240)} style={m.photos!.length > 1 ? styles.photoSmall : styles.photoBig} contentFit="cover" transition={150} />
-                      </Pressable>
-                    ))}
-                  </View>
-                ) : null}
-                {m.body ? <Text style={[{ color: fg }, m.photos?.length ? styles.caption : null]}>{m.body}</Text> : null}
-              </View>
-              <Text variant="caption" tone="muted" style={styles.time}>
-                {clock(m.createdAt)}
-                {item.seen ? " · Seen" : ""}
-              </Text>
-            </View>
+            <ChatBubble
+              mine={m.senderUid === me}
+              body={m.body}
+              photos={m.photos}
+              meta={`${clock(m.createdAt)}${item.item.seen ? " · Seen" : ""}`}
+              onPhoto={(photos, start) => setViewing({ photos, start })}
+            />
           );
         }}
         ListEmptyComponent={
@@ -283,28 +222,5 @@ const styles = StyleSheet.create({
   shrink: { flexShrink: 1 },
   thumb: { width: 48, height: 48, borderRadius: 10 },
   list: { padding: 16, gap: 6, flexGrow: 1 },
-  day: { textAlign: "center", marginVertical: 8 },
-  bubbleRow: { alignItems: "flex-start", gap: 2, maxWidth: "80%" },
-  mine: { alignSelf: "flex-end", alignItems: "flex-end" },
-  bubble: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20 },
-  bubblePhotos: { padding: 4, overflow: "hidden" },
-  bubbleMine: { borderBottomRightRadius: 6 },
-  bubbleTheirs: { borderBottomLeftRadius: 6 },
-  photos: { gap: 4 },
-  photosGrid: { flexDirection: "row", flexWrap: "wrap", width: 244 },
-  photoBig: { width: 240, height: 240, borderRadius: 16 },
-  photoSmall: { width: 120, height: 120, borderRadius: 12 },
-  caption: { paddingHorizontal: 10, paddingTop: 6, paddingBottom: 4 },
-  time: { fontSize: 11 },
   empty: { textAlign: "center", marginTop: 40 },
-  composer: { paddingHorizontal: 8, paddingTop: 8, gap: 8, borderTopWidth: StyleSheet.hairlineWidth },
-  composerRow: { flexDirection: "row", alignItems: "flex-end", gap: 4 },
-  input: { flex: 1, flexDirection: "row", alignItems: "flex-end", borderRadius: 22, paddingLeft: 14, paddingRight: 4, paddingVertical: 4, minHeight: MIN_TOUCH - 4 },
-  inputText: { flex: 1, fontSize: 16, maxHeight: 120, paddingVertical: 8 },
-  send: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  tray: { gap: 8, paddingHorizontal: 4 },
-  trayTile: { width: 64, height: 64, borderRadius: 12, overflow: "hidden" },
-  trayCover: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.35)", alignItems: "center", justifyContent: "center" },
-  trayFailed: { backgroundColor: "rgba(185,28,28,0.6)" },
-  trayRemove: { position: "absolute", top: 4, right: 4, width: 20, height: 20, borderRadius: 10, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center" },
 });

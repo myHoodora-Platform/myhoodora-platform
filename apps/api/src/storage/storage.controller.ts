@@ -28,6 +28,9 @@ function assertMayUpload(viewer: Viewer, purpose: MediaPurpose): void {
     if (viewer.capabilities.includes("messages.send")) return;
     throw new ForbiddenException(whyNoWriting(viewer));
   }
+  // Attachments in a support conversation: anyone signed in may write to the team (even when restricted),
+  // and staff replying. What they're attached to is checked when the message is sent.
+  if (purpose === "support") return;
   if (viewer.capabilities.includes(purpose === "avatar" ? "profile.manage" : "content.create")) return;
   // The same words CapabilityGuard uses for content.create.
   throw new ForbiddenException(whyNoWriting(viewer));

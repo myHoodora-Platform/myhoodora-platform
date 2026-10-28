@@ -3,12 +3,12 @@ import { ApiError, apiFetch, apiUpload } from "./client";
 import { isLive } from "./config";
 
 /** Where an upload will be used; the API picks the folder and allowed types from it. */
-export type MediaPurpose = "post" | "listing" | "group" | "avatar" | "ad";
+export type MediaPurpose = "post" | "listing" | "group" | "avatar" | "ad" | "message" | "support";
 
 export interface UploadedMedia {
   id: string;
   url: string;
-  resourceType: "image" | "video";
+  resourceType: "image" | "video" | "document";
   width?: number;
   height?: number;
   durationSeconds?: number;
@@ -19,6 +19,9 @@ const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "imag
 const VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/webm"];
 export const PHOTO_ACCEPT = PHOTO_TYPES.join(",");
 export const MEDIA_ACCEPT = [...PHOTO_TYPES, ...VIDEO_TYPES].join(",");
+/** Support conversations also take PDFs (2026-10-28); the API checks the file really is one. */
+export const SUPPORT_ACCEPT = [...PHOTO_TYPES, "application/pdf"].join(",");
+export const isPdfFile = (file: File) => file.type === "application/pdf" || /\.pdf$/i.test(file.name);
 /** Same limits as the API (contract §20). The API streams videos to disk and on to storage, so they can be bigger than photos. */
 export const MEDIA_LIMITS = { photoBytes: 10 * MB, videoBytes: 100 * MB, videoSeconds: 60 } as const;
 /** A 100 MB clip on slow mobile data can take many minutes; don't give up early (the API allows 20). */
@@ -80,11 +83,22 @@ export async function uploadMedia(
   onProgress?: (fraction: number) => void,
 ): Promise<UploadedMedia> {
   const video = isVideoFile(file);
-  const problem = video ? (purpose === "post" || purpose === "ad" ? null : "Only photos can be added here.") : checkPhoto(file);
+  const pdf = isPdfFile(file);
+  const problem = pdf
+    ? purpose !== "support"
+      ? "Only photos can be added here."
+      : file.size > MEDIA_LIMITS.photoBytes
+        ? "Documents must be under 10 MB."
+        : null
+    : video
+      ? purpose === "post" || purpose === "ad"
+        ? null
+        : "Only photos can be added here."
+      : checkPhoto(file);
   if (problem) throw new ApiError(problem, 400, "client");
   if (!isLive("media")) {
     // Mock mode: a local preview URL for this tab only.
-    return { id: `mock-${crypto.randomUUID()}`, url: URL.createObjectURL(file), resourceType: video ? "video" : "image" };
+    return { id: `mock-${crypto.randomUUID()}`, url: URL.createObjectURL(file), resourceType: pdf ? "document" : video ? "video" : "image" };
   }
   if (video && isLive("media.direct")) {
     // Large videos go straight to storage with a one-time signed ticket, so they never pass through
@@ -159,4 +173,10 @@ export function resolveImageUrl(input: string): string {
     throw new Error("Enter a link starting with https://");
   }
   return trimmed;
+}
+
+/** live: DELETE /media/:id. Best effort: a file taken back out of a draft before sending. */
+export async function deleteMedia(user: User, id: string): Promise<void> {
+  if (!isLive("media") || id.startsWith("mock-")) return;
+  await apiFetch<void>(user, `/media/${encodeURIComponent(id)}`, { method: "DELETE" });
 }

@@ -59,8 +59,8 @@ export async function getSupportThread(user: User, id: string): Promise<SupportT
 }
 
 /** live: POST /support/threads/:id/messages; reopens a resolved conversation. */
-export async function replyToSupport(user: User, id: string, body: string): Promise<SupportThread> {
-  if (isLive("support.threads")) return apiFetch(user, `/support/threads/${encodeURIComponent(id)}/messages`, { method: "POST", json: { body } });
+export async function replyToSupport(user: User, id: string, body: string, attachments: { url: string; name?: string }[] = []): Promise<SupportThread> {
+  if (isLive("support.threads")) return apiFetch(user, `/support/threads/${encodeURIComponent(id)}/messages`, { method: "POST", json: { body, ...(attachments.length && { attachments }) } });
   await latency(250);
   const now = new Date().toISOString();
   const all = mockThreads(user.uid);
