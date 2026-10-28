@@ -1,7 +1,7 @@
 import { errorMessage } from "@myhoodora/api-contract/errors";
 import type { Conversation, MuteLength } from "@myhoodora/api-contract/types";
 import { useQueryClient } from "@tanstack/react-query";
-import { Archive, ArchiveRestore, Bell, BellOff, Flag, ShoppingBag, Trash2, UserRound } from "lucide-react-native";
+import { Archive, ArchiveRestore, Bell, BellOff, Flag, Pin, PinOff, ShoppingBag, Trash2, UserRound } from "lucide-react-native";
 import { useState } from "react";
 
 import { useSignedInUser } from "@/core/auth/auth-provider";
@@ -9,7 +9,7 @@ import { useRouter } from "@/core/navigation/use-router";
 import { ActionSheet, type ActionItem } from "@/shared/ui/action-sheet";
 import { useToast } from "@/shared/ui/toast";
 import { ReportSheet } from "@/features/feed/report-sheet";
-import { archiveConversation, chatKeys, deleteConversation, isMuted, muteConversation, otherPerson } from "./chat-api";
+import { archiveConversation, chatKeys, deleteConversation, isMuted, muteConversation, otherPerson, pinConversation } from "./chat-api";
 import { showDialog } from "@/shared/ui/dialog";
 
 const MUTE_CHOICES: { length: MuteLength; label: string; done: string }[] = [
@@ -19,8 +19,8 @@ const MUTE_CHOICES: { length: MuteLength; label: string; done: string }[] = [
 ];
 
 /**
- * What you can do with a conversation (long-press it in Messages, or ⋯ inside it): archive or bring
- * it back, mute or unmute, delete it for you; inside it also their profile, the listing, and Report.
+ * What you can do with a conversation (long-press it in Messages, or ⋯ inside it): pin it to the top,
+ * archive or bring it back, mute or unmute, delete it for you; inside it also their profile, the listing, and Report.
  */
 export function ConversationActions({ convo, visible, onClose, inside = false, onGone }: { convo: Conversation; visible: boolean; onClose: () => void; inside?: boolean; onGone?: () => void }) {
   const user = useSignedInUser();
@@ -45,6 +45,17 @@ export function ConversationActions({ convo, visible, onClose, inside = false, o
       toast(archived ? "Archived. A new message brings it back." : "Back in your messages.");
       if (archived) onGone?.();
     } catch (err) {
+      toast(errorMessage(err), "error");
+    }
+  };
+  const pin = async (pinned: boolean) => {
+    try {
+      await pinConversation(user, convo._id, pinned);
+      patchConvo({ pinned });
+      refresh();
+      toast(pinned ? "Pinned to the top of Messages." : "Unpinned.");
+    } catch (err) {
+      // Past three, the API says so ("You can pin up to 3 chats. Unpin one first.").
       toast(errorMessage(err), "error");
     }
   };
@@ -85,6 +96,13 @@ export function ConversationActions({ convo, visible, onClose, inside = false, o
       ]
     : [];
   const manage: ActionItem[] = [
+    ...(convo.archived
+      ? []
+      : [
+          convo.pinned
+            ? { key: "unpin", label: "Unpin chat", Icon: PinOff, onPress: () => void pin(false) }
+            : { key: "pin", label: "Pin chat", hint: "Keep it at the top of Messages", Icon: Pin, onPress: () => void pin(true) },
+        ]),
     muted
       ? { key: "unmute", label: "Unmute", hint: "Get notifications again", Icon: Bell, onPress: () => void mute("off", "Unmuted.") }
       : { key: "mute", label: "Mute", hint: "No notifications from this chat", Icon: BellOff, onPress: () => setTimeout(() => setMuting(true), 250) },

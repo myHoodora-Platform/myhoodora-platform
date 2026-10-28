@@ -1,7 +1,7 @@
 import type { Conversation } from "@myhoodora/api-contract/types";
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
-import { BellOff, Search, SquarePen, X } from "lucide-react-native";
+import { BellOff, Pin, Search, SquarePen, X } from "lucide-react-native";
 import { useMemo, useState } from "react";
 import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { useSignedInUser } from "@/core/auth/auth-provider";
@@ -54,7 +54,7 @@ function Row({ c, me }: { c: Conversation; me: string }) {
         onLongPress={() => setMenu(true)}
         delayLongPress={350}
         accessibilityRole="button"
-        accessibilityLabel={`${unread ? "Unread. " : ""}${other?.displayName ?? "A neighbour"}${c.context ? `, about ${c.context.title}` : ""}${muted ? ", muted" : ""}. ${last}`}
+        accessibilityLabel={`${c.pinned ? "Pinned. " : ""}${unread ? "Unread. " : ""}${other?.displayName ?? "A neighbour"}${c.context ? `, about ${c.context.title}` : ""}${muted ? ", muted" : ""}. ${last}`}
         accessibilityHint="Hold for options"
         accessibilityActions={[{ name: "longpress", label: "Options" }]}
         onAccessibilityAction={(e) => e.nativeEvent.actionName === "longpress" && setMenu(true)}
@@ -67,6 +67,7 @@ function Row({ c, me }: { c: Conversation; me: string }) {
               {other?.displayName ?? "A neighbour"}
             </Text>
             {muted ? <BellOff size={14} color={t.colors.mutedForeground} accessibilityLabel="Muted" /> : null}
+            {c.pinned ? <Pin size={14} color={t.colors.mutedForeground} accessibilityLabel="Pinned" /> : null}
             <Text variant="caption" tone={unread ? "primary" : "muted"}>
               {timeAgo(c.lastMessage?.createdAt ?? c.updatedAt)}
             </Text>
@@ -96,8 +97,8 @@ function Row({ c, me }: { c: Conversation; me: string }) {
 
 /**
  * `/inbox` (Messages, one tap from every tab): search, filters (All, Unread, Buying & selling,
- * Archived), the team pinned on top, and a new message to any neighbour. Hold a chat to archive,
- * mute or delete it.
+ * Archived), the team pinned on top, then your pinned chats, and a new message to any neighbour.
+ * Hold a chat to pin, archive, mute or delete it.
  */
 export function InboxScreen() {
   useFeatureSignal("messages");

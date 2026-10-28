@@ -26,9 +26,11 @@ import { useTypingIndicator, useTypingSignal } from "@/features/live/use-typing"
 import { signal } from "@/features/feedback/engagement";
 import { chatKeys, getConversation, isMuted, listMessages, otherPerson, sendMessage, sendTyping } from "./chat-api";
 import { ConversationActions } from "./conversation-actions";
+import { PinnedBar, PINNED_BAR_HEIGHT } from "./pinned-bar";
 import { ReactionsSheet } from "./reactions-sheet";
 import { bubbleReactions, useMessageActions } from "./use-message-actions";
 import { ReportSheet } from "@/features/feed/report-sheet";
+import { useToast } from "@/shared/ui/toast";
 
 /** New messages arrive over the live connection; only while it's down does an open thread check (contract §19). */
 const FALLBACK_POLL_MS = 15_000;
@@ -67,7 +69,8 @@ export function ConversationScreen({ id }: { id: string }) {
     const p = participants.find((x) => x.uid === uid);
     return { name: p?.displayName ?? "Neighbour", photoURL: p?.photoURL };
   };
-  const acts = useMessageActions({ conversationId: id, nameOf: (uid) => person(uid).name, onReport: () => setTimeout(() => setReporting(true), 300), onEdit: setText });
+  const nameOf = (uid: string) => (uid === user.uid ? "You" : person(uid).name);
+  const acts = useMessageActions({ conversationId: id, pins: convo.data?.pins, nameOf: (uid) => person(uid).name, onReport: () => setTimeout(() => setReporting(true), 300), onEdit: setText });
   const [reactionsOf, setReactionsOf] = useState<string | null>(null);
   const send = useMutation({
     mutationFn: ({ body, urls }: { body: string; urls: string[] }) => sendMessage(user, id, body, urls, acts.replyingTo?._id),
@@ -162,7 +165,10 @@ export function ConversationScreen({ id }: { id: string }) {
         onHold={acts.hold}
         onReply={(m) => acts.setReplyingTo(m)}
         onReactions={(m) => setReactionsOf(m._id)}
+        nameOf={nameOf}
+        onUnpin={(messageId) => void acts.unpin(messageId)}
       />
+      {acts.pinSheet}
       <MessageActions held={acts.held} actions={acts.actions} onReact={acts.reactToHeld} onClose={acts.close} />
       <ReactionsSheet
         message={messages.data?.find((m) => m._id === reactionsOf) ?? null}
@@ -191,6 +197,8 @@ function Thread({
   onHold,
   onReply,
   onReactions,
+  nameOf,
+  onUnpin,
 }: {
   convo?: Conversation;
   me: string;
@@ -201,6 +209,8 @@ function Thread({
   onHold: (m: Message, frame: BubbleFrame) => void;
   onReply: (m: Message) => void;
   onReactions: (m: Message) => void;
+  nameOf: (uid: string) => string;
+  onUnpin: (messageId: string) => void;
 }) {
   const t = useTheme();
   const router = useRouter();
@@ -211,9 +221,12 @@ function Thread({
   const context = convo?.context;
   // Tapping a quote goes to the message it quotes, ringed for a moment.
   const [highlight, setHighlight] = useState<string | null>(null);
+  const toast = useToast();
+  const pins = convo?.pins ?? [];
+  const barRoom = pins.length ? PINNED_BAR_HEIGHT : 0;
   const jumpTo = (messageId: string) => {
     const index = rows.findIndex((r) => r.kind === "item" && r.item.message._id === messageId);
-    if (index < 0) return;
+    if (index < 0) return toast("That message is further back than this chat has loaded.");
     list.current?.scrollToIndex({ index, viewPosition: 0.4, animated: true });
     setHighlight(messageId);
     setTimeout(() => setHighlight((h) => (h === messageId ? null : h)), 1600);
@@ -226,8 +239,8 @@ function Thread({
         ref={list}
         data={rows}
         keyExtractor={(r) => r.key}
-        contentContainerStyle={[styles.list, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12 }]}
-        scrollIndicatorInsets={{ top: insets.top, bottom: insets.bottom }}
+        contentContainerStyle={[styles.list, { paddingTop: insets.top + barRoom + 12, paddingBottom: insets.bottom + 12 }]}
+        scrollIndicatorInsets={{ top: insets.top + barRoom, bottom: insets.bottom }}
         keyboardDismissMode="interactive"
         onContentSizeChange={() => list.current?.scrollToEnd({ animated: false })}
         // And when the room for it settles (the reply box measures itself after): open at the newest message.
@@ -269,7 +282,7 @@ function Thread({
               quote={q ? { ...quoteOf(q), onPress: q.deleted ? undefined : () => jumpTo(q._id) } : undefined}
               reactions={bubbleReactions(m, me)}
               highlighted={highlight === m._id}
-              meta={`${clock(m.createdAt)}${m.editedAt && !m.deleted ? " · Edited" : ""}${item.item.seen ? " · Seen" : ""}`}
+              meta={`${pins.some((p) => p.messageId === m._id) ? "📌 " : ""}${clock(m.createdAt)}${m.editedAt && !m.deleted ? " · Edited" : ""}${item.item.seen ? " · Seen" : ""}`}
               onPhoto={(photos, start) => setViewing({ photos, start })}
               onLongPress={(frame) => onHold(m, frame)}
               onSwipeReply={() => onReply(m)}
@@ -283,6 +296,7 @@ function Thread({
           </Text>
         }
       />
+      <PinnedBar pins={pins} top={insets.top} nameOf={nameOf} onJump={jumpTo} onUnpin={onUnpin} />
       {viewing ? <PhotoViewer photos={viewing.photos} start={viewing.start} visible onClose={() => setViewing(null)} label="Photo in the message" /> : null}
     </>
   );

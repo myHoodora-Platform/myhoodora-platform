@@ -1,5 +1,5 @@
 import type { User } from "@firebase/auth";
-import type { Conversation, Listing, Message, MuteLength } from "@myhoodora/api-contract/types";
+import type { Conversation, Listing, Message, MuteLength, PinLength } from "@myhoodora/api-contract/types";
 import { apiFetch } from "@/core/api/client";
 
 export const chatKeys = {
@@ -72,6 +72,27 @@ export function editMessage(user: User, id: string, messageId: string, body: str
 export function deleteMessage(user: User, id: string, messageId: string): Promise<Message> {
   return apiFetch<Message>(user, `/conversations/${id}/messages/${messageId}`, { method: "DELETE" });
 }
+
+/** To the top of your inbox (or off it): up to 3, only you see it. A fourth is a 409 saying so. */
+export function pinConversation(user: User, id: string, pinned: boolean): Promise<{ pinned: boolean }> {
+  return apiFetch(user, `/conversations/${id}/pin`, { method: "PUT", json: { pinned } });
+}
+
+/** Pinned for everyone in the chat, for 24 hours, 7 or 30 days; a fourth replaces the oldest. */
+export function pinMessage(user: User, id: string, messageId: string, length: PinLength): Promise<Conversation> {
+  return apiFetch<Conversation>(user, `/conversations/${id}/messages/${messageId}/pin`, { method: "PUT", json: { for: length } });
+}
+
+export function unpinMessage(user: User, id: string, messageId: string): Promise<Conversation> {
+  return apiFetch<Conversation>(user, `/conversations/${id}/messages/${messageId}/pin`, { method: "DELETE" });
+}
+
+/** WhatsApp's three lengths, in its words. */
+export const PIN_CHOICES: { length: PinLength; label: string; done: string }[] = [
+  { length: "24h", label: "24 hours", done: "Pinned for 24 hours." },
+  { length: "7d", label: "7 days", done: "Pinned for 7 days." },
+  { length: "30d", label: "30 days", done: "Pinned for 30 days." },
+];
 
 /** "Buying & selling": conversations about a listing. */
 export const aboutListing = (c: Conversation) => c.context?.type === "listing";
