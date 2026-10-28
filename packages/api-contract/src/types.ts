@@ -235,7 +235,7 @@ export type CreateListingInput = Omit<
   "_id" | "sellerUid" | "neighborhoodId" | "status" | "createdAt" | "seller"
 >;
 
-// ── Groups (planned) ────────────────────────────────────────────────────────
+// ── Groups (§8) ────────────────────────────────────────────────────────
 
 export type GroupCategory = "safety" | "estate" | "parents" | "hobbies" | "business" | "other";
 export type GroupPrivacy = "open" | "private";
@@ -277,11 +277,16 @@ export interface GroupMember {
   uid: string;
   role: "admin" | "member";
   joinedAt: string;
+  /** Sent by the live API since 2026-10-28. */
+  displayName?: string;
+  photoURL?: string;
 }
 
 export interface GroupJoinRequest {
   uid: string;
   requestedAt: string;
+  displayName?: string;
+  photoURL?: string;
 }
 
 export interface GroupPost {

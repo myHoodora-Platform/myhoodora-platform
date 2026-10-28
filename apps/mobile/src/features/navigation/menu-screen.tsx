@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react-native";
-import { Bookmark, ChevronRight, HelpCircle, LifeBuoy, Settings, ShieldCheck, ShoppingBag } from "lucide-react-native";
+import { Bookmark, ChevronRight, HelpCircle, LifeBuoy, Settings, ShieldCheck, ShoppingBag, Users } from "lucide-react-native";
 import type { ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -26,6 +26,7 @@ export interface Shortcut {
 
 /** The tiles, in the order neighbours reach for them. Features add theirs here as they're built. */
 export const SHORTCUTS: Shortcut[] = [
+  { label: "Groups", hint: "Your street and estate", Icon: Users, tone: "green", href: "/groups" },
   { label: "Saved", hint: "Posts to come back to", Icon: Bookmark, tone: "rose", href: "/saved" },
   { label: "Your listings", hint: "What you're selling", Icon: ShoppingBag, tone: "amber", href: "/more" },
   { label: "Support", hint: "Talk to our team", Icon: LifeBuoy, tone: "slate", href: "/inbox/support" },

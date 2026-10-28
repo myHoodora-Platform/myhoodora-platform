@@ -4,7 +4,7 @@ import * as ImagePicker from "expo-image-picker";
 import { apiFetch } from "@/core/api/client";
 
 /** What the API stores photos for (contract §20). */
-export type MediaPurpose = "post" | "listing" | "avatar";
+export type MediaPurpose = "post" | "listing" | "group" | "avatar";
 
 export interface PickedPhoto {
   uri: string;

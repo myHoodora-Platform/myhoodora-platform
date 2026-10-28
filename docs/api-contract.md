@@ -380,9 +380,9 @@ interface Group {
   membership: "member" | "requested" | "none";       // viewer-relative
   isAdmin: boolean;                                  // viewer-relative
 }
-interface GroupMember { uid; role: "admin" | "member"; joinedAt }
-interface GroupJoinRequest { uid; requestedAt }
-interface GroupPost { _id; groupId; authorUid; content; createdAt }
+interface GroupMember { uid; role: "admin" | "member"; joinedAt; displayName; photoURL? }   // name + photo since 2026-10-28
+interface GroupJoinRequest { uid; requestedAt; displayName; photoURL? }
+interface GroupPost { _id; groupId; authorUid; author: { uid; displayName; photoURL? }; content; createdAt }
 ```
 
 ### Create & edit

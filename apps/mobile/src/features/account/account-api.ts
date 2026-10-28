@@ -89,3 +89,8 @@ export function withdrawHoodRequest(user: User, id: string): Promise<void> {
 export function leaveSecondaryHood(user: User, hoodId: string): Promise<void> {
   return apiFetch<void>(user, `/users/me/secondary-hoods/${hoodId}`, { method: "DELETE" });
 }
+
+/** `GET /users/search`: verified neighbours in your Hood by name (group invites, a new message). Blocks hidden. */
+export function searchNeighbours(user: User, q: string): Promise<PublicProfile[]> {
+  return apiFetch<PublicProfile[]>(user, `/users/search?q=${encodeURIComponent(q)}`);
+}

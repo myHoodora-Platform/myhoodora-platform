@@ -17,6 +17,8 @@ export default function AppLayout() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="compose" options={{ presentation: "modal" }} />
       <Stack.Screen name="sell" options={{ presentation: "modal" }} />
+      <Stack.Screen name="groups/new" options={{ presentation: "modal" }} />
+      <Stack.Screen name="g/[id]/edit" options={{ presentation: "modal" }} />
       {/* Comments slide up over the screen that opened them; the sheet draws itself (shared/ui/bottom-sheet). */}
       <Stack.Screen name="p/[id]/comments" options={{ presentation: "transparentModal", animation: "none", contentStyle: { backgroundColor: "transparent" } }} />
     </Stack>
