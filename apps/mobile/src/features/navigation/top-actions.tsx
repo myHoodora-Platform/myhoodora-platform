@@ -6,6 +6,8 @@ import { IconButton } from "@/shared/ui/icon-button";
 import { Text } from "@/shared/ui/text";
 import { useUnreadMessages } from "@/features/chat/use-unread-messages";
 import { useUnreadCount } from "@/features/notifications";
+import { TOUR_TARGETS } from "@/features/tour/home-tour";
+import { useTourTarget } from "@/features/tour/tour-provider";
 
 /**
  * The same three buttons at the top of every tab: Search, Notifications and Messages, each with its
@@ -15,8 +17,9 @@ export function TopActions() {
   const router = useRouter();
   const notifications = useUnreadCount();
   const messages = useUnreadMessages();
+  const tourAnchor = useTourTarget(TOUR_TARGETS.topActions);
   return (
-    <View style={styles.actions}>
+    <View ref={tourAnchor} collapsable={false} style={styles.actions}>
       <IconButton Icon={Search} label="Search" onPress={() => router.push("/search")} />
       <IconButton Icon={Bell} label="Notifications" badge={notifications} onPress={() => router.push("/notifications")} />
       <IconButton Icon={MessageCircle} label="Messages" badge={messages} onPress={() => router.push("/inbox")} />

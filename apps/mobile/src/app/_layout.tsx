@@ -18,6 +18,7 @@ import { CrashScreen } from "@/shared/ui/crash-screen";
 import { Text } from "@/shared/ui/text";
 import { ToastProvider } from "@/shared/ui/toast";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 
 // First, so a crash anywhere after this is reported (only in preview and production with a DSN).
 if (configResult.ok) initMonitoring(configResult.config);
@@ -108,6 +109,8 @@ function App() {
 
   return (
     <GestureHandlerRootView style={styles.root}>
+    {/* Long forms keep the field being typed in above the keyboard (KeyboardAwareScrollView). */}
+    <KeyboardProvider>
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
@@ -119,6 +122,7 @@ function App() {
         </AuthProvider>
       </QueryClientProvider>
     </SafeAreaProvider>
+    </KeyboardProvider>
     </GestureHandlerRootView>
   );
 }

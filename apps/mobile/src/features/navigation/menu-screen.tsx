@@ -1,10 +1,11 @@
 import type { LucideIcon } from "lucide-react-native";
-import { Bookmark, CalendarDays, ChevronRight, HelpCircle, LifeBuoy, Settings, ShieldCheck, ShoppingBag, Users } from "lucide-react-native";
+import { Bookmark, CalendarDays, ChevronRight, Gavel, HelpCircle, Info, LifeBuoy, Settings, ShieldCheck, ShoppingBag, Siren, Sparkles, Store, Users } from "lucide-react-native";
+import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { Href } from "expo-router";
-import { useAuth } from "@/core/auth/auth-provider";
+import { useAuth, useSignedInUser } from "@/core/auth/auth-provider";
 import { useRouter } from "@/core/navigation/use-router";
 import { accent, type AccentName } from "@/shared/theme/accents";
 import { useTheme } from "@/shared/theme/theme";
@@ -14,18 +15,21 @@ import { useTabBarSpace } from "@/shared/ui/floating-tab-bar";
 import { SettingsGroup, SettingsRow } from "@/shared/ui/settings";
 import { Text } from "@/shared/ui/text";
 import { openWeb } from "@/shared/utils/open-web";
+import { getLeadStatus, moderationKeys } from "@/features/moderation/moderation-api";
 import { TabHeader } from "./top-actions";
 
 export interface Shortcut {
   label: string;
   hint: string;
   Icon: LucideIcon;
-  tone: AccentName;
+  /** An accent, or the theme's danger colours (alerts). */
+  tone: AccentName | "danger";
   href: Href;
 }
 
 /** The tiles, in the order neighbours reach for them. Features add theirs here as they're built. */
 export const SHORTCUTS: Shortcut[] = [
+  { label: "Alerts", hint: "Safety and outages", Icon: Siren, tone: "danger", href: "/alerts" },
   { label: "Groups", hint: "Your street and estate", Icon: Users, tone: "green", href: "/groups" },
   { label: "Events", hint: "What's on near you", Icon: CalendarDays, tone: "blue", href: "/events" },
   { label: "Saved", hint: "Posts to come back to", Icon: Bookmark, tone: "rose", href: "/saved" },
@@ -43,6 +47,9 @@ export function MenuScreen() {
   const { profile } = useAuth();
   const bottom = useTabBarSpace();
   const verified = profile?.verificationStatus === "verified";
+  const user = useSignedInUser();
+  // Hood Leads see their review queue here (the web's user menu); nobody else sees the row.
+  const lead = useQuery({ queryKey: moderationKeys.leadStatus, queryFn: () => getLeadStatus(user), enabled: verified, staleTime: 5 * 60_000 });
 
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: t.colors.canvas }]} edges={["top"]}>
@@ -71,9 +78,28 @@ export function MenuScreen() {
           ))}
         </View>
 
+        {lead.data?.isLead ? (
+          <SettingsGroup>
+            <SettingsRow
+              Icon={Gavel}
+              label="Hood Lead reviews"
+              description={lead.data.waiting ? `${lead.data.waiting} ${lead.data.waiting === 1 ? "report waits" : "reports wait"} for your vote` : "No reports waiting"}
+              onPress={() => router.push("/leads")}
+            />
+          </SettingsGroup>
+        ) : null}
+
         <SettingsGroup>
           <SettingsRow Icon={Settings} label="Settings & privacy" onPress={() => router.push("/settings")} />
           <SettingsRow Icon={HelpCircle} label="Help centre" description="Answers to common questions" onPress={() => void openWeb("/help")} />
+        </SettingsGroup>
+
+        {/* The web's public pages, opened in the browser: they're written for the web and change there. */}
+        <SettingsGroup title="More from myHoodora">
+          <SettingsRow Icon={Store} label="myHoodora for Business" description="A free Business Page for your shop or service" onPress={() => void openWeb("/business")} />
+          <SettingsRow Icon={Sparkles} label="myHoodora AI" description="Lectures turned into songs, games and videos" onPress={() => void openWeb("/ai")} />
+          <SettingsRow Icon={ShieldCheck} label="Safety tips" onPress={() => void openWeb("/safety")} />
+          <SettingsRow Icon={Info} label="About myHoodora" onPress={() => void openWeb("/about")} />
         </SettingsGroup>
       </ScrollView>
     </SafeAreaView>
@@ -96,7 +122,7 @@ function Card({ children, onPress, label }: { children: ReactNode; onPress: () =
 
 function Tile({ shortcut: s, onPress }: { shortcut: Shortcut; onPress: () => void }) {
   const t = useTheme();
-  const [bg, fg] = accent(s.tone, t.scheme);
+  const [bg, fg] = s.tone === "danger" ? [t.colors.dangerSoft, t.colors.destructive] : accent(s.tone, t.scheme);
   return (
     <Pressable
       onPress={onPress}

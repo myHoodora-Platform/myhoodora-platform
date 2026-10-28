@@ -3,7 +3,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@/core/navigation/use-router";
 import { X } from "lucide-react-native";
 import { useRef, useState } from "react";
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth, useSignedInUser } from "@/core/auth/auth-provider";
 import { usePhotoUploads } from "@/core/media/use-photo-uploads";
@@ -125,8 +126,8 @@ export function ComposeScreen({ kind: startKind }: { kind?: string }) {
         <Text variant="heading">New post</Text>
         <Button label="Post" onPress={() => void submit()} loading={busy} style={styles.post} />
       </View>
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      {/* Whatever is being typed in stays above the keyboard, however far down the form it is. */}
+      <KeyboardAwareScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" bottomOffset={24}>
           {profile.emailVerified === false ? (
             <InlineAlert tone="warning">Confirm your email address to post. We sent you a link when you signed up; you can ask for a new one on your feed.</InlineAlert>
           ) : null}
@@ -190,8 +191,7 @@ export function ComposeScreen({ kind: startKind }: { kind?: string }) {
           {errors?.message ? <InlineAlert>{errors.message}</InlineAlert> : null}
           {draft.category === "poll" ? <PollFields draft={draft} errors={errors} edit={edit} /> : null}
           <PhotoStrip uploads={photos} />
-        </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }

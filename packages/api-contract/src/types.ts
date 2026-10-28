@@ -507,3 +507,46 @@ export interface AdminHoodRequest extends HoodRequestView {
   point?: { lat: number; lng: number };
   decidedBy?: string;
 }
+
+// ── Hood Leads, your decisions and appeals (contract §15) ───────────────────
+
+export type LeadVote = "keep" | "maybe_remove" | "remove";
+
+/** GET /moderation/lead/status */
+export interface LeadStatus {
+  isLead: boolean;
+  hoodId: string | null;
+  /** Reports waiting for the viewer's vote. */
+  waiting: number;
+}
+
+/** GET /moderation/lead/queue items (Leads only; reporters are never shown). */
+export interface LeadCase {
+  id: string;
+  target: { type: string; id: string; preview: string };
+  /** The content as reported (kind-specific: post, comment, listing, group). */
+  content: Record<string, unknown>;
+  reasons: { reason: string; count: number }[];
+  reporterCount: number;
+  firstReportedAt: string;
+  /** Votes cast so far (the split stays hidden until voting ends, to avoid bias). */
+  votes: number;
+  myVote: LeadVote | null;
+  /** After this, an undecided report goes to the myHoodora team. */
+  closesAt: string;
+}
+
+export type ModerationActionType = "keep" | "remove_content" | "warn_author" | "restrict_author" | "suspend_author" | "escalate";
+
+/** GET /moderation/my-decisions items (the last 90 days). */
+export interface MyDecision {
+  caseId: string;
+  /** "author": about your content · "reporter": the outcome of your report. */
+  role: "author" | "reporter";
+  target: { type: string; id: string; preview: string };
+  action: ModerationActionType;
+  reason: string;
+  decidedAt: string;
+  canAppeal: boolean;
+  appeal?: { status: "open" | "upheld" | "overturned"; outcomeReason?: string; at: string };
+}

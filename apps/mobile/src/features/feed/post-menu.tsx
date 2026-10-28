@@ -1,7 +1,7 @@
 import { errorMessage } from "@myhoodora/api-contract/errors";
 import type { ApiPost } from "@myhoodora/api-contract/types";
 import { useQueryClient } from "@tanstack/react-query";
-import { Bell, BellOff, Bookmark, BookmarkMinus, Ellipsis, Flag, Pencil, Trash2 } from "lucide-react-native";
+import { Bell, BellOff, Bookmark, BookmarkMinus, CircleCheck, Ellipsis, Flag, Pencil, RotateCcw, Trash2 } from "lucide-react-native";
 import { useState } from "react";
 import { Alert, Pressable, StyleSheet } from "react-native";
 import { useSignedInUser } from "@/core/auth/auth-provider";
@@ -9,9 +9,10 @@ import { useRouter } from "@/core/navigation/use-router";
 import { MIN_TOUCH, useTheme } from "@/shared/theme/theme";
 import { ActionSheet, type ActionItem } from "@/shared/ui/action-sheet";
 import { useToast } from "@/shared/ui/toast";
-import { deletePost, feedKeys, updateFeedEntries } from "./feed-api";
+import { deletePost, feedKeys, resolveAlert, updateFeedEntries } from "./feed-api";
 import { ReportSheet } from "./report-sheet";
 import { usePostActions } from "./use-post-actions";
+import { updatePostEverywhere } from "./use-reaction";
 
 /**
  * The "⋯" button and its menu, in groups: keep it (save, its notifications), then what's yours to do
@@ -46,6 +47,27 @@ export function PostMenuButton({ post, onDeleted }: { post: ApiPost; onDeleted?:
         },
       },
     ]);
+  // Your alert is over (the web's "Mark resolved"): shown at once, put back if the API says no.
+  const setResolved = async (resolved: boolean) => {
+    const before = post.resolvedAt ?? null;
+    updatePostEverywhere(client, post._id, (p) => ({ ...p, resolvedAt: resolved ? new Date().toISOString() : null }));
+    try {
+      const res = await resolveAlert(user, post._id, resolved);
+      updatePostEverywhere(client, post._id, (p) => ({ ...p, resolvedAt: res.resolvedAt }));
+      toast(resolved ? "Marked as resolved. Thanks for letting neighbours know." : "Alert reopened.");
+    } catch (err) {
+      updatePostEverywhere(client, post._id, (p) => ({ ...p, resolvedAt: before }));
+      toast(errorMessage(err), "error");
+    }
+  };
+  const alertActions: ActionItem[] =
+    mine && post.category === "alert"
+      ? [
+          post.resolvedAt
+            ? { key: "reopen", label: "Reopen alert", hint: "It's still going on", Icon: RotateCcw, onPress: () => void setResolved(false) }
+            : { key: "resolve", label: "Mark as resolved", hint: "Tell neighbours it's over", Icon: CircleCheck, onPress: () => void setResolved(true) },
+        ]
+      : [];
   const saved = !!post.saved;
   const following = !!post.following;
   const groups: ActionItem[][] = [
@@ -59,6 +81,7 @@ export function PostMenuButton({ post, onDeleted }: { post: ApiPost; onDeleted?:
     ],
     mine
       ? [
+          ...alertActions,
           { key: "edit", label: "Edit post", Icon: Pencil, onPress: () => router.push(`/p/${post._id}/edit`) },
           { key: "delete", label: "Delete post", Icon: Trash2, destructive: true, onPress: remove },
         ]

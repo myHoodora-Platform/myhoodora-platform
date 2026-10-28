@@ -3,7 +3,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@/core/navigation/use-router";
 import { X } from "lucide-react-native";
 import { useRef, useState } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, View } from "react-native";
+import { Pressable, StyleSheet, Switch, View } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth, useSignedInUser } from "@/core/auth/auth-provider";
 import { hasHood } from "@/core/auth/session-phase";
@@ -82,8 +83,7 @@ export function SellScreen() {
         <Text variant="heading">Sell or give away</Text>
         <Button label="List" onPress={() => void submit()} loading={busy} style={styles.post} />
       </View>
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" bottomOffset={24}>
           {problem ? <InlineAlert>{problem}</InlineAlert> : null}
           <PhotoStrip uploads={photos} label="Photos (the first one is the cover)" />
           <TextField label="What is it?" placeholder="e.g. Standing fan, barely used" value={form.title} onChangeText={(title) => edit({ title })} maxLength={80} error={errors?.title} autoCapitalize="sentences" />
@@ -135,8 +135,7 @@ export function SellScreen() {
           <Text variant="caption" tone="muted">
             Meet in a public place, and never send money before you&apos;ve seen the item.
           </Text>
-        </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }

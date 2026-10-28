@@ -2,7 +2,7 @@ import { DEACTIVATION_REASONS, type DeactivationReason } from "@myhoodora/api-co
 import { errorMessage } from "@myhoodora/api-contract/errors";
 import Constants from "expo-constants";
 import { useRouter } from "@/core/navigation/use-router";
-import { BellRing, BookOpen, FileText, HelpCircle, LayoutList, LifeBuoy, LogOut, Lock, MapPinned, MonitorSmartphone, ShieldCheck, SlidersHorizontal, UserX } from "lucide-react-native";
+import { BellRing, BookOpen, FileText, HelpCircle, LayoutList, LifeBuoy, LogOut, Lock, MapPinned, MonitorSmartphone, ShieldCheck, SlidersHorizontal, UserX, Scale, Compass } from "lucide-react-native";
 import { useState } from "react";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
 import { useAuth, useSignedInUser } from "@/core/auth/auth-provider";
@@ -18,6 +18,7 @@ import { Text } from "@/shared/ui/text";
 import { useToast } from "@/shared/ui/toast";
 import { deactivate } from "./account-api";
 import { DiagnosticsGroup } from "./diagnostics-group";
+import { replayHomeTour } from "@/features/tour/home-tour";
 
 const PUSH_LABEL = { granted: "On", denied: "Off", undetermined: "Off", unsupported: "Not available" } as const;
 
@@ -135,10 +136,19 @@ function SettingsContent() {
 
       <SettingsGroup title="Privacy and safety">
         <SettingsRow Icon={Lock} label="Privacy" description="Who sees your profile and who can message you" onPress={() => router.push("/settings/privacy")} />
+        <SettingsRow Icon={Scale} label="Decisions & appeals" description="Moderation decisions about you and your reports" onPress={() => router.push("/settings/moderation")} />
         <SettingsRow Icon={ShieldCheck} label="Community guidelines" onPress={() => web("/guidelines")} />
       </SettingsGroup>
 
       <SettingsGroup title="Help">
+        <SettingsRow
+          Icon={Compass}
+          label="Take the tour again"
+          description="A quick look around the app"
+          onPress={() => {
+            void replayHomeTour(user.uid).then(() => router.navigate("/news-feed"));
+          }}
+        />
         <SettingsRow Icon={HelpCircle} label="Help centre" onPress={() => web("/help")} />
         <SettingsRow Icon={LifeBuoy} label="Contact us" onPress={() => web("/contact")} />
         <SettingsRow Icon={FileText} label="Terms of Use" onPress={() => web("/terms")} />

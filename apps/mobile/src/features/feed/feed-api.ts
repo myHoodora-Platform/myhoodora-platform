@@ -121,8 +121,22 @@ export function getPost(user: User, id: string): Promise<ApiPost> {
   return apiFetch<ApiPost>(user, `/posts/${id}`);
 }
 
-export function getHood(user: User, id: string): Promise<{ _id: string; name: string; city?: string }> {
+/** A Hood. Its centre ([lng, lat]) and radius come only for your own Hood (or for staff). */
+export interface HoodSummary {
+  _id: string;
+  name: string;
+  city?: string;
+  location?: { type?: "Point"; coordinates: [number, number] };
+  radiusMeters?: number;
+}
+
+export function getHood(user: User, id: string): Promise<HoodSummary> {
   return apiFetch(user, `/neighborhoods/${id}`);
+}
+
+/** Your alert is over (or not after all): contract §1, `PATCH /posts/:id/alert`. */
+export function resolveAlert(user: User, id: string, resolved: boolean): Promise<{ resolvedAt: string | null }> {
+  return apiFetch(user, `/posts/${id}/alert`, { method: "PATCH", json: { resolved } });
 }
 
 /** Set your reaction, or take it back with `null` (contract §1: one reaction per neighbour). Returns the post. */

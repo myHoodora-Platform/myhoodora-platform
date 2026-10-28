@@ -12,6 +12,12 @@ describe("where a tapped push goes", () => {
     expect(routeForHref("/settings/neighbourhoods")).toBe("/settings/neighbourhoods");
   });
 
+  it("moderation notifications open Decisions & appeals, and Hood Leads their queue", () => {
+    expect(routeForHref("/settings/moderation")).toBe("/settings/moderation");
+    expect(routeForHref("/leads")).toBe("/leads");
+    expect(routeForHref("/alerts")).toBe("/alerts");
+  });
+
   it("drops a query or fragment", () => {
     expect(routeForHref("/p/abc?comment=1#c2")).toBe("/p/abc");
   });
@@ -27,7 +33,7 @@ describe("where a tapped push goes", () => {
   });
 
   it("anything else opens the notifications list, never an arbitrary route or URL", () => {
-    for (const href of ["/events/123/x", "/g/9/posts", "/settings/moderation", "/inbox/support/1/x", "https://evil.example/p/1", "//evil.example", "/p/../admin", "", undefined, 42]) {
+    for (const href of ["/events/123/x", "/g/9/posts", "/settings/moderation/1", "/leads/1", "/inbox/support/1/x", "https://evil.example/p/1", "//evil.example", "/p/../admin", "", undefined, 42]) {
       expect(routeForHref(href)).toBe(FALLBACK_ROUTE);
     }
   });

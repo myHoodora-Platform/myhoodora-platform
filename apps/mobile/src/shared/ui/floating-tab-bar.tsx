@@ -13,6 +13,8 @@ export interface TabItem {
   focused: boolean;
   onPress: () => void;
   onLongPress?: () => void;
+  /** Lets a guided tour point at this tab. */
+  tourAnchor?: (node: View | null) => void;
 }
 
 /** A round action beside the bar ("Post"). */
@@ -36,16 +38,17 @@ export function useTabBarSpace(): number {
  * Glass mode). What the platform guides ask of a navigation bar stays: a label under every icon, a
  * filled pill behind the current one, 48 pt targets, and unread counts read out.
  */
-export function FloatingTabBar({ items, action }: { items: TabItem[]; action?: TabAction }) {
+export function FloatingTabBar({ items, action, actionAnchor }: { items: TabItem[]; action?: TabAction; actionAnchor?: TabItem["tourAnchor"] }) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.outer, { paddingBottom: Math.max(insets.bottom, 12) }]} pointerEvents="box-none">
       <GlassSurface radius={BAR_HEIGHT / 2} style={[styles.bar, { borderColor: t.colors.border }, t.scheme === "light" && styles.shadow]}>
         <View accessibilityRole="tablist" style={styles.items}>
-          {items.map(({ key, label, Icon, badge, focused, onPress, onLongPress }) => (
+          {items.map(({ key, label, Icon, badge, focused, onPress, onLongPress, tourAnchor }) => (
             <Pressable
               key={key}
+              ref={tourAnchor}
               onPress={onPress}
               onLongPress={onLongPress}
               accessibilityRole="tab"
@@ -72,6 +75,7 @@ export function FloatingTabBar({ items, action }: { items: TabItem[]; action?: T
       </GlassSurface>
       {action ? (
         <Pressable
+          ref={actionAnchor}
           onPress={action.onPress}
           accessibilityRole="button"
           accessibilityLabel={action.label}

@@ -166,7 +166,7 @@ Replace the Expo default assets with the logos the web shows (originally propose
 **Outcome (corrected 20 October 2026).** The first version used the flat house badge (`mark.svg`), which only the web's favicons still use. The web's actual identity is the **mascot set** (`packages/ui/src/logo.tsx`: `MascotWordmark` in the app header and onboarding, `MascotLockup` on the sign-in pages). The app now matches:
 
 - **App icon and Android adaptive icon:** the mascot house (coral roof, four-pane window) on white.
-- **Splash:** the mascot wordmark on white, with the reversed wordmark on the dark canvas in dark mode.
+- **Splash:** the mascot lockup on white, and on the dark canvas (`#0F1514`) when the phone is in dark mode (28 October 2026). The lockup is a sticker with a white edge, so the same image works on both.
 - **In the app:** the mascot lockup above the login, register and reset forms; the wordmark in the feed header and on onboarding (`src/shared/ui/brand.tsx`).
 
 All of these are generated from `apps/web/public/logo` by `apps/mobile/scripts/make-assets.cjs`.

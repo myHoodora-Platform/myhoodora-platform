@@ -11,6 +11,8 @@ const EAS_PROJECT_ID = "f817f499-081f-4a30-9f95-d90bbd66b819";
 const BRAND_TEAL = "#147C73";
 /** The web's light canvas (packages/design-tokens: light.background). */
 const LIGHT_BG = "#FFFFFF";
+/** The web's dark canvas (packages/design-tokens: dark.background). */
+const DARK_BG = "#0F1514";
 
 /**
  * Google sign-in on iOS needs the iOS OAuth client's reversed ID as a URL scheme, fixed at build time.
@@ -88,8 +90,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   plugins: [
     "expo-router",
     "expo-secure-store",
-    // The mascot lockup (the web's sign-in art) on white, in light and dark mode alike: its teal lettering needs the light background.
-    ["expo-splash-screen", { backgroundColor: LIGHT_BG, image: "./assets/images/splash-icon.png", imageWidth: 220 }],
+    // The mascot lockup (the web's sign-in art) on the app's canvas, following the phone's light or dark
+    // setting. The art is a sticker with a white edge, so its teal lettering still reads on the dark canvas.
+    [
+      "expo-splash-screen",
+      { backgroundColor: LIGHT_BG, image: "./assets/images/splash-icon.png", imageWidth: 220, dark: { backgroundColor: DARK_BG, image: "./assets/images/splash-icon.png" } },
+    ],
     ["expo-notifications", { color: BRAND_TEAL }],
     ["expo-location", { locationWhenInUsePermission: "myHoodora uses your location once, to find the neighbourhood you live in." }],
     "expo-font",
@@ -104,6 +110,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ],
     // Video ads in the feed play muted in place: no background audio, no picture-in-picture.
     ["expo-video", { supportsBackgroundPlayback: false, supportsPictureInPicture: false }],
+    // The Alerts map: MapLibre with OpenFreeMap tiles, as on the web. No API key.
+    "@maplibre/maplibre-react-native",
     ...googleSignInPlugin,
     sentryPlugin,
   ],

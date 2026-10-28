@@ -1,3 +1,4 @@
+import type { ApiPost } from "@myhoodora/api-contract/types";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useRouter } from "@/core/navigation/use-router";
 import { ArrowUp, ChevronDown, Hourglass, MapPin } from "lucide-react-native";
@@ -24,6 +25,9 @@ import { HoodSheet } from "./hood-sheet";
 import { AdCard } from "@/features/ads/ad-card";
 import { FeedPromptCard } from "@/features/feedback/feed-prompt-card";
 import { adTracker, newFeedSession } from "@/features/ads/ad-tracking";
+import { ActiveAlertsCard } from "@/features/alerts/active-alerts-card";
+import { TOUR_TARGETS, useFirstRunTour } from "@/features/tour/home-tour";
+import { useTourTarget } from "@/features/tour/tour-provider";
 import { FEED_FILTERS, feedKeys, getHood, isAd, listHoodPage, type FeedEntry, type FeedFilter, type HoodPage } from "./feed-api";
 import { PostCard } from "./post-card";
 
@@ -167,6 +171,9 @@ export function FeedScreen() {
     void refresh();
   };
   const bottomSpace = useTabBarSpace();
+  // The first-run tour, once the feed has something on it (features/tour).
+  const filtersAnchor = useTourTarget(TOUR_TARGETS.filters);
+  useFirstRunTour(user.uid, hood.data?.name, !!hoodId && !away && !feed.isPending);
 
   if (!hoodId) return <NotInHoodYet />;
 
@@ -183,12 +190,15 @@ export function FeedScreen() {
           You follow this neighbourhood: you can read it and hear its alerts. You post and sell in your home neighbourhood.
         </InlineAlert>
       ) : null}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} style={styles.chipsRow}>
-        {FEED_FILTERS.map((f) => (
-          <Chip key={f.id} label={f.label} selected={f.id === filter} onPress={() => setFilter(f.id)} />
-        ))}
-      </ScrollView>
-      {away ? null : <FeedBanner hoodName={hood.data?.name} />}
+      <View ref={filtersAnchor} collapsable={false}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} style={styles.chipsRow}>
+          {FEED_FILTERS.map((f) => (
+            <Chip key={f.id} label={f.label} selected={f.id === filter} onPress={() => setFilter(f.id)} />
+          ))}
+        </ScrollView>
+      </View>
+      {away || (filter !== "all" && filter !== "alerts") ? null : <ActiveAlertsCard posts={posts.filter((e): e is ApiPost => !isAd(e))} hoodName={hood.data?.name} />}
+      {away ? null : <FeedBanner />}
       {/* A feedback prompt an admin set to appear here (features/feedback). */}
       <FeedPromptCard />
     </View>

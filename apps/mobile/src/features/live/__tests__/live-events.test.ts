@@ -1,6 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
 import { applyLiveEvent } from "../live-events";
-import { liveStore } from "../live-store";
+import { NEW_POST_SETTLE_MS, liveStore } from "../live-store";
 import { backoffMs } from "../use-live-updates";
 
 jest.mock("@/core/auth/auth-provider", () => ({}));
@@ -35,15 +35,21 @@ describe("live events", () => {
 
   it("a new post never moves the feed: it's counted for the 'new posts' pill", () => {
     const client = seeded();
+    jest.useFakeTimers();
     applyLiveEvent(client, { type: "post.created", id: "p9" });
     expect(stale(client, ["feed", "h1", "all"])).toBe(false);
+    jest.advanceTimersByTime(NEW_POST_SETTLE_MS);
     expect(liveStore.get().newPosts).toBe(1);
+    jest.useRealTimers();
   });
 
-  it("your own new post isn't news to you", () => {
-    liveStore.markOwnPost("mine");
+  it("your own new post isn't news to you, even when its event beats the reply to your POST", () => {
+    jest.useFakeTimers();
     applyLiveEvent(seeded(), { type: "post.created", id: "mine" });
+    liveStore.markOwnPost("mine");
+    jest.advanceTimersByTime(NEW_POST_SETTLE_MS);
     expect(liveStore.get().newPosts).toBe(0);
+    jest.useRealTimers();
   });
 
   it("asks for a reconnect when the session changes", () => {

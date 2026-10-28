@@ -19,7 +19,9 @@ const APP_ROUTES: RegExp[] = [
   /^\/events$/,
   /^\/groups(\/new)?$/,
   new RegExp(`^/g/${ID}(/(manage|invite))?$`),
-  /^\/settings(\/(profile|notifications|privacy|email|neighbourhoods))?$/,
+  /^\/settings(\/(profile|notifications|privacy|email|neighbourhoods|moderation))?$/,
+  /^\/alerts$/,
+  /^\/leads$/,
 ];
 
 export const FALLBACK_ROUTE = "/notifications";

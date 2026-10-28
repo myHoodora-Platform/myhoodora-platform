@@ -1,6 +1,7 @@
 import { Stack } from "expo-router";
 import { PromptHost } from "@/features/feedback/prompt-host";
 import { useLiveUpdates } from "@/features/live/use-live-updates";
+import { TourProvider } from "@/features/tour/tour-provider";
 import { useTheme } from "@/shared/theme/theme";
 
 /** Everything signed in: the tabs, and the screens opened from them (with a back button). */
@@ -9,7 +10,7 @@ export default function AppLayout() {
   // One live connection for everything signed in (contract §19).
   useLiveUpdates();
   return (
-    <>
+    <TourProvider>
     <Stack
       // Every screen draws its own header (AppScreen), so they all look and behave the same.
       screenOptions={{ headerShown: false, contentStyle: { backgroundColor: t.colors.canvas } }}
@@ -24,6 +25,6 @@ export default function AppLayout() {
     </Stack>
     {/* Feedback prompts admins send, shown over whatever is open (features/feedback). */}
     <PromptHost />
-    </>
+    </TourProvider>
   );
 }
