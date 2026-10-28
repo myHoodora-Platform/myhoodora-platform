@@ -28,6 +28,18 @@ export class SendMessageDto {
   @ArrayMaxSize(4)
   @IsUrl({ protocols: ["https"], require_protocol: true }, { each: true })
   photos?: string[];
+  /** The message this one replies to, in the same conversation. */
+  @IsOptional() @IsMongoId() replyTo?: string;
+}
+
+/** One emoji (any, with skin tone or joined), or null to take your reaction back. */
+export class ReactDto {
+  /** @example "👍🏽" */
+  @IsOptional() @IsString() @MaxLength(16) emoji?: string | null;
+}
+
+export class EditMessageDto {
+  @IsString() @MaxLength(2000) body!: string;
 }
 
 export class ArchiveConversationDto {

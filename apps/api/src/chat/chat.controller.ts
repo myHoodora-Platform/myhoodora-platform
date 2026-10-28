@@ -1,10 +1,10 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query } from "@nestjs/common";
 import { ApiBearerAuth, ApiCreatedResponse, ApiForbiddenResponse, ApiOkResponse, ApiOperation, ApiTags, ApiTooManyRequestsResponse } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { CurrentViewer, type Viewer } from "../shared/auth/viewer";
 import { Can } from "../shared/authz/can.decorator";
 import { ParseObjectIdPipe, ThreadPageQuery } from "../shared/http/pagination";
-import { ArchiveConversationDto, ConversationListQuery, MuteConversationDto, SendMessageDto, StartConversationDto } from "./chat.dto";
+import { ArchiveConversationDto, ConversationListQuery, EditMessageDto, MuteConversationDto, ReactDto, SendMessageDto, StartConversationDto } from "./chat.dto";
 import { ChatService } from "./chat.service";
 import { ApiNotFound, ApiStandardErrors } from "../shared/http/api-docs";
 
@@ -95,6 +95,28 @@ export class ChatController {
   @ApiCreatedResponse()
   @ApiNotFound("Conversation")
   send(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Body() body: SendMessageDto) {
-    return this.chat.send(viewer, id, body.body, body.photos);
+    return this.chat.send(viewer, id, body.body, body.photos, body.replyTo);
+  }
+
+  @Put(":id/messages/:messageId/reaction")
+  @Throttle({ medium: { limit: 60, ttl: 60_000 } })
+  @ApiOperation({ summary: "React with one emoji (replaces yours), or `emoji: null` to take it back. Tells the sender" })
+  @ApiNotFound("Message")
+  react(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Param("messageId", ParseObjectIdPipe) messageId: string, @Body() body: ReactDto) {
+    return this.chat.react(viewer, id, messageId, body.emoji);
+  }
+
+  @Patch(":id/messages/:messageId")
+  @ApiOperation({ summary: "Edit your own message's words, within 15 minutes. Shows \"Edited\"" })
+  @ApiNotFound("Message")
+  edit(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Param("messageId", ParseObjectIdPipe) messageId: string, @Body() body: EditMessageDto) {
+    return this.chat.edit(viewer, id, messageId, body.body);
+  }
+
+  @Delete(":id/messages/:messageId")
+  @ApiOperation({ summary: "Delete your own message for everyone, within an hour. Shows \"This message was deleted\"" })
+  @ApiNotFound("Message")
+  removeMessage(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Param("messageId", ParseObjectIdPipe) messageId: string) {
+    return this.chat.removeMessage(viewer, id, messageId);
   }
 }

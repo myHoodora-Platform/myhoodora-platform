@@ -54,8 +54,23 @@ export function sendTyping(user: User, id: string): Promise<void> {
 }
 
 /** Text, photos (up to 4, uploaded for messages), or both. */
-export function sendMessage(user: User, id: string, body: string, photos: string[] = []): Promise<Message> {
-  return apiFetch<Message>(user, `/conversations/${id}/messages`, { method: "POST", json: { body, ...(photos.length && { photos }) } });
+export function sendMessage(user: User, id: string, body: string, photos: string[] = [], replyTo?: string): Promise<Message> {
+  return apiFetch<Message>(user, `/conversations/${id}/messages`, { method: "POST", json: { body, ...(photos.length && { photos }), ...(replyTo && { replyTo }) } });
+}
+
+/** One emoji per person; `null` takes yours back (contract §5). */
+export function reactToMessage(user: User, id: string, messageId: string, emoji: string | null): Promise<Message> {
+  return apiFetch<Message>(user, `/conversations/${id}/messages/${messageId}/reaction`, { method: "PUT", json: { emoji } });
+}
+
+/** Your own message's words, within 15 minutes. */
+export function editMessage(user: User, id: string, messageId: string, body: string): Promise<Message> {
+  return apiFetch<Message>(user, `/conversations/${id}/messages/${messageId}`, { method: "PATCH", json: { body } });
+}
+
+/** Delete for everyone: your own message, within an hour. */
+export function deleteMessage(user: User, id: string, messageId: string): Promise<Message> {
+  return apiFetch<Message>(user, `/conversations/${id}/messages/${messageId}`, { method: "DELETE" });
 }
 
 /** "Buying & selling": conversations about a listing. */

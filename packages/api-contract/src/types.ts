@@ -359,8 +359,20 @@ export interface Message {
   body: string;
   /** Up to 4, since 2026-10-28. */
   photos?: string[];
+  /** The message it replies to, in brief (2026-10-28). `deleted`: it was deleted for everyone since. */
+  replyTo?: { _id: string; senderUid: string; body: string; photo: boolean; deleted: boolean };
+  /** Reactions grouped by emoji, most first; one per person (2026-10-28). */
+  reactions?: { emoji: string; uids: string[] }[];
+  /** The sender changed the words (within 15 minutes). */
+  editedAt?: string;
+  /** Deleted for everyone: body and photos are empty. */
+  deleted?: boolean;
   createdAt: string;
 }
+
+/** Message actions' limits (contract §5): edit within 15 minutes, delete for everyone within an hour. */
+export const MESSAGE_EDIT_WINDOW_MS = 15 * 60_000;
+export const MESSAGE_DELETE_WINDOW_MS = 60 * 60_000;
 
 export type MuteLength = "8h" | "1w" | "always" | "off";
 

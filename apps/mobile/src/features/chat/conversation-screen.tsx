@@ -11,7 +11,8 @@ import { useRouter } from "@/core/navigation/use-router";
 import { useTheme } from "@/shared/theme/theme";
 import { AppScreen, useScreenInsets } from "@/shared/ui/app-screen";
 import { Avatar } from "@/shared/ui/avatar";
-import { ChatBubble, ChatComposer, DayLine, withDays, type DayRows } from "@/shared/ui/chat";
+import { ChatBubble, ChatComposer, DayLine, withDays, type BubbleFrame, type DayRows } from "@/shared/ui/chat";
+import { MessageActions } from "@/shared/ui/message-actions";
 import { IconButton } from "@/shared/ui/icon-button";
 import { PhotoViewer } from "@/shared/ui/photo-viewer";
 import { usePhotoPicking } from "@/shared/ui/photo-strip";
@@ -25,6 +26,9 @@ import { useTypingIndicator, useTypingSignal } from "@/features/live/use-typing"
 import { signal } from "@/features/feedback/engagement";
 import { chatKeys, getConversation, isMuted, listMessages, otherPerson, sendMessage, sendTyping } from "./chat-api";
 import { ConversationActions } from "./conversation-actions";
+import { ReactionsSheet } from "./reactions-sheet";
+import { bubbleReactions, useMessageActions } from "./use-message-actions";
+import { ReportSheet } from "@/features/feed/report-sheet";
 
 /** New messages arrive over the live connection; only while it's down does an open thread check (contract §19). */
 const FALLBACK_POLL_MS = 15_000;
@@ -57,11 +61,20 @@ export function ConversationScreen({ id }: { id: string }) {
   const convo = useQuery({ queryKey: chatKeys.one(id), queryFn: () => getConversation(user, id) });
   const live = useLive();
   const messages = useQuery({ queryKey: chatKeys.messages(id), queryFn: () => listMessages(user, id), refetchInterval: live.status === "live" ? false : FALLBACK_POLL_MS });
+  const [reporting, setReporting] = useState(false);
+  const participants = convo.data?.participants ?? [];
+  const person = (uid: string) => {
+    const p = participants.find((x) => x.uid === uid);
+    return { name: p?.displayName ?? "Neighbour", photoURL: p?.photoURL };
+  };
+  const acts = useMessageActions({ conversationId: id, nameOf: (uid) => person(uid).name, onReport: () => setTimeout(() => setReporting(true), 300), onEdit: setText });
+  const [reactionsOf, setReactionsOf] = useState<string | null>(null);
   const send = useMutation({
-    mutationFn: ({ body, urls }: { body: string; urls: string[] }) => sendMessage(user, id, body, urls),
+    mutationFn: ({ body, urls }: { body: string; urls: string[] }) => sendMessage(user, id, body, urls, acts.replyingTo?._id),
     onSuccess: (message) => {
       setText("");
       photos.clear();
+      acts.setReplyingTo(null);
       signal(user, "message_sent", id);
       client.setQueryData<Message[]>(chatKeys.messages(id), (rows) => [...(rows ?? []), message]);
       void client.invalidateQueries({ queryKey: chatKeys.all });
@@ -82,7 +95,13 @@ export function ConversationScreen({ id }: { id: string }) {
   const body = text.trim();
   const ready = photos.urls.length > 0 && !photos.uploading && !photos.failed;
   const canSend = (body.length > 0 || ready) && !photos.uploading && !send.isPending;
-  const submit = () => canSend && send.mutate({ body, urls: photos.uploading ? [] : photos.urls });
+  const submit = () => {
+    if (acts.editing) {
+      if (body) void acts.saveEdit(body).then((ok) => ok && setText(""));
+      return;
+    }
+    if (canSend) send.mutate({ body, urls: photos.uploading ? [] : photos.urls });
+  };
 
   const composer = (
     <ChatComposer
@@ -92,6 +111,7 @@ export function ConversationScreen({ id }: { id: string }) {
       uploads={photos}
       onAttach={picking.choose}
       onSend={submit}
+      banner={acts.banner}
       sending={send.isPending}
       error={send.isError ? errorMessage(send.error) : null}
       above={
@@ -132,7 +152,29 @@ export function ConversationScreen({ id }: { id: string }) {
       right={convo.data ? <IconButton Icon={MoreVertical} label="Chat options" onPress={() => setMenu(true)} /> : undefined}
       footer={composer}
     >
-      <Thread convo={convo.data} me={user.uid} other={other?.displayName} messages={messages} list={list} />
+      <Thread
+        convo={convo.data}
+        me={user.uid}
+        other={other?.displayName}
+        messages={messages}
+        list={list}
+        quoteOf={acts.quoteOf}
+        onHold={acts.hold}
+        onReply={(m) => acts.setReplyingTo(m)}
+        onReactions={(m) => setReactionsOf(m._id)}
+      />
+      <MessageActions held={acts.held} actions={acts.actions} onReact={acts.reactToHeld} onClose={acts.close} />
+      <ReactionsSheet
+        message={messages.data?.find((m) => m._id === reactionsOf) ?? null}
+        me={user.uid}
+        person={person}
+        onRemoveMine={() => {
+          const m = messages.data?.find((x) => x._id === reactionsOf);
+          if (m) void acts.react(m, null);
+        }}
+        onClose={() => setReactionsOf(null)}
+      />
+      <ReportSheet visible={reporting} onClose={() => setReporting(false)} targetType="message" targetId={id} />
       {convo.data ? <ConversationActions convo={convo.data} visible={menu} onClose={() => setMenu(false)} inside onGone={() => (router.canGoBack() ? router.back() : router.replace("/inbox"))} /> : null}
     </AppScreen>
   );
@@ -145,12 +187,20 @@ function Thread({
   other,
   messages,
   list,
+  quoteOf,
+  onHold,
+  onReply,
+  onReactions,
 }: {
   convo?: Conversation;
   me: string;
   other?: string;
   messages: { data?: Message[]; isPending: boolean; isError: boolean; error: unknown; refetch: () => unknown };
   list: React.RefObject<FlatList<Row> | null>;
+  quoteOf: (q: NonNullable<Message["replyTo"]>) => { who: string; body: string; photo?: boolean; deleted?: boolean };
+  onHold: (m: Message, frame: BubbleFrame) => void;
+  onReply: (m: Message) => void;
+  onReactions: (m: Message) => void;
 }) {
   const t = useTheme();
   const router = useRouter();
@@ -159,6 +209,15 @@ function Thread({
   const theirRead = convo?.readBy?.find((r) => r.uid !== me)?.lastReadAt;
   const rows = useMemo(() => rowsFor(messages.data ?? [], me, theirRead), [messages.data, me, theirRead]);
   const context = convo?.context;
+  // Tapping a quote goes to the message it quotes, ringed for a moment.
+  const [highlight, setHighlight] = useState<string | null>(null);
+  const jumpTo = (messageId: string) => {
+    const index = rows.findIndex((r) => r.kind === "item" && r.item.message._id === messageId);
+    if (index < 0) return;
+    list.current?.scrollToIndex({ index, viewPosition: 0.4, animated: true });
+    setHighlight(messageId);
+    setTimeout(() => setHighlight((h) => (h === messageId ? null : h)), 1600);
+  };
   if (messages.isPending) return <LoadingState label="Loading messages" />;
   if (messages.isError && !messages.data) return <ErrorState error={messages.error} onRetry={() => void messages.refetch()} />;
   return (
@@ -173,6 +232,11 @@ function Thread({
         onContentSizeChange={() => list.current?.scrollToEnd({ animated: false })}
         // And when the room for it settles (the reply box measures itself after): open at the newest message.
         onLayout={() => list.current?.scrollToEnd({ animated: false })}
+        // Rows aren't measured ahead: go near, then try again once they are.
+        onScrollToIndexFailed={(info) => {
+          list.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: true });
+          setTimeout(() => list.current?.scrollToIndex({ index: info.index, viewPosition: 0.4, animated: true }), 250);
+        }}
         ListHeaderComponent={
           context ? (
             <Pressable onPress={() => router.push(`/for-sale/${context.id}`)} accessibilityRole="link" accessibilityLabel={`About ${context.title}, ${formatNaira(context.priceNaira)}. Opens the listing`} style={[styles.context, { backgroundColor: t.colors.card, borderColor: t.colors.border }]}>
@@ -195,13 +259,21 @@ function Thread({
         renderItem={({ item }) => {
           if (item.kind === "day") return <DayLine label={item.label} />;
           const m = item.item.message;
+          const q = m.replyTo;
           return (
             <ChatBubble
               mine={m.senderUid === me}
               body={m.body}
               photos={m.photos}
-              meta={`${clock(m.createdAt)}${item.item.seen ? " · Seen" : ""}`}
+              deleted={m.deleted}
+              quote={q ? { ...quoteOf(q), onPress: q.deleted ? undefined : () => jumpTo(q._id) } : undefined}
+              reactions={bubbleReactions(m, me)}
+              highlighted={highlight === m._id}
+              meta={`${clock(m.createdAt)}${m.editedAt && !m.deleted ? " · Edited" : ""}${item.item.seen ? " · Seen" : ""}`}
               onPhoto={(photos, start) => setViewing({ photos, start })}
+              onLongPress={(frame) => onHold(m, frame)}
+              onSwipeReply={() => onReply(m)}
+              onReactions={() => onReactions(m)}
             />
           );
         }}

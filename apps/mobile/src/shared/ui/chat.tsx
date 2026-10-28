@@ -1,5 +1,8 @@
 import { Image } from "expo-image";
-import { ArrowUp, Delete, FileText, Keyboard as KeyboardIcon, Paperclip, RotateCcw, Smile, X } from "lucide-react-native";
+import * as Haptics from "expo-haptics";
+import { ArrowUp, Delete, FileText, Keyboard as KeyboardIcon, Paperclip, Reply, RotateCcw, Smile, X } from "lucide-react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { EmojiKeyboard } from "rn-emoji-keyboard";
 import { ActivityIndicator, BackHandler, Keyboard, Linking, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
@@ -53,9 +56,112 @@ export function fileSize(bytes?: number): string {
   return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
+/** What a reply quotes, inside the bubble: who wrote it and a line of it. Tap to jump to it. */
+export interface BubbleQuote {
+  who: string;
+  body: string;
+  photo?: boolean;
+  deleted?: boolean;
+  onPress?: () => void;
+}
+
+/** Reactions under a bubble, grouped: "👍 3", with whether one of them is yours. */
+export interface BubbleReaction {
+  emoji: string;
+  count: number;
+  mine: boolean;
+}
+
+/** Where a bubble is on screen, for the long-press menu to sit around it. */
+export interface BubbleFrame {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+interface BubbleContent {
+  mine: boolean;
+  body?: string;
+  photos?: string[];
+  documents?: ChatDocument[];
+  quote?: BubbleQuote;
+  deleted?: boolean;
+}
+
+/** The bubble itself (no row, no gestures): also what the long-press menu shows lifted. */
+export function BubbleBody({ mine, body, photos = [], documents = [], quote, deleted, onPhoto, onLongPress }: BubbleContent & { onPhoto?: (photos: string[], index: number) => void; onLongPress?: () => void }) {
+  const t = useTheme();
+  const fg = mine ? t.colors.primaryForeground : t.colors.foreground;
+  const media = !deleted && photos.length > 0;
+  return (
+    <View style={[styles.bubble, { backgroundColor: mine ? t.colors.primary : t.colors.card }, mine ? styles.bubbleMine : styles.bubbleTheirs, media && styles.bubbleMedia]}>
+      {quote && !deleted ? (
+        <Pressable
+          onPress={quote.onPress}
+          onLongPress={onLongPress}
+          disabled={!quote.onPress}
+          accessibilityRole="button"
+          accessibilityLabel={`Replying to ${quote.who}: ${quote.deleted ? "a deleted message" : quote.body || "a photo"}. Shows it`}
+          style={[styles.quote, { backgroundColor: mine ? "rgba(255,255,255,0.16)" : t.colors.muted, borderLeftColor: mine ? t.colors.primaryForeground : t.colors.primary }, media && styles.quoteInMedia]}
+        >
+          <Text variant="caption" numberOfLines={1} style={{ color: mine ? fg : t.colors.primary, fontFamily: t.fonts.semibold }}>
+            {quote.who}
+          </Text>
+          <Text variant="caption" numberOfLines={2} style={{ color: fg, opacity: 0.85, fontStyle: quote.deleted ? "italic" : "normal" }}>
+            {quote.deleted ? "This message was deleted" : quote.body || (quote.photo ? "📷 Photo" : "")}
+          </Text>
+        </Pressable>
+      ) : null}
+      {deleted ? (
+        <Text style={{ color: fg, opacity: 0.75, fontStyle: "italic" }}>{mine ? "🚫 You deleted this message" : "🚫 This message was deleted"}</Text>
+      ) : null}
+      {media ? (
+        <View style={[styles.photos, photos.length > 1 && styles.photosGrid]}>
+          {photos.map((url, i) => (
+            <Pressable key={url} onPress={() => onPhoto?.(photos, i)} onLongPress={onLongPress} accessibilityRole="imagebutton" accessibilityLabel={`Photo ${i + 1} of ${photos.length}. Opens full screen`}>
+              <Image source={sizedImage(url, photos.length > 1 ? 120 : 240)} style={photos.length > 1 ? styles.photoSmall : styles.photoBig} contentFit="cover" transition={150} />
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+      {deleted
+        ? null
+        : documents.map((d) => (
+            <Pressable
+              key={d.url}
+              onPress={() => void Linking.openURL(d.url)}
+              onLongPress={onLongPress}
+              accessibilityRole="link"
+              accessibilityLabel={`Document ${d.name ?? ""} ${fileSize(d.bytes)}. Opens it`}
+              style={[styles.doc, { backgroundColor: mine ? "rgba(255,255,255,0.16)" : t.colors.muted }, media && styles.docInMedia]}
+            >
+              <View style={[styles.docIcon, { backgroundColor: mine ? "rgba(255,255,255,0.22)" : t.colors.dangerSoft }]}>
+                <FileText size={18} color={mine ? fg : t.colors.destructive} />
+              </View>
+              <View style={styles.flex}>
+                <Text variant="label" numberOfLines={1} style={{ color: fg }}>
+                  {d.name ?? "Document"}
+                </Text>
+                <Text variant="caption" style={{ color: fg, opacity: 0.75 }}>
+                  PDF{d.bytes ? ` · ${fileSize(d.bytes)}` : ""}
+                </Text>
+              </View>
+            </Pressable>
+          ))}
+      {!deleted && body ? <Text style={[{ color: fg }, (media || documents.length > 0) && styles.caption]}>{body}</Text> : null}
+    </View>
+  );
+}
+
+/** How far a swipe must go to reply, and how far the bubble follows the finger. */
+const SWIPE_REPLY = 56;
+const SWIPE_MAX = 80;
+
 /**
- * One message: who it's from (in a group or from the team), photos, documents, the words, then the
- * time line under it. Yours on the right in the brand colour.
+ * One message: who it's from (in a group or from the team), the quote it replies to, photos,
+ * documents, the words, its reactions, then the time line. Yours on the right in the brand colour.
+ * Hold it for the message menu; swipe it right to reply (WhatsApp's two gestures).
  */
 export function ChatBubble({
   mine,
@@ -63,68 +169,99 @@ export function ChatBubble({
   body,
   photos = [],
   documents = [],
+  quote,
+  deleted,
+  reactions,
   meta,
+  highlighted = false,
   onPhoto,
-}: {
-  mine: boolean;
+  onLongPress,
+  onSwipeReply,
+  onReactions,
+}: BubbleContent & {
   /** Above someone else's bubble: their name, or "Ada · myHoodora team". */
   from?: string;
-  body?: string;
-  photos?: string[];
-  documents?: ChatDocument[];
-  /** Under the bubble: "2:14 pm · Seen". */
+  reactions?: BubbleReaction[];
+  /** Under the bubble: "2:14 pm · Edited · Seen". */
   meta?: string;
+  /** Briefly ringed after jumping to it from a reply. */
+  highlighted?: boolean;
   onPhoto?: (photos: string[], index: number) => void;
+  onLongPress?: (frame: BubbleFrame) => void;
+  onSwipeReply?: () => void;
+  onReactions?: () => void;
 }) {
   const t = useTheme();
-  const fg = mine ? t.colors.primaryForeground : t.colors.foreground;
-  const media = photos.length > 0;
+  const ref = useRef<View>(null);
+  const dx = useSharedValue(0);
+  const hold = () => {
+    if (!onLongPress) return;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
+    ref.current?.measureInWindow((x, y, width, height) => onLongPress({ x, y, width, height }));
+  };
+  const replied = () => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+    onSwipeReply?.();
+  };
+  const swipe = Gesture.Pan()
+    .enabled(!!onSwipeReply && !deleted)
+    .activeOffsetX(14)
+    .failOffsetY([-12, 12])
+    .onUpdate((e) => {
+      dx.set(Math.max(0, Math.min(SWIPE_MAX, e.translationX)));
+    })
+    .onEnd(() => {
+      if (dx.get() >= SWIPE_REPLY) runOnJS(replied)();
+      dx.set(withSpring(0, { damping: 20, stiffness: 260 }));
+    });
+  const slide = useAnimatedStyle(() => ({ transform: [{ translateX: dx.get() }] }));
+  const hint = useAnimatedStyle(() => ({ opacity: Math.min(1, dx.get() / SWIPE_REPLY), transform: [{ scale: 0.6 + 0.4 * Math.min(1, dx.get() / SWIPE_REPLY) }] }));
+  const shown = reactions?.filter((r) => r.count > 0) ?? [];
+  const total = shown.reduce((n, r) => n + r.count, 0);
+
   return (
-    <View style={[styles.row, mine && styles.mine]}>
-      {from && !mine ? (
-        <Text variant="caption" tone="primary" style={styles.from} numberOfLines={1}>
-          {from}
-        </Text>
-      ) : null}
-      <View style={[styles.bubble, { backgroundColor: mine ? t.colors.primary : t.colors.card }, mine ? styles.bubbleMine : styles.bubbleTheirs, media && styles.bubbleMedia]}>
-        {media ? (
-          <View style={[styles.photos, photos.length > 1 && styles.photosGrid]}>
-            {photos.map((url, i) => (
-              <Pressable key={url} onPress={() => onPhoto?.(photos, i)} accessibilityRole="imagebutton" accessibilityLabel={`Photo ${i + 1} of ${photos.length}. Opens full screen`}>
-                <Image source={sizedImage(url, photos.length > 1 ? 120 : 240)} style={photos.length > 1 ? styles.photoSmall : styles.photoBig} contentFit="cover" transition={150} />
-              </Pressable>
-            ))}
-          </View>
+    <GestureDetector gesture={swipe}>
+      <Animated.View style={[styles.row, mine && styles.mine]}>
+        {onSwipeReply ? (
+          <Animated.View pointerEvents="none" style={[styles.swipeHint, { backgroundColor: t.colors.muted }, hint]}>
+            <Reply size={16} color={t.colors.foreground} />
+          </Animated.View>
         ) : null}
-        {documents.map((d) => (
-          <Pressable
-            key={d.url}
-            onPress={() => void Linking.openURL(d.url)}
-            accessibilityRole="link"
-            accessibilityLabel={`Document ${d.name ?? ""} ${fileSize(d.bytes)}. Opens it`}
-            style={[styles.doc, { backgroundColor: mine ? "rgba(255,255,255,0.16)" : t.colors.muted }, media && styles.docInMedia]}
-          >
-            <View style={[styles.docIcon, { backgroundColor: mine ? "rgba(255,255,255,0.22)" : t.colors.dangerSoft }]}>
-              <FileText size={18} color={mine ? fg : t.colors.destructive} />
-            </View>
-            <View style={styles.flex}>
-              <Text variant="label" numberOfLines={1} style={{ color: fg }}>
-                {d.name ?? "Document"}
-              </Text>
-              <Text variant="caption" style={{ color: fg, opacity: 0.75 }}>
-                PDF{d.bytes ? ` · ${fileSize(d.bytes)}` : ""}
-              </Text>
+        <Animated.View style={[styles.column, mine && styles.mine, slide]}>
+          {from && !mine ? (
+            <Text variant="caption" tone="primary" style={styles.from} numberOfLines={1}>
+              {from}
+            </Text>
+          ) : null}
+          <Pressable onLongPress={hold} delayLongPress={280} accessibilityHint={onLongPress ? "Hold for reply, react and more" : undefined} accessibilityActions={onLongPress ? [{ name: "longpress", label: "Message options" }] : undefined} onAccessibilityAction={(e) => e.nativeEvent.actionName === "longpress" && hold()}>
+            {/* Always ringed (transparent unless highlighted): Android draws a border added later wrongly. */}
+            <View ref={ref} collapsable={false} style={[styles.ring, { borderColor: highlighted ? t.colors.primary : "transparent" }]}>
+              <BubbleBody mine={mine} body={body} photos={photos} documents={documents} quote={quote} deleted={deleted} onPhoto={onPhoto} onLongPress={hold} />
             </View>
           </Pressable>
-        ))}
-        {body ? <Text style={[{ color: fg }, (media || documents.length > 0) && styles.caption]}>{body}</Text> : null}
-      </View>
-      {meta ? (
-        <Text variant="caption" tone="muted" style={styles.meta}>
-          {meta}
-        </Text>
-      ) : null}
-    </View>
+          {shown.length ? (
+            <Pressable
+              onPress={onReactions}
+              accessibilityRole="button"
+              accessibilityLabel={`Reactions: ${shown.map((r) => `${r.emoji} ${r.count}`).join(", ")}. Shows who reacted`}
+              style={[styles.reactions, mine ? styles.reactionsMine : styles.reactionsTheirs, { backgroundColor: t.colors.card, borderColor: t.colors.border }]}
+            >
+              <Text style={styles.reactionEmoji}>{shown.slice(0, 3).map((r) => r.emoji).join("")}</Text>
+              {total > 1 ? (
+                <Text variant="caption" tone="muted">
+                  {total}
+                </Text>
+              ) : null}
+            </Pressable>
+          ) : null}
+          {meta ? (
+            <Text variant="caption" tone="muted" style={styles.meta}>
+              {meta}
+            </Text>
+          ) : null}
+        </Animated.View>
+      </Animated.View>
+    </GestureDetector>
   );
 }
 
@@ -182,7 +319,10 @@ export function ChatComposer({
   sending,
   error,
   above,
+  banner,
 }: {
+  /** Above the box: "Replying to Ada" or "Editing", with ✕ (WhatsApp's reply bar). */
+  banner?: { title: string; body: string; onCancel: () => void } | null;
   text: string;
   onText: (text: string) => void;
   placeholder: string;
@@ -238,6 +378,21 @@ export function ChatComposer({
       {error ? <InlineAlert>{`Not sent: ${error}`}</InlineAlert> : null}
       {above}
       {uploads ? <UploadTray uploads={uploads} /> : null}
+      {banner ? (
+        <View style={[styles.banner, { backgroundColor: t.colors.muted, borderLeftColor: t.colors.primary }]} accessibilityLiveRegion="polite">
+          <View style={styles.flex}>
+            <Text variant="caption" tone="primary" numberOfLines={1} style={{ fontFamily: t.fonts.semibold }}>
+              {banner.title}
+            </Text>
+            <Text variant="caption" tone="muted" numberOfLines={1}>
+              {banner.body}
+            </Text>
+          </View>
+          <Pressable onPress={banner.onCancel} accessibilityRole="button" accessibilityLabel={`Cancel: ${banner.title}`} hitSlop={10}>
+            <X size={18} color={t.colors.mutedForeground} />
+          </Pressable>
+        </View>
+      ) : null}
       {failed ? <InlineAlert>{`${failed.kind === "document" ? (failed.name ?? "A file") : "A photo"} didn't upload: ${failed.error ?? "try again"}. Tap it to try again, or ✕ to leave it out.`}</InlineAlert> : null}
       <View style={styles.composerRow}>
         {onAttach && (uploads?.room ?? 0) > 0 ? <IconButton Icon={Paperclip} label="Attach a photo or file" onPress={onAttach} /> : null}
@@ -326,10 +481,20 @@ const BACKSPACE_ROOM = 52;
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   panel: { marginHorizontal: -8, marginBottom: -8 },
+  banner: { flexDirection: "row", alignItems: "center", gap: 10, borderLeftWidth: 3, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, marginHorizontal: 4 },
   backspace: { position: "absolute", right: 0, bottom: 0, width: BACKSPACE_ROOM, height: 48, alignItems: "center", justifyContent: "center" },
   day: { textAlign: "center", marginVertical: 8 },
-  row: { alignItems: "flex-start", gap: 2, maxWidth: "80%" },
-  mine: { alignSelf: "flex-end", alignItems: "flex-end" },
+  row: { flexDirection: "row", alignItems: "center", alignSelf: "stretch" },
+  column: { alignItems: "flex-start", gap: 2, maxWidth: "80%" },
+  mine: { justifyContent: "flex-end", alignItems: "flex-end", alignSelf: "flex-end" },
+  swipeHint: { position: "absolute", left: 4, width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
+  ring: { borderWidth: 2, borderRadius: 22, margin: -2 },
+  quote: { borderLeftWidth: 3, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, gap: 1, minWidth: 140 },
+  quoteInMedia: { margin: 4, marginBottom: 2 },
+  reactions: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, marginTop: -10, minHeight: 26 },
+  reactionsMine: { marginRight: 10 },
+  reactionsTheirs: { marginLeft: 10 },
+  reactionEmoji: { fontSize: 15, lineHeight: 20 },
   from: { marginLeft: 6 },
   bubble: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20, gap: 6 },
   bubbleMedia: { padding: 4, overflow: "hidden" },

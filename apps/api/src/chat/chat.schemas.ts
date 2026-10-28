@@ -56,6 +56,16 @@ export class Message {
   @Prop({ default: "", maxlength: 2000 }) body!: string;
   /** Up to 4 photos the sender uploaded for messages (2026-10-28). */
   @Prop({ type: [String], default: undefined }) photos?: string[];
+  /** The message this one answers (same conversation), WhatsApp's reply. */
+  @Prop() replyTo?: string;
+  /** One emoji per person; picking another replaces theirs. */
+  @Prop({ type: [{ uid: String, emoji: String, _id: false }], default: undefined }) reactions?: { uid: string; emoji: string }[];
+  /** The sender changed the words (within EDIT_WINDOW). Earlier words aren't kept for others to see. */
+  @Prop() editedAt?: Date;
+  /** Deleted for everyone: shown as "This message was deleted". */
+  @Prop() deletedAt?: Date;
+  /** What it said, kept out of every response, for a report about it. */
+  @Prop({ select: false }) removedBody?: string;
   createdAt?: Date;
 }
 export const MessageSchema = SchemaFactory.createForClass(Message);

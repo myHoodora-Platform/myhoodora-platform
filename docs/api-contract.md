@@ -322,6 +322,17 @@ interface Message { _id; conversationId; senderUid; body; createdAt }
 
 **Safety:** block and report (`POST /reports` with `targetType: "message"`, `targetId: conversationId`), and rate-limit new threads per user per day. Only the two people in a conversation can report it, and the report is about the other one (§26).
 
+
+### Reply, react, edit, delete for everyone (2026-10-28)
+
+| Route | |
+| --- | --- |
+| `POST /conversations/:id/messages` | Adds `replyTo` (a message id in the same conversation, else `400`). The response and the thread carry `replyTo: { _id, senderUid, body (≤ 140), photo, deleted }`. |
+| `PUT /conversations/:id/messages/:messageId/reaction` | `{ emoji }`: one emoji (pictographs with skin tones, joiners, flags, keycaps; ≤ 16 chars; never words, `400`), replacing yours; `{ emoji: null }` takes it back. The sender is notified ("Ada reacted 👍 to your message", grouped per message) unless they muted the chat. `410` on a deleted message. |
+| `PATCH /conversations/:id/messages/:messageId` | `{ body }`: your own message's words, within 15 minutes (`403` after, or for someone else's). Sets `editedAt`. |
+| `DELETE /conversations/:id/messages/:messageId` | Delete for everyone: your own, within an hour (`403` after). Returns it with `deleted: true`, empty `body` and no photos or reactions; the inbox preview becomes "🚫 This message was deleted". What it said is kept out of every response, for a report about the conversation. |
+
+Messages now carry `reactions?: { emoji, uids[] }[]` (most first), `editedAt?` and `deleted?`. Every change is announced as `chat.message`, so open threads refetch.
 ---
 
 ## 6. Notifications ✅

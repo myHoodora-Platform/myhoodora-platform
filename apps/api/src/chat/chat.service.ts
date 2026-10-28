@@ -36,6 +36,13 @@ export interface MessageView {
   body: string;
   /** Photos sent with it (2026-10-28). */
   photos?: string[];
+  /** The message it replies to, in brief (2026-10-28). */
+  replyTo?: { _id: string; senderUid: string; body: string; photo: boolean; deleted: boolean };
+  /** Reactions grouped by emoji, most first, with who (2026-10-28). */
+  reactions?: { emoji: string; uids: string[] }[];
+  editedAt?: string;
+  /** Deleted for everyone: body and photos are empty. */
+  deleted?: boolean;
   createdAt: string;
 }
 
@@ -48,6 +55,19 @@ const HOUR_MS = 3_600_000;
 const MUTED_FOREVER = new Date("9999-12-31T00:00:00Z");
 /** What the inbox shows for a message that is only photos. */
 const PHOTO_PREVIEW = "📷 Photo";
+const DELETED_PREVIEW = "🚫 This message was deleted";
+/** WhatsApp's window for changing the words of a message. */
+export const EDIT_WINDOW_MS = 15 * 60_000;
+/** How long a sender can still delete a message for everyone. */
+export const DELETE_WINDOW_MS = HOUR_MS;
+/**
+ * A reaction is one emoji: pictographs, with skin tones, joiners and variation selectors, or a flag
+ * or keycap. Never words.
+ */
+const EMOJI = /^(?:\p{Extended_Pictographic}|\p{Emoji_Modifier}|\p{Regional_Indicator}|[#*0-9]\uFE0F?\u20E3|\u200D|\uFE0F)+$/u;
+export const isEmoji = (s: string) => s.length <= 16 && EMOJI.test(s) && /\p{Extended_Pictographic}|\p{Regional_Indicator}|\u20E3/u.test(s);
+
+type MessageRow = Message & { _id: Types.ObjectId };
 
 const memberOf = (c: Pick<ConvRow, "members">, uid: string): ConversationMember | undefined => c.members.find((m) => m.uid === uid);
 /** Deleted for them, and nothing new since: it stays out of their inbox. */
@@ -89,7 +109,8 @@ export class ChatService implements OnModuleInit {
       load: async (id) => {
         const c = Types.ObjectId.isValid(id) ? await this.conversations.findById(id).lean<ConvRow>().exec() : null;
         if (!c) return null;
-        const recent = await this.messages.find({ conversationId: id }).sort({ createdAt: -1 }).limit(20).lean<Message[]>().exec();
+        // Deleted-for-everyone messages show reviewers what they said.
+        const recent = await this.messages.find({ conversationId: id }).select("+removedBody").sort({ createdAt: -1 }).limit(20).lean<Message[]>().exec();
         return {
           type: "message",
           id,
@@ -100,7 +121,7 @@ export class ChatService implements OnModuleInit {
           content: {
             kind: "conversation",
             participants: c.participantUids,
-            messages: recent.reverse().map((m) => ({ senderUid: m.senderUid, body: m.body, createdAt: m.createdAt?.toISOString() })),
+            messages: recent.reverse().map((m) => ({ senderUid: m.senderUid, body: m.deletedAt ? `[deleted] ${m.removedBody ?? ""}` : m.body, createdAt: m.createdAt?.toISOString() })),
             removed: Boolean(c.removedAt),
           },
         };
@@ -311,11 +332,11 @@ export class ChatService implements OnModuleInit {
       .find(filter)
       .sort({ createdAt: -1, _id: -1 })
       .limit(q.limit ?? THREAD_PAGE_MAX)
-      .lean<(Message & { _id: Types.ObjectId })[]>()
+      .lean<MessageRow[]>()
       .exec();
     const rows = newestFirst.reverse();
     // Reading back through earlier messages is not reading the new ones.
-    if (q.before) return rows.map(toMessage);
+    if (q.before) return this.views(rows);
     // Only when there was something unread: announcing every open would make
     // two open threads refetch each other forever.
     const read = await this.conversations
@@ -326,7 +347,7 @@ export class ChatService implements OnModuleInit {
       )
       .exec();
     if (read.modifiedCount) this.realtime.toUsers(c.participantUids, "chat.read", { conversationId: id });
-    return rows.map(toMessage);
+    return this.views(rows);
   }
 
   /** "… is typing": to the other member only; ephemeral, never stored. */
@@ -340,8 +361,9 @@ export class ChatService implements OnModuleInit {
     );
   }
 
-  async send(viewer: Viewer, id: string, body: string | undefined, photos: string[] = []): Promise<MessageView> {
+  async send(viewer: Viewer, id: string, body: string | undefined, photos: string[] = [], replyTo?: string): Promise<MessageView> {
     const c = await this.load(viewer, id);
+    if (replyTo && !(await this.messages.exists({ _id: replyTo, conversationId: id }).exec())) throw new BadRequestException("The message you're replying to isn't in this conversation.");
     const text = (body ?? "").trim();
     if (!text && !photos.length) throw new BadRequestException("Write a message first.");
     await this.assertOwnMessagePhotos(viewer, photos);
@@ -351,7 +373,7 @@ export class ChatService implements OnModuleInit {
     if (await this.blockedBetween(viewer.uid, others[0]!)) throw new ForbiddenException("You can't message this neighbour.");
 
     const msg = await withTransaction(this.connection, async (session) => {
-      const [m] = await this.messages.create([{ conversationId: id, senderUid: viewer.uid, body: text, ...(photos.length && { photos }) }], { session });
+      const [m] = await this.messages.create([{ conversationId: id, senderUid: viewer.uid, body: text, ...(photos.length && { photos }), ...(replyTo && { replyTo }) }], { session });
       await this.conversations
         .updateOne(
           { _id: id },
@@ -385,7 +407,90 @@ export class ChatService implements OnModuleInit {
     });
     // Everyone in the thread, including the sender's other tabs.
     this.realtime.toUsers(c.participantUids, "chat.message", { conversationId: id });
-    return toMessage(msg.toObject() as Message & { _id: Types.ObjectId });
+    return (await this.views([msg.toObject() as MessageRow]))[0]!;
+  }
+
+  private async loadMessage(conversationId: string, messageId: string): Promise<MessageRow> {
+    const m = Types.ObjectId.isValid(messageId) ? await this.messages.findOne({ _id: messageId, conversationId }).lean<MessageRow>().exec() : null;
+    if (!m) throw new NotFoundException("Message not found.");
+    return m;
+  }
+
+  /**
+   * Your reaction to a message: one emoji, which replaces any you had; `null` takes it back. The
+   * sender hears about it (unless they muted the conversation, or it's their own message).
+   */
+  async react(viewer: Viewer, id: string, messageId: string, emoji: string | null | undefined): Promise<MessageView> {
+    const c = await this.load(viewer, id);
+    const m = await this.loadMessage(id, messageId);
+    if (m.deletedAt) throw new GoneException("This message was deleted.");
+    const pick = emoji?.trim() || null;
+    if (pick && !isEmoji(pick)) throw new BadRequestException("React with one emoji.");
+    await this.messages.updateOne({ _id: messageId }, { $pull: { reactions: { uid: viewer.uid } } }).exec();
+    if (pick) await this.messages.updateOne({ _id: messageId }, { $push: { reactions: { uid: viewer.uid, emoji: pick } } }).exec();
+    const changed = (m.reactions ?? []).find((r) => r.uid === viewer.uid)?.emoji !== pick;
+    if (pick && changed && m.senderUid !== viewer.uid && !isMuted(memberOf(c, m.senderUid))) {
+      await this.notifications.notify({
+        uids: [m.senderUid],
+        type: "message",
+        actorUid: viewer.uid,
+        title: `${viewer.displayName ?? "A neighbour"} reacted ${pick} to your message`,
+        body: (m.body || PHOTO_PREVIEW).slice(0, 140),
+        href: `/inbox/${id}`,
+        category: "messages",
+        // One line per message, however many react.
+        groupKey: `reaction:${messageId}`,
+      });
+    }
+    this.realtime.toUsers(c.participantUids, "chat.message", { conversationId: id });
+    return (await this.views([(await this.loadMessage(id, messageId))]))[0]!;
+  }
+
+  /** Change the words of your own message, within 15 minutes. It shows "Edited". */
+  async edit(viewer: Viewer, id: string, messageId: string, body: string): Promise<MessageView> {
+    const c = await this.load(viewer, id);
+    const m = await this.loadMessage(id, messageId);
+    if (m.senderUid !== viewer.uid) throw new ForbiddenException("You can only edit your own messages.");
+    if (m.deletedAt) throw new GoneException("This message was deleted.");
+    if (Date.now() - new Date(m.createdAt!).getTime() > EDIT_WINDOW_MS) throw new ForbiddenException("Messages can be edited for 15 minutes after they're sent.");
+    const text = body.trim();
+    if (!text && !m.photos?.length) throw new BadRequestException("Write a message first.");
+    if (text === m.body) return (await this.views([m]))[0]!;
+    await this.messages.updateOne({ _id: messageId }, { $set: { body: text, editedAt: new Date() } }).exec();
+    await this.touchLastMessage(c, m, text || PHOTO_PREVIEW);
+    this.realtime.toUsers(c.participantUids, "chat.message", { conversationId: id });
+    return (await this.views([(await this.loadMessage(id, messageId))]))[0]!;
+  }
+
+  /**
+   * Delete for everyone: your own message, within an hour. Everyone sees "This message was deleted";
+   * what it said is kept out of sight, for a report about it.
+   */
+  async removeMessage(viewer: Viewer, id: string, messageId: string): Promise<MessageView> {
+    const c = await this.load(viewer, id);
+    const m = await this.loadMessage(id, messageId);
+    if (m.senderUid !== viewer.uid) throw new ForbiddenException("You can only delete your own messages for everyone.");
+    if (m.deletedAt) return (await this.views([m]))[0]!;
+    if (Date.now() - new Date(m.createdAt!).getTime() > DELETE_WINDOW_MS) throw new ForbiddenException("Messages can be deleted for everyone for an hour after they're sent. You can still delete the chat for yourself.");
+    await this.messages.updateOne({ _id: messageId }, { $set: { deletedAt: new Date(), removedBody: m.body, body: "" }, $unset: { reactions: 1 } }).exec();
+    await this.touchLastMessage(c, m, DELETED_PREVIEW);
+    this.realtime.toUsers(c.participantUids, "chat.message", { conversationId: id });
+    return (await this.views([(await this.loadMessage(id, messageId))]))[0]!;
+  }
+
+  /** The inbox line follows an edit or delete of the newest message. Not "activity": the order stays. */
+  private async touchLastMessage(c: ConvRow, m: MessageRow, preview: string): Promise<void> {
+    const last = c.lastMessage;
+    if (!last || last.senderUid !== m.senderUid || new Date(last.createdAt).getTime() !== new Date(m.createdAt!).getTime()) return;
+    await this.conversations.updateOne({ _id: c._id }, { $set: { "lastMessage.body": preview.slice(0, 200) } }, { timestamps: false }).exec();
+  }
+
+  /** Messages as clients see them: the reply's quote filled in, reactions grouped, deleted ones emptied. */
+  private async views(rows: MessageRow[]): Promise<MessageView[]> {
+    const ids = [...new Set(rows.map((r) => r.replyTo).filter((x): x is string => !!x && Types.ObjectId.isValid(x)))];
+    const quoted = ids.length ? await this.messages.find({ _id: { $in: ids } }).lean<MessageRow[]>().exec() : [];
+    const byId = new Map(quoted.map((q) => [String(q._id), q]));
+    return rows.map((m) => toMessage(m, m.replyTo ? byId.get(m.replyTo) : undefined));
   }
 
   /** Message photos must be photos the sender uploaded for messages: never someone else's, never a link to anywhere. */
@@ -419,13 +524,25 @@ export class ChatService implements OnModuleInit {
   }
 }
 
-function toMessage(m: Message & { _id: Types.ObjectId }): MessageView {
+function toMessage(m: MessageRow, quoted?: MessageRow): MessageView {
+  const deleted = !!m.deletedAt;
+  const reactions = new Map<string, string[]>();
+  for (const r of deleted ? [] : (m.reactions ?? [])) reactions.set(r.emoji, [...(reactions.get(r.emoji) ?? []), r.uid]);
   return {
     _id: String(m._id),
     conversationId: m.conversationId,
     senderUid: m.senderUid,
-    body: m.body ?? "",
-    ...(m.photos?.length && { photos: m.photos }),
+    body: deleted ? "" : (m.body ?? ""),
+    ...(!deleted && m.photos?.length && { photos: m.photos }),
+    ...(m.replyTo &&
+      !deleted && {
+        replyTo: quoted
+          ? { _id: String(quoted._id), senderUid: quoted.senderUid, body: quoted.deletedAt ? "" : (quoted.body ?? "").slice(0, 140), photo: !quoted.deletedAt && !!quoted.photos?.length, deleted: !!quoted.deletedAt }
+          : { _id: m.replyTo, senderUid: "", body: "", photo: false, deleted: true },
+      }),
+    ...(reactions.size && { reactions: [...reactions.entries()].map(([emoji, uids]) => ({ emoji, uids })).sort((a, b) => b.uids.length - a.uids.length) }),
+    ...(m.editedAt && !deleted && { editedAt: new Date(m.editedAt).toISOString() }),
+    ...(deleted && { deleted: true }),
     createdAt: (m.createdAt ?? new Date()).toISOString(),
   };
 }
