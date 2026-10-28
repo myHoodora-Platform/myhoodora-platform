@@ -11,7 +11,7 @@ import { usePullRefresh } from "@/shared/hooks/use-pull-refresh";
 import { useTheme } from "@/shared/theme/theme";
 import { Chip } from "@/shared/ui/chip";
 import { useTabBarSpace } from "@/shared/ui/floating-tab-bar";
-import { IconButton } from "@/shared/ui/icon-button";
+import { TopActions } from "@/features/navigation/top-actions";
 import { ConnectionStrip } from "@/shared/ui/connection-strip";
 import { Skeleton } from "@/shared/ui/skeleton";
 import { EmptyState, ErrorState } from "@/shared/ui/states";
@@ -62,12 +62,13 @@ export function ForSaleScreen() {
   const header = (
     <View style={styles.header}>
       <View style={styles.titleRow}>
-        <Text style={[styles.title, { color: t.colors.foreground, fontFamily: t.fonts.bold }]} accessibilityRole="header">
+        <Text style={[styles.title, { color: t.colors.foreground, fontFamily: t.fonts.bold }]} accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit>
           For Sale & Free
         </Text>
-        <IconButton Icon={Plus} label="Sell or give something away" onPress={sell} filled />
+        <TopActions />
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} style={styles.chipRow}>
+        <Chip label="Sell" Icon={Plus} action onPress={sell} accessibilityLabel="Sell or give something away" />
         {FILTERS.map((f) => (
           <Chip key={f.id} label={f.label} selected={f.id === filter} onPress={() => setFilter(f.id)} />
         ))}
@@ -122,8 +123,8 @@ const styles = StyleSheet.create({
   row: { gap: 12 },
   cell: { flex: 0.5, flexDirection: "row" },
   header: { gap: 12, marginBottom: 4 },
-  titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  title: { fontSize: 28, lineHeight: 34 },
+  titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, marginRight: -8 },
+  title: { fontSize: 26, lineHeight: 32, flexShrink: 1 },
   chipRow: { marginHorizontal: -16 },
   chips: { gap: 8, paddingHorizontal: 16 },
   skeleton: { flexDirection: "row", flexWrap: "wrap", gap: 12 },

@@ -1,25 +1,22 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useRouter } from "@/core/navigation/use-router";
-import { ArrowUp, Bell, ChevronDown, Hourglass, MapPin, MessageCircle } from "lucide-react-native";
+import { ArrowUp, ChevronDown, Hourglass, MapPin } from "lucide-react-native";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, View, type ViewToken } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth, useSignedInUser } from "@/core/auth/auth-provider";
 import { hasHood } from "@/core/auth/session-phase";
 import { tint, useTheme } from "@/shared/theme/theme";
-import { Avatar } from "@/shared/ui/avatar";
 import { InlineAlert } from "@/shared/ui/inline-alert";
 import { FixedHeader, useHeaderEstimate } from "@/shared/ui/fixed-header";
 import { useTabBarSpace } from "@/shared/ui/floating-tab-bar";
 import { HoodMapBadge } from "@/shared/ui/hood-map-badge";
 import { Button } from "@/shared/ui/button";
 import { Chip } from "@/shared/ui/chip";
-import { IconButton } from "@/shared/ui/icon-button";
 import { FeedSkeleton } from "@/shared/ui/skeleton";
 import { EmptyState, ErrorState } from "@/shared/ui/states";
 import { Text } from "@/shared/ui/text";
-import { useUnreadMessages } from "@/features/chat/use-unread-messages";
-import { useUnreadCount } from "@/features/notifications";
+import { TopActions } from "@/features/navigation/top-actions";
 import { liveStore, useLive } from "@/features/live/live-store";
 import { underHeader, usePullRefresh } from "@/shared/hooks/use-pull-refresh";
 import { FeedBanner } from "./feed-banners";
@@ -32,14 +29,10 @@ import { PostCard } from "./post-card";
 
 /**
  * The fixed header: your neighbourhood (a tiny map, tap for details and invites) on the left;
- * notifications, messages and you on the right, each with its count.
+ * search, notifications and messages on the right (the same on every tab).
  */
 function TopBar({ hood, updating = false, viewing, onView }: { hood?: { name: string; city?: string }; updating?: boolean; viewing?: string | null; onView?: (id: string | null) => void }) {
   const t = useTheme();
-  const router = useRouter();
-  const { profile } = useAuth();
-  const notifications = useUnreadCount();
-  const messages = useUnreadMessages();
   const [open, setOpen] = useState(false);
   return (
     <View style={styles.topBar}>
@@ -56,13 +49,7 @@ function TopBar({ hood, updating = false, viewing, onView }: { hood?: { name: st
         </Text>
         {updating ? <ActivityIndicator size="small" color={t.colors.mutedForeground} accessibilityLabel="Updating" /> : <ChevronDown size={16} color={t.colors.mutedForeground} />}
       </Pressable>
-      <View style={styles.actions}>
-        <IconButton Icon={Bell} label="Notifications" badge={notifications} onPress={() => router.push("/notifications")} />
-        <IconButton Icon={MessageCircle} label="Messages" badge={messages} onPress={() => router.push("/inbox")} />
-        <Pressable onPress={() => router.push("/more")} accessibilityRole="button" accessibilityLabel="Your profile and settings" hitSlop={6} style={[styles.avatarRing, { borderColor: t.colors.border }]}>
-          <Avatar name={profile?.displayName} photoURL={profile?.photoURL} size={32} />
-        </Pressable>
-      </View>
+      <TopActions />
       <HoodSheet visible={open} onClose={() => setOpen(false)} viewing={viewing ?? null} onView={(id) => onView?.(id)} />
     </View>
   );
@@ -276,8 +263,6 @@ const styles = StyleSheet.create({
   newPosts: { position: "absolute", alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 9, borderRadius: 999, shadowColor: "#000", shadowOpacity: 0.18, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 6 },
   hood: { flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 1, minHeight: 44 },
   hoodName: { fontSize: 16, flexShrink: 1 },
-  actions: { flexDirection: "row", alignItems: "center", gap: 2 },
-  avatarRing: { borderRadius: 22, borderWidth: 2, padding: 2, marginLeft: 4 },
   title: { fontSize: 24, lineHeight: 30 },
   chipsRow: { marginHorizontal: -16 },
   chips: { gap: 8, paddingHorizontal: 16 },
