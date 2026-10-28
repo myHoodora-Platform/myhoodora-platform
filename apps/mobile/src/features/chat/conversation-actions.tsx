@@ -122,6 +122,8 @@ export function ConversationActions({ convo, visible, onClose, inside = false, o
         visible={muting}
         onClose={() => setMuting(false)}
         label="Mute for how long?"
+        title="Mute for how long?"
+        intro="You won't be notified about new messages here. They still arrive and show as unread."
         groups={[MUTE_CHOICES.map((m) => ({ key: m.length, label: m.label, Icon: BellOff, onPress: () => void mute(m.length, m.done) }))]}
       />
       <ReportSheet visible={reporting} onClose={() => setReporting(false)} targetType="message" targetId={convo._id} />

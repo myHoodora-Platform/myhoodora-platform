@@ -21,7 +21,23 @@ export interface ActionItem {
  * do with it first, then reporting and deleting apart from the rest. Closes on the backdrop, Android
  * back, or a choice; screen readers stay inside while it's open.
  */
-export function ActionSheet({ visible, onClose, groups, label }: { visible: boolean; onClose: () => void; groups: ActionItem[][]; label: string }) {
+export function ActionSheet({
+  visible,
+  onClose,
+  groups,
+  label,
+  title,
+  intro,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  groups: ActionItem[][];
+  label: string;
+  /** Shown above the choices, when they need a question ("Pin for how long?"). */
+  title?: string;
+  /** A line under the title saying what the choice does. */
+  intro?: string;
+}) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   return (
@@ -29,6 +45,16 @@ export function ActionSheet({ visible, onClose, groups, label }: { visible: bool
       <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close" accessibilityRole="button" />
       <View style={[styles.sheet, { backgroundColor: t.colors.background, paddingBottom: insets.bottom + 16 }]} accessibilityViewIsModal accessibilityLabel={label}>
         <View style={[styles.grabber, { backgroundColor: t.colors.border }]} />
+        {title || intro ? (
+          <View style={styles.head}>
+            {title ? (
+              <Text variant="heading" accessibilityRole="header">
+                {title}
+              </Text>
+            ) : null}
+            {intro ? <Text tone="muted">{intro}</Text> : null}
+          </View>
+        ) : null}
         {groups
           .filter((g) => g.length)
           .map((group, i) => (
@@ -67,6 +93,7 @@ const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.35)" },
   sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingTop: 8, gap: 12 },
   grabber: { width: 40, height: 5, borderRadius: 3, alignSelf: "center", marginBottom: 4 },
+  head: { gap: 4, paddingHorizontal: 4 },
   group: { borderRadius: 16, overflow: "hidden" },
   item: { minHeight: MIN_TOUCH + 8, flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 16, paddingVertical: 10 },
   text: { flex: 1, gap: 1 },

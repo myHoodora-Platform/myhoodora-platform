@@ -180,6 +180,7 @@ export function useMessageActions({
           quote: m.replyTo ? quoteOf(m.replyTo) : undefined,
           myReaction: myReaction(m, user.uid),
           canReact: !m.deleted,
+          deleted: m.deleted,
         }
       : null;
 
@@ -190,7 +191,8 @@ export function useMessageActions({
       : null;
 
   return {
-    hold: (message: Message, frame: BubbleFrame) => setHeld({ message, frame }),
+    // Your own deleted message has nothing left to do (no reacting, pinning or reporting it): holding it does nothing.
+    hold: (message: Message, frame: BubbleFrame) => !(message.deleted && message.senderUid === user.uid) && setHeld({ message, frame }),
     held: heldView,
     close: () => setHeld(null),
     actions,
@@ -210,6 +212,8 @@ export function useMessageActions({
         visible={!!pinning}
         onClose={() => setPinning(null)}
         label="Pin for how long?"
+        title="Pin for how long?"
+        intro="A pinned message stays at the top of this chat, for everyone in it. It unpins itself when the time is up, or you can unpin it sooner."
         groups={[PIN_CHOICES.map((c) => ({ key: c.length, label: c.label, Icon: Pin, onPress: () => pinning && void pin(pinning, c.length, c.done) }))]}
       />
     ),

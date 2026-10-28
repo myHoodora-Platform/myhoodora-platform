@@ -30,6 +30,7 @@ export interface HeldMessage {
   myReaction?: string | null;
   /** No reactions on a deleted message. */
   canReact: boolean;
+  deleted?: boolean;
 }
 
 const BAR_HEIGHT = 52;
@@ -100,7 +101,7 @@ function Layer({ held, actions, onReact, onClose }: { held: HeldMessage; actions
 
       {/* The message, lifted where it was. */}
       <View pointerEvents="none" style={[styles.lifted, side, { top: place.bubbleY, maxHeight: place.bubbleHeight, maxWidth: held.frame.width + 4 }]}>
-        <BubbleBody mine={held.mine} body={held.body} photos={held.photos} quote={held.quote} />
+        <BubbleBody mine={held.mine} body={held.body} photos={held.photos} quote={held.quote} deleted={held.deleted} />
       </View>
 
       {more ? (
@@ -122,7 +123,7 @@ function Layer({ held, actions, onReact, onClose }: { held: HeldMessage; actions
             styles={{ container: { flex: 1, borderRadius: 0, shadowOpacity: 0, elevation: 0 } }}
           />
         </Animated.View>
-      ) : (
+      ) : actions.length ? (
         <Animated.View entering={FadeIn.duration(160)} style={[styles.menu, side, { top: place.menuY, backgroundColor: t.colors.card }]} accessibilityRole="menu">
           {actions.map((a, i) => (
             <Pressable
@@ -139,7 +140,7 @@ function Layer({ held, actions, onReact, onClose }: { held: HeldMessage; actions
             </Pressable>
           ))}
         </Animated.View>
-      )}
+      ) : null}
     </View>
   );
 }
