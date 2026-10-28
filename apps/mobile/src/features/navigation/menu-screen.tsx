@@ -91,7 +91,7 @@ export function MenuScreen() {
 
         <SettingsGroup>
           <SettingsRow Icon={Settings} label="Settings & privacy" onPress={() => router.push("/settings")} />
-          <SettingsRow Icon={HelpCircle} label="Help centre" description="Answers to common questions" onPress={() => void openWeb("/help")} />
+          <SettingsRow Icon={HelpCircle} label="Help centre" description="Answers to common questions" onPress={() => router.push("/help")} />
         </SettingsGroup>
 
         {/* The web's public pages, opened in the browser: they're written for the web and change there. */}

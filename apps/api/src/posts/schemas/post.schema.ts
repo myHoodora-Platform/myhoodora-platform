@@ -56,6 +56,10 @@ export class FeedPost {
   @Prop({ type: { type: String, enum: ["Point"] }, coordinates: { type: [Number], default: undefined }, _id: false })
   location?: { type: "Point"; coordinates: [number, number] };
 
+  /** The alert's place in words, beside its pin (2026-10-28). */
+  @Prop({ maxlength: 120 })
+  locationLabel?: string;
+
   @Prop({ type: [String], default: [] })
   mediaUrls!: string[];
 

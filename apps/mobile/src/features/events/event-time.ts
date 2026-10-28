@@ -59,11 +59,24 @@ export function eventWhen(iso: string, now = new Date()): string {
   return `${day.replace(",", "")}, ${clock(iso)}`;
 }
 
-/** Upcoming soonest first (one on now stays until it ends); past most recent first. Undated count as upcoming. */
-export function splitEvents<T extends { eventDate?: string }>(events: T[], now = new Date()): { upcoming: T[]; past: T[] } {
-  const over = (e: T) => !!e.eventDate && eventEndsAt(e.eventDate) <= now;
+/**
+ * Events posted before dates were required have none. One counts as upcoming for this long after it
+ * was posted (it was usually "this Saturday"), then as past, so it can't sit in Upcoming for ever.
+ */
+export const UNDATED_UPCOMING_DAYS = 14;
+
+/** Over: ended, or undated and posted more than two weeks ago. */
+export function isPastEvent(e: { eventDate?: string; createdAt?: string }, now = new Date()): boolean {
+  if (e.eventDate) return eventEndsAt(e.eventDate) <= now;
+  const posted = e.createdAt ? new Date(e.createdAt).getTime() : NaN;
+  return !Number.isNaN(posted) && now.getTime() - posted > UNDATED_UPCOMING_DAYS * 24 * HOUR_MS;
+}
+
+/** Upcoming soonest first (one on now stays until it ends; undated last); past most recent first. */
+export function splitEvents<T extends { eventDate?: string; createdAt?: string }>(events: T[], now = new Date()): { upcoming: T[]; past: T[] } {
+  const when = (e: T) => e.eventDate ?? e.createdAt ?? "";
   return {
-    upcoming: events.filter((e) => !over(e)).sort((a, b) => (a.eventDate ?? "9").localeCompare(b.eventDate ?? "9")),
-    past: events.filter(over).sort((a, b) => b.eventDate!.localeCompare(a.eventDate!)),
+    upcoming: events.filter((e) => !isPastEvent(e, now)).sort((a, b) => (a.eventDate ?? "9").localeCompare(b.eventDate ?? "9")),
+    past: events.filter((e) => isPastEvent(e, now)).sort((a, b) => when(b).localeCompare(when(a))),
   };
 }

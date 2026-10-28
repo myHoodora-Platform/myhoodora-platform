@@ -1,4 +1,4 @@
-import type { AlertCategory, PostCategory } from "@myhoodora/api-contract/types";
+import type { AlertCategory, PostCategory, AlertPlace } from "@myhoodora/api-contract/types";
 import type { NewPost } from "@/features/feed/feed-api";
 import { eventDateProblem } from "@/features/events/event-time";
 import { POLL_MAX_OPTIONS, POLL_MIN_OPTIONS } from "@/features/polls/polls-api";
@@ -40,6 +40,8 @@ export interface Draft {
   /** As typed; blanks are dropped when sending. */
   pollOptions: string[];
   pollDays: number;
+  /** Alerts: where it's happening, if they said (a pin, or an area found on the map). */
+  place: AlertPlace | null;
 }
 
 export const blankDraft = (category: PostCategory = "general"): Draft => ({
@@ -52,6 +54,7 @@ export const blankDraft = (category: PostCategory = "general"): Draft => ({
   eventLocation: "",
   pollOptions: ["", ""],
   pollDays: 3,
+  place: null,
 });
 
 /** The kinds a link can open the composer on (`/compose?kind=event`). */
@@ -92,7 +95,7 @@ export function toNewPost(d: Draft, clientId: string, now = Date.now()): NewPost
     message: d.message.trim(),
     category: d.category,
     clientId,
-    ...(d.category === "alert" && { alertCategory: d.alertCategory ?? "other", urgent: d.urgent }),
+    ...(d.category === "alert" && { alertCategory: d.alertCategory ?? "other", urgent: d.urgent, ...(d.place && { location: d.place }) }),
     ...(d.category === "thanks" && { thankedName: d.thankedName.trim() }),
     ...(d.category === "event" && d.eventDate && { type: "event" as const, eventDate: d.eventDate.toISOString(), ...(d.eventLocation.trim() && { eventLocation: d.eventLocation.trim() }) }),
     ...(d.category === "poll" && {

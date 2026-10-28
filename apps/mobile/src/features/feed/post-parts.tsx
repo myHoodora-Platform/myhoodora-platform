@@ -8,6 +8,7 @@ import { Avatar } from "@/shared/ui/avatar";
 import { Text } from "@/shared/ui/text";
 import { timeAgo } from "@/shared/utils/time";
 import { useAuth } from "@/core/auth/auth-provider";
+import { useRouter } from "@/core/navigation/use-router";
 import { pickerLayout, ReactionPicker, reactionAt } from "./reaction-picker";
 import { REACTIONS, reactionDef, topReactions } from "./reactions";
 import { usePostActions } from "./use-post-actions";
@@ -108,16 +109,33 @@ export function PostAuthor({ post, size = 40, compact = false, onAuthor, onAutho
   );
 }
 
-/** "Resolved" on an alert that's over. The text itself is SeeMoreText in the feed, plain on the post's page. */
+/**
+ * Above an alert's text: "Resolved" once it's over, and where it is (tap for the alerts map). The text
+ * itself is SeeMoreText in the feed, plain on the post's page.
+ */
 export function PostResolved({ post }: { post: ApiPost }) {
   const t = useTheme();
-  if (!post.resolvedAt) return null;
+  const router = useRouter();
+  const place = post.category === "alert" ? post.location : undefined;
+  if (!post.resolvedAt && !place) return null;
   return (
-    <View style={styles.row}>
-      <CheckCircle2 size={16} color={t.colors.success} />
-      <Text variant="caption" tone="success">
-        Resolved
-      </Text>
+    <View style={styles.alertLines}>
+      {post.resolvedAt ? (
+        <View style={styles.row}>
+          <CheckCircle2 size={16} color={t.colors.success} />
+          <Text variant="caption" tone="success">
+            Resolved
+          </Text>
+        </View>
+      ) : null}
+      {place ? (
+        <Pressable onPress={() => router.push("/alerts/map")} accessibilityRole="link" accessibilityLabel={`Where: ${place.label ?? "pinned on the map"}. Opens the alerts map`} style={styles.row} hitSlop={6}>
+          <MapPin size={16} color={t.colors.destructive} />
+          <Text variant="caption" style={[styles.shrink, { color: t.colors.foreground, fontFamily: t.fonts.semibold }]} numberOfLines={1}>
+            {place.label ?? "On the map"}
+          </Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -274,6 +292,7 @@ const styles = StyleSheet.create({
   author: { flexDirection: "row", alignItems: "center", gap: 10, flexShrink: 1 },
   name: { fontSize: 16 },
   row: { flexDirection: "row", alignItems: "center", gap: 6 },
+  alertLines: { gap: 4 },
   pill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
   pillText: { fontSize: 12, fontFamily: fonts.semibold },
   counts: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, minHeight: 32 },

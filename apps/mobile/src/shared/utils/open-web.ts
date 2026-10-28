@@ -1,7 +1,10 @@
-import * as WebBrowser from "expo-web-browser";
-import { config } from "@/core/config/env";
+import { pushOnce } from "@/core/navigation/use-router";
 
-/** Opens one of the website's pages (help, guidelines, terms) in the in-app browser. */
-export function openWeb(path: string): Promise<unknown> {
-  return WebBrowser.openBrowserAsync(`${config().webUrl}${path}`);
+/**
+ * Opens one of the website's public pages (guidelines, terms, Business…) in the app's own web view
+ * (features/web), under the app's header. `title` shows until the page reports its own.
+ */
+export function openWeb(path: string, title?: string): Promise<void> {
+  pushOnce({ pathname: "/web", params: { path, ...(title && { title }) } });
+  return Promise.resolve();
 }

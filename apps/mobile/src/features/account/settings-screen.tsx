@@ -149,7 +149,7 @@ function SettingsContent() {
             void replayHomeTour(user.uid).then(() => router.navigate("/news-feed"));
           }}
         />
-        <SettingsRow Icon={HelpCircle} label="Help centre" onPress={() => web("/help")} />
+        <SettingsRow Icon={HelpCircle} label="Help centre" onPress={() => router.push("/help")} />
         <SettingsRow Icon={LifeBuoy} label="Contact us" onPress={() => web("/contact")} />
         <SettingsRow Icon={FileText} label="Terms of Use" onPress={() => web("/terms")} />
         <SettingsRow Icon={BookOpen} label="Privacy Policy" onPress={() => web("/privacy")} />

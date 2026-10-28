@@ -10,7 +10,7 @@ import { Text } from "@/shared/ui/text";
 import { useToast } from "@/shared/ui/toast";
 import { signal } from "@/features/feedback/engagement";
 import { updatePostEverywhere } from "@/features/feed/use-reaction";
-import { dateBadge, eventPhase, eventWhen, PHASE_LABEL } from "./event-time";
+import { dateBadge, eventPhase, eventWhen, isPastEvent, PHASE_LABEL } from "./event-time";
 import { setRsvp, withRsvp } from "./events-api";
 
 const emptyRsvp = (postId: string): EventRsvpSummary => ({ postId, goingCount: 0, interestedCount: 0, myStatus: null });
@@ -19,12 +19,23 @@ const emptyRsvp = (postId: string): EventRsvpSummary => ({ postId, goingCount: 0
 export function DateBadge({ iso }: { iso?: string }) {
   const t = useTheme();
   const b = iso ? dateBadge(iso) : null;
+  if (!b) {
+    // Posted before events needed a date: a plain calendar, not a made-up one.
+    return (
+      <View style={[styles.badge, { borderColor: t.colors.border, backgroundColor: t.colors.muted }]} accessible={false}>
+        <CalendarDays size={24} color={t.colors.mutedForeground} />
+        <Text variant="caption" tone="muted">
+          No date
+        </Text>
+      </View>
+    );
+  }
   return (
     <View style={[styles.badge, { borderColor: t.colors.border, backgroundColor: t.colors.card }]} accessible={false}>
-      <Text style={[styles.month, { color: t.colors.destructive, fontFamily: t.fonts.bold }]}>{b?.month ?? "TBC"}</Text>
-      <Text style={[styles.day, { color: t.colors.foreground, fontFamily: t.fonts.bold }]}>{b?.day ?? "–"}</Text>
+      <Text style={[styles.month, { color: t.colors.destructive, fontFamily: t.fonts.bold }]}>{b.month}</Text>
+      <Text style={[styles.day, { color: t.colors.foreground, fontFamily: t.fonts.bold }]}>{b.day}</Text>
       <Text variant="caption" tone="muted">
-        {b?.weekday ?? ""}
+        {b.weekday}
       </Text>
     </View>
   );
@@ -67,7 +78,14 @@ export function EventFacts({ post, title }: { post: ApiPost; title?: string }) {
             </Text>
             <PhaseChip iso={post.eventDate} />
           </View>
-        ) : null}
+        ) : (
+          <View style={styles.line}>
+            <CalendarDays size={15} color={t.colors.mutedForeground} />
+            <Text variant="caption" tone="muted" style={styles.flexShrink}>
+              The host didn&apos;t set a date
+            </Text>
+          </View>
+        )}
         {post.eventLocation ? (
           <View style={styles.line}>
             <MapPin size={15} color={t.colors.mutedForeground} />
@@ -92,7 +110,8 @@ export function RsvpBar({ post }: { post: ApiPost }) {
   const toast = useToast();
   const sending = useRef(false);
   const s = post.rsvp ?? emptyRsvp(post._id);
-  const ended = s.ended || eventPhase(post.eventDate) === "ended";
+  // An undated event from before dates were required closes two weeks after it was posted.
+  const ended = s.ended || eventPhase(post.eventDate) === "ended" || (!post.eventDate && isPastEvent(post));
 
   if (ended) {
     return (

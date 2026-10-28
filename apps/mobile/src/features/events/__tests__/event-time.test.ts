@@ -1,5 +1,5 @@
 import { withRsvp } from "../events-api";
-import { eventPhase, eventTitle, splitEvents } from "../event-time";
+import { eventPhase, eventTitle, isPastEvent, splitEvents } from "../event-time";
 
 describe("event phases (an event lasts 3 hours, as on the web and the API)", () => {
   const start = "2026-11-01T16:00:00";
@@ -18,6 +18,16 @@ describe("event phases (an event lasts 3 hours, as on the web and the API)", () 
     );
     expect(upcoming.map((e) => e.eventDate)).toEqual([start, "2026-11-05T10:00:00", undefined]);
     expect(past.map((e) => e.eventDate)).toEqual(["2026-10-20T10:00:00", "2026-10-01T10:00:00"]);
+  });
+  it("an undated event (from before dates were required) is upcoming for two weeks after it was posted, then past", () => {
+    const now = new Date("2026-10-28T12:00:00");
+    const fresh = { createdAt: "2026-10-20T12:00:00" };
+    const old = { createdAt: "2026-09-17T22:00:00" };
+    const { upcoming, past } = splitEvents([fresh, old, { eventDate: "2026-10-01T10:00:00" }], now);
+    expect(upcoming).toEqual([fresh]);
+    expect(past).toEqual([{ eventDate: "2026-10-01T10:00:00" }, old]);
+    expect(isPastEvent(old, now)).toBe(true);
+    expect(isPastEvent(fresh, now)).toBe(false);
   });
 });
 

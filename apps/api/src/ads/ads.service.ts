@@ -10,6 +10,7 @@ import { StorageService } from "../storage/storage.service";
 import { Ad, AdEvent, AdHide, AdSettings, type AdTrackedType, type AdCta, type AdDocument, type AdEventType, type AdFormat, type AdStatus } from "./ad.schema";
 import type { AdInputDto, AdSettingsDto } from "./ads.dto";
 import { DEFAULT_RULES, type Candidate, type PlacementRules } from "./domain/placement";
+import { distanceKm } from "../shared/geo/distance";
 
 const DAY = 86_400_000;
 /** Images narrower than this look soft in the feed (§5.1). */
@@ -419,15 +420,6 @@ export class AdsService implements OnModuleInit {
     for (const s of out.values()) s.ctr = s.impressions ? Math.round((s.clicks / s.impressions) * 10_000) / 100 : 0;
     return out;
   }
-}
-
-/** Great-circle distance in km (haversine): close enough for "within 3 km". */
-export function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
-  const rad = (d: number) => (d * Math.PI) / 180;
-  const dLat = rad(b.lat - a.lat);
-  const dLng = rad(b.lng - a.lng);
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
-  return 6371 * 2 * Math.asin(Math.sqrt(h));
 }
 
 function emptyStats(): AdStats {

@@ -119,7 +119,7 @@ Older event posts use `<!--event:{"date":"…","location":"…"}-->`. Both are d
 | `priceNaira` | `number \| null` | `for_sale` posts; `null` = free. |
 | `poll` | `{ options: { id, text }[]; closesAt: ISO }` | Required when `category = poll`. 2–4 options, each 1–60 chars and unique. Durations offered: 1, 3 or 7 days. The question is the post `message`. |
 | `visibility` | `"neighbourhood" \| "nearby" \| "anyone"` | Default `neighbourhood`. **Immutable after create.** Only `anyone` posts may be publicly previewable. |
-| `location` | GeoJSON Point (optional) | For alert pins on the Alerts map. |
+| `location` | `{ lat, lng, label? }` (optional, alerts only) | For alert pins on the Alerts map. Must be within 5 km of the neighbourhood's centre (or twice its radius, if larger), else `400`; rounded to 4 decimal places (about 10 m). `label` (≤ 120) is the place in words. Returned on alert posts as `location: { lat, lng, label? }` (2026-10-28). |
 | `commentCount` | `number` | Denormalised, returned on list/get. |
 | `myReaction` | `ReactionType \| null` | Viewer-relative. |
 | `reactionCounts` | `Partial<Record<ReactionType, number>>` | For showing the top reactions. |

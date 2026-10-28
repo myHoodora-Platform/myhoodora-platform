@@ -7,7 +7,6 @@ jest.mock("expo-router", () => ({
   Link: ({ children }: { children: React.ReactNode }) => children,
   useRouter: () => ({ canGoBack: () => true, back: jest.fn(), replace: jest.fn() }),
 }));
-jest.mock("expo-web-browser", () => ({ openBrowserAsync: jest.fn() }));
 
 beforeEach(() => mockSignUp.mockReset());
 

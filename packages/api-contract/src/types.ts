@@ -83,6 +83,16 @@ export interface ApiPost {
   commentsDisabled?: boolean;
   activeUntil?: string;
   resolvedAt?: string | null;
+  /** Alerts only: where it's happening, if the poster said (a pin, or an area found on the map). */
+  location?: AlertPlace;
+}
+
+/** An alert's place: rounded to about 10 m by the API, within a few km of the neighbourhood. */
+export interface AlertPlace {
+  lat: number;
+  lng: number;
+  /** The place in words ("Allen Avenue roundabout"), up to 120 characters. */
+  label?: string;
 }
 
 /**
@@ -145,6 +155,8 @@ export interface Post extends ApiPost {
 export interface CreatePostInput {
   message: string;
   meta: PostMeta;
+  /** Alerts: where it's happening (sent as `location`). */
+  location?: AlertPlace;
   /** Up to 10 photo URLs (from POST /media or pasted). */
   mediaUrls?: string[];
   /**

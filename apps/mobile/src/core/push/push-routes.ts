@@ -22,6 +22,7 @@ const APP_ROUTES: RegExp[] = [
   /^\/settings(\/(profile|notifications|privacy|email|neighbourhoods|moderation))?$/,
   /^\/alerts$/,
   /^\/leads$/,
+  /^\/help$/,
 ];
 
 export const FALLBACK_ROUTE = "/notifications";

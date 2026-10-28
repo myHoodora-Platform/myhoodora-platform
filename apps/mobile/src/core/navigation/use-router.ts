@@ -1,6 +1,6 @@
 // The one place allowed to use expo-router's own hook (eslint.config.js points everyone else here).
 // eslint-disable-next-line no-restricted-imports
-import { useRouter as useExpoRouter } from "expo-router";
+import { router as expoRouter, useRouter as useExpoRouter } from "expo-router";
 import { useMemo } from "react";
 
 /** Long enough to cover a double tap and the screen's open animation; short enough not to be noticed. */
@@ -38,4 +38,9 @@ export function useRouter(): Router {
     }),
     [router],
   );
+}
+
+/** The same one-screen-per-tap rule, for helpers that aren't components (openWeb). */
+export function pushOnce(href: Parameters<Router["push"]>[0]): void {
+  if (claimNavigation()) expoRouter.push(href);
 }

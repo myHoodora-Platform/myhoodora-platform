@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, HttpException, HttpStatus, Inj
 import { InjectModel } from "@nestjs/mongoose";
 import { Model, Types, type ClientSession, type QueryFilter } from "mongoose";
 import { HoodsService } from "../hoods/hoods.service";
+import { distanceKm } from "../shared/geo/distance";
 import { JobsService } from "../jobs/jobs.service";
 import { ModerationRegistry } from "../moderation/moderation-registry";
 import { NotificationsService } from "../notifications/notifications.service";
@@ -67,6 +68,8 @@ export interface PostView {
   commentsDisabled: boolean;
   activeUntil?: string;
   resolvedAt: string | null;
+  /** Alerts only: where it's happening, when the poster said (2026-10-28). */
+  location?: { lat: number; lng: number; label?: string };
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -88,6 +91,9 @@ export interface RsvpSummary {
   interestedCount: number;
   myStatus: "going" | "interested" | null;
 }
+
+/** How far from the neighbourhood's centre an alert's pin may be (or twice its radius, if larger). */
+export const ALERT_PLACE_MAX_KM = 5;
 
 @Injectable()
 export class PostsService implements OnModuleInit {
@@ -198,6 +204,22 @@ export class PostsService implements OnModuleInit {
   }
 
   /**
+   * An alert's place: within ALERT_PLACE_MAX_KM of the neighbourhood's centre (a pin dropped across
+   * town is a mistake), and rounded to about 10 m: enough to find the spot, not to single out a door.
+   */
+  private async alertPlace(hoodId: string, p: { lat: number; lng: number; label?: string }): Promise<{ lat: number; lng: number; label?: string }> {
+    const hood = await this.hoods.findById(hoodId);
+    const [lng, lat] = hood.location?.coordinates ?? [];
+    if (lat !== undefined && lng !== undefined) {
+      const limitKm = Math.max(ALERT_PLACE_MAX_KM, ((hood.radiusMeters ?? 0) / 1000) * 2);
+      if (distanceKm({ lat, lng }, p) > limitKm) throw new BadRequestException("That place is too far from your neighbourhood. Put the pin where it's happening, nearby.");
+    }
+    const round = (n: number) => Math.round(n * 10_000) / 10_000;
+    const label = p.label?.trim().replace(/\s+/g, " ");
+    return { lat: round(p.lat), lng: round(p.lng), ...(label && { label }) };
+  }
+
+  /**
    * `dto.clientId` makes this safe to repeat: the same id from the same person returns the post
    * created the first time. A client that timed out can't know whether its post was created, and
    * without this its retry posts (and announces) an alert twice.
@@ -236,6 +258,9 @@ export class PostsService implements OnModuleInit {
       activeUntil = new Date(now.getTime() + (windows[(meta.alertCategory ?? "other") as AlertCategory] ?? 24) * HOUR);
     }
 
+    // Only alerts carry a place, and it has to be in or near the neighbourhood.
+    const place = meta.category === "alert" && dto.location ? await this.alertPlace(viewer.hoodId, dto.location) : undefined;
+
     const mediaUrls = dto.mediaUrls ?? [];
     const mediaProblem = mediaMixProblem(mediaUrls);
     if (mediaProblem) throw new BadRequestException(mediaProblem);
@@ -257,7 +282,8 @@ export class PostsService implements OnModuleInit {
         priceNaira: meta.category === "for_sale" ? (meta.priceNaira ?? null) : undefined,
         poll: meta.poll ? { options: meta.poll.options, closesAt: new Date(meta.poll.closesAt) } : undefined,
         visibility: meta.visibility ?? "neighbourhood",
-        location: dto.location ? { type: "Point", coordinates: [dto.location.lng, dto.location.lat] } : undefined,
+        location: place ? { type: "Point", coordinates: [place.lng, place.lat] } : undefined,
+        locationLabel: place?.label,
         mediaUrls,
         activeUntil,
       });
@@ -542,6 +568,7 @@ export class PostsService implements OnModuleInit {
         commentsDisabled: Boolean(d.commentsDisabled),
         activeUntil: d.activeUntil?.toISOString(),
         resolvedAt: d.resolvedAt?.toISOString() ?? null,
+        ...(meta.category === "alert" && d.location?.coordinates?.length === 2 && { location: { lat: d.location.coordinates[1], lng: d.location.coordinates[0], ...(d.locationLabel && { label: d.locationLabel }) } }),
         isActive: d.isActive,
         createdAt: (d.createdAt ?? new Date()).toISOString(),
         updatedAt: (d.updatedAt ?? d.createdAt ?? new Date()).toISOString(),

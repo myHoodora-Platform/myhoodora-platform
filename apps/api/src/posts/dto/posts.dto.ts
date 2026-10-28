@@ -48,9 +48,15 @@ class PollDto {
   closesAt!: string;
 }
 
+/** Where an alert is happening (2026-10-28): a pin, or an area the person typed, found on the map. */
 class PointDto {
   @IsLatitude() lat!: number;
   @IsLongitude() lng!: number;
+  /**
+   * The place in words, shown with the pin.
+   * @example Allen Avenue roundabout
+   */
+  @IsOptional() @IsString() @MaxLength(120) label?: string;
 }
 
 /**

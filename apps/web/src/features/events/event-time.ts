@@ -12,6 +12,19 @@ export type EventPhase = "upcoming" | "today" | "live" | "ended";
 
 export const eventEndsAt = (startIso: string) => new Date(new Date(startIso).getTime() + EVENT_LENGTH_MS);
 
+/**
+ * Events posted before dates were required have none. One counts as upcoming for this long after it
+ * was posted (it was usually "this Saturday"), then as past, so it can't sit in Upcoming for ever.
+ * Same rule in the app (apps/mobile/src/features/events/event-time.ts).
+ */
+export const UNDATED_UPCOMING_DAYS = 14;
+
+export function isPastEvent(eventDate: string | undefined, createdAt: string | undefined, now = new Date()): boolean {
+  if (eventDate) return eventEndsAt(eventDate) <= now;
+  const posted = createdAt ? new Date(createdAt).getTime() : NaN;
+  return !Number.isNaN(posted) && now.getTime() - posted > UNDATED_UPCOMING_DAYS * 86_400_000;
+}
+
 /** Where an event is in its life, for labels ("Today", "Happening now", "Ended") and closing RSVPs. */
 export function eventPhase(startIso: string | undefined, now = new Date()): EventPhase {
   if (!startIso) return "upcoming";

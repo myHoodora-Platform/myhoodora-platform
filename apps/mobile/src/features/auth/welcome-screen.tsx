@@ -1,7 +1,6 @@
 import { Image } from "expo-image";
 import { useRouter } from "@/core/navigation/use-router";
 import { StatusBar } from "expo-status-bar";
-import * as WebBrowser from "expo-web-browser";
 import { Play } from "lucide-react-native";
 import { Pressable, StyleSheet, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -12,6 +11,7 @@ import { MascotWordmark } from "@/shared/ui/brand";
 import { Button } from "@/shared/ui/button";
 import { Headline } from "@/shared/ui/headline";
 import { Text } from "@/shared/ui/text";
+import { openWeb } from "@/shared/utils/open-web";
 
 /** The web hero's accent on its dark photo (apps/web/src/components/marketing/landing.tsx). */
 const HERO_ACCENT = "#7fd6cb";
@@ -22,7 +22,7 @@ export function WelcomeScreen() {
   const router = useRouter();
   const { replayIntro } = useAuth();
   const insets = useSafeAreaInsets();
-  const open = (path: string) => void WebBrowser.openBrowserAsync(`${config().webUrl}${path}`);
+  const open = (path: string) => void openWeb(path);
 
   return (
     <View style={styles.flex}>

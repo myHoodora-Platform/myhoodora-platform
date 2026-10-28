@@ -1,9 +1,8 @@
 import type { AlertCategory, ApiPost } from "@myhoodora/api-contract/types";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { Plus, ShieldCheck } from "lucide-react-native";
 import { useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
-import { useAuth, useSignedInUser } from "@/core/auth/auth-provider";
+import { useAuth } from "@/core/auth/auth-provider";
 import { hasHood } from "@/core/auth/session-phase";
 import { useRouter } from "@/core/navigation/use-router";
 import { usePullRefresh } from "@/shared/hooks/use-pull-refresh";
@@ -15,16 +14,15 @@ import { IconButton } from "@/shared/ui/icon-button";
 import { FeedSkeleton, Skeleton } from "@/shared/ui/skeleton";
 import { EmptyState, ErrorState } from "@/shared/ui/states";
 import { Text } from "@/shared/ui/text";
-import { feedKeys, getHood, listFeed, nextCursor, pagePosts } from "@/features/feed/feed-api";
 import { PostCard } from "@/features/feed/post-card";
 import { ALERT_TYPES } from "./alert-kinds";
-import { ALERT_HISTORY_DAYS, activeCounts, isRecentAlert, splitAlerts } from "./alert-lifecycle";
+import { activeCounts, splitAlerts } from "./alert-lifecycle";
+import { useHoodArea, useRecentAlerts } from "./alerts-data";
 import { HoodMap } from "./hood-map";
 
 type Filter = "all" | AlertCategory;
 type Row = { kind: "heading"; id: string; title: string; note?: string } | { kind: "calm"; id: string } | { kind: "post"; id: string; post: ApiPost };
 
-const WEEK_MS = ALERT_HISTORY_DAYS * 24 * 3_600_000;
 
 export const alertFilter = (raw: string | undefined): Filter => (ALERT_TYPES.some((k) => k.id === raw) ? (raw as AlertCategory) : "all");
 
@@ -50,24 +48,14 @@ export function AlertsScreen({ type }: { type?: string }) {
 function AlertsList({ hoodId, initial, onPost }: { hoodId: string; initial: Filter; onPost: () => void }) {
   const t = useTheme();
   const insets = useScreenInsets();
-  const user = useSignedInUser();
   const [filter, setFilter] = useState<Filter>(initial);
   // Checked against once per visit, so the lists don't reshuffle while you read (and render stays pure).
   const [now] = useState(() => Date.now());
-  const hood = useQuery({ queryKey: feedKeys.hoodName(hoodId), queryFn: () => getHood(user, hoodId), staleTime: Infinity });
-  const alerts = useInfiniteQuery({
-    queryKey: [...feedKeys.hood(hoodId), "alerts-screen"],
-    queryFn: ({ pageParam }) => listFeed(user, hoodId, pageParam, "alert"),
-    initialPageParam: undefined as string | undefined,
-    // Only the last week is shown, so stop once a page reaches past it.
-    getNextPageParam: (page) => {
-      const last = page[page.length - 1];
-      return last && now - new Date(last.createdAt).getTime() < WEEK_MS ? nextCursor(page) : undefined;
-    },
-  });
+  const router = useRouter();
+  const { query: alerts, all } = useRecentAlerts(hoodId, now);
+  const { area, name } = useHoodArea(hoodId);
   const pull = usePullRefresh(alerts.refetch);
 
-  const all = useMemo(() => (alerts.data?.pages.flatMap(pagePosts) ?? []).filter((p) => isRecentAlert(p, now)), [alerts.data, now]);
   const counts = useMemo(() => activeCounts(all, now), [all, now]);
   const rows = useMemo((): Row[] => {
     const ofType = filter === "all" ? all : all.filter((p) => (p.alertCategory ?? "other") === filter);
@@ -83,15 +71,18 @@ function AlertsList({ hoodId, initial, onPost }: { hoodId: string; initial: Filt
     return out;
   }, [all, filter, now]);
 
-  const centre = hood.data?.location?.coordinates;
   const header = (
     <View style={styles.header}>
       <View style={[styles.mapCard, { backgroundColor: t.colors.card, borderColor: t.colors.border }]}>
         <View style={[styles.map, { backgroundColor: t.colors.muted }]}>
-          {centre ? <HoodMap lng={centre[0]} lat={centre[1]} radiusMeters={hood.data?.radiusMeters ?? 1500} name={hood.data?.name ?? "your neighbourhood"} /> : <Skeleton height="100%" radius={0} />}
+          {area ? (
+            <HoodMap lng={area.centre[0]} lat={area.centre[1]} radiusMeters={area.radiusMeters} name={area.name} alerts={all} now={now} onOpen={() => router.push("/alerts/map")} />
+          ) : (
+            <Skeleton height="100%" radius={0} />
+          )}
         </View>
         <View style={styles.intro}>
-          <Text variant="heading">Alerts in {hood.data?.name ?? "your neighbourhood"}</Text>
+          <Text variant="heading">Alerts in {name ?? "your neighbourhood"}</Text>
           <Text variant="caption" tone="muted">
             Security, power, flooding and other updates from verified neighbours.
           </Text>

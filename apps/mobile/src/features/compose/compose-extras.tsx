@@ -1,4 +1,5 @@
-import { Plus, X } from "lucide-react-native";
+import type { AlertPlace } from "@myhoodora/api-contract/types";
+import { ChevronRight, MapPin, Plus, X } from "lucide-react-native";
 import { useState } from "react";
 import { Pressable, StyleSheet, TextInput, View } from "react-native";
 import { MIN_TOUCH, useTheme } from "@/shared/theme/theme";
@@ -99,4 +100,47 @@ const styles = StyleSheet.create({
   remove: { width: MIN_TOUCH, height: MIN_TOUCH, alignItems: "center", justifyContent: "center" },
   add: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: MIN_TOUCH, alignSelf: "flex-start" },
   chips: { flexDirection: "row", gap: 8 },
+});
+
+/**
+ * An alert's place, optional: "Add the place" opens the map (pin, search or your location); once
+ * chosen it shows its name, to change or remove.
+ */
+export function PlaceRow({ place, ready, onPick, onClear }: { place: AlertPlace | null; ready: boolean; onPick: () => void; onClear: () => void }) {
+  const t = useTheme();
+  return (
+    <View style={[placeStyles.row, { borderColor: t.colors.border, borderRadius: t.radius.xl }]}>
+      <Pressable
+        onPress={onPick}
+        disabled={!ready}
+        accessibilityRole="button"
+        accessibilityLabel={place ? `Place: ${place.label ?? "pinned on the map"}. Change it` : "Add the place on a map, optional"}
+        style={placeStyles.main}
+      >
+        <View style={[placeStyles.icon, { backgroundColor: place ? t.colors.dangerSoft : t.colors.muted }]}>
+          <MapPin size={18} color={place ? t.colors.destructive : t.colors.mutedForeground} />
+        </View>
+        <View style={placeStyles.flex}>
+          <Text variant="label">{place ? (place.label ?? "Pinned on the map") : "Add the place"}</Text>
+          <Text variant="caption" tone="muted">
+            {place ? "Tap to change it" : ready ? "Optional. Pin it, or type the street or area" : "Loading the map…"}
+          </Text>
+        </View>
+        {place ? null : <ChevronRight size={18} color={t.colors.mutedForeground} />}
+      </Pressable>
+      {place ? (
+        <Pressable onPress={onClear} accessibilityRole="button" accessibilityLabel="Remove the place" hitSlop={10} style={placeStyles.clear}>
+          <X size={18} color={t.colors.mutedForeground} />
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+const placeStyles = StyleSheet.create({
+  flex: { flex: 1 },
+  row: { flexDirection: "row", alignItems: "center", borderWidth: 1, paddingRight: 8 },
+  main: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12, padding: 12, minHeight: MIN_TOUCH },
+  icon: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  clear: { width: MIN_TOUCH - 8, height: MIN_TOUCH - 8, alignItems: "center", justifyContent: "center" },
 });

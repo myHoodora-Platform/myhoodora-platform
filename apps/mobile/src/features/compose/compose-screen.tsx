@@ -22,7 +22,9 @@ import { Text } from "@/shared/ui/text";
 import { TextField } from "@/shared/ui/text-field";
 import { useToast } from "@/shared/ui/toast";
 import { ALERT_KINDS, blankDraft, COMPOSE_KINDS, draftErrors, kindFromParam, MESSAGE_MAX, newClientId, toNewPost, type Draft, type DraftErrors } from "./compose-rules";
-import { EventFields, PollFields } from "./compose-extras";
+import { EventFields, PlaceRow, PollFields } from "./compose-extras";
+import { useHoodArea } from "@/features/alerts/alerts-data";
+import { PlacePicker } from "@/features/alerts/place-picker";
 import { signal } from "@/features/feedback/engagement";
 
 const KINDNESS_TIMEOUT_MS = 3000;
@@ -58,6 +60,9 @@ export function ComposeScreen({ kind: startKind }: { kind?: string }) {
   // Up to 10 photos per post (contract §20).
   const photos = usePhotoUploads("post", 10);
   const kind = COMPOSE_KINDS.find((k) => k.id === draft.category) ?? COMPOSE_KINDS[0]!;
+  // For an alert's place: the neighbourhood on the map.
+  const { area } = useHoodArea(hasHood(profile) ? profile.neighborhoodId : undefined);
+  const [picking, setPicking] = useState(false);
   const close = () => (router.canGoBack() ? router.back() : router.replace("/news-feed"));
 
   if (!hasHood(profile)) {
@@ -170,6 +175,7 @@ export function ComposeScreen({ kind: startKind }: { kind?: string }) {
                 </View>
                 <Switch value={draft.urgent} onValueChange={(urgent) => edit({ urgent })} accessibilityLabel="Urgent" trackColor={{ true: t.colors.destructive, false: t.colors.input }} />
               </View>
+              <PlaceRow place={draft.place} ready={!!area} onPick={() => setPicking(true)} onClear={() => edit({ place: null })} />
             </View>
           ) : null}
           {draft.category === "thanks" ? (
@@ -192,6 +198,18 @@ export function ComposeScreen({ kind: startKind }: { kind?: string }) {
           {draft.category === "poll" ? <PollFields draft={draft} errors={errors} edit={edit} /> : null}
           <PhotoStrip uploads={photos} />
       </KeyboardAwareScrollView>
+      {area ? (
+        <PlacePicker
+          visible={picking}
+          hood={area}
+          initial={draft.place}
+          onClose={() => setPicking(false)}
+          onConfirm={(place) => {
+            edit({ place });
+            setPicking(false);
+          }}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }

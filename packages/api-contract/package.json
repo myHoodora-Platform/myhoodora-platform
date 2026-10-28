@@ -16,7 +16,8 @@
     "./coverage": "./src/coverage.ts",
     "./roles": "./src/roles.ts",
     "./settings": "./src/settings.ts",
-    "./support": "./src/support.ts"
+    "./support": "./src/support.ts",
+    "./geo": "./src/geo.ts"
   },
   "scripts": {
     "lint": "eslint .",

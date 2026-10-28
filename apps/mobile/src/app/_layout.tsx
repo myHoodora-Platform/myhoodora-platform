@@ -44,6 +44,8 @@ function RootNavigator() {
       <StatusBar style={t.scheme === "dark" ? "light" : "dark"} />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: t.colors.background } }}>
         <Stack.Screen name="index" />
+        {/* The website's public pages, for everyone (terms on the sign-up screen too). */}
+        <Stack.Screen name="web" />
         <Stack.Protected guard={phase === "intro"}>
           <Stack.Screen name="intro" options={{ animation: "fade" }} />
         </Stack.Protected>
