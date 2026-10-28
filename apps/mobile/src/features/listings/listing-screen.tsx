@@ -21,6 +21,7 @@ import { firstName, formatNaira } from "@/shared/utils/format";
 import { shareLink } from "@/shared/utils/share";
 import { timeAgo } from "@/shared/utils/time";
 import { categoryLabel, conditionLabel, getListing, listingKeys, statusLabel } from "./listings-api";
+import { SellerTools } from "./seller-tools";
 
 /** The listing's photos edge to edge, or a placeholder when it has none. */
 function Photos({ listing }: { listing: Listing }) {
@@ -183,7 +184,7 @@ export function ListingScreen({ id }: { id: string }) {
               <Text variant="caption">{conditionLabel(l.condition)}</Text>
             </View>
           </View>
-          <MessageSeller listing={l} />
+          {l.sellerUid === user.uid ? <SellerTools listing={l} /> : <MessageSeller listing={l} />}
         </View>
       </ScrollView>
       {topBar}
