@@ -16,6 +16,7 @@ import { ConnectionStrip } from "@/shared/ui/connection-strip";
 import { EmptyState, ErrorState } from "@/shared/ui/states";
 import { Text } from "@/shared/ui/text";
 import { search, SEARCH_MIN, type SearchType } from "./search-api";
+import { useFeatureSignal } from "@/features/feedback/use-feature-signal";
 
 const TYPES: { id: SearchType; label: string }[] = [
   { id: "all", label: "All" },
@@ -69,6 +70,7 @@ function Section({ title, children, show }: { title: string; children: React.Rea
 
 /** Search your neighbourhood: posts, things for sale, neighbours (contract §21). */
 export function SearchScreen() {
+  useFeatureSignal("search");
   const t = useTheme();
   const user = useSignedInUser();
   const { profile } = useAuth();

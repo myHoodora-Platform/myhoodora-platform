@@ -1,4 +1,4 @@
-import type { AdBackground, AdMedia, FeedAd } from "@myhoodora/api-contract/ads";
+import type { AdMedia, FeedAd } from "@myhoodora/api-contract/ads";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEvent } from "expo";
 import { Image } from "expo-image";
@@ -10,6 +10,7 @@ import { useSignedInUser } from "@/core/auth/auth-provider";
 import { hideAd, isAd, reportAd, updateFeedEntries, type AdEntry } from "@/features/feed/feed-api";
 import { ReportSheet } from "@/features/feed/report-sheet";
 import { SeeMoreText } from "@/features/feed/see-more-text";
+import { accent } from "@/shared/theme/accents";
 import { MIN_TOUCH, tint, useTheme, type Theme } from "@/shared/theme/theme";
 import { ActionSheet } from "@/shared/ui/action-sheet";
 import { Avatar } from "@/shared/ui/avatar";
@@ -20,15 +21,6 @@ import { adTracker } from "./ad-tracking";
 
 /** Lines of ad text before "See more" (Meta's guidance: about 125 characters). */
 const AD_LINES = 3;
-
-/** Announcement colours, by name, for light and dark (the API sends only the name). */
-const BACKGROUNDS: Record<AdBackground, { light: [string, string]; dark: [string, string] }> = {
-  green: { light: ["#E7F4EE", "#0F5132"], dark: ["#12352A", "#BFE8D4"] },
-  blue: { light: ["#E8F0FE", "#1E3A8A"], dark: ["#172554", "#BFD3FE"] },
-  amber: { light: ["#FEF3C7", "#92400E"], dark: ["#3B2A0A", "#FDE68A"] },
-  rose: { light: ["#FFE4E6", "#9F1239"], dark: ["#3F1220", "#FECDD3"] },
-  slate: { light: ["#F1F5F9", "#334155"], dark: ["#1E293B", "#CBD5E1"] },
-};
 
 const clampAspect = (aspect: number | undefined, min: number, max: number) => Math.min(max, Math.max(min, aspect ?? 1));
 const domainOf = (url?: string) => {
@@ -164,7 +156,7 @@ export const AdCard = memo(function AdCard({ entry, session, active }: { entry: 
 
 /** Text on a coloured panel: notices from the community team. */
 function Announcement({ ad, theme }: { ad: FeedAd; theme: Theme }) {
-  const [bg, fg] = BACKGROUNDS[(ad.background as AdBackground) ?? "green"][theme.scheme];
+  const [bg, fg] = accent(ad.background, theme.scheme);
   return (
     <View style={[styles.announcement, { backgroundColor: bg }]}>
       <Text style={[styles.announcementText, { color: fg }]}>{ad.primaryText}</Text>

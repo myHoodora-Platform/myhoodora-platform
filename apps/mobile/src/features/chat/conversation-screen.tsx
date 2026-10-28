@@ -21,6 +21,7 @@ import { useLive } from "@/features/live/live-store";
 import { useTypingIndicator, useTypingSignal } from "@/features/live/use-typing";
 import { chatKeys, getConversation, listMessages, sendMessage, sendTyping } from "./chat-api";
 import { otherPerson } from "./inbox-screen";
+import { signal } from "@/features/feedback/engagement";
 
 /** New messages arrive over the live connection; only while it's down does an open thread check (contract §19). */
 const FALLBACK_POLL_MS = 15_000;
@@ -40,6 +41,7 @@ export function ConversationScreen({ id }: { id: string }) {
     mutationFn: (body: string) => sendMessage(user, id, body),
     onSuccess: (message) => {
       setText("");
+      signal(user, "message_sent", id);
       client.setQueryData<Message[]>(chatKeys.messages(id), (rows) => [...(rows ?? []), message]);
       void client.invalidateQueries({ queryKey: chatKeys.all });
     },

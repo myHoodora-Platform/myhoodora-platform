@@ -7,6 +7,7 @@ import { addComment, feedKeys } from "@/features/feed/feed-api";
 import { updatePostEverywhere } from "@/features/feed/use-reaction";
 import { insertComment } from "./comment-cache";
 import { newClientId } from "./comment-drafts";
+import { signal } from "@/features/feedback/engagement";
 
 export interface PendingComment {
   clientId: string;
@@ -39,6 +40,7 @@ export function useSendComment(post: Pick<ApiPost, "_id">) {
       try {
         const saved = await addComment(user, post._id, p.content, { parentId: p.parentId, clientId: p.clientId });
         insertComment(client, post._id, saved);
+        signal(user, "comment_created", post._id);
         updatePostEverywhere(client, post._id, (x) => ({ ...x, commentCount: (x.commentCount ?? 0) + 1 }));
         // The old flat list (the post's own page) refreshes in the background.
         void client.invalidateQueries({ queryKey: feedKeys.comments(post._id), exact: true });

@@ -18,6 +18,7 @@ import { EmptyState } from "@/shared/ui/states";
 import { Text } from "@/shared/ui/text";
 import { monthYear } from "@/shared/utils/time";
 import { accountKeys, getPublicProfile } from "./account-api";
+import { useFeatureSignal } from "@/features/feedback/use-feature-signal";
 
 type Tab = "listings" | "about";
 
@@ -56,6 +57,7 @@ function MyListings({ uid, hoodId }: { uid: string; hoodId: string }) {
  * (photo, name, a line about you); the address never shows, only the neighbourhood.
  */
 export function ProfileScreen() {
+  useFeatureSignal("profile");
   const router = useRouter();
   return (
     <AppScreen title="Profile" right={<IconButton Icon={Settings} label="Settings" onPress={() => router.push("/settings")} />}>

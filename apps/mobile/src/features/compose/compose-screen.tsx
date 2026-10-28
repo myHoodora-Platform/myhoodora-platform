@@ -21,6 +21,7 @@ import { Text } from "@/shared/ui/text";
 import { TextField } from "@/shared/ui/text-field";
 import { useToast } from "@/shared/ui/toast";
 import { ALERT_KINDS, COMPOSE_KINDS, draftErrors, MESSAGE_MAX, newClientId, toNewPost, type Draft, type DraftErrors } from "./compose-rules";
+import { signal } from "@/features/feedback/engagement";
 
 const KINDNESS_TIMEOUT_MS = 3000;
 const REASON_TEXT: Record<string, string> = {
@@ -71,6 +72,8 @@ export function ComposeScreen() {
     try {
       const created = await createPost(user, hoodId, { ...toNewPost(draft, clientId), ...(photos.urls.length && { mediaUrls: photos.urls }) });
       liveStore.markOwnPost(created._id);
+      // Counts toward feedback prompts and the store review ("after your 5th post").
+      signal(user, draft.category === "recommendation" ? "recommendation_posted" : "post_created", created._id);
       await client.invalidateQueries({ queryKey: feedKeys.all });
       toast(draft.category === "alert" ? "Alert posted to your neighbours." : "Posted to your neighbourhood.");
       close();

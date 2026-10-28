@@ -25,6 +25,7 @@ import { underHeader, usePullRefresh } from "@/shared/hooks/use-pull-refresh";
 import { FeedBanner } from "./feed-banners";
 import { HoodSheet } from "./hood-sheet";
 import { AdCard } from "@/features/ads/ad-card";
+import { FeedPromptCard } from "@/features/feedback/feed-prompt-card";
 import { adTracker, newFeedSession } from "@/features/ads/ad-tracking";
 import { FEED_FILTERS, feedKeys, getHood, isAd, listHoodPage, type FeedEntry, type FeedFilter, type HoodPage } from "./feed-api";
 import { PostCard } from "./post-card";
@@ -201,6 +202,8 @@ export function FeedScreen() {
         ))}
       </ScrollView>
       {away ? null : <FeedBanner hoodName={hood.data?.name} />}
+      {/* A feedback prompt an admin set to appear here (features/feedback). */}
+      <FeedPromptCard />
     </View>
   );
 

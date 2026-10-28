@@ -22,6 +22,7 @@ import { Text } from "@/shared/ui/text";
 import { sectionNotifications, shortAge, titleParts } from "./notification-rows";
 import { markAllRead, markRead } from "./notifications-api";
 import { useNotifications } from "./use-notifications";
+import { useFeatureSignal } from "@/features/feedback/use-feature-signal";
 
 /** What kind of thing happened, shown as a small badge on the faces (or alone when nobody did it). */
 const TYPE_ICON: Record<AppNotification["type"], { Icon: LucideIcon; color: (c: ColorTokens) => string }> = {
@@ -153,6 +154,7 @@ function NotificationsList() {
 
 /** `/notifications`. */
 export function NotificationsScreen() {
+  useFeatureSignal("notifications");
   const user = useSignedInUser();
   const queryClient = useQueryClient();
   const list = useNotifications();

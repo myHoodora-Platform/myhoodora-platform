@@ -15,6 +15,7 @@ import { formatNaira } from "@/shared/utils/format";
 import { timeAgo } from "@/shared/utils/time";
 import { SupportPinnedRow } from "@/features/support/support-screens";
 import { chatKeys, listConversations } from "./chat-api";
+import { useFeatureSignal } from "@/features/feedback/use-feature-signal";
 
 /** The other person in a thread. */
 export function otherPerson(c: Conversation, me: string) {
@@ -60,6 +61,7 @@ function Row({ c, me }: { c: Conversation; me: string }) {
 
 /** `/inbox`: conversations with neighbours, newest first (the web's Inbox). */
 export function InboxScreen() {
+  useFeatureSignal("messages");
   return (
     <AppScreen title="Messages" canvas={false}>
       <InboxList />

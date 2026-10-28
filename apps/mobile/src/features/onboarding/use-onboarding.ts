@@ -7,6 +7,7 @@ import { currentPosition, geocode, POSITION_PROBLEM, reverseGeocode, type Coords
 import { clearDraft, clearOnboardingSkipped, readDraft, saveDraft, type CoordsSource } from "@/core/onboarding/onboarding-store";
 import { completeOnboarding, previewLocation, requestHood, verifyLocation } from "./onboarding-api";
 import { confirmAction, coordsFollowAddress, detailsErrors, type DetailsErrors } from "./onboarding-rules";
+import { signal } from "@/features/feedback/engagement";
 
 /**
  * The web's onboarding (apps/web/src/app/onboarding), on a phone and without the map:
@@ -206,6 +207,7 @@ export function useOnboarding() {
     try {
       const result = await verifyLocation(user, point.value, confirmedHood.current);
       if (result.verificationStatus === "verified") {
+        signal(user, "address_verified");
         setJoinedHood(preview?.hood?.name ?? null);
         setStep("joined");
         return;

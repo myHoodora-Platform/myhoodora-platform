@@ -9,11 +9,13 @@ import { PostSkeleton } from "@/shared/ui/skeleton";
 import { EmptyState, ErrorState } from "@/shared/ui/states";
 import { FEED_PAGE, feedKeys, listSaved } from "./feed-api";
 import { PostCard } from "./post-card";
+import { useFeatureSignal } from "@/features/feedback/use-feature-signal";
 
 type Saved = ApiPost & { savedAt: string };
 
 /** `/saved`: the posts you saved, newest saved first. Unsave from a post's ⋯ menu. */
 export function SavedPostsScreen() {
+  useFeatureSignal("saved");
   return (
     <AppScreen title="Saved posts" fallback="/more">
       <SavedList />

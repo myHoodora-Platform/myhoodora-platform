@@ -18,6 +18,7 @@ import { Text } from "@/shared/ui/text";
 import { TextField } from "@/shared/ui/text-field";
 import { useToast } from "@/shared/ui/toast";
 import { CONDITION_OPTIONS, createListing, LISTING_CATEGORIES, listingErrors, listingKeys, type ListingForm, type ListingFormErrors } from "./listings-api";
+import { signal } from "@/features/feedback/engagement";
 
 /** Sell or give something away: photos first (they sell it), then the details. */
 export function SellScreen() {
@@ -61,6 +62,7 @@ export function SellScreen() {
     setBusy(true);
     try {
       const listing = await createListing(user, hoodId, form, photos.urls);
+      signal(user, "listing_created", listing._id);
       await client.invalidateQueries({ queryKey: listingKeys.all });
       toast(form.free ? "Listed for free. Neighbours can message you." : "Listed. Neighbours can message you.");
       router.replace(`/for-sale/${listing._id}`);

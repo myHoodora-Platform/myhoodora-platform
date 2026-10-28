@@ -18,6 +18,7 @@ import { EmptyState, ErrorState } from "@/shared/ui/states";
 import { Text } from "@/shared/ui/text";
 import { ListingCard } from "./listing-card";
 import { LISTING_CATEGORIES, listingKeys, listListings, type ListingFilter } from "./listings-api";
+import { useFeatureSignal } from "@/features/feedback/use-feature-signal";
 
 const FILTERS: { id: ListingFilter; label: string }[] = [{ id: "all", label: "All" }, { id: "free", label: "Free" }, ...LISTING_CATEGORIES];
 
@@ -37,6 +38,7 @@ function GridSkeleton() {
 
 /** For Sale & Free in your neighbourhood (Nextdoor's For Sale tab): a photo grid with filters. */
 export function ForSaleScreen() {
+  useFeatureSignal("for_sale");
   const t = useTheme();
   const user = useSignedInUser();
   const { profile } = useAuth();
