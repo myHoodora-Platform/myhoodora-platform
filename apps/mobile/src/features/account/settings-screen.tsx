@@ -2,12 +2,12 @@ import { DEACTIVATION_REASONS, type DeactivationReason } from "@myhoodora/api-co
 import { errorMessage } from "@myhoodora/api-contract/errors";
 import Constants from "expo-constants";
 import { useRouter } from "@/core/navigation/use-router";
-import * as WebBrowser from "expo-web-browser";
 import { BellRing, BookOpen, FileText, HelpCircle, LayoutList, LifeBuoy, LogOut, Lock, MapPinned, MonitorSmartphone, ShieldCheck, SlidersHorizontal, UserX } from "lucide-react-native";
 import { useState } from "react";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
 import { useAuth, useSignedInUser } from "@/core/auth/auth-provider";
 import { config } from "@/core/config/env";
+import { openWeb } from "@/shared/utils/open-web";
 import { useAppearance } from "@/core/preferences/appearance";
 import { usePushSetting } from "@/features/notifications";
 import { AppScreen, useScreenInsets } from "@/shared/ui/app-screen";
@@ -39,7 +39,7 @@ function SettingsContent() {
   const push = usePushSetting();
   const { surface, setSurface, theme, setTheme } = useAppearance();
   const [leaving, setLeaving] = useState(false);
-  const web = (path: string) => void WebBrowser.openBrowserAsync(`${config().webUrl}${path}`);
+  const web = (path: string) => void openWeb(path);
 
   const confirmLogout = () =>
     Alert.alert("Log out of myHoodora?", "You'll stay signed in on your other devices.", [

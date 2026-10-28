@@ -1,7 +1,9 @@
 import { Bell, MessageCircle, Search } from "lucide-react-native";
 import { StyleSheet, View } from "react-native";
 import { useRouter } from "@/core/navigation/use-router";
+import { useTheme } from "@/shared/theme/theme";
 import { IconButton } from "@/shared/ui/icon-button";
+import { Text } from "@/shared/ui/text";
 import { useUnreadMessages } from "@/features/chat/use-unread-messages";
 import { useUnreadCount } from "@/features/notifications";
 
@@ -22,6 +24,21 @@ export function TopActions() {
   );
 }
 
+/** A tab's fixed top row: its big title, and the same buttons as Home, in the same place. */
+export function TabHeader({ title }: { title: string }) {
+  const t = useTheme();
+  return (
+    <View style={styles.header}>
+      <Text style={[styles.title, { color: t.colors.foreground, fontFamily: t.fonts.bold }]} accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit>
+        {title}
+      </Text>
+      <TopActions />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   actions: { flexDirection: "row", alignItems: "center", gap: 2 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, paddingLeft: 16, paddingRight: 8, minHeight: 56 },
+  title: { fontSize: 26, lineHeight: 32, flexShrink: 1 },
 });

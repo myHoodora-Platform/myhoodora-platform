@@ -11,11 +11,10 @@ import { usePullRefresh } from "@/shared/hooks/use-pull-refresh";
 import { useTheme } from "@/shared/theme/theme";
 import { Chip } from "@/shared/ui/chip";
 import { useTabBarSpace } from "@/shared/ui/floating-tab-bar";
-import { TopActions } from "@/features/navigation/top-actions";
+import { TabHeader } from "@/features/navigation/top-actions";
 import { ConnectionStrip } from "@/shared/ui/connection-strip";
 import { Skeleton } from "@/shared/ui/skeleton";
 import { EmptyState, ErrorState } from "@/shared/ui/states";
-import { Text } from "@/shared/ui/text";
 import { ListingCard } from "./listing-card";
 import { LISTING_CATEGORIES, listingKeys, listListings, type ListingFilter } from "./listings-api";
 import { useFeatureSignal } from "@/features/feedback/use-feature-signal";
@@ -61,12 +60,6 @@ export function ForSaleScreen() {
 
   const header = (
     <View style={styles.header}>
-      <View style={styles.titleRow}>
-        <Text style={[styles.title, { color: t.colors.foreground, fontFamily: t.fonts.bold }]} accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit>
-          For Sale & Free
-        </Text>
-        <TopActions />
-      </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} style={styles.chipRow}>
         <Chip label="Sell" Icon={Plus} action onPress={sell} accessibilityLabel="Sell or give something away" />
         {FILTERS.map((f) => (
@@ -80,6 +73,7 @@ export function ForSaleScreen() {
     return (
       <SafeAreaView style={[styles.flex, { backgroundColor: t.colors.canvas }]} edges={["top"]}>
         <ConnectionStrip style={styles.connection} />
+        <TabHeader title="For Sale & Free" />
         <EmptyState title="Join your neighbourhood first" body="For Sale & Free shows what neighbours are selling and giving away nearby, once you've confirmed where you live." />
       </SafeAreaView>
     );
@@ -87,7 +81,8 @@ export function ForSaleScreen() {
 
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: t.colors.canvas }]} edges={["top"]}>
-        <ConnectionStrip style={styles.connection} />
+      <ConnectionStrip style={styles.connection} />
+      <TabHeader title="For Sale & Free" />
       <FlatList
         data={listings.data ?? []}
         keyExtractor={(l) => l._id}
@@ -119,12 +114,10 @@ export function ForSaleScreen() {
 const styles = StyleSheet.create({
   connection: { marginHorizontal: 16 },
   flex: { flex: 1 },
-  list: { padding: 16, gap: 12, flexGrow: 1 },
+  list: { padding: 16, paddingTop: 4, gap: 12, flexGrow: 1 },
   row: { gap: 12 },
   cell: { flex: 0.5, flexDirection: "row" },
   header: { gap: 12, marginBottom: 4 },
-  titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, marginRight: -8 },
-  title: { fontSize: 26, lineHeight: 32, flexShrink: 1 },
   chipRow: { marginHorizontal: -16 },
   chips: { gap: 8, paddingHorizontal: 16 },
   skeleton: { flexDirection: "row", flexWrap: "wrap", gap: 12 },

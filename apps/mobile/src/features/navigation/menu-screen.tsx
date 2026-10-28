@@ -13,7 +13,8 @@ import { ConnectionStrip } from "@/shared/ui/connection-strip";
 import { useTabBarSpace } from "@/shared/ui/floating-tab-bar";
 import { SettingsGroup, SettingsRow } from "@/shared/ui/settings";
 import { Text } from "@/shared/ui/text";
-import { TopActions } from "./top-actions";
+import { openWeb } from "@/shared/utils/open-web";
+import { TabHeader } from "./top-actions";
 
 export interface Shortcut {
   label: string;
@@ -44,12 +45,7 @@ export function MenuScreen() {
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: t.colors.canvas }]} edges={["top"]}>
       <ConnectionStrip style={styles.connection} />
-      <View style={styles.top}>
-        <Text style={[styles.title, { color: t.colors.foreground, fontFamily: t.fonts.bold }]} accessibilityRole="header">
-          Menu
-        </Text>
-        <TopActions />
-      </View>
+      <TabHeader title="Menu" />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottom }]} scrollIndicatorInsets={{ bottom }}>
         <Card onPress={() => router.push("/more")} label={`${profile?.displayName ?? "Your profile"}. View your profile`}>
           <Avatar name={profile?.displayName} photoURL={profile?.photoURL} size={52} />
@@ -75,7 +71,7 @@ export function MenuScreen() {
 
         <SettingsGroup>
           <SettingsRow Icon={Settings} label="Settings & privacy" onPress={() => router.push("/settings")} />
-          <SettingsRow Icon={HelpCircle} label="Help & support" description="Questions, problems, or something to tell us" onPress={() => router.push("/inbox/support")} />
+          <SettingsRow Icon={HelpCircle} label="Help centre" description="Answers to common questions" onPress={() => void openWeb("/help")} />
         </SettingsGroup>
       </ScrollView>
     </SafeAreaView>
@@ -123,8 +119,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   shrink: { flexShrink: 1 },
   connection: { marginHorizontal: 16 },
-  top: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingLeft: 16, paddingRight: 8, minHeight: 52 },
-  title: { fontSize: 28, lineHeight: 34 },
   content: { padding: 16, gap: 20 },
   inline: { flexDirection: "row", alignItems: "center", gap: 6 },
   card: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 20, borderWidth: StyleSheet.hairlineWidth },
