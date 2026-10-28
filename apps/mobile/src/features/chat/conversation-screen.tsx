@@ -26,6 +26,7 @@ import { useTypingIndicator, useTypingSignal } from "@/features/live/use-typing"
 import { signal } from "@/features/feedback/engagement";
 import { chatKeys, getConversation, isMuted, listMessages, otherPerson, sendMessage, sendTyping } from "./chat-api";
 import { ConversationActions } from "./conversation-actions";
+import { getDraft, loadDrafts, setDraft } from "./drafts";
 import { PinnedBar, PINNED_BAR_HEIGHT } from "./pinned-bar";
 import { ReactionsSheet } from "./reactions-sheet";
 import { bubbleReactions, useMessageActions } from "./use-message-actions";
@@ -55,7 +56,8 @@ export function ConversationScreen({ id }: { id: string }) {
   const user = useSignedInUser();
   const client = useQueryClient();
   const router = useRouter();
-  const [text, setText] = useState("");
+  // What you'd started writing here last time (a draft), if anything.
+  const [text, setText] = useState(() => getDraft(user.uid, id));
   const [menu, setMenu] = useState(false);
   const photos = usePhotoUploads("message", MAX_PHOTOS);
   const picking = usePhotoPicking(photos);
@@ -72,10 +74,18 @@ export function ConversationScreen({ id }: { id: string }) {
   const nameOf = (uid: string) => (uid === user.uid ? "You" : person(uid).name);
   const acts = useMessageActions({ conversationId: id, pins: convo.data?.pins, nameOf: (uid) => person(uid).name, onReport: () => setTimeout(() => setReporting(true), 300), onEdit: setText });
   const [reactionsOf, setReactionsOf] = useState<string | null>(null);
+  // Opened straight from a notification: drafts may not be read yet.
+  useEffect(() => {
+    void loadDrafts(user.uid).then(() => {
+      const saved = getDraft(user.uid, id);
+      if (saved) setText((now) => now || saved);
+    });
+  }, [user.uid, id]);
   const send = useMutation({
     mutationFn: ({ body, urls }: { body: string; urls: string[] }) => sendMessage(user, id, body, urls, acts.replyingTo?._id),
     onSuccess: (message) => {
       setText("");
+      setDraft(user.uid, id, "");
       photos.clear();
       acts.setReplyingTo(null);
       signal(user, "message_sent", id);
@@ -100,7 +110,8 @@ export function ConversationScreen({ id }: { id: string }) {
   const canSend = (body.length > 0 || ready) && !photos.uploading && !send.isPending;
   const submit = () => {
     if (acts.editing) {
-      if (body) void acts.saveEdit(body).then((ok) => ok && setText(""));
+      // Done editing: back to whatever you were writing before.
+      if (body) void acts.saveEdit(body).then((ok) => ok && setText(getDraft(user.uid, id)));
       return;
     }
     if (canSend) send.mutate({ body, urls: photos.uploading ? [] : photos.urls });
@@ -109,7 +120,11 @@ export function ConversationScreen({ id }: { id: string }) {
   const composer = (
     <ChatComposer
       text={text}
-      onText={setText}
+      onText={(v) => {
+        setText(v);
+        // Words for an edit aren't a draft of a new message.
+        if (!acts.editing) setDraft(user.uid, id, v);
+      }}
       placeholder="Write a message"
       uploads={photos}
       onAttach={picking.choose}

@@ -11,6 +11,7 @@ import { setMonitoringUser } from "@/core/monitoring/monitoring";
 import { hasSeenIntro, markIntroSeen, resetIntro } from "@/core/intro/intro-flag";
 import { noteFirstRunEligibility } from "@/core/onboarding/first-run";
 import { clearDraft, hasSkippedOnboarding, markOnboardingSkipped } from "@/core/onboarding/onboarding-store";
+import { runLogoutCleanups } from "./logout-cleanup";
 import { unregisterPush } from "@/core/push/push";
 import { foregroundRefreshDue, sessionPhase, type ProfileStatus, type SessionPhase } from "./session-phase";
 
@@ -112,6 +113,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (who) await unregisterPush(who).catch(() => undefined);
     // An unfinished onboarding draft holds a home address: never leave it for the next person.
     if (who) await clearDraft(who.uid);
+    // And what features keep per account (unsent chat messages).
+    if (who) await runLogoutCleanups(who.uid);
     await signOut(firebaseAuth());
     // So the next "Continue with Google" offers the account chooser again, as the web does.
     await GoogleSignin.signOut().catch(() => undefined);
@@ -124,6 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // The API revokes every session and removes every phone's push registration.
     await apiFetch<void>(who, "/auth/logout-everywhere", { method: "POST" });
     await clearDraft(who.uid);
+    await runLogoutCleanups(who.uid);
     await signOut(firebaseAuth());
     queryClient.clear();
   }, [queryClient]);

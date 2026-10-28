@@ -3,6 +3,8 @@ import { PromptHost } from "@/features/feedback/prompt-host";
 import { useLiveUpdates } from "@/features/live/use-live-updates";
 import { TourProvider } from "@/features/tour/tour-provider";
 import { useTheme } from "@/shared/theme/theme";
+// Loaded with the signed-in app so logout always clears unsent chat drafts, even ones from an earlier visit.
+import "@/features/chat/drafts";
 
 /** Everything signed in: the tabs, and the screens opened from them (with a back button). */
 export default function AppLayout() {

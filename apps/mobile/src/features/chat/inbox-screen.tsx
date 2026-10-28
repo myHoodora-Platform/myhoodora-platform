@@ -2,7 +2,7 @@ import type { Conversation } from "@myhoodora/api-contract/types";
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { BellOff, Pin, Search, SquarePen, X } from "lucide-react-native";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { useSignedInUser } from "@/core/auth/auth-provider";
 import { useRouter } from "@/core/navigation/use-router";
@@ -21,6 +21,7 @@ import { SupportPinnedRow } from "@/features/support/support-screens";
 import { useFeatureSignal } from "@/features/feedback/use-feature-signal";
 import { aboutListing, chatKeys, isMuted, listConversations, otherPerson } from "./chat-api";
 import { ConversationActions } from "./conversation-actions";
+import { loadDrafts, useDrafts } from "./drafts";
 
 export { otherPerson } from "./chat-api";
 
@@ -39,7 +40,7 @@ function matches(c: Conversation, me: string, q: string): boolean {
   return [otherPerson(c, me)?.displayName, c.context?.title, c.lastMessage?.body].some((s) => s?.toLowerCase().includes(needle));
 }
 
-function Row({ c, me }: { c: Conversation; me: string }) {
+function Row({ c, me, draft }: { c: Conversation; me: string; draft?: string }) {
   const t = useTheme();
   const router = useRouter();
   const [menu, setMenu] = useState(false);
@@ -47,6 +48,7 @@ function Row({ c, me }: { c: Conversation; me: string }) {
   const unread = c.unreadCount > 0;
   const muted = isMuted(c);
   const last = c.lastMessage ? `${c.lastMessage.senderUid === me ? "You: " : ""}${c.lastMessage.body}` : "No messages yet";
+  const draftLine = draft?.replace(/\s+/g, " ").trim();
   return (
     <>
       <Pressable
@@ -54,7 +56,7 @@ function Row({ c, me }: { c: Conversation; me: string }) {
         onLongPress={() => setMenu(true)}
         delayLongPress={350}
         accessibilityRole="button"
-        accessibilityLabel={`${c.pinned ? "Pinned. " : ""}${unread ? "Unread. " : ""}${other?.displayName ?? "A neighbour"}${c.context ? `, about ${c.context.title}` : ""}${muted ? ", muted" : ""}. ${last}`}
+        accessibilityLabel={`${c.pinned ? "Pinned. " : ""}${unread ? "Unread. " : ""}${other?.displayName ?? "A neighbour"}${c.context ? `, about ${c.context.title}` : ""}${muted ? ", muted" : ""}. ${draftLine ? `Draft: ${draftLine}` : last}`}
         accessibilityHint="Hold for options"
         accessibilityActions={[{ name: "longpress", label: "Options" }]}
         onAccessibilityAction={(e) => e.nativeEvent.actionName === "longpress" && setMenu(true)}
@@ -78,9 +80,19 @@ function Row({ c, me }: { c: Conversation; me: string }) {
             </Text>
           ) : null}
           <View style={styles.line}>
-            <Text variant="caption" tone={unread ? "default" : "muted"} numberOfLines={1} style={[styles.flex, unread && { fontFamily: t.fonts.semibold }]}>
-              {last}
-            </Text>
+            {draftLine ? (
+              // WhatsApp's way: what you'd started writing, until it's sent.
+              <Text variant="caption" tone="muted" numberOfLines={1} style={styles.flex}>
+                <Text variant="caption" tone="primary" style={{ fontFamily: t.fonts.semibold }}>
+                  Draft:{" "}
+                </Text>
+                {draftLine}
+              </Text>
+            ) : (
+              <Text variant="caption" tone={unread ? "default" : "muted"} numberOfLines={1} style={[styles.flex, unread && { fontFamily: t.fonts.semibold }]}>
+                {last}
+              </Text>
+            )}
             {unread ? (
               <View style={[styles.count, { backgroundColor: muted ? t.colors.mutedForeground : t.colors.primary }]}>
                 <Text style={[styles.countText, { color: t.colors.primaryForeground, fontFamily: t.fonts.bold }]}>{c.unreadCount > 9 ? "9+" : c.unreadCount}</Text>
@@ -119,6 +131,10 @@ function InboxList() {
   const [text, setText] = useState("");
   const archived = filter === "archived";
   const list = useQuery({ queryKey: chatKeys.list(archived), queryFn: () => listConversations(user, archived) });
+  const drafts = useDrafts(user.uid);
+  useEffect(() => {
+    void loadDrafts(user.uid);
+  }, [user.uid]);
   const pull = usePullRefresh(list.refetch);
   const q = text.trim();
   const rows = useMemo(
@@ -178,7 +194,7 @@ function InboxList() {
       keyboardDismissMode="on-drag"
       data={list.data ? rows : []}
       keyExtractor={(c) => c._id}
-      renderItem={({ item }) => <Row c={item} me={user.uid} />}
+      renderItem={({ item }) => <Row c={item} me={user.uid} draft={drafts[item._id]} />}
       ItemSeparatorComponent={() => <View style={[styles.separator, { backgroundColor: t.colors.border }]} />}
       ListHeaderComponent={header}
       ListEmptyComponent={
