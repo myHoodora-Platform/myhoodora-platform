@@ -30,7 +30,8 @@ const TABS: { id: AdStatus | "all"; label: string }[] = [
 const FORMAT_LABEL: Record<AdminAd["format"], string> = { image: "Image", video: "Video", carousel: "Carousel", announcement: "Announcement", business: "Local business" };
 
 /** "Everywhere", "Ikeja, Yaba", "Lagos". */
-export function targetingLabel(ad: Pick<AdminAd, "hoodIds" | "cities">, hoodNames?: Map<string, string>): string {
+export function targetingLabel(ad: Pick<AdminAd, "hoodIds" | "cities" | "near">, hoodNames?: Map<string, string>): string {
+  if (ad.near) return `Within ${ad.near.radiusKm} km of ${ad.near.label ?? "a place"}`;
   if (!ad.hoodIds.length && !ad.cities.length) return "Everywhere";
   const hoods = ad.hoodIds.map((id) => hoodNames?.get(id) ?? "1 neighbourhood");
   const parts = [...(hoodNames ? hoods : ad.hoodIds.length ? [`${ad.hoodIds.length} neighbourhood${ad.hoodIds.length > 1 ? "s" : ""}`] : []), ...ad.cities];

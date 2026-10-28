@@ -176,6 +176,20 @@ describe("Sponsored items: admin, placement, targeting, caps, events", () => {
       await status(forAbuja, "paused").expect(200);
     });
 
+    it("near a place: neighbourhoods whose centre is within the radius", async () => {
+      await pauseAll();
+      // Yaba's centre is about 13 km from Lekki Phase 1's.
+      const near = (await create({ ...imageAd, title: "Near Yaba", near: { lat: 6.5095, lng: 3.3792, radiusKm: 5, label: "Yaba" } }).expect(201)).body._id;
+      await status(near, "active").expect(200);
+      expect(ads(await feed("ada", lekki, "session=sessionNNN&limit=10"))).toHaveLength(0);
+      await t.http.patch(`/api/admin/ads/${near}`).set(admin()).send({ near: { lat: 6.5095, lng: 3.3792, radiusKm: 20, label: "Yaba" } }).expect(200);
+      const shown = ads(await feed("ada", lekki, "session=sessionOOO&limit=10"));
+      expect(shown[0]?.data._id).toBe(near);
+      expect(shown[0]?.data.why).toMatch(/within 20 km of Yaba/);
+      await t.http.patch(`/api/admin/ads/${near}`).set(admin()).send({ near: { lat: 99, lng: 3, radiusKm: 5 } }).expect(400);
+      await status(near, "paused").expect(200);
+    });
+
     it("scheduled, paused, ended and deleted ads stay out", async () => {
       await pauseAll();
       const later = (await create({ ...imageAd, title: "Later", startsAt: new Date(Date.now() + 86_400_000).toISOString() }).expect(201)).body._id;

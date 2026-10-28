@@ -54,9 +54,15 @@ export class Ad {
   @Prop({ required: true, min: 1, max: 10, default: 5 }) priority!: number;
   /** Times one neighbour may see it per day (Lagos time). */
   @Prop({ required: true, min: 1, max: 20, default: 3 }) dailyCapPerUser!: number;
-  /** Both empty: every neighbourhood. Otherwise these neighbourhoods, and every one in these cities. */
+  /**
+   * All three empty: every neighbourhood. Otherwise these neighbourhoods, every one in these cities,
+   * and every one whose centre is within `near.radiusKm` of a place (a neighbourhood's location, never
+   * a neighbour's own).
+   */
   @Prop({ type: [String], default: [] }) hoodIds!: string[];
   @Prop({ type: [String], default: [] }) cities!: string[];
+  @Prop({ type: { lat: Number, lng: Number, radiusKm: Number, label: String }, _id: false, default: null })
+  near?: { lat: number; lng: number; radiusKm: number; label?: string } | null;
 
   @Prop({ required: true }) createdBy!: string;
   @Prop({ type: Date, default: null }) deletedAt?: Date | null;

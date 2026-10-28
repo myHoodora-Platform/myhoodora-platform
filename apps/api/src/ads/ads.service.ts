@@ -127,7 +127,7 @@ export class AdsService implements OnModuleInit {
   }
 
   async create(viewer: Viewer, input: AdInputDto): Promise<AdAdminView> {
-    const draft = this.merge({ status: "draft", priority: 5, dailyCapPerUser: 3, media: [], cards: [], hoodIds: [], cities: [], primaryText: "" } as Partial<Ad>, input);
+    const draft = this.merge({ status: "draft", priority: 5, dailyCapPerUser: 3, media: [], cards: [], hoodIds: [], cities: [], near: null, primaryText: "" } as Partial<Ad>, input);
     if (!draft.title || !draft.advertiserName || !draft.format) throw new BadRequestException("An ad needs a name, an advertiser and a format.");
     await this.check(draft, false);
     const created = await withTransaction(this.connection, async (session) => {
@@ -222,7 +222,7 @@ export class AdsService implements OnModuleInit {
    * The ads a neighbour may be shown in this Hood now: live, aimed here, not hidden by them, and with
    * room left under today's cap. One query each for ads, hides and today's impressions.
    */
-  async candidatesFor(viewer: Viewer, hood: { id: string; city?: string }, now = new Date()): Promise<{ candidates: Candidate[]; ads: Map<string, AdRow> }> {
+  async candidatesFor(viewer: Viewer, hood: { id: string; city?: string; lat?: number; lng?: number }, now = new Date()): Promise<{ candidates: Candidate[]; ads: Map<string, AdRow> }> {
     const rows = await this.ads
       .find({
         status: "active",
@@ -230,11 +230,13 @@ export class AdsService implements OnModuleInit {
         $and: [
           { $or: [{ startsAt: null }, { startsAt: { $lte: now } }] },
           { $or: [{ endsAt: null }, { endsAt: { $gt: now } }] },
-          { $or: [{ hoodIds: { $size: 0 }, cities: { $size: 0 } }, { hoodIds: hood.id }, ...(hood.city ? [{ cities: hood.city }] : [])] },
+          { $or: [{ hoodIds: { $size: 0 }, cities: { $size: 0 }, near: null }, { hoodIds: hood.id }, ...(hood.city ? [{ cities: hood.city }] : []), { near: { $ne: null } }] },
         ],
       })
       .lean<AdRow[]>()
-      .exec();
+      .exec()
+      // Aimed near a place: only if this neighbourhood is within the radius (or listed or in a listed city).
+      .then((found) => found.filter((r) => !r.near || r.hoodIds.includes(hood.id) || (!!hood.city && r.cities.includes(hood.city)) || (hood.lat !== undefined && hood.lng !== undefined && distanceKm(r.near, { lat: hood.lat, lng: hood.lng }) <= r.near.radiusKm)));
     if (!rows.length) return { candidates: [], ads: new Map() };
     const ids = rows.map((r) => String(r._id));
     const [hidden, seen] = await Promise.all([
@@ -254,7 +256,7 @@ export class AdsService implements OnModuleInit {
   }
 
   toView(r: AdRow, hoodName?: string, aspects?: Map<string, number>): AdView {
-    const aimed = r.hoodIds.length || r.cities.length;
+    const aimed = r.hoodIds.length || r.cities.length || r.near;
     return {
       _id: String(r._id),
       format: r.format,
@@ -265,7 +267,7 @@ export class AdsService implements OnModuleInit {
       media: r.media.map((m) => ({ url: m.url, kind: m.kind, posterUrl: m.posterUrl, aspect: aspects?.get(m.url) })),
       cards: r.cards.map((c) => ({ imageUrl: c.imageUrl, headline: c.headline, url: c.url })),
       background: r.background,
-      why: aimed && hoodName ? `You're seeing this because ${r.advertiserName} chose to reach neighbours in ${hoodName}. Ads never use your posts, messages or exact location.` : `You're seeing this because ${r.advertiserName} is shown to neighbours across myHoodora. Ads never use your posts, messages or exact location.`,
+      why: r.near?.label && !r.hoodIds.length && !r.cities.length ? `You're seeing this because ${r.advertiserName} chose to reach neighbourhoods within ${r.near.radiusKm} km of ${r.near.label}. Ads never use your posts, messages or exact location.` : aimed && hoodName ? `You're seeing this because ${r.advertiserName} chose to reach neighbours in ${hoodName}. Ads never use your posts, messages or exact location.` : `You're seeing this because ${r.advertiserName} is shown to neighbours across myHoodora. Ads never use your posts, messages or exact location.`,
     };
   }
 
@@ -332,8 +334,8 @@ export class AdsService implements OnModuleInit {
   }
 
   private editable(a: Partial<Ad>): Partial<Ad> {
-    const { title, advertiserName, advertiserLogoUrl, format, primaryText, headline, ctaType, ctaUrl, ctaPhone, media, cards, background, startsAt, endsAt, priority, dailyCapPerUser, hoodIds, cities } = a;
-    return { title, advertiserName, advertiserLogoUrl, format, primaryText, headline, ctaType, ctaUrl, ctaPhone, media, cards, background, startsAt, endsAt, priority, dailyCapPerUser, hoodIds, cities };
+    const { title, advertiserName, advertiserLogoUrl, format, primaryText, headline, ctaType, ctaUrl, ctaPhone, media, cards, background, startsAt, endsAt, priority, dailyCapPerUser, hoodIds, cities, near } = a;
+    return { title, advertiserName, advertiserLogoUrl, format, primaryText, headline, ctaType, ctaUrl, ctaPhone, media, cards, background, startsAt, endsAt, priority, dailyCapPerUser, hoodIds, cities, near: near ?? null };
   }
 
   /**
@@ -417,6 +419,15 @@ export class AdsService implements OnModuleInit {
     for (const s of out.values()) s.ctr = s.impressions ? Math.round((s.clicks / s.impressions) * 10_000) / 100 : 0;
     return out;
   }
+}
+
+/** Great-circle distance in km (haversine): close enough for "within 3 km". */
+export function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const rad = (d: number) => (d * Math.PI) / 180;
+  const dLat = rad(b.lat - a.lat);
+  const dLng = rad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 6371 * 2 * Math.asin(Math.sqrt(h));
 }
 
 function emptyStats(): AdStats {

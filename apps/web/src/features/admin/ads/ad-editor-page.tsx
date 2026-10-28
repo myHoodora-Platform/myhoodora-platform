@@ -17,6 +17,7 @@ import { useAuth } from "@/context/AuthContext";
 import { ApiError, errorMessage } from "@/lib/api/client";
 import { createAd, deleteAd, getAd, getAdStats, setAdStatus, updateAd } from "@/lib/api/admin/ads";
 import { listHoods } from "@/lib/api/admin/community";
+import type { AdminHood } from "@/lib/api/admin/types";
 import { PHOTO_ACCEPT, uploadMedia } from "@/lib/api/media";
 import { useAdminSession } from "../session";
 import { useAdminQuery } from "../use-admin-query";
@@ -30,7 +31,15 @@ const FORMATS: { id: AdFormat; label: string; hint: string }[] = [
   { id: "business", label: "Local business", hint: "Logo, photo and Call / Visit" },
 ];
 const VIDEO_ACCEPT = "video/mp4,video/quicktime,video/webm";
-const EMPTY: AdminAdInput = { title: "", advertiserName: "", format: "image", primaryText: "", headline: "", media: [], cards: [], priority: 5, dailyCapPerUser: 3, hoodIds: [], cities: [], startsAt: null, endsAt: null };
+const EMPTY: AdminAdInput = { title: "", advertiserName: "", format: "image", primaryText: "", headline: "", media: [], cards: [], priority: 5, dailyCapPerUser: 3, hoodIds: [], cities: [], near: null, startsAt: null, endsAt: null };
+const RADII = [1, 2, 3, 5, 8, 10, 15, 20] as const;
+
+/** Great-circle km between two points: the same measure the API uses to match neighbourhoods. */
+function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const rad = (d: number) => (d * Math.PI) / 180;
+  const h = Math.sin(rad(b.lat - a.lat) / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lng - a.lng) / 2) ** 2;
+  return 6371 * 2 * Math.asin(Math.sqrt(h));
+}
 
 /** ISO ↔ the browser's local date-time input. */
 const toLocalInput = (iso?: string | null) => (iso ? new Date(new Date(iso).getTime() - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 16) : "");
@@ -38,8 +47,8 @@ const fromLocalInput = (v: string) => (v ? new Date(v).toISOString() : null);
 
 /** What the API takes from a loaded ad (it refuses fields it doesn't know). */
 function inputOf(ad: AdminAd): AdminAdInput {
-  const { title, advertiserName, advertiserLogoUrl, format, primaryText, headline, ctaType, ctaUrl, ctaPhone, media, cards, background, startsAt, endsAt, priority, dailyCapPerUser, hoodIds, cities } = ad;
-  return { title, advertiserName, advertiserLogoUrl, format, primaryText, headline, ctaType, ctaUrl, ctaPhone, media, cards, background, startsAt, endsAt, priority, dailyCapPerUser, hoodIds, cities };
+  const { title, advertiserName, advertiserLogoUrl, format, primaryText, headline, ctaType, ctaUrl, ctaPhone, media, cards, background, startsAt, endsAt, priority, dailyCapPerUser, hoodIds, cities, near } = ad;
+  return { title, advertiserName, advertiserLogoUrl, format, primaryText, headline, ctaType, ctaUrl, ctaPhone, media, cards, background, startsAt, endsAt, priority, dailyCapPerUser, hoodIds, cities, near };
 }
 
 /** Only what the chosen format uses, so switching formats doesn't send leftovers. */
@@ -75,14 +84,14 @@ function Editor({ ad, onSaved }: { ad?: AdminAd; onSaved: (ad: AdminAd) => void 
   const [form, setForm] = useState<AdminAdInput>(() => (ad ? inputOf(ad) : EMPTY));
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [aim, setAim] = useState<"everywhere" | "hoods" | "cities">(() => (ad?.hoodIds.length ? "hoods" : ad?.cities.length ? "cities" : "everywhere"));
+  const [aim, setAim] = useState<"everywhere" | "near" | "hoods" | "cities">(() => (ad?.near ? "near" : ad?.hoodIds.length ? "hoods" : ad?.cities.length ? "cities" : "everywhere"));
   const hoods = useAdminQuery((u) => listHoods(u, { pageSize: 100, sort: "name:asc" }), "ad-hoods");
   const set = (patch: AdminAdInput) => setForm((f) => ({ ...f, ...patch }));
   const status = ad?.effectiveStatus;
 
   const payload = (): AdminAdInput => {
     const f = forFormat(form);
-    return { ...f, hoodIds: aim === "hoods" ? f.hoodIds : [], cities: aim === "cities" ? f.cities : [] };
+    return { ...f, hoodIds: aim === "hoods" ? f.hoodIds : [], cities: aim === "cities" ? f.cities : [], near: aim === "near" ? (f.near ?? null) : null };
   };
 
   const save = async (goLive: boolean) => {
@@ -234,6 +243,7 @@ function Editor({ ad, onSaved }: { ad?: AdminAd; onSaved: (ad: AdminAd) => void 
                 {(
                   [
                     ["everywhere", "Every neighbourhood"],
+                    ["near", "Near a neighbourhood"],
                     ["hoods", "Chosen neighbourhoods"],
                     ["cities", "Cities"],
                   ] as const
@@ -243,6 +253,7 @@ function Editor({ ad, onSaved }: { ad?: AdminAd; onSaved: (ad: AdminAd) => void 
                   </button>
                 ))}
               </div>
+              {aim === "near" && <NearPicker hoods={hoods.data?.items} near={form.near ?? null} onChange={(near) => set({ near })} />}
               {aim === "hoods" &&
                 (!hoods.data ? (
                   <p className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -335,6 +346,67 @@ function Editor({ ad, onSaved }: { ad?: AdminAd; onSaved: (ad: AdminAd) => void 
   );
 }
 
+/**
+ * Pick the centre from the neighbourhoods we have, then how far around it: every neighbourhood whose
+ * centre is within that distance sees the ad (listed below, as the API will match them).
+ */
+function NearPicker({ hoods, near, onChange }: { hoods?: AdminHood[]; near: AdminAdInput["near"]; onChange: (near: AdminAdInput["near"]) => void }) {
+  if (!hoods) {
+    return (
+      <p className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="size-4 animate-spin" aria-hidden /> Loading neighbourhoods…
+      </p>
+    );
+  }
+  const centre = near ? hoods.find((h) => h.center.lat === near.lat && h.center.lng === near.lng) : undefined;
+  const radius = near?.radiusKm ?? 3;
+  const reached = near ? hoods.filter((h) => distanceKm(near, h.center) <= near.radiusKm).sort((a, b) => distanceKm(near, a.center) - distanceKm(near, b.center)) : [];
+  const pick = (id: string, km = radius) => {
+    const h = hoods.find((x) => x.id === id);
+    onChange(h ? { lat: h.center.lat, lng: h.center.lng, radiusKm: km, label: h.name } : null);
+  };
+  return (
+    <div className="space-y-3 rounded-xl border border-border p-3">
+      <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+        <Field label="Centred on" htmlFor="ad-near-hood">
+          <select id="ad-near-hood" value={centre?.id ?? ""} onChange={(e) => pick(e.target.value)} className={fieldInputClass}>
+            <option value="">Choose a neighbourhood</option>
+            {hoods.map((h) => (
+              <option key={h.id} value={h.id}>
+                {h.name} · {h.city}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Within" htmlFor="ad-near-radius">
+          <select id="ad-near-radius" value={radius} disabled={!near} onChange={(e) => near && onChange({ ...near, radiusKm: Number(e.target.value) })} className={fieldInputClass}>
+            {RADII.map((km) => (
+              <option key={km} value={km}>
+                {km} km
+              </option>
+            ))}
+          </select>
+        </Field>
+      </div>
+      {near && (
+        <div className="space-y-1.5">
+          <p className="text-sm font-semibold">
+            Reaches {reached.length} neighbourhood{reached.length === 1 ? "" : "s"}
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {reached.map((h) => (
+              <span key={h.id} className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
+                {h.name} <span className="font-normal text-muted-foreground">· {distanceKm(near, h.center).toFixed(1)} km</span>
+              </span>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">Measured from each neighbourhood&apos;s centre. Neighbours&apos; own locations are never used for ads.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const SWATCH: Record<AdBackground, string> = { green: "bg-[#E7F4EE]", blue: "bg-[#E8F0FE]", amber: "bg-[#FEF3C7]", rose: "bg-[#FFE4E6]", slate: "bg-[#F1F5F9]" };
 
 /** Uploads through the usual pipeline (type, size and length checked by the API), stored for ads only. */
@@ -346,7 +418,7 @@ function Upload({ label, accept, onDone, current, onClear }: { label: string; ac
     <div className="flex items-center gap-3">
       <label className={cn("inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border px-3 py-2 text-sm font-semibold hover:bg-muted", busy && "pointer-events-none opacity-60")}>
         {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <ImagePlus className="size-4" aria-hidden />}
-        {busy ? `Uploading ${Math.round(progress * 100)}%` : current ? `Replace ${label.toLowerCase()}` : label}
+        {busy ? `Uploading ${Math.round(progress * 100)}%` : current ? label.replace(/^Upload/, "Replace") : label}
         <input
           type="file"
           accept={accept}

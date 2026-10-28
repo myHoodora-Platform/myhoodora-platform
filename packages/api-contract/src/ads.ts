@@ -123,9 +123,11 @@ export interface AdminAd {
   /** 1–10. */
   priority: number;
   dailyCapPerUser: number;
-  /** Both empty: everywhere. */
+  /** All empty: everywhere. */
   hoodIds: string[];
   cities: string[];
+  /** Neighbourhoods whose centre is within `radiusKm` of a place (a neighbourhood's centre, picked by staff). */
+  near: { lat: number; lng: number; radiusKm: number; label?: string } | null;
   createdBy: string;
   createdAt?: string;
   updatedAt?: string;

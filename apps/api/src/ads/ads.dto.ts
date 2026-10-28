@@ -7,6 +7,9 @@ import {
   IsDateString,
   IsIn,
   IsInt,
+  IsLatitude,
+  IsLongitude,
+  IsNumber,
   IsMongoId,
   IsOptional,
   IsString,
@@ -31,6 +34,14 @@ class AdMediaDto {
   @IsIn(["image", "video"]) kind!: "image" | "video";
   /** Videos: the still shown before it plays. */
   @IsOptional() @IsUrl(HTTPS) posterUrl?: string;
+}
+
+class NearDto {
+  @IsLatitude() lat!: number;
+  @IsLongitude() lng!: number;
+  @Type(() => Number) @IsNumber() @Min(0.5) @Max(50) radiusKm!: number;
+  /** What the place is called ("Opebi"), for staff and for "Why am I seeing this?". */
+  @IsOptional() @IsString() @MaxLength(80) label?: string;
 }
 
 class AdCardDto {
@@ -60,6 +71,8 @@ export class AdInputDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(20) dailyCapPerUser?: number;
   @IsOptional() @IsArray() @ArrayMaxSize(200) @IsMongoId({ each: true }) hoodIds?: string[];
   @IsOptional() @IsArray() @ArrayMaxSize(50) @IsString({ each: true }) @Length(1, 60, { each: true }) cities?: string[];
+  /** Neighbourhoods near a place; null clears it. */
+  @IsOptional() @ValidateNested() @Type(() => NearDto) near?: NearDto | null;
 }
 
 /** Draft, live, paused or ended. */

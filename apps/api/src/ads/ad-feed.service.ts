@@ -59,7 +59,8 @@ export class AdFeedService {
     let next = { ...state, seen: state.seen + posts.length };
     if (rules.enabled && !q.category && posts.length) {
       const hood = (await this.hoods.findManyByIds([hoodId])).get(hoodId);
-      const { candidates, ads } = await this.ads.candidatesFor(viewer, { id: hoodId, city: hood?.city });
+      const [lng, lat] = hood?.location?.coordinates ?? [];
+      const { candidates, ads } = await this.ads.candidatesFor(viewer, { id: hoodId, city: hood?.city, lat, lng });
       const placed = placeAds(posts, candidates, state, { session: q.session, rules, more });
       next = placed.state;
       const placedAds = placed.items.flatMap((i) => (i.type === "ad" ? [ads.get(i.adId)!] : []));
