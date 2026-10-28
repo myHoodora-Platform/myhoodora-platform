@@ -37,7 +37,7 @@ const UNUSED_UPLOAD_KEPT_MS = DAY_MS;
 /** Files looked at per sweep. */
 const SWEEP_BATCH = 200;
 /** Everything that keeps stored files. A sweep without all of them would delete files the missing one is using. */
-const REFERENCE_SOURCES = ["posts", "listings", "groups", "users", "ads"] as const;
+const REFERENCE_SOURCES = ["posts", "listings", "groups", "users", "ads", "messages"] as const;
 
 /** A module that keeps URLs of stored files, and can say which of a set it still needs. */
 export interface MediaReferenceSource {
@@ -448,11 +448,11 @@ export class StorageService implements OnModuleInit {
    * What we stored at these URLs (kind, size, dimensions), for content that must use our own files
    * (ads): a URL we didn't store is simply absent.
    */
-  async describe(urls: string[]): Promise<Map<string, Pick<MediaAsset, "url" | "resourceType" | "width" | "height" | "bytes" | "purpose">>> {
+  async describe(urls: string[]): Promise<Map<string, Pick<MediaAsset, "url" | "resourceType" | "width" | "height" | "bytes" | "purpose" | "ownerUid">>> {
     if (!urls.length) return new Map();
     const rows = await this.assets
-      .find({ url: { $in: [...new Set(urls)] }, status: { $ne: "pending" } }, { url: 1, resourceType: 1, width: 1, height: 1, bytes: 1, purpose: 1 })
-      .lean<Pick<MediaAsset, "url" | "resourceType" | "width" | "height" | "bytes" | "purpose">[]>()
+      .find({ url: { $in: [...new Set(urls)] }, status: { $ne: "pending" } }, { url: 1, resourceType: 1, width: 1, height: 1, bytes: 1, purpose: 1, ownerUid: 1 })
+      .lean<Pick<MediaAsset, "url" | "resourceType" | "width" | "height" | "bytes" | "purpose" | "ownerUid">[]>()
       .exec();
     return new Map(rows.map((r) => [r.url, r]));
   }

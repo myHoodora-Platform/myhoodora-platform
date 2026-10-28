@@ -150,7 +150,7 @@ export function ConversationThread({ id }: { id: string }) {
   const otherDeleted = otherUid === DELETED_USER_UID;
 
   const items: ChatItem[] = [
-    ...messages.map((m) => ({ id: m._id, mine: m.senderUid === user.uid, body: m.body, at: m.createdAt })),
+    ...messages.map((m) => ({ id: m._id, mine: m.senderUid === user.uid, body: m.body, photos: m.photos, at: m.createdAt })),
     ...pending.map((p) => ({ id: p.id, mine: true, body: p.body, at: p.at, state: p.state })),
   ];
   const seenAt = convo.readBy?.find((r) => r.uid === otherUid)?.lastReadAt;

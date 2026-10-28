@@ -333,15 +333,24 @@ export interface Conversation {
   participants?: { uid: string; displayName: string; photoURL?: string }[];
   /** When each person last read the thread (for "Seen"). */
   readBy?: { uid: string; lastReadAt?: string }[];
+  /** Viewer-relative, since 2026-10-28: you archived it. */
+  archived?: boolean;
+  /** Viewer-relative: you muted it until then (absent when not muted). */
+  mutedUntil?: string;
 }
 
 export interface Message {
   _id: string;
   conversationId: string;
   senderUid: string;
+  /** Empty when the message is photos only. */
   body: string;
+  /** Up to 4, since 2026-10-28. */
+  photos?: string[];
   createdAt: string;
 }
+
+export type MuteLength = "8h" | "1w" | "always" | "off";
 
 // ── Notifications (planned) ─────────────────────────────────────────────────
 

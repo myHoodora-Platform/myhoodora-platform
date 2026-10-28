@@ -10,6 +10,8 @@ export interface ChatItem {
   id: string;
   mine: boolean;
   body: string;
+  /** Photos sent with it (from the app, since 2026-10-28). */
+  photos?: string[];
   at: string;
   /** Local-only states for messages you just sent. */
   state?: "sending" | "failed";
@@ -139,7 +141,17 @@ export function ChatMessageList({
                     m.state === "failed" && "bg-danger-soft text-foreground",
                   )}
                 >
-                  <p className="whitespace-pre-wrap">{m.body}</p>
+                  {m.photos?.length ? (
+                    <div className={cn("-mx-1.5 mb-1 grid gap-1", m.photos.length > 1 && "grid-cols-2")}>
+                      {m.photos.map((url) => (
+                        <a key={url} href={url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl">
+                          {/* eslint-disable-next-line @next/next/no-img-element -- a photo a neighbour sent */}
+                          <img src={url} alt="Photo in the message" className="aspect-square w-full max-w-60 object-cover" loading="lazy" />
+                        </a>
+                      ))}
+                    </div>
+                  ) : null}
+                  {m.body ? <p className="whitespace-pre-wrap">{m.body}</p> : null}
                   <p className={cn("mt-0.5 text-right text-[11px]", m.mine && !m.state ? "text-primary-foreground/70" : "text-muted-foreground")}>
                     {m.state === "sending" ? "Sending…" : m.state === "failed" ? "Not sent" : clock(m.at)}
                   </p>

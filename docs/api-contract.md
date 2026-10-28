@@ -308,6 +308,18 @@ interface Message { _id; conversationId; senderUid; body; createdAt }
 
 **Real-time:** live over SSE (§19). New messages and read receipts arrive as `chat.message` / `chat.read`; `ConversationView.readBy[]` carries each member's `lastReadAt` for "Seen".
 
+**Added 2026-10-28 (additive; older clients unaffected):**
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| POST | `/conversations/:id/messages` | Now `{ body?, photos? }`: text (0–2000) and/or up to 4 photos. Photos must be ones the sender uploaded with `POST /media` purpose `message` (links and other people's files are refused, 400). A photo-only message has `body: ""`; the inbox preview reads "📷 Photo". `Message.photos?: string[]`. |
+| GET | `/conversations?archived=true` | Only the ones you archived. Without it, archived ones are left out. |
+| PUT | `/conversations/:id/archive` | `{ archived }` → 204. For you only. A new message in it un-archives it for everyone. |
+| PUT | `/conversations/:id/mute` | `{ for: "8h" \| "1w" \| "always" \| "off" }` → `{ mutedUntil }`. No notifications from it meanwhile; unread still counts. |
+| DELETE | `/conversations/:id` | Delete for you (204): it leaves your inbox and its messages so far are hidden from you; the other person keeps everything. A new message brings it back with only what's new. |
+
+`Conversation` gains viewer-relative `archived` and `mutedUntil?`. Media purpose `message` is photos only, for anyone who may send messages, and kept while a message uses it.
+
 **Safety:** block and report (`POST /reports` with `targetType: "message"`, `targetId: conversationId`), and rate-limit new threads per user per day. Only the two people in a conversation can report it, and the report is about the other one (§26).
 
 ---

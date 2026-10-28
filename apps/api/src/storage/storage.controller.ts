@@ -23,6 +23,11 @@ function assertMayUpload(viewer: Viewer, purpose: MediaPurpose): void {
     if (viewer.capabilities.includes("ads.manage")) return;
     throw new ForbiddenException("Only admins can upload ad media.");
   }
+  // Photos in a message: anyone who may send messages.
+  if (purpose === "message") {
+    if (viewer.capabilities.includes("messages.send")) return;
+    throw new ForbiddenException(whyNoWriting(viewer));
+  }
   if (viewer.capabilities.includes(purpose === "avatar" ? "profile.manage" : "content.create")) return;
   // The same words CapabilityGuard uses for content.create.
   throw new ForbiddenException(whyNoWriting(viewer));

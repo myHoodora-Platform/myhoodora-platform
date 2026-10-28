@@ -11,8 +11,9 @@ import { THREAD_PAGE_MAX, type ThreadPageQuery } from "../shared/http/pagination
 import { User, UserDocument } from "../users/schemas/user.schema";
 import { AccountLifecycle, DELETED_USER_UID } from "../users/account-lifecycle";
 import { UsersService } from "../users/users.service";
-import type { StartConversationDto } from "./chat.dto";
-import { Conversation, ConversationDocument, Message, type ChatContext } from "./chat.schemas";
+import { StorageService } from "../storage/storage.service";
+import type { MUTE_FOR, StartConversationDto } from "./chat.dto";
+import { Conversation, ConversationDocument, Message, type ChatContext, type ConversationMember } from "./chat.schemas";
 
 export interface ConversationView {
   _id: string;
@@ -23,6 +24,9 @@ export interface ConversationView {
   unreadCount: number;
   readBy: { uid: string; lastReadAt?: string }[];
   updatedAt: string;
+  /** Viewer-relative (2026-10-28): you archived it; you muted it (until when). */
+  archived: boolean;
+  mutedUntil?: string;
 }
 
 export interface MessageView {
@@ -30,12 +34,28 @@ export interface MessageView {
   conversationId: string;
   senderUid: string;
   body: string;
+  /** Photos sent with it (2026-10-28). */
+  photos?: string[];
   createdAt: string;
 }
 
 type ConvRow = Conversation & { _id: Types.ObjectId; updatedAt?: Date };
 /** Anti-spam: new threads a neighbour may start per rolling day. */
 const MAX_NEW_THREADS_PER_DAY = 20;
+const MAX_PHOTOS = 4;
+const HOUR_MS = 3_600_000;
+/** "Until I turn it back on": far enough to never come. */
+const MUTED_FOREVER = new Date("9999-12-31T00:00:00Z");
+/** What the inbox shows for a message that is only photos. */
+const PHOTO_PREVIEW = "📷 Photo";
+
+const memberOf = (c: Pick<ConvRow, "members">, uid: string): ConversationMember | undefined => c.members.find((m) => m.uid === uid);
+/** Deleted for them, and nothing new since: it stays out of their inbox. */
+const clearedFor = (c: ConvRow, uid: string) => {
+  const cleared = memberOf(c, uid)?.clearedAt;
+  return !!cleared && (!c.lastMessage || new Date(c.lastMessage.createdAt) <= new Date(cleared));
+};
+const isMuted = (m: ConversationMember | undefined, now = Date.now()) => !!m?.mutedUntil && new Date(m.mutedUntil).getTime() > now;
 
 @Injectable()
 export class ChatService implements OnModuleInit {
@@ -50,11 +70,20 @@ export class ChatService implements OnModuleInit {
     private readonly registry: ModerationRegistry,
     private readonly realtime: RealtimeService,
     private readonly accounts: AccountLifecycle,
+    private readonly storage: StorageService,
   ) {}
 
   /** Reports use targetType "message" with the conversation id (contract §5). */
   onModuleInit() {
     this.accounts.register({ name: "chat", purge: (uid, dryRun) => this.purgeParticipant(uid, dryRun) });
+    // A photo stays while a message carries it (StorageService.sweepUnreferenced).
+    this.storage.registerReferenceSource({
+      name: "messages",
+      inUse: async (urls) => {
+        const rows = await this.messages.find({ photos: { $in: urls } }).select({ photos: 1 }).lean<Pick<Message, "photos">[]>().exec();
+        return rows.flatMap((r) => r.photos ?? []);
+      },
+    });
     this.registry.register({
       type: "message",
       load: async (id) => {
@@ -134,15 +163,63 @@ export class ChatService implements OnModuleInit {
     return (await this.users.hiddenAuthorsFor(a)).includes(b);
   }
 
-  async list(viewer: Viewer): Promise<ConversationView[]> {
+  /**
+   * Your conversations, newest activity first. Archived ones only with `archived` (and only them);
+   * ones you deleted stay out until something new arrives.
+   */
+  async list(viewer: Viewer, opts: { archived?: boolean } = {}): Promise<ConversationView[]> {
     const hidden = await this.users.hiddenAuthorsFor(viewer.uid);
+    const mine = { uid: viewer.uid, archivedAt: { $ne: null } };
     const rows = await this.conversations
-      .find({ participantUids: viewer.uid, removedAt: null, lastMessage: { $exists: true } })
+      .find({
+        participantUids: viewer.uid,
+        removedAt: null,
+        lastMessage: { $exists: true },
+        members: opts.archived ? { $elemMatch: mine } : { $not: { $elemMatch: mine } },
+      })
       .sort({ updatedAt: -1 })
       .limit(100)
       .lean<ConvRow[]>()
       .exec();
-    return this.toViews(rows.filter((c) => !c.participantUids.some((u) => hidden.includes(u))), viewer.uid);
+    return this.toViews(
+      rows.filter((c) => !c.participantUids.some((u) => hidden.includes(u)) && !clearedFor(c, viewer.uid)),
+      viewer.uid,
+    );
+  }
+
+  /** Out of your inbox (or back in). Something new arriving brings it back by itself. */
+  async setArchived(viewer: Viewer, id: string, archived: boolean): Promise<void> {
+    await this.load(viewer, id);
+    await this.conversations
+      .updateOne({ _id: id }, { $set: { "members.$[me].archivedAt": archived ? new Date() : null } }, { arrayFilters: [{ "me.uid": viewer.uid }], timestamps: false })
+      .exec();
+  }
+
+  /** No notifications from this conversation for a while, or until turned back on. Unread still counts. */
+  async setMuted(viewer: Viewer, id: string, length: (typeof MUTE_FOR)[number]): Promise<{ mutedUntil: string | null }> {
+    await this.load(viewer, id);
+    const until = length === "off" ? null : length === "always" ? MUTED_FOREVER : new Date(Date.now() + (length === "8h" ? 8 : 7 * 24) * HOUR_MS);
+    await this.conversations
+      .updateOne({ _id: id }, { $set: { "members.$[me].mutedUntil": until } }, { arrayFilters: [{ "me.uid": viewer.uid }], timestamps: false })
+      .exec();
+    return { mutedUntil: until?.toISOString() ?? null };
+  }
+
+  /**
+   * Delete for you (WhatsApp's "Delete chat"): it leaves your inbox and its messages so far are
+   * hidden from you. The other person keeps everything. If they write again, the conversation comes
+   * back with only the new messages.
+   */
+  async clearForMe(viewer: Viewer, id: string): Promise<void> {
+    await this.load(viewer, id);
+    await this.conversations
+      .updateOne(
+        { _id: id },
+        { $set: { "members.$[me].clearedAt": new Date(), "members.$[me].archivedAt": null, "members.$[me].unread": 0 } },
+        { arrayFilters: [{ "me.uid": viewer.uid }], timestamps: false },
+      )
+      .exec();
+    this.realtime.toUsers([viewer.uid], "chat.read", { conversationId: id });
   }
 
   async get(viewer: Viewer, id: string): Promise<ConversationView> {
@@ -221,11 +298,14 @@ export class ChatService implements OnModuleInit {
   async listMessages(viewer: Viewer, id: string, q: ThreadPageQuery = {}): Promise<MessageView[]> {
     const c = await this.load(viewer, id);
     const filter: QueryFilter<Message> = { conversationId: id };
+    // Deleted for them: what came before stays hidden from them.
+    const cleared = memberOf(c, viewer.uid)?.clearedAt;
+    if (cleared) filter.createdAt = { $gt: new Date(cleared) };
     if (q.before) {
       const cursor = await this.messages.findOne({ _id: q.before, conversationId: id }).select({ createdAt: 1 }).lean<Pick<Message, "createdAt"> & { _id: Types.ObjectId }>().exec();
       // Not a message of this thread: there is nothing "before" it here.
       if (!cursor) return [];
-      filter.$or = [{ createdAt: { $lt: cursor.createdAt } }, { createdAt: cursor.createdAt, _id: { $lt: cursor._id } }];
+      filter.$and = [{ $or: [{ createdAt: { $lt: cursor.createdAt } }, { createdAt: cursor.createdAt, _id: { $lt: cursor._id } }] }];
     }
     const newestFirst = await this.messages
       .find(filter)
@@ -260,22 +340,29 @@ export class ChatService implements OnModuleInit {
     );
   }
 
-  async send(viewer: Viewer, id: string, body: string): Promise<MessageView> {
+  async send(viewer: Viewer, id: string, body: string | undefined, photos: string[] = []): Promise<MessageView> {
     const c = await this.load(viewer, id);
-    const text = body.trim();
-    if (!text) throw new BadRequestException("Write a message first.");
+    const text = (body ?? "").trim();
+    if (!text && !photos.length) throw new BadRequestException("Write a message first.");
+    await this.assertOwnMessagePhotos(viewer, photos);
     const others = c.participantUids.filter((u) => u !== viewer.uid);
     // They can still read it; there is nobody left to write to.
     if (others.includes(DELETED_USER_UID)) throw new ForbiddenException("This person has deleted their account, so they can't receive messages.");
     if (await this.blockedBetween(viewer.uid, others[0]!)) throw new ForbiddenException("You can't message this neighbour.");
 
     const msg = await withTransaction(this.connection, async (session) => {
-      const [m] = await this.messages.create([{ conversationId: id, senderUid: viewer.uid, body: text }], { session });
+      const [m] = await this.messages.create([{ conversationId: id, senderUid: viewer.uid, body: text, ...(photos.length && { photos }) }], { session });
       await this.conversations
         .updateOne(
           { _id: id },
           {
-            $set: { lastMessage: { body: text.slice(0, 200), senderUid: viewer.uid, createdAt: m!.createdAt }, "members.$[me].lastReadAt": new Date(), "members.$[me].unread": 0 },
+            $set: {
+              lastMessage: { body: (text || PHOTO_PREVIEW).slice(0, 200), senderUid: viewer.uid, createdAt: m!.createdAt },
+              "members.$[me].lastReadAt": new Date(),
+              "members.$[me].unread": 0,
+              // Something new brings an archived conversation back to everyone's inbox.
+              "members.$[].archivedAt": null,
+            },
             $inc: { "members.$[other].unread": 1 },
           },
           { arrayFilters: [{ "me.uid": viewer.uid }, { "other.uid": { $ne: viewer.uid } }], session },
@@ -284,12 +371,14 @@ export class ChatService implements OnModuleInit {
       return m!;
     });
 
-    await this.notifications.notify({
-      uids: others,
+    // Muted: no notification, though it still counts as unread.
+    const listening = others.filter((u) => !isMuted(memberOf(c, u)));
+    if (listening.length) await this.notifications.notify({
+      uids: listening,
       type: "message",
       actorUid: viewer.uid,
-      title: `${viewer.displayName ?? "A neighbour"} sent you a message`,
-      body: text.slice(0, 140),
+      title: `${viewer.displayName ?? "A neighbour"} ${text ? "sent you a message" : photos.length > 1 ? "sent you photos" : "sent you a photo"}`,
+      body: (text || PHOTO_PREVIEW).slice(0, 140),
       href: `/inbox/${id}`,
       category: "messages",
       groupKey: `conversation:${id}`,
@@ -297,6 +386,19 @@ export class ChatService implements OnModuleInit {
     // Everyone in the thread, including the sender's other tabs.
     this.realtime.toUsers(c.participantUids, "chat.message", { conversationId: id });
     return toMessage(msg.toObject() as Message & { _id: Types.ObjectId });
+  }
+
+  /** Message photos must be photos the sender uploaded for messages: never someone else's, never a link to anywhere. */
+  private async assertOwnMessagePhotos(viewer: Viewer, photos: string[]): Promise<void> {
+    if (!photos.length) return;
+    if (photos.length > MAX_PHOTOS) throw new BadRequestException(`Send up to ${MAX_PHOTOS} photos at a time.`);
+    if (new Set(photos).size !== photos.length) throw new BadRequestException("The same photo is in there twice.");
+    const known = await this.storage.describe(photos);
+    const ok = photos.every((u) => {
+      const a = known.get(u);
+      return a && a.ownerUid === viewer.uid && a.purpose === "message" && a.resourceType === "image";
+    });
+    if (!ok) throw new BadRequestException("Those photos couldn't be attached. Add them again.");
   }
 
   private async toViews(rows: ConvRow[], uid: string): Promise<ConversationView[]> {
@@ -311,10 +413,19 @@ export class ChatService implements OnModuleInit {
       // For "Seen": when each person last read the thread.
       readBy: c.members.map((m) => ({ uid: m.uid, lastReadAt: m.lastReadAt ? new Date(m.lastReadAt).toISOString() : undefined })),
       updatedAt: (c.updatedAt ?? new Date()).toISOString(),
+      archived: !!memberOf(c, uid)?.archivedAt,
+      ...(isMuted(memberOf(c, uid)) && { mutedUntil: new Date(memberOf(c, uid)!.mutedUntil!).toISOString() }),
     }));
   }
 }
 
 function toMessage(m: Message & { _id: Types.ObjectId }): MessageView {
-  return { _id: String(m._id), conversationId: m.conversationId, senderUid: m.senderUid, body: m.body, createdAt: (m.createdAt ?? new Date()).toISOString() };
+  return {
+    _id: String(m._id),
+    conversationId: m.conversationId,
+    senderUid: m.senderUid,
+    body: m.body ?? "",
+    ...(m.photos?.length && { photos: m.photos }),
+    createdAt: (m.createdAt ?? new Date()).toISOString(),
+  };
 }

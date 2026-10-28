@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { IsIn, IsMongoId, IsOptional, IsString, Length, MaxLength, ValidateNested } from "class-validator";
+import { ArrayMaxSize, IsArray, IsBoolean, IsIn, IsMongoId, IsOptional, IsString, IsUrl, Length, MaxLength, ValidateNested } from "class-validator";
 
 export class ChatContextDto {
   @IsIn(["listing"]) type!: "listing";
@@ -20,5 +20,27 @@ export class StartConversationDto {
 }
 
 export class SendMessageDto {
-  @IsString() @Length(1, 2000) body!: string;
+  /** The text; may be left out (or empty) when `photos` are sent. */
+  @IsOptional() @IsString() @MaxLength(2000) body?: string;
+  /** Up to 4 photos uploaded with purpose "message" (2026-10-28). */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(4)
+  @IsUrl({ protocols: ["https"], require_protocol: true }, { each: true })
+  photos?: string[];
+}
+
+export class ArchiveConversationDto {
+  @IsBoolean() archived!: boolean;
+}
+
+export const MUTE_FOR = ["8h", "1w", "always", "off"] as const;
+export class MuteConversationDto {
+  /** How long to stay quiet: 8 hours, a week, until turned back on, or not at all. */
+  @IsIn(MUTE_FOR) for!: (typeof MUTE_FOR)[number];
+}
+
+export class ConversationListQuery {
+  /** `true`: only the conversations you archived. Otherwise they're left out. */
+  @IsOptional() @IsIn(["true", "false"]) archived?: "true" | "false";
 }

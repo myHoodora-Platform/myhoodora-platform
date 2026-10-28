@@ -108,6 +108,77 @@ describe("For Sale & Free + chat", () => {
       await t.http.delete("/api/users/me/blocks/chidi").set(t.auth("bola")).expect(204);
     });
 
+    describe("photos, archive, mute and delete for me (2026-10-28)", () => {
+      let direct: string;
+      const asset = (ownerUid: string, name: string, purpose = "message") =>
+        t.model("MediaAsset").create({ ownerUid, provider: "fake", providerId: `m/${name}`, resourceType: "image", purpose, url: `https://cdn.test/m/${name}.jpg`, status: "ready" });
+
+      beforeAll(async () => {
+        direct = (await t.http.post("/api/conversations").set(t.auth("ada")).send({ recipientUid: "chidi" }).expect(201)).body._id;
+      });
+
+      it("sends photos you uploaded for messages, with or without text; never someone else's or a link", async () => {
+        await asset("ada", "gate");
+        await asset("ada", "gate2");
+        await asset("chidi", "theirs");
+        await asset("ada", "post-photo", "post");
+        const sent = await t.http.post(`/api/conversations/${direct}/messages`).set(t.auth("ada")).send({ photos: ["https://cdn.test/m/gate.jpg", "https://cdn.test/m/gate2.jpg"] }).expect(201);
+        expect(sent.body).toMatchObject({ body: "", photos: ["https://cdn.test/m/gate.jpg", "https://cdn.test/m/gate2.jpg"] });
+        const inbox = await t.http.get("/api/conversations").set(t.auth("chidi")).expect(200);
+        expect(inbox.body.find((c: { _id: string }) => c._id === direct).lastMessage.body).toBe("📷 Photo");
+        await t.http.post(`/api/conversations/${direct}/messages`).set(t.auth("ada")).send({ photos: ["https://cdn.test/m/theirs.jpg"] }).expect(400);
+        await t.http.post(`/api/conversations/${direct}/messages`).set(t.auth("ada")).send({ photos: ["https://cdn.test/m/post-photo.jpg"] }).expect(400);
+        await t.http.post(`/api/conversations/${direct}/messages`).set(t.auth("ada")).send({ photos: ["https://elsewhere.test/pixel.gif"] }).expect(400);
+        await t.http.post(`/api/conversations/${direct}/messages`).set(t.auth("ada")).send({}).expect(400);
+        // Older clients still send text only.
+        await t.http.post(`/api/conversations/${direct}/messages`).set(t.auth("ada")).send({ body: "That's the gate I meant" }).expect(201);
+      });
+
+      it("archive takes it out of your inbox only, until something new arrives", async () => {
+        await t.http.put(`/api/conversations/${direct}/archive`).set(t.auth("chidi")).send({ archived: true }).expect(204);
+        const ids = async (uid: string, q = "") => (await t.http.get(`/api/conversations${q}`).set(t.auth(uid)).expect(200)).body.map((c: { _id: string }) => c._id);
+        expect(await ids("chidi")).not.toContain(direct);
+        expect(await ids("chidi", "?archived=true")).toContain(direct);
+        expect(await ids("ada")).toContain(direct);
+        await t.http.post(`/api/conversations/${direct}/messages`).set(t.auth("ada")).send({ body: "Still there?" }).expect(201);
+        expect(await ids("chidi")).toContain(direct);
+        expect(await ids("chidi", "?archived=true")).not.toContain(direct);
+      });
+
+      it("mute stops the notifications, not the unread count", async () => {
+        const muted = await t.http.put(`/api/conversations/${direct}/mute`).set(t.auth("chidi")).send({ for: "8h" }).expect(200);
+        expect(new Date(muted.body.mutedUntil).getTime()).toBeGreaterThan(Date.now() + 7 * 3_600_000);
+        await t.http.get(`/api/conversations/${direct}/messages`).set(t.auth("chidi")).expect(200);
+        await t.model("Notification").deleteMany({ uid: "chidi", type: "message" });
+        await t.http.post(`/api/conversations/${direct}/messages`).set(t.auth("ada")).send({ body: "Muted?" }).expect(201);
+        expect(await t.model("Notification").countDocuments({ uid: "chidi", type: "message" })).toBe(0);
+        expect((await t.http.get(`/api/conversations/${direct}`).set(t.auth("chidi")).expect(200)).body).toMatchObject({ unreadCount: 1, mutedUntil: expect.any(String) });
+        await t.http.put(`/api/conversations/${direct}/mute`).set(t.auth("chidi")).send({ for: "off" }).expect(200);
+        await t.http.post(`/api/conversations/${direct}/messages`).set(t.auth("ada")).send({ body: "And now?" }).expect(201);
+        expect(await t.model("Notification").countDocuments({ uid: "chidi", type: "message" })).toBe(1);
+        await t.http.put(`/api/conversations/${direct}/mute`).set(t.auth("chidi")).send({ for: "forever" }).expect(400);
+      });
+
+      it("delete for me hides it and what came before from you only; a new message brings back just the new", async () => {
+        await t.http.delete(`/api/conversations/${direct}`).set(t.auth("chidi")).expect(204);
+        const inbox = async (uid: string) => (await t.http.get("/api/conversations").set(t.auth(uid)).expect(200)).body.map((c: { _id: string }) => c._id);
+        expect(await inbox("chidi")).not.toContain(direct);
+        expect((await t.http.get(`/api/conversations/${direct}/messages`).set(t.auth("chidi")).expect(200)).body).toEqual([]);
+        expect((await t.http.get(`/api/conversations/${direct}/messages`).set(t.auth("ada")).expect(200)).body.length).toBeGreaterThan(3);
+        expect((await t.http.get("/api/conversations/unread-count").set(t.auth("chidi")).expect(200)).body.count).toBe(0);
+        await t.http.post(`/api/conversations/${direct}/messages`).set(t.auth("ada")).send({ body: "Fresh start" }).expect(201);
+        expect(await inbox("chidi")).toContain(direct);
+        const left = await t.http.get(`/api/conversations/${direct}/messages`).set(t.auth("chidi")).expect(200);
+        expect(left.body.map((m: { body: string }) => m.body)).toEqual(["Fresh start"]);
+      });
+
+      it("only the two people in it can archive, mute or delete it", async () => {
+        await t.http.put(`/api/conversations/${direct}/archive`).set(t.auth("bola")).send({ archived: true }).expect(404);
+        await t.http.put(`/api/conversations/${direct}/mute`).set(t.auth("bola")).send({ for: "8h" }).expect(404);
+        await t.http.delete(`/api/conversations/${direct}`).set(t.auth("bola")).expect(404);
+      });
+    });
+
     it("conversations can be reported and closed by staff", async () => {
       await t.member("mod", lekki, { role: "moderator" });
       await t.http.post("/api/reports").set(t.auth("bola")).send({ targetType: "message", targetId: convo, reason: "harassment" }).expect(204);
