@@ -15,11 +15,15 @@ const SIZE = 92;
  * The photos in a draft: each shows whether it's uploading, done or failed (tap to retry), with a
  * remove button; then "Add photo", which offers the library or the camera.
  */
-export function PhotoStrip({ uploads, label = "Photos" }: { uploads: PhotoUploads; label?: string }) {
+/**
+ * Adding photos to a draft: the "choose or take" sheet, then into `uploads`, with a note when the
+ * camera is off or there wasn't room. Shared by the photo strip and the chat composer.
+ */
+export function usePhotoPicking(uploads: PhotoUploads) {
   const t = useTheme();
   const [choosing, setChoosing] = useState(false);
   const [note, setNote] = useState<string | null>(null);
-  const { items, room, uploading, failed } = uploads;
+  const { room } = uploads;
 
   const take = async (from: () => Promise<PickResult>) => {
     setChoosing(false);
@@ -34,6 +38,25 @@ export function PhotoStrip({ uploads, label = "Photos" }: { uploads: PhotoUpload
     const left = uploads.add(result.photos);
     if (left > 0) setNote(`There was room for ${room} more, so ${left} ${left === 1 ? "wasn't" : "weren't"} added.`);
   };
+
+  const sheet = (
+    <Sheet visible={choosing} title="Add photos" onClose={() => setChoosing(false)}>
+      <SheetItem label="Choose from your photos" icon={<Images size={20} color={t.colors.primary} />} onPress={() => void take(() => pickPhotos(room))} />
+      <SheetItem label="Take a photo" icon={<Camera size={20} color={t.colors.primary} />} onPress={() => void take(takePhoto)} />
+    </Sheet>
+  );
+  const noteView = note ? (
+    <InlineAlert tone="info" action={note.startsWith("Camera") ? <Text variant="label" tone="primary" onPress={() => void Linking.openSettings()}>Open Settings</Text> : undefined}>
+      {note}
+    </InlineAlert>
+  ) : null;
+  return { choose: () => setChoosing(true), sheet, note: noteView };
+}
+
+export function PhotoStrip({ uploads, label = "Photos" }: { uploads: PhotoUploads; label?: string }) {
+  const t = useTheme();
+  const picking = usePhotoPicking(uploads);
+  const { items, room, uploading, failed } = uploads;
 
   return (
     <View style={styles.wrap}>
@@ -67,7 +90,7 @@ export function PhotoStrip({ uploads, label = "Photos" }: { uploads: PhotoUpload
         ))}
         {room > 0 ? (
           <Pressable
-            onPress={() => setChoosing(true)}
+            onPress={picking.choose}
             accessibilityRole="button"
             accessibilityLabel="Add photos"
             style={({ pressed }) => [styles.tile, styles.add, { borderColor: t.colors.primary, backgroundColor: pressed ? tint(t.colors.primary, 0.12) : tint(t.colors.primary, 0.05) }]}
@@ -80,15 +103,8 @@ export function PhotoStrip({ uploads, label = "Photos" }: { uploads: PhotoUpload
         ) : null}
       </ScrollView>
       {failed ? <InlineAlert>{`${failed === 1 ? "A photo" : `${failed} photos`} didn't upload. Tap to retry, or remove it.`}</InlineAlert> : null}
-      {note ? (
-        <InlineAlert tone="info" action={note.startsWith("Camera") ? <Text variant="label" tone="primary" onPress={() => void Linking.openSettings()}>Open Settings</Text> : undefined}>
-          {note}
-        </InlineAlert>
-      ) : null}
-      <Sheet visible={choosing} title="Add photos" onClose={() => setChoosing(false)}>
-        <SheetItem label="Choose from your photos" icon={<Images size={20} color={t.colors.primary} />} onPress={() => void take(() => pickPhotos(room))} />
-        <SheetItem label="Take a photo" icon={<Camera size={20} color={t.colors.primary} />} onPress={() => void take(takePhoto)} />
-      </Sheet>
+      {picking.note}
+      {picking.sheet}
     </View>
   );
 }

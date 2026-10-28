@@ -9,7 +9,7 @@ _Agreed 28 October 2026 on the `feed-redesign` branch. Ticked when built and che
 3. [x] **Events.** Events list (Upcoming / Past), create an event with an in-app date and time picker, RSVP Going or Interested from the feed, the post or the list; reminders are the API's (§23). Checked on the Xiaomi 28 Oct. Not done: "Add to calendar" (needs a native calendar module and a rebuild).
 4. [x] **Polls.** Vote, change or take back a vote, results with exact percentages, create a poll (2–4 choices, open 1 day, 3 days or a week). Checked on the Xiaomi 28 Oct.
 5. [x] **Your listings.** On your own listing: Available, Pending or Sold (Given away when free) in one tap, and Delete. Marking sold sends the "sold" signal (feedback questions, store review). Checked on the Xiaomi 28 Oct.
-6. [ ] **Messages.** New message (find a neighbour), search, filters (All · Unread · Buying & selling · Support), listing link, day separators, and three backend additions: photos in messages, archive or delete a chat for yourself, mute a chat. All additive: the web's current flow keeps working unchanged.
+6. [x] **Messages.** One tap from every tab. Search, filters (All · Unread · Buying & selling · Archived), New message (find a neighbour), hold a chat to archive, mute (8 hours, a week, until turned back on) or delete it for you; inside a chat: day lines, "Seen", the listing it's about, photos (up to 4), and the same options plus Report. Backend additions are additive (API §5). Checked on the Xiaomi 28 Oct, except sending a photo (needs your gallery; try it).
 7. [ ] **First-run tour (last, after everything above).** A tour that points at the real controls, like the web's `features/tour`, replacing the intro slides' job of explaining the app.
 
 ## Notes from testing

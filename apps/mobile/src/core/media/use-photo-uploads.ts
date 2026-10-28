@@ -85,11 +85,18 @@ export function usePhotoUploads(purpose: MediaPurpose, max: number) {
     [items, user],
   );
 
+  /** Sent: start an empty draft. The files stay, since what was sent now uses them. */
+  const clear = useCallback(() => {
+    sources.current.clear();
+    setItems([]);
+  }, []);
+
   const done = items.filter((p) => p.status === "done");
   return {
     items,
     add,
     remove,
+    clear,
     retry: (key: string) => void upload(key),
     urls: done.map((p) => p.url!),
     uploading: items.filter((p) => p.status === "uploading").length,

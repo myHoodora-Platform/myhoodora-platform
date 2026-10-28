@@ -29,7 +29,7 @@ export function ReportSheet({
 }: {
   visible: boolean;
   onClose: () => void;
-  targetType: "post" | "comment" | "listing" | "user" | "ad";
+  targetType: "post" | "comment" | "listing" | "user" | "ad" | "message";
   targetId: string;
   /** Where the report goes, when not the usual reports queue (ads have their own). */
   send?: (reason: ReportReason) => Promise<unknown>;

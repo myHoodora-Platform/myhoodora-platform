@@ -1,3 +1,5 @@
+import { clock } from "@/shared/utils/time";
+
 /**
  * Event timing, as the web and the API have it (contract §23): an event has no end time, so it's
  * treated as lasting 3 hours. "Happening now" from its start until then, "Ended" after.
@@ -49,19 +51,12 @@ export function dateBadge(iso: string): { month: string; day: string; weekday: s
   };
 }
 
-/** "4:00 pm", the way Nigerians write times. */
-export function clockTime(d: Date): string {
-  const h = d.getHours();
-  const m = d.getMinutes();
-  return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h < 12 ? "am" : "pm"}`;
-}
-
 /** "Sat 4 Oct, 4:00 pm" (with the year when it isn't this year's). */
 export function eventWhen(iso: string, now = new Date()): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   const day = d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", ...(d.getFullYear() !== now.getFullYear() && { year: "numeric" }) });
-  return `${day.replace(",", "")}, ${clockTime(d)}`;
+  return `${day.replace(",", "")}, ${clock(iso)}`;
 }
 
 /** Upcoming soonest first (one on now stays until it ends); past most recent first. Undated count as upcoming. */
