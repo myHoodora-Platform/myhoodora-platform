@@ -6,11 +6,16 @@ _Agreed 28 October 2026 on the `feed-redesign` branch. Ticked when built and che
 
 1. [x] **Navigation.** Bottom bar: Home · For Sale · Menu, with Post where it is. One top bar on every tab: Search, Notifications, Messages (with unread counts). Menu holds your profile, Groups, Events, Alerts, Saved, Settings, Help.
 2. [x] **Groups.** Browse, create, join or request, leave, posts inside a group, invite neighbours. Admins: edit, members, requests, roles, delete. API §8; members and requests now carry name and photo (additive). Checked on the Xiaomi 28 Oct.
-3. [ ] **Events.** Events list, create an event, RSVP going or interested, reminder. API §7 and §23.
-4. [ ] **Polls.** Vote, change or take back a vote, results, create a poll.
+3. [x] **Events.** Events list (Upcoming / Past), create an event with an in-app date and time picker, RSVP Going or Interested from the feed, the post or the list; reminders are the API's (§23). Checked on the Xiaomi 28 Oct. Not done: "Add to calendar" (needs a native calendar module and a rebuild).
+4. [x] **Polls.** Vote, change or take back a vote, results with exact percentages, create a poll (2–4 choices, open 1 day, 3 days or a week). Checked on the Xiaomi 28 Oct.
 5. [ ] **Your listings.** Mark reserved or sold, delete. The "sold" feedback signal and store-review moment fire from here.
 6. [ ] **Messages.** New message (find a neighbour), search, filters (All · Unread · Buying & selling · Support), listing link, day separators, and three backend additions: photos in messages, archive or delete a chat for yourself, mute a chat. All additive: the web's current flow keeps working unchanged.
 7. [ ] **First-run tour (last, after everything above).** A tour that points at the real controls, like the web's `features/tour`, replacing the intro slides' job of explaining the app.
+
+## Notes from testing
+
+- Posts made before 2026-10 keep their category inside the text; `pnpm migrate` moves it into its own field. The local copy needed it for old events to show under Events. **Production needs it too** (already on the launch list).
+- A development-only warning appears on a cold start ("Can't perform a React state update on a component that hasn't mounted yet", from Expo Router's root). Not from these screens; to look into.
 
 ## Also missing, not scheduled
 

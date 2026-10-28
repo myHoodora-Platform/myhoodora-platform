@@ -9,6 +9,7 @@ import { ProfilePreview } from "@/features/profile/profile-preview";
 import { useOpenProfile } from "@/features/profile/use-open-profile";
 import { feedKeys, listThread, nextOffset } from "./feed-api";
 import { MediaGrid } from "./media-grid";
+import { PostExtras } from "./post-extras";
 import { CategoryBadge, isUrgent, PostActionBar, PostAuthor, PostCounts, PostMenuButton, PostResolved, postText } from "./post-parts";
 import { FEED_LINES } from "./see-more";
 import { SeeMoreText } from "./see-more-text";
@@ -53,6 +54,7 @@ export const PostCard = memo(function PostCard({ post, onComments }: { post: Api
           {text ? <SeeMoreText id={post._id} text={text} lines={FEED_LINES} style={styles.text} onOpenPost={open} /> : null}
         </Pressable>
       ) : null}
+      <PostExtras post={post} />
       {post.mediaUrls.length ? <MediaGrid urls={post.mediaUrls} aspects={post.mediaAspects} recyclingKey={post._id} /> : null}
       <PostCounts post={post} onComments={comments} />
       <PostActionBar post={post} onComment={comments} />

@@ -27,7 +27,7 @@ describe("where a tapped push goes", () => {
   });
 
   it("anything else opens the notifications list, never an arbitrary route or URL", () => {
-    for (const href of ["/events/123", "/g/9/posts", "/settings/moderation", "/inbox/support/1/x", "https://evil.example/p/1", "//evil.example", "/p/../admin", "", undefined, 42]) {
+    for (const href of ["/events/123/x", "/g/9/posts", "/settings/moderation", "/inbox/support/1/x", "https://evil.example/p/1", "//evil.example", "/p/../admin", "", undefined, 42]) {
       expect(routeForHref(href)).toBe(FALLBACK_ROUTE);
     }
   });

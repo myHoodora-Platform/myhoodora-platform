@@ -20,10 +20,16 @@ import { EmptyState } from "@/shared/ui/states";
 import { Text } from "@/shared/ui/text";
 import { TextField } from "@/shared/ui/text-field";
 import { useToast } from "@/shared/ui/toast";
-import { ALERT_KINDS, COMPOSE_KINDS, draftErrors, MESSAGE_MAX, newClientId, toNewPost, type Draft, type DraftErrors } from "./compose-rules";
+import { ALERT_KINDS, blankDraft, COMPOSE_KINDS, draftErrors, kindFromParam, MESSAGE_MAX, newClientId, toNewPost, type Draft, type DraftErrors } from "./compose-rules";
+import { EventFields, PollFields } from "./compose-extras";
 import { signal } from "@/features/feedback/engagement";
 
 const KINDNESS_TIMEOUT_MS = 3000;
+const POSTED: Partial<Record<Draft["category"], string>> = {
+  alert: "Alert posted to your neighbours.",
+  event: "Event posted. Neighbours can say they're going.",
+  poll: "Poll posted. Votes are anonymous.",
+};
 const REASON_TEXT: Record<string, string> = {
   insult: "It may come across as an insult.",
   threat: "It may read as a threat.",
@@ -34,19 +40,20 @@ const REASON_TEXT: Record<string, string> = {
  * Writing a post (Nextdoor's "Post" button): pick what it is, write it, post. One tap posts once: the
  * draft carries a clientId, so even a retry after a lost response can't make a second post.
  */
-export function ComposeScreen() {
+export function ComposeScreen({ kind: startKind }: { kind?: string }) {
   const t = useTheme();
   const router = useRouter();
   const user = useSignedInUser();
   const { profile } = useAuth();
   const client = useQueryClient();
   const toast = useToast();
-  const [draft, setDraft] = useState<Draft>({ category: "general", message: "", alertCategory: null, urgent: false, thankedName: "" });
+  const [draft, setDraft] = useState<Draft>(() => blankDraft(kindFromParam(startKind)));
   const [errors, setErrors] = useState<DraftErrors | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [clientId] = useState(newClientId);
   const inFlight = useRef(false);
+  const kinds = useRef<ScrollView>(null);
   // Up to 10 photos per post (contract §20).
   const photos = usePhotoUploads("post", 10);
   const kind = COMPOSE_KINDS.find((k) => k.id === draft.category) ?? COMPOSE_KINDS[0]!;
@@ -75,7 +82,7 @@ export function ComposeScreen() {
       // Counts toward feedback prompts and the store review ("after your 5th post").
       signal(user, draft.category === "recommendation" ? "recommendation_posted" : "post_created", created._id);
       await client.invalidateQueries({ queryKey: feedKeys.all });
-      toast(draft.category === "alert" ? "Alert posted to your neighbours." : "Posted to your neighbourhood.");
+      toast(POSTED[draft.category] ?? "Posted to your neighbourhood.");
       close();
     } catch (err) {
       // 403 says why (e.g. confirm your email first); everything else in the shared wording.
@@ -133,9 +140,12 @@ export function ComposeScreen() {
               </Text>
             </View>
           </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} style={styles.chipRow} accessibilityLabel="What kind of post">
+          <ScrollView ref={kinds} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} style={styles.chipRow} accessibilityLabel="What kind of post">
             {COMPOSE_KINDS.map((k) => (
-              <Chip key={k.id} label={k.label} selected={k.id === draft.category} onPress={() => edit({ category: k.id })} />
+              // Opened on a kind further along (Event, Poll): bring its chip into view.
+              <View key={k.id} onLayout={k.id === startKind ? (e) => kinds.current?.scrollTo({ x: Math.max(0, e.nativeEvent.layout.x - 16), animated: false }) : undefined}>
+                <Chip label={k.label} selected={k.id === draft.category} onPress={() => edit({ category: k.id })} />
+              </View>
             ))}
           </ScrollView>
           <Text variant="caption" tone="muted">
@@ -164,6 +174,7 @@ export function ComposeScreen() {
           {draft.category === "thanks" ? (
             <TextField label="Who are you thanking?" placeholder="e.g. Mama Tunde at the corner shop" value={draft.thankedName} onChangeText={(thankedName) => edit({ thankedName })} maxLength={80} error={errors?.thankedName} autoCapitalize="words" />
           ) : null}
+          {draft.category === "event" ? <EventFields draft={draft} errors={errors} edit={edit} /> : null}
           <TextInput
             value={draft.message}
             onChangeText={(message) => edit({ message })}
@@ -177,6 +188,7 @@ export function ComposeScreen() {
             textAlignVertical="top"
           />
           {errors?.message ? <InlineAlert>{errors.message}</InlineAlert> : null}
+          {draft.category === "poll" ? <PollFields draft={draft} errors={errors} edit={edit} /> : null}
           <PhotoStrip uploads={photos} />
         </ScrollView>
       </KeyboardAvoidingView>

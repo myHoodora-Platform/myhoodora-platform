@@ -15,6 +15,7 @@ import { Skeleton } from "@/shared/ui/skeleton";
 import { ErrorState } from "@/shared/ui/states";
 import { Text } from "@/shared/ui/text";
 import { cachedPost, feedKeys, getPost } from "./feed-api";
+import { PostExtras } from "./post-extras";
 import { CategoryBadge, PostActionBar, PostAuthor, PostCounts, PostMenuButton, PostText } from "./post-parts";
 
 /** The post itself: text, photos edge to edge, then what you can do with it, then "Comments". */
@@ -26,6 +27,9 @@ function PostBody({ post, onComment }: { post: ApiPost; onComment: () => void })
       <View style={styles.text}>
         <CategoryBadge post={post} />
         <PostText post={post} size={17} />
+      </View>
+      <View style={styles.extras}>
+        <PostExtras post={post} />
       </View>
       <PhotoPager photos={post.mediaUrls} aspects={post.mediaAspects} label="Photo in the post" />
       <View style={[styles.actions, { borderBottomColor: t.colors.border }]}>
@@ -120,6 +124,7 @@ function LoadingPost() {
 }
 
 const styles = StyleSheet.create({
+  extras: { paddingBottom: 12 },
   text: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 14, gap: 10, alignItems: "flex-start" },
   actions: { paddingTop: 8, paddingBottom: 4, gap: 4, borderBottomWidth: StyleSheet.hairlineWidth },
   commentsHead: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4 },

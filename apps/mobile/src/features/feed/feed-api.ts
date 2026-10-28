@@ -143,6 +143,10 @@ export interface NewPost {
   alertCategory?: AlertCategory;
   urgent?: boolean;
   thankedName?: string;
+  type?: "event";
+  eventDate?: string;
+  eventLocation?: string;
+  poll?: { options: { id: string; text: string }[]; closesAt: string };
   /** Uploaded photo URLs (POST /media), up to 10. */
   mediaUrls?: string[];
   /** One per draft: if the request is retried after a lost response, the API returns the same post. */

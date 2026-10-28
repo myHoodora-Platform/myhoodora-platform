@@ -16,6 +16,7 @@ const APP_ROUTES: RegExp[] = [
   new RegExp(`^/inbox/${ID}$`),
   /^\/inbox\/support$/,
   new RegExp(`^/inbox/support/${ID}$`),
+  /^\/events$/,
   /^\/groups(\/new)?$/,
   new RegExp(`^/g/${ID}(/(manage|invite))?$`),
   /^\/settings(\/(profile|notifications|privacy|email|neighbourhoods))?$/,
