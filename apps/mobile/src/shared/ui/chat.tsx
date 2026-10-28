@@ -1,6 +1,6 @@
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
-import { ArrowUp, Delete, FileText, Keyboard as KeyboardIcon, Paperclip, Reply, RotateCcw, Smile, X } from "lucide-react-native";
+import { ArrowUp, Ban, Delete, FileText, Keyboard as KeyboardIcon, Paperclip, Reply, RotateCcw, Smile, X } from "lucide-react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -108,13 +108,17 @@ export function BubbleBody({ mine, body, photos = [], documents = [], quote, del
           <Text variant="caption" numberOfLines={1} style={{ color: mine ? fg : t.colors.primary, fontFamily: t.fonts.semibold }}>
             {quote.who}
           </Text>
-          <Text variant="caption" numberOfLines={2} style={{ color: fg, opacity: 0.85, fontStyle: quote.deleted ? "italic" : "normal" }}>
+          <Text variant="caption" numberOfLines={2} style={{ color: fg, opacity: quote.deleted ? 0.7 : 0.85 }}>
             {quote.deleted ? "This message was deleted" : quote.body || (quote.photo ? "📷 Photo" : "")}
           </Text>
         </Pressable>
       ) : null}
       {deleted ? (
-        <Text style={{ color: fg, opacity: 0.75, fontStyle: "italic" }}>{mine ? "🚫 You deleted this message" : "🚫 This message was deleted"}</Text>
+        // Not italic: Android measures italic text in a custom font short and cuts off its end.
+        <View style={styles.deleted}>
+          <Ban size={15} color={fg} style={{ opacity: 0.7 }} />
+          <Text style={{ color: fg, opacity: 0.75 }}>{mine ? "You deleted this message" : "This message was deleted"}</Text>
+        </View>
       ) : null}
       {media ? (
         <View style={[styles.photos, photos.length > 1 && styles.photosGrid]}>
@@ -489,6 +493,7 @@ const styles = StyleSheet.create({
   mine: { justifyContent: "flex-end", alignItems: "flex-end", alignSelf: "flex-end" },
   swipeHint: { position: "absolute", left: 4, width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
   ring: { borderWidth: 2, borderRadius: 22, margin: -2 },
+  deleted: { flexDirection: "row", alignItems: "center", gap: 6 },
   quote: { borderLeftWidth: 3, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, gap: 1, minWidth: 140 },
   quoteInMedia: { margin: 4, marginBottom: 2 },
   reactions: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, marginTop: -10, minHeight: 26 },

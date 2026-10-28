@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { Check, ChevronDown, Lock, LogOut, MoreHorizontal, Send, Settings2, Trash2, UserPlus, X } from "lucide-react-native";
 import { useState } from "react";
-import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, StyleSheet, TextInput, View } from "react-native";
+import {ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, TextInput, View } from "react-native";
 import { useAuth, useSignedInUser } from "@/core/auth/auth-provider";
 import { useRouter } from "@/core/navigation/use-router";
 import { usePullRefresh } from "@/shared/hooks/use-pull-refresh";
@@ -24,6 +24,7 @@ import { useOpenProfile } from "@/features/profile/use-open-profile";
 import { SeeMoreText } from "@/features/feed/see-more-text";
 import { GroupMetaLine } from "./group-parts";
 import { createGroupPost, deleteGroupPost, getGroup, GROUP_CATEGORY, groupKeys, joinGroup, leaveGroup, listGroupPosts } from "./groups-api";
+import { showDialog } from "@/shared/ui/dialog";
 
 /** Who may invite: any member of an open group; only admins of a private one (contract §8). */
 export const canInvite = (g: Group) => g.membership === "member" && (g.privacy === "open" || g.isAdmin);
@@ -164,10 +165,10 @@ function Actions({ group: g, invite }: { group: Group; invite?: string }) {
       void refresh();
     },
     // e.g. 409: the last admin must hand over first.
-    onError: (err) => Alert.alert("Couldn't leave", errorMessage(err)),
+    onError: (err) => showDialog("Couldn't leave", errorMessage(err)),
   });
   const confirmLeave = () =>
-    Alert.alert(`Leave ${g.name}?`, g.privacy === "private" ? "You'll need an admin to let you back in." : "You can join again at any time.", [
+    showDialog(`Leave ${g.name}?`, g.privacy === "private" ? "You'll need an admin to let you back in." : "You can join again at any time.", [
       { text: "Stay", style: "cancel" },
       { text: "Leave", style: "destructive", onPress: () => leave.mutate() },
     ]);
@@ -279,7 +280,7 @@ function GroupPostCard({ post, group }: { post: GroupPost; group: Group }) {
     onError: (err) => toast(errorMessage(err), "error"),
   });
   const confirm = () =>
-    Alert.alert(mine ? "Delete your post?" : `Delete ${name}'s post?`, "It will be removed from the group for everyone.", [
+    showDialog(mine ? "Delete your post?" : `Delete ${name}'s post?`, "It will be removed from the group for everyone.", [
       { text: "Cancel", style: "cancel" },
       { text: "Delete", style: "destructive", onPress: () => remove.mutate() },
     ]);

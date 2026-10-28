@@ -5,7 +5,7 @@ import { Image } from "expo-image";
 import { useVideoPlayer, VideoView, type VideoPlayer } from "expo-video";
 import { Ellipsis, EyeOff, Flag, Info, Volume2, VolumeX } from "lucide-react-native";
 import { memo, useEffect, useState } from "react";
-import { Alert, FlatList, Linking, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
+import {FlatList, Linking, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import { useSignedInUser } from "@/core/auth/auth-provider";
 import { hideAd, isAd, reportAd, updateFeedEntries, type AdEntry } from "@/features/feed/feed-api";
 import { ReportSheet } from "@/features/feed/report-sheet";
@@ -18,6 +18,7 @@ import { Text } from "@/shared/ui/text";
 import { useToast } from "@/shared/ui/toast";
 import { sizedImage } from "@/shared/utils/media";
 import { adTracker } from "./ad-tracking";
+import { showDialog } from "@/shared/ui/dialog";
 
 /** Lines of ad text before "See more" (Meta's guidance: about 125 characters). */
 const AD_LINES = 3;
@@ -133,7 +134,7 @@ export const AdCard = memo(function AdCard({ entry, session, active }: { entry: 
               Icon: Info,
               onPress: () => {
               track("why");
-              setTimeout(() => Alert.alert("Why you're seeing this ad", ad.why), 350);
+              setTimeout(() => showDialog("Why you're seeing this ad", ad.why), 350);
             },
           },
           ],

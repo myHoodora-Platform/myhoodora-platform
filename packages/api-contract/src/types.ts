@@ -349,7 +349,27 @@ export interface Conversation {
   archived?: boolean;
   /** Viewer-relative: you muted it until then (absent when not muted). */
   mutedUntil?: string;
+  /** Viewer-relative (2026-10-28): you pinned it to the top of your inbox (up to 3). */
+  pinned?: boolean;
+  /** Messages pinned for everyone in the chat, still current, newest first (up to 3). */
+  pins?: PinnedMessage[];
 }
+
+/** A pinned message, in brief, for the bar under a chat's header. */
+export interface PinnedMessage {
+  messageId: string;
+  /** Who pinned it. */
+  by: string;
+  /** When it stops being pinned. */
+  until: string;
+  senderUid: string;
+  body: string;
+  photo: boolean;
+}
+
+/** How long a message stays pinned (WhatsApp's choices). */
+export type PinLength = "24h" | "7d" | "30d";
+export const MAX_PINNED_CHATS = 3;
 
 export interface Message {
   _id: string;

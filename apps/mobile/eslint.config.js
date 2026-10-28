@@ -12,6 +12,7 @@ const oneScreenPerTap = { name: "expo-router", importNames: ["useRouter", "route
  * useAnimatedKeyboard can't see the keyboard inside a Modal. These do both.
  */
 const keyboardSafe = [
+  { name: "react-native", importNames: ["Alert"], message: "Use showDialog (@/shared/ui/dialog): the same arguments, in the app's own look and dark mode." },
   { name: "react-native", importNames: ["KeyboardAvoidingView"], message: "Use FormScrollView (@/shared/ui/form-scroll-view) for forms; footers ride the keyboard through AppScreen or useKeyboardHeight." },
   { name: "react-native-reanimated", importNames: ["useAnimatedKeyboard"], message: "Use useKeyboardHeight (@/shared/hooks/use-keyboard-height): it also works inside a Modal." },
 ];

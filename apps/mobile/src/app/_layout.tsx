@@ -16,6 +16,7 @@ import { usePushNotifications } from "@/core/push/use-push-notifications";
 import { useTheme } from "@/shared/theme/theme";
 import { CrashScreen } from "@/shared/ui/crash-screen";
 import { Text } from "@/shared/ui/text";
+import { DialogHost } from "@/shared/ui/dialog";
 import { ToastProvider } from "@/shared/ui/toast";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -119,6 +120,8 @@ function App() {
           <AppearanceProvider>
             <ToastProvider>
               <RootNavigator />
+              {/* Confirmations in the app's own look (shared/ui/dialog), above every screen. */}
+              <DialogHost />
             </ToastProvider>
           </AppearanceProvider>
         </AuthProvider>

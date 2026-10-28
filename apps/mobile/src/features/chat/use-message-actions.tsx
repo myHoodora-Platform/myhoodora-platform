@@ -4,12 +4,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import * as Clipboard from "expo-clipboard";
 import { Copy, Flag, Pencil, Reply, Trash2 } from "lucide-react-native";
 import { useState } from "react";
-import { Alert } from "react-native";
+
 import { useSignedInUser } from "@/core/auth/auth-provider";
 import type { BubbleFrame, BubbleReaction } from "@/shared/ui/chat";
 import type { HeldMessage, MessageAction } from "@/shared/ui/message-actions";
 import { useToast } from "@/shared/ui/toast";
 import { chatKeys, deleteMessage, editMessage, reactToMessage } from "./chat-api";
+import { showDialog } from "@/shared/ui/dialog";
 
 /** The thread's copy of one message, changed in place (a reaction, an edit) before the API answers. */
 function patchMessage(rows: Message[] | undefined, id: string, change: (m: Message) => Message): Message[] | undefined {
@@ -62,7 +63,7 @@ export function useMessageActions({ conversationId, nameOf, onReport, onEdit }: 
   };
 
   const remove = (m: Message) =>
-    Alert.alert("Delete for everyone?", "Everyone in the chat will see \"This message was deleted\".", [
+    showDialog("Delete for everyone?", "Everyone in the chat will see \"This message was deleted\".", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",

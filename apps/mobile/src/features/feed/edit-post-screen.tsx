@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigation } from "expo-router";
 import { usePreventRemove } from "expo-router/react-navigation";
 import { useEffect, useRef, useState } from "react";
-import { Alert, StyleSheet, TextInput, View } from "react-native";
+import {StyleSheet, TextInput, View } from "react-native";
 import { useSignedInUser } from "@/core/auth/auth-provider";
 import { useRouter } from "@/core/navigation/use-router";
 import { useTheme } from "@/shared/theme/theme";
@@ -18,6 +18,7 @@ import { cachedPost, editPost, feedKeys, getPost } from "./feed-api";
 import { PostAuthor, postText } from "./post-parts";
 import { updatePostEverywhere } from "./use-reaction";
 import { FormScrollView } from "@/shared/ui/form-scroll-view";
+import { showDialog } from "@/shared/ui/dialog";
 
 /** The API's limit (contract §1), and where a counter starts helping. */
 const POST_MAX = 8192;
@@ -68,7 +69,7 @@ function Editor({ post }: { post: NonNullable<ReturnType<typeof cachedPost>> }) 
 
   // Back (button, gesture or Android's) with unsaved words: ask before throwing them away.
   usePreventRemove(changed && !saving, ({ data }) =>
-    Alert.alert("Discard your changes?", "Your post stays as it was.", [
+    showDialog("Discard your changes?", "Your post stays as it was.", [
       { text: "Keep editing", style: "cancel" },
       { text: "Discard", style: "destructive", onPress: () => navigation.dispatch(data.action) },
     ]),

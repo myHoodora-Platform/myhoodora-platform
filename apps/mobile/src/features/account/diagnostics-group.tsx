@@ -1,10 +1,11 @@
 import { Bomb, Bug, Skull, Unplug } from "lucide-react-native";
 import { useState } from "react";
-import { Alert } from "react-native";
+
 import { config } from "@/core/config/env";
 import { crashNatively, monitoringActive, sendTestError, sendTestRejection } from "@/core/monitoring/monitoring";
 import { SettingsGroup, SettingsRow } from "@/shared/ui/settings";
 import { useToast } from "@/shared/ui/toast";
+import { showDialog } from "@/shared/ui/dialog";
 
 /** Throws while rendering, so the app's error boundary shows the crash screen. */
 function RenderCrash(): never {
@@ -22,7 +23,7 @@ export function DiagnosticsGroup() {
 
   const reporting = monitoringActive();
   const confirmNativeCrash = () =>
-    Alert.alert("Crash the app?", "The app closes at once. Open it again so the report is sent.", [
+    showDialog("Crash the app?", "The app closes at once. Open it again so the report is sent.", [
       { text: "Cancel", style: "cancel" },
       { text: "Crash", style: "destructive", onPress: crashNatively },
     ]);

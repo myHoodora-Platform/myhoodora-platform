@@ -16,6 +16,16 @@ export interface ConversationMember {
   archivedAt?: Date | null;
   clearedAt?: Date | null;
   mutedUntil?: Date | null;
+  /** Pinned to the top of their inbox (2026-10-28), up to 3. */
+  pinnedAt?: Date | null;
+}
+
+/** A message pinned in the conversation for everyone in it, until `until` (24 h, 7 or 30 days). */
+export interface PinnedMessage {
+  messageId: string;
+  by: string;
+  at: Date;
+  until: Date;
 }
 
 export type ConversationDocument = HydratedDocument<Conversation>;
@@ -32,12 +42,14 @@ export class Conversation {
    * hidden from them only) and muted (no notifications until then).
    */
   @Prop({
-    type: [{ uid: String, unread: { type: Number, default: 0 }, lastReadAt: Date, archivedAt: Date, clearedAt: Date, mutedUntil: Date }],
+    type: [{ uid: String, unread: { type: Number, default: 0 }, lastReadAt: Date, archivedAt: Date, clearedAt: Date, mutedUntil: Date, pinnedAt: Date }],
     _id: false,
     default: [],
   })
   members!: ConversationMember[];
   @Prop({ type: Object }) context?: ChatContext;
+  /** Pinned messages, newest first, at most 3 (WhatsApp's pinned bar). */
+  @Prop({ type: [{ messageId: String, by: String, at: Date, until: Date }], _id: false, default: undefined }) pins?: PinnedMessage[];
   @Prop({ type: Object }) lastMessage?: { body: string; senderUid: string; createdAt: Date };
   @Prop({ required: true }) startedBy!: string;
   /** Closed by staff after a report. */

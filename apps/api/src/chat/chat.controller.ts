@@ -4,7 +4,7 @@ import { Throttle } from "@nestjs/throttler";
 import { CurrentViewer, type Viewer } from "../shared/auth/viewer";
 import { Can } from "../shared/authz/can.decorator";
 import { ParseObjectIdPipe, ThreadPageQuery } from "../shared/http/pagination";
-import { ArchiveConversationDto, ConversationListQuery, EditMessageDto, MuteConversationDto, ReactDto, SendMessageDto, StartConversationDto } from "./chat.dto";
+import { ArchiveConversationDto, ConversationListQuery, EditMessageDto, MuteConversationDto, PinChatDto, PinMessageDto, ReactDto, SendMessageDto, StartConversationDto } from "./chat.dto";
 import { ChatService } from "./chat.service";
 import { ApiNotFound, ApiStandardErrors } from "../shared/http/api-docs";
 
@@ -64,6 +64,27 @@ export class ChatController {
   @ApiNotFound("Conversation")
   async archive(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Body() body: ArchiveConversationDto) {
     await this.chat.setArchived(viewer, id, body.archived);
+  }
+
+  @Put(":id/pin")
+  @ApiOperation({ summary: "Pin to (or off) the top of your inbox; up to 3 (409 past that). Only you see it" })
+  @ApiNotFound("Conversation")
+  pin(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Body() body: PinChatDto) {
+    return this.chat.setPinned(viewer, id, body.pinned);
+  }
+
+  @Put(":id/messages/:messageId/pin")
+  @ApiOperation({ summary: "Pin a message for everyone in the chat for 24h, 7d or 30d; a fourth replaces the oldest. Returns the conversation (with `pins`)" })
+  @ApiNotFound("Message")
+  pinMessage(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Param("messageId", ParseObjectIdPipe) messageId: string, @Body() body: PinMessageDto) {
+    return this.chat.pinMessage(viewer, id, messageId, body.for);
+  }
+
+  @Delete(":id/messages/:messageId/pin")
+  @ApiOperation({ summary: "Unpin a message. Returns the conversation" })
+  @ApiNotFound("Conversation")
+  unpinMessage(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Param("messageId", ParseObjectIdPipe) messageId: string) {
+    return this.chat.unpinMessage(viewer, id, messageId);
   }
 
   @Put(":id/mute")

@@ -3,7 +3,7 @@ import type { ApiPost } from "@myhoodora/api-contract/types";
 import { useQueryClient } from "@tanstack/react-query";
 import { Bell, BellOff, Bookmark, BookmarkMinus, CircleCheck, Ellipsis, Flag, Pencil, RotateCcw, Trash2 } from "lucide-react-native";
 import { useState } from "react";
-import { Alert, Pressable, StyleSheet } from "react-native";
+import { Pressable, StyleSheet } from "react-native";
 import { useSignedInUser } from "@/core/auth/auth-provider";
 import { useRouter } from "@/core/navigation/use-router";
 import { MIN_TOUCH, useTheme } from "@/shared/theme/theme";
@@ -13,6 +13,7 @@ import { deletePost, feedKeys, resolveAlert, updateFeedEntries } from "./feed-ap
 import { ReportSheet } from "./report-sheet";
 import { usePostActions } from "./use-post-actions";
 import { updatePostEverywhere } from "./use-reaction";
+import { showDialog } from "@/shared/ui/dialog";
 
 /**
  * The "⋯" button and its menu, in groups: keep it (save, its notifications), then what's yours to do
@@ -29,7 +30,7 @@ export function PostMenuButton({ post, onDeleted }: { post: ApiPost; onDeleted?:
   const [reporting, setReporting] = useState(false);
   const mine = post.authorUid === user.uid;
   const remove = () =>
-    Alert.alert("Delete your post?", "It will be removed for everyone, with its comments.", [
+    showDialog("Delete your post?", "It will be removed for everyone, with its comments.", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",

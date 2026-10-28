@@ -2,7 +2,7 @@ import { errorMessage } from "@myhoodora/api-contract/errors";
 import type { Listing, ListingStatus } from "@myhoodora/api-contract/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Clock, Tag, Trash2 } from "lucide-react-native";
-import { Alert, Pressable, StyleSheet, View } from "react-native";
+import {Pressable, StyleSheet, View } from "react-native";
 import { useSignedInUser } from "@/core/auth/auth-provider";
 import { useRouter } from "@/core/navigation/use-router";
 import { MIN_TOUCH, tint, useTheme } from "@/shared/theme/theme";
@@ -10,6 +10,7 @@ import { Text } from "@/shared/ui/text";
 import { useToast } from "@/shared/ui/toast";
 import { signal } from "@/features/feedback/engagement";
 import { deleteListing, listingKeys, setListingStatus } from "./listings-api";
+import { showDialog } from "@/shared/ui/dialog";
 
 /**
  * Your own listing (Facebook Marketplace's seller view): where it stands (Available, Pending while
@@ -56,7 +57,7 @@ export function SellerTools({ listing: l }: { listing: Listing }) {
     onError: (err) => toast(errorMessage(err), "error"),
   });
   const confirmDelete = () =>
-    Alert.alert("Delete this listing?", "It's removed for everyone. Conversations about it stay in Messages.", [
+    showDialog("Delete this listing?", "It's removed for everyone. Conversations about it stay in Messages.", [
       { text: "Keep it", style: "cancel" },
       { text: "Delete", style: "destructive", onPress: () => remove.mutate() },
     ]);

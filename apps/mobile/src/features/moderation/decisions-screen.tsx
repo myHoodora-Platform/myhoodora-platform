@@ -5,7 +5,7 @@ import { useNavigation } from "expo-router";
 import { usePreventRemove } from "expo-router/react-navigation";
 import { Scale } from "lucide-react-native";
 import { useEffect, useRef, useState } from "react";
-import { Alert, FlatList, Pressable, RefreshControl, StyleSheet, TextInput, View } from "react-native";
+import {FlatList, Pressable, RefreshControl, StyleSheet, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSignedInUser } from "@/core/auth/auth-provider";
 import { useRouter } from "@/core/navigation/use-router";
@@ -22,6 +22,7 @@ import { openWeb } from "@/shared/utils/open-web";
 import { timeAgo } from "@/shared/utils/time";
 import { ACTION_LABEL, APPEAL_LABEL, APPEAL_MAX, APPEAL_MIN, fileAppeal, getMyDecisions, moderationKeys } from "./moderation-api";
 import { FormScrollView } from "@/shared/ui/form-scroll-view";
+import { showDialog } from "@/shared/ui/dialog";
 
 /**
  * `/settings/moderation` (the web's Decisions & appeals, where moderation notifications lead):
@@ -149,7 +150,7 @@ function AppealForm({ decision }: { decision: MyDecision }) {
   const ready = trimmed.length >= APPEAL_MIN && !sending;
 
   usePreventRemove(trimmed.length > 0 && !sending, ({ data }) =>
-    Alert.alert("Discard your appeal?", "What you've written won't be sent.", [
+    showDialog("Discard your appeal?", "What you've written won't be sent.", [
       { text: "Keep writing", style: "cancel" },
       { text: "Discard", style: "destructive", onPress: () => navigation.dispatch(data.action) },
     ]),

@@ -3,7 +3,7 @@ import type { Group, GroupJoinRequest, GroupMember } from "@myhoodora/api-contra
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link2, MoreHorizontal, Pencil, Shield, ShieldOff, Trash2, UserMinus, UserPlus } from "lucide-react-native";
 import { useState } from "react";
-import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { usePullRefresh } from "@/shared/hooks/use-pull-refresh";
 import { useSignedInUser } from "@/core/auth/auth-provider";
 import { useRouter } from "@/core/navigation/use-router";
@@ -19,6 +19,7 @@ import { timeAgo } from "@/shared/utils/time";
 import { useOpenProfile } from "@/features/profile/use-open-profile";
 import { answerRequest, deleteGroup, getGroup, groupKeys, listMembers, listRequests, removeMember, setMemberRole } from "./groups-api";
 import { shareInvite } from "./group-invite-screen";
+import { showDialog } from "@/shared/ui/dialog";
 
 /** `/g/<id>/manage` (admins): who's waiting, who's in, the details, the invite link, and deleting. */
 export function GroupManageScreen({ id }: { id: string }) {
@@ -51,10 +52,10 @@ function Manage({ group: g }: { group: Group }) {
       router.replace("/groups");
     },
     // 409 once anyone else has posted (Nextdoor's rule).
-    onError: (err) => Alert.alert("Couldn't delete the group", errorMessage(err)),
+    onError: (err) => showDialog("Couldn't delete the group", errorMessage(err)),
   });
   const confirmDelete = () =>
-    Alert.alert(`Delete ${g.name}?`, "The group and its posts are removed for everyone. This can't be undone.", [
+    showDialog(`Delete ${g.name}?`, "The group and its posts are removed for everyone. This can't be undone.", [
       { text: "Keep it", style: "cancel" },
       { text: "Delete", style: "destructive", onPress: () => remove.mutate() },
     ]);
@@ -172,7 +173,7 @@ function MemberRow({ group: g, member: m }: { group: Group; member: GroupMember 
       refresh();
       toast(next === "admin" ? `${name} is now an admin.` : `${name} is no longer an admin.`);
     },
-    onError: (err) => Alert.alert("Couldn't change that", errorMessage(err)),
+    onError: (err) => showDialog("Couldn't change that", errorMessage(err)),
   });
   const remove = useMutation({
     mutationFn: (reason?: string) => removeMember(user, g._id, m.uid, reason),
@@ -185,7 +186,7 @@ function MemberRow({ group: g, member: m }: { group: Group; member: GroupMember 
   });
   // A reason is optional; Alert.prompt exists only on iOS, so Android offers a few common ones.
   const confirmRemove = () =>
-    Alert.alert(`Remove ${name}?`, "They'll be told, with the reason if you give one.", [
+    showDialog(`Remove ${name}?`, "They'll be told, with the reason if you give one.", [
       { text: "Cancel", style: "cancel" },
       { text: "Not following the group's rules", onPress: () => remove.mutate("Not following the group's rules") },
       { text: "Remove without a reason", style: "destructive", onPress: () => remove.mutate(undefined) },

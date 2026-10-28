@@ -4,7 +4,7 @@ import Constants from "expo-constants";
 import { useRouter } from "@/core/navigation/use-router";
 import { BellRing, BookOpen, FileText, HelpCircle, LayoutList, LifeBuoy, LogOut, Lock, MapPinned, MonitorSmartphone, ShieldCheck, SlidersHorizontal, UserX, Scale, Compass } from "lucide-react-native";
 import { useState } from "react";
-import { Alert, ScrollView, StyleSheet, View } from "react-native";
+import {ScrollView, StyleSheet, View } from "react-native";
 import { useAuth, useSignedInUser } from "@/core/auth/auth-provider";
 import { config } from "@/core/config/env";
 import { openWeb } from "@/shared/utils/open-web";
@@ -19,6 +19,7 @@ import { useToast } from "@/shared/ui/toast";
 import { deactivate } from "./account-api";
 import { DiagnosticsGroup } from "./diagnostics-group";
 import { replayHomeTour } from "@/features/tour/home-tour";
+import { showDialog } from "@/shared/ui/dialog";
 
 const PUSH_LABEL = { granted: "On", denied: "Off", undetermined: "Off", unsupported: "Not available" } as const;
 
@@ -43,20 +44,20 @@ function SettingsContent() {
   const web = (path: string) => void openWeb(path);
 
   const confirmLogout = () =>
-    Alert.alert("Log out of myHoodora?", "You'll stay signed in on your other devices.", [
+    showDialog("Log out of myHoodora?", "You'll stay signed in on your other devices.", [
       { text: "Cancel", style: "cancel" },
       { text: "Log out", style: "destructive", onPress: () => void logout() },
     ]);
 
   const confirmEverywhere = () =>
-    Alert.alert("Sign out everywhere?", "You'll be signed out on every phone and browser, this one included.", [
+    showDialog("Sign out everywhere?", "You'll be signed out on every phone and browser, this one included.", [
       { text: "Cancel", style: "cancel" },
       { text: "Sign out everywhere", style: "destructive", onPress: () => void logoutEverywhere().catch((err: unknown) => toast(errorMessage(err), "error")) },
     ]);
 
   const confirmDeactivate = (reason: DeactivationReason) => {
     setLeaving(false);
-    Alert.alert(
+    showDialog(
       "Deactivate your account?",
       "Your profile, posts and listings will be hidden and you'll be signed out everywhere. Log in again within 30 days to bring it all back; after that it's deleted.",
       [

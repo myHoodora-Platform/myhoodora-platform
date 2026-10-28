@@ -3,13 +3,14 @@ import type { Conversation, MuteLength } from "@myhoodora/api-contract/types";
 import { useQueryClient } from "@tanstack/react-query";
 import { Archive, ArchiveRestore, Bell, BellOff, Flag, ShoppingBag, Trash2, UserRound } from "lucide-react-native";
 import { useState } from "react";
-import { Alert } from "react-native";
+
 import { useSignedInUser } from "@/core/auth/auth-provider";
 import { useRouter } from "@/core/navigation/use-router";
 import { ActionSheet, type ActionItem } from "@/shared/ui/action-sheet";
 import { useToast } from "@/shared/ui/toast";
 import { ReportSheet } from "@/features/feed/report-sheet";
 import { archiveConversation, chatKeys, deleteConversation, isMuted, muteConversation, otherPerson } from "./chat-api";
+import { showDialog } from "@/shared/ui/dialog";
 
 const MUTE_CHOICES: { length: MuteLength; label: string; done: string }[] = [
   { length: "8h", label: "For 8 hours", done: "Muted for 8 hours." },
@@ -58,7 +59,7 @@ export function ConversationActions({ convo, visible, onClose, inside = false, o
     }
   };
   const remove = () =>
-    Alert.alert(`Delete this chat${other ? ` with ${other.displayName}` : ""}?`, "It's removed from your messages, with what was said so far. They keep their copy. If they write again, it comes back with only the new messages.", [
+    showDialog(`Delete this chat${other ? ` with ${other.displayName}` : ""}?`, "It's removed from your messages, with what was said so far. They keep their copy. If they write again, it comes back with only the new messages.", [
       { text: "Keep it", style: "cancel" },
       {
         text: "Delete",

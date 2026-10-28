@@ -3,7 +3,7 @@ import type { Comment } from "@myhoodora/api-contract/types";
 import { useQueryClient } from "@tanstack/react-query";
 import { Flag, ThumbsUp, Trash2 } from "lucide-react-native";
 import { memo, useState } from "react";
-import { Alert, Pressable, StyleSheet, View } from "react-native";
+import {Pressable, StyleSheet, View } from "react-native";
 import { useSignedInUser } from "@/core/auth/auth-provider";
 import { feedKeys, deleteComment } from "@/features/feed/feed-api";
 import { ReportSheet } from "@/features/feed/report-sheet";
@@ -17,6 +17,7 @@ import { Text } from "@/shared/ui/text";
 import { useToast } from "@/shared/ui/toast";
 import { timeAgo } from "@/shared/utils/time";
 import type { PendingComment } from "./use-send-comment";
+import { showDialog } from "@/shared/ui/dialog";
 
 /** Lines of a comment before "See more". */
 const COMMENT_LINES = 6;
@@ -61,7 +62,7 @@ export const CommentItem = memo(function CommentItem({
   }
 
   const remove = () =>
-    Alert.alert("Delete your comment?", "It will be removed for everyone.", [
+    showDialog("Delete your comment?", "It will be removed for everyone.", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",

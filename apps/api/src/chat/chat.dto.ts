@@ -56,3 +56,13 @@ export class ConversationListQuery {
   /** `true`: only the conversations you archived. Otherwise they're left out. */
   @IsOptional() @IsIn(["true", "false"]) archived?: "true" | "false";
 }
+
+export class PinChatDto {
+  @IsBoolean() pinned!: boolean;
+}
+
+export const PIN_FOR = ["24h", "7d", "30d"] as const;
+export class PinMessageDto {
+  /** How long it stays pinned, as on WhatsApp. */
+  @IsIn(PIN_FOR) for!: (typeof PIN_FOR)[number];
+}

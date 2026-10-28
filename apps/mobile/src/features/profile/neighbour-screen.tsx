@@ -6,7 +6,7 @@ import {
 } from "@tanstack/react-query";
 import { Ban, Ellipsis, Flag } from "lucide-react-native";
 import { useMemo, useState, type ReactNode } from "react";
-import { Alert, FlatList, StyleSheet, View } from "react-native";
+import {FlatList, StyleSheet, View } from "react-native";
 import { useAuth, useSignedInUser } from "@/core/auth/auth-provider";
 import { hasHood } from "@/core/auth/session-phase";
 import { useRouter } from "@/core/navigation/use-router";
@@ -34,6 +34,7 @@ import { useToast } from "@/shared/ui/toast";
 import { firstName } from "@/shared/utils/format";
 import { NeighbourCard } from "./neighbour-card";
 import { useMessageNeighbour } from "./use-message-neighbour";
+import { showDialog } from "@/shared/ui/dialog";
 
 type Tab = "posts" | "selling";
 
@@ -121,7 +122,7 @@ export function NeighbourScreen({ uid }: { uid: string }) {
   const name = profile.data?.displayName ?? "this neighbour";
 
   const block = () =>
-    Alert.alert(
+    showDialog(
       `Block ${firstName(name) || "them"}?`,
       "They won't see your posts or profile, can't message you, and you won't see theirs. They aren't told.",
       [

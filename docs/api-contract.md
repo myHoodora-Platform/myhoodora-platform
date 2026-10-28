@@ -331,8 +331,11 @@ interface Message { _id; conversationId; senderUid; body; createdAt }
 | `PUT /conversations/:id/messages/:messageId/reaction` | `{ emoji }`: one emoji (pictographs with skin tones, joiners, flags, keycaps; ≤ 16 chars; never words, `400`), replacing yours; `{ emoji: null }` takes it back. The sender is notified ("Ada reacted 👍 to your message", grouped per message) unless they muted the chat. `410` on a deleted message. |
 | `PATCH /conversations/:id/messages/:messageId` | `{ body }`: your own message's words, within 15 minutes (`403` after, or for someone else's). Sets `editedAt`. |
 | `DELETE /conversations/:id/messages/:messageId` | Delete for everyone: your own, within an hour (`403` after). Returns it with `deleted: true`, empty `body` and no photos or reactions; the inbox preview becomes "🚫 This message was deleted". What it said is kept out of every response, for a report about the conversation. |
+| `PUT /conversations/:id/pin` | `{ pinned }`: pin the chat to the top of your inbox (or unpin). Only you see it. Up to 3; a fourth is `409` ("You can pin up to 3 chats. Unpin one first."). `GET /conversations` lists pinned chats first, most recently pinned on top. |
+| `PUT /conversations/:id/messages/:messageId/pin` | `{ for: "24h" \| "7d" \| "30d" }`: pin a message for everyone in the chat. Up to 3; a fourth replaces the oldest. Pinning one again resets its length. `410` on a deleted message. Returns the conversation. |
+| `DELETE /conversations/:id/messages/:messageId/pin` | Unpin it for everyone. Returns the conversation. |
 
-Messages now carry `reactions?: { emoji, uids[] }[]` (most first), `editedAt?` and `deleted?`. Every change is announced as `chat.message`, so open threads refetch.
+Messages now carry `reactions?: { emoji, uids[] }[]` (most first), `editedAt?` and `deleted?`. Conversations carry `pinned` (yours) and `pins?: { messageId, by, until, senderUid, body, photo }[]` (current, newest first; a deleted message or one cleared from your history drops out). Every change, pins included, is announced as `chat.message`, so open threads refetch.
 ---
 
 ## 6. Notifications ✅

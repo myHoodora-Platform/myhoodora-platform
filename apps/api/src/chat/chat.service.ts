@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, GoneException, HttpException, HttpStatus, Injectable, NotFoundException, OnModuleInit } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, GoneException, HttpException, HttpStatus, Injectable, NotFoundException, OnModuleInit } from "@nestjs/common";
 import { InjectConnection, InjectModel } from "@nestjs/mongoose";
 import { Connection, Model, Types, type QueryFilter } from "mongoose";
 import { ListingsService } from "../listings/listings.service";
@@ -27,6 +27,10 @@ export interface ConversationView {
   /** Viewer-relative (2026-10-28): you archived it; you muted it (until when). */
   archived: boolean;
   mutedUntil?: string;
+  /** Viewer-relative (2026-10-28): you pinned it to the top of your inbox. */
+  pinned: boolean;
+  /** Messages pinned for everyone in it, still current, newest first (2026-10-28). */
+  pins?: { messageId: string; by: string; until: string; senderUid: string; body: string; photo: boolean }[];
 }
 
 export interface MessageView {
@@ -56,6 +60,10 @@ const MUTED_FOREVER = new Date("9999-12-31T00:00:00Z");
 /** What the inbox shows for a message that is only photos. */
 const PHOTO_PREVIEW = "📷 Photo";
 const DELETED_PREVIEW = "🚫 This message was deleted";
+/** WhatsApp's limits: three chats pinned in your inbox, three messages pinned in a chat. */
+export const MAX_PINNED_CHATS = 3;
+export const MAX_PINNED_MESSAGES = 3;
+const PIN_LENGTH_MS = { "24h": 24 * HOUR_MS, "7d": 7 * 24 * HOUR_MS, "30d": 30 * 24 * HOUR_MS } as const;
 /** WhatsApp's window for changing the words of a message. */
 export const EDIT_WINDOW_MS = 15 * 60_000;
 /** How long a sender can still delete a message for everyone. */
@@ -202,10 +210,52 @@ export class ChatService implements OnModuleInit {
       .limit(100)
       .lean<ConvRow[]>()
       .exec();
-    return this.toViews(
-      rows.filter((c) => !c.participantUids.some((u) => hidden.includes(u)) && !clearedFor(c, viewer.uid)),
-      viewer.uid,
-    );
+    const visible = rows.filter((c) => !c.participantUids.some((u) => hidden.includes(u)) && !clearedFor(c, viewer.uid));
+    // Pinned ones first, most recently pinned on top; the rest by their latest activity.
+    const pinnedAt = (c: ConvRow) => {
+      const at = memberOf(c, viewer.uid)?.pinnedAt;
+      return at ? new Date(at).getTime() : 0;
+    };
+    visible.sort((a, b) => pinnedAt(b) - pinnedAt(a));
+    return this.toViews(visible, viewer.uid);
+  }
+
+  /** Pin to (or off) the top of your inbox: up to three, as on WhatsApp. Only you see it. */
+  async setPinned(viewer: Viewer, id: string, pinned: boolean): Promise<{ pinned: boolean }> {
+    await this.load(viewer, id);
+    if (pinned) {
+      const already = await this.conversations
+        .countDocuments({ _id: { $ne: id }, participantUids: viewer.uid, removedAt: null, members: { $elemMatch: { uid: viewer.uid, pinnedAt: { $ne: null } } } })
+        .exec();
+      if (already >= MAX_PINNED_CHATS) throw new ConflictException(`You can pin up to ${MAX_PINNED_CHATS} chats. Unpin one first.`);
+    }
+    await this.conversations
+      .updateOne({ _id: id }, { $set: { "members.$[me].pinnedAt": pinned ? new Date() : null } }, { arrayFilters: [{ "me.uid": viewer.uid }], timestamps: false })
+      .exec();
+    return { pinned };
+  }
+
+  /**
+   * Pin a message for everyone in the conversation, for 24 hours, 7 or 30 days. A fourth replaces
+   * the oldest (WhatsApp). Pinning it again sets a new length.
+   */
+  async pinMessage(viewer: Viewer, id: string, messageId: string, length: keyof typeof PIN_LENGTH_MS): Promise<ConversationView> {
+    const c = await this.load(viewer, id);
+    const m = await this.loadMessage(id, messageId);
+    if (m.deletedAt) throw new GoneException("This message was deleted.");
+    const now = new Date();
+    const current = (c.pins ?? []).filter((p) => new Date(p.until) > now && p.messageId !== messageId);
+    const pins = [{ messageId, by: viewer.uid, at: now, until: new Date(now.getTime() + PIN_LENGTH_MS[length]) }, ...current].slice(0, MAX_PINNED_MESSAGES);
+    await this.conversations.updateOne({ _id: id }, { $set: { pins } }, { timestamps: false }).exec();
+    this.realtime.toUsers(c.participantUids, "chat.message", { conversationId: id });
+    return this.get(viewer, id);
+  }
+
+  async unpinMessage(viewer: Viewer, id: string, messageId: string): Promise<ConversationView> {
+    const c = await this.load(viewer, id);
+    await this.conversations.updateOne({ _id: id }, { $pull: { pins: { messageId } } }, { timestamps: false }).exec();
+    this.realtime.toUsers(c.participantUids, "chat.message", { conversationId: id });
+    return this.get(viewer, id);
   }
 
   /** Out of your inbox (or back in). Something new arriving brings it back by itself. */
@@ -506,8 +556,23 @@ export class ChatService implements OnModuleInit {
     if (!ok) throw new BadRequestException("Those photos couldn't be attached. Add them again.");
   }
 
+  /** The chat's current pins, of messages still there and not cleared from your history. */
+  private pinsFor(c: ConvRow, uid: string, now: Date, pinnedById: Map<string, MessageRow>): Pick<ConversationView, "pins"> {
+    const cleared = memberOf(c, uid)?.clearedAt;
+    const pins = (c.pins ?? []).flatMap((p) => {
+      const m = pinnedById.get(p.messageId);
+      if (!m || new Date(p.until) <= now || (cleared && m.createdAt && new Date(m.createdAt) <= new Date(cleared))) return [];
+      return [{ messageId: p.messageId, by: p.by, until: new Date(p.until).toISOString(), senderUid: m.senderUid, body: (m.body ?? "").slice(0, 140), photo: !!m.photos?.length }];
+    });
+    return pins.length ? { pins } : {};
+  }
+
   private async toViews(rows: ConvRow[], uid: string): Promise<ConversationView[]> {
     const cards = await this.users.authorCards(rows.flatMap((r) => r.participantUids));
+    const now = new Date();
+    const pinIds = rows.flatMap((r) => (r.pins ?? []).filter((p) => new Date(p.until) > now).map((p) => p.messageId)).filter((x) => Types.ObjectId.isValid(x));
+    const pinned = pinIds.length ? await this.messages.find({ _id: { $in: pinIds }, deletedAt: null }).lean<MessageRow[]>().exec() : [];
+    const pinnedById = new Map(pinned.map((m) => [String(m._id), m]));
     return rows.map((c) => ({
       _id: String(c._id),
       participantUids: c.participantUids,
@@ -519,6 +584,8 @@ export class ChatService implements OnModuleInit {
       readBy: c.members.map((m) => ({ uid: m.uid, lastReadAt: m.lastReadAt ? new Date(m.lastReadAt).toISOString() : undefined })),
       updatedAt: (c.updatedAt ?? new Date()).toISOString(),
       archived: !!memberOf(c, uid)?.archivedAt,
+      pinned: !!memberOf(c, uid)?.pinnedAt,
+      ...this.pinsFor(c, uid, now, pinnedById),
       ...(isMuted(memberOf(c, uid)) && { mutedUntil: new Date(memberOf(c, uid)!.mutedUntil!).toISOString() }),
     }));
   }

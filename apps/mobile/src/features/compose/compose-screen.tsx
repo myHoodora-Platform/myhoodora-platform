@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@/core/navigation/use-router";
 import { X } from "lucide-react-native";
 import { useRef, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from "react-native";
 import { FormScrollView } from "@/shared/ui/form-scroll-view";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth, useSignedInUser } from "@/core/auth/auth-provider";
@@ -26,6 +26,7 @@ import { EventFields, PlaceRow, PollFields } from "./compose-extras";
 import { useHoodArea } from "@/features/alerts/alerts-data";
 import { PlacePicker } from "@/features/alerts/place-picker";
 import { signal } from "@/features/feedback/engagement";
+import { showDialog } from "@/shared/ui/dialog";
 
 const KINDNESS_TIMEOUT_MS = 3000;
 const POSTED: Partial<Record<Draft["category"], string>> = {
@@ -113,7 +114,7 @@ export function ComposeScreen({ kind: startKind }: { kind?: string }) {
     if (check?.flagged) {
       setBusy(false);
       const why = check.reasons.map((r) => REASON_TEXT[r]).filter(Boolean).join(" ");
-      Alert.alert("Kindness reminder", `${why} Neighbours are more likely to help when posts are friendly. Would you like to edit it?`, [
+      showDialog("Kindness reminder", `${why} Neighbours are more likely to help when posts are friendly. Would you like to edit it?`, [
         { text: "Edit", style: "cancel", onPress: () => (inFlight.current = false) },
         { text: "Post anyway", onPress: () => void send() },
       ]);
