@@ -292,6 +292,8 @@ function SupportMessages({ messages, state, list }: { messages?: SupportMessage[
         scrollIndicatorInsets={{ top: insets.top, bottom: insets.bottom }}
         keyboardDismissMode="interactive"
         onContentSizeChange={() => list.current?.scrollToEnd({ animated: false })}
+        // And when the room for it settles (the reply box measures itself after): open at the newest message.
+        onLayout={() => list.current?.scrollToEnd({ animated: false })}
         ListHeaderComponent={
           <Text variant="caption" tone="muted" style={styles.intro}>
             Only you and the myHoodora team can see this conversation. You can send photos or PDFs here if the team asks for them.

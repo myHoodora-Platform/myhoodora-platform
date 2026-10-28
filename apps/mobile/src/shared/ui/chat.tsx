@@ -1,12 +1,13 @@
 import { Image } from "expo-image";
-import { ArrowUp, FileText, Paperclip, RotateCcw, Smile, X } from "lucide-react-native";
-import { useState, type ReactNode } from "react";
-import EmojiPicker from "rn-emoji-keyboard";
-import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { ArrowUp, Delete, FileText, Keyboard as KeyboardIcon, Paperclip, RotateCcw, Smile, X } from "lucide-react-native";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { EmojiKeyboard } from "rn-emoji-keyboard";
+import { ActivityIndicator, BackHandler, Keyboard, Linking, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { PhotoUploads } from "@/core/media/use-photo-uploads";
 import { MIN_TOUCH, useTheme } from "@/shared/theme/theme";
 import { sizedImage } from "@/shared/utils/media";
+import { deleteBackward, insertAt } from "@/shared/utils/emoji-text";
 import { dayLabel } from "@/shared/utils/time";
 import { GlassSurface } from "./glass-surface";
 import { IconButton } from "./icon-button";
@@ -195,14 +196,39 @@ export function ChatComposer({
 }) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
+  const input = useRef<TextInput>(null);
+  // WhatsApp's way: the emoji panel takes the keyboard's place, at the keyboard's height, under the box.
   const [emoji, setEmoji] = useState(false);
+  const [panelHeight, setPanelHeight] = useState(DEFAULT_PANEL_HEIGHT);
+  useEffect(() => {
+    const sub = Keyboard.addListener("keyboardDidShow", (e) => setPanelHeight(Math.max(MIN_PANEL_HEIGHT, Math.round(e.endCoordinates.height))));
+    return () => sub.remove();
+  }, []);
+  // Android's back closes the panel first, as on WhatsApp, rather than leaving the conversation.
+  useEffect(() => {
+    if (!emoji) return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      setEmoji(false);
+      return true;
+    });
+    return () => sub.remove();
+  }, [emoji]);
   // Where the cursor is, so an emoji goes in where they're typing (not always at the end).
   const [selection, setSelection] = useState({ start: text.length, end: text.length });
-  const insert = (e: string) => {
-    const at = Math.min(selection.start, text.length);
-    const to = Math.min(selection.end, text.length);
-    onText(text.slice(0, at) + e + text.slice(to));
-    setSelection({ start: at + e.length, end: at + e.length });
+  // Set only right after an emoji goes in or comes out; otherwise the cursor is the person's own.
+  const [placed, setPlaced] = useState<{ start: number; end: number } | undefined>(undefined);
+  const edit = ({ text: next, cursor }: { text: string; cursor: number }) => {
+    onText(next);
+    setSelection({ start: cursor, end: cursor });
+    setPlaced({ start: cursor, end: cursor });
+  };
+  const showEmoji = () => {
+    Keyboard.dismiss();
+    setEmoji(true);
+  };
+  const showKeyboard = () => {
+    setEmoji(false);
+    input.current?.focus();
   };
   const failed = uploads?.items.find((p) => p.status === "failed");
   const ready = !!uploads && uploads.urls.length > 0 && !uploads.failed;
@@ -216,13 +242,30 @@ export function ChatComposer({
       <View style={styles.composerRow}>
         {onAttach && (uploads?.room ?? 0) > 0 ? <IconButton Icon={Paperclip} label="Attach a photo or file" onPress={onAttach} /> : null}
         <View style={[styles.input, { backgroundColor: t.colors.muted }]}>
-          <Pressable onPress={() => setEmoji(true)} accessibilityRole="button" accessibilityLabel="Add an emoji" hitSlop={6} style={styles.emojiButton}>
-            <Smile size={22} color={t.colors.mutedForeground} />
+          <Pressable
+            onPress={emoji ? showKeyboard : showEmoji}
+            accessibilityRole="button"
+            accessibilityLabel={emoji ? "Show the keyboard" : "Show emoji"}
+            hitSlop={6}
+            style={styles.emojiButton}
+          >
+            {emoji ? <KeyboardIcon size={22} color={t.colors.mutedForeground} /> : <Smile size={22} color={t.colors.mutedForeground} />}
           </Pressable>
           <TextInput
+            ref={input}
             value={text}
-            onChangeText={onText}
-            onSelectionChange={(e) => setSelection(e.nativeEvent.selection)}
+            onChangeText={(v) => {
+              onText(v);
+              setPlaced(undefined);
+            }}
+            selection={placed}
+            onSelectionChange={(e) => {
+              setSelection(e.nativeEvent.selection);
+              setPlaced(undefined);
+            }}
+            // Typing again: the keyboard comes back in the panel's place.
+            onFocus={() => setEmoji(false)}
+            showSoftInputOnFocus
             placeholder={uploads?.items.length ? "Add a message (optional)" : placeholder}
             placeholderTextColor={t.colors.mutedForeground}
             multiline
@@ -237,30 +280,53 @@ export function ChatComposer({
           ) : null}
         </View>
       </View>
-      <EmojiPicker
-        open={emoji}
-        onClose={() => setEmoji(false)}
-        onEmojiSelected={(e) => insert(e.emoji)}
-        enableSearchBar
-        enableRecentlyUsed
-        categoryPosition="top"
-        theme={{
-          backdrop: "rgba(0,0,0,0.35)",
-          knob: t.colors.border,
-          container: t.colors.card,
-          header: t.colors.mutedForeground,
-          skinTonesContainer: t.colors.muted,
-          category: { icon: t.colors.mutedForeground, iconActive: t.colors.primary, container: t.colors.muted, containerActive: t.colors.background },
-          search: { background: t.colors.muted, text: t.colors.foreground, placeholder: t.colors.mutedForeground, icon: t.colors.mutedForeground },
-          emoji: { selected: t.colors.muted },
-        }}
-      />
+      {emoji ? (
+        <View style={[styles.panel, { height: panelHeight }]}>
+          <EmojiKeyboard
+            onEmojiSelected={(e) => edit(insertAt(text, e.emoji, selection))}
+            allowMultipleSelections
+            selectedEmojis={false}
+            enableRecentlyUsed
+            categoryPosition="bottom"
+            disableSafeArea
+            emojiSize={30}
+            theme={{
+              container: t.colors.card,
+              header: t.colors.mutedForeground,
+              knob: "transparent",
+              skinTonesContainer: t.colors.muted,
+              category: { icon: t.colors.mutedForeground, iconActive: t.colors.primary, container: t.colors.card, containerActive: t.colors.muted },
+              emoji: { selected: t.colors.muted },
+            }}
+            // Room at the right of the category bar for ⌫, as on WhatsApp.
+            styles={{ container: { flex: 1, borderRadius: 0, shadowOpacity: 0, elevation: 0 }, category: { container: { paddingRight: BACKSPACE_ROOM } } }}
+          />
+          <Pressable
+            onPress={() => edit(deleteBackward(text, selection.start === selection.end ? selection.start : selection.end))}
+            onLongPress={() => edit({ text: "", cursor: 0 })}
+            accessibilityRole="button"
+            accessibilityLabel="Delete"
+            accessibilityHint="Hold to clear the message"
+            hitSlop={6}
+            style={[styles.backspace, { backgroundColor: t.colors.card }]}
+          >
+            <Delete size={22} color={t.colors.mutedForeground} />
+          </Pressable>
+        </View>
+      ) : null}
     </GlassSurface>
   );
 }
 
+/** Before the keyboard has been seen: about a phone keyboard's height. */
+const DEFAULT_PANEL_HEIGHT = 290;
+const MIN_PANEL_HEIGHT = 240;
+const BACKSPACE_ROOM = 52;
+
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  panel: { marginHorizontal: -8, marginBottom: -8 },
+  backspace: { position: "absolute", right: 0, bottom: 0, width: BACKSPACE_ROOM, height: 48, alignItems: "center", justifyContent: "center" },
   day: { textAlign: "center", marginVertical: 8 },
   row: { alignItems: "flex-start", gap: 2, maxWidth: "80%" },
   mine: { alignSelf: "flex-end", alignItems: "flex-end" },

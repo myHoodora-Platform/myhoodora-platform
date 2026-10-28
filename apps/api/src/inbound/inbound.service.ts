@@ -111,7 +111,8 @@ export class InboundService implements OnModuleInit {
       if (!a || a.ownerUid !== ownerUid || a.purpose !== "support" || (a.resourceType !== "image" && a.resourceType !== "document")) {
         throw new BadRequestException("Those files couldn't be attached. Add them again.");
       }
-      const name = i.name?.replace(/[\u0000-\u001f]/g, "").replace(/\s+/g, " ").trim().slice(0, 120);
+      // Control characters (line breaks, NUL) out, spaces tidied: it's shown as one line.
+      const name = i.name?.replace(/\p{Cc}/gu, "").replace(/\s+/g, " ").trim().slice(0, 120);
       return { url: i.url, kind: a.resourceType, ...(name && { name }), ...(a.bytes && { bytes: a.bytes }) };
     });
   }

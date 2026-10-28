@@ -171,6 +171,8 @@ function Thread({
         scrollIndicatorInsets={{ top: insets.top, bottom: insets.bottom }}
         keyboardDismissMode="interactive"
         onContentSizeChange={() => list.current?.scrollToEnd({ animated: false })}
+        // And when the room for it settles (the reply box measures itself after): open at the newest message.
+        onLayout={() => list.current?.scrollToEnd({ animated: false })}
         ListHeaderComponent={
           context ? (
             <Pressable onPress={() => router.push(`/for-sale/${context.id}`)} accessibilityRole="link" accessibilityLabel={`About ${context.title}, ${formatNaira(context.priceNaira)}. Opens the listing`} style={[styles.context, { backgroundColor: t.colors.card, borderColor: t.colors.border }]}>
