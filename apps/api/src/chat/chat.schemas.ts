@@ -18,6 +18,11 @@ export interface ConversationMember {
   mutedUntil?: Date | null;
   /** Pinned to the top of their inbox (2026-10-28), up to 3. */
   pinnedAt?: Date | null;
+  /**
+   * They deleted the latest message for themselves: their inbox shows `replacement` (the one before it
+   * they can still see) while the conversation's latest is still the one sent at `forLast`.
+   */
+  preview?: { forLast: Date; replacement: { body: string; senderUid: string; createdAt: Date } | null } | null;
 }
 
 /** A message pinned in the conversation for everyone in it, until `until` (24 h, 7 or 30 days). */
@@ -42,7 +47,7 @@ export class Conversation {
    * hidden from them only) and muted (no notifications until then).
    */
   @Prop({
-    type: [{ uid: String, unread: { type: Number, default: 0 }, lastReadAt: Date, archivedAt: Date, clearedAt: Date, mutedUntil: Date, pinnedAt: Date }],
+    type: [{ uid: String, unread: { type: Number, default: 0 }, lastReadAt: Date, archivedAt: Date, clearedAt: Date, mutedUntil: Date, pinnedAt: Date, preview: Object }],
     _id: false,
     default: [],
   })
@@ -78,6 +83,10 @@ export class Message {
   @Prop() deletedAt?: Date;
   /** What it said, kept out of every response, for a report about it. */
   @Prop({ select: false }) removedBody?: string;
+  /** "Delete for me" (2026-10-28): gone for these people only. */
+  @Prop({ type: [String], default: undefined }) hiddenFor?: string[];
+  /** How many times it had been forwarded to get here (0 or absent: written here). */
+  @Prop() forwards?: number;
   createdAt?: Date;
 }
 export const MessageSchema = SchemaFactory.createForClass(Message);

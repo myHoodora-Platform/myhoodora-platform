@@ -18,6 +18,7 @@ describe("Message actions", () => {
     await t.member("ada", lekki);
     await t.member("bola", lekki);
     await t.member("chidi", lekki);
+    await t.member("dayo", lekki);
     convo = (await t.http.post("/api/conversations").set(t.auth("ada")).send({ recipientUid: "bola" }).expect(201)).body._id;
   });
   afterAll(() => t.close());
@@ -69,7 +70,7 @@ describe("Message actions", () => {
     await t.http.patch(`/api/conversations/${convo}/messages/${m}`).set(t.auth("ada")).send({ body: "too late" }).expect(403);
   });
 
-  it("delete for everyone: your own, within an hour; everyone sees it was deleted, the inbox too", async () => {
+  it("delete for everyone: your own, within 2 days and 12 hours; everyone sees it was deleted, the inbox too", async () => {
     const m = (await send("ada", { body: "Wrong chat, sorry" }).expect(201)).body._id;
     await react("bola", m, "😂").expect(200);
     await t.http.delete(`/api/conversations/${convo}/messages/${m}`).set(t.auth("bola")).expect(403);
@@ -84,9 +85,63 @@ describe("Message actions", () => {
     // A reply to it says so, without its words.
     const reply = (await send("bola", { body: "?", replyTo: m }).expect(201)).body;
     expect(reply.replyTo).toMatchObject({ deleted: true, body: "" });
+    // Seen hours ago, still in time (WhatsApp); not after 60 hours.
+    const recent = (await send("ada", { body: "yesterday's news" }).expect(201)).body._id;
+    await age(recent, 24 * 60);
+    await t.http.delete(`/api/conversations/${convo}/messages/${recent}`).set(t.auth("ada")).expect(200);
     const old = (await send("ada", { body: "old news" }).expect(201)).body._id;
-    await age(old, 61);
+    await age(old, 61 * 60);
     await t.http.delete(`/api/conversations/${convo}/messages/${old}`).set(t.auth("ada")).expect(403);
+  });
+
+  it("delete for me: gone for you only, any message; your inbox shows the one before until something new", async () => {
+    const hide = (uid: string, mid: string) => t.http.put(`/api/conversations/${convo}/messages/${mid}/hidden`).set(t.auth(uid));
+    const inboxLine = async (uid: string) => ((await t.http.get("/api/conversations").set(t.auth(uid)).expect(200)).body as { _id: string; lastMessage?: { body: string } }[]).find((c) => c._id === convo)?.lastMessage?.body;
+    await send("bola", { body: "Before" }).expect(201);
+    const m = (await send("ada", { body: "Only Bola hides this" }).expect(201)).body._id;
+    await hide("bola", m).expect(204);
+    expect((await thread("bola")).some((x) => x._id === m)).toBe(false);
+    expect((await thread("ada")).some((x) => x._id === m)).toBe(true);
+    expect(await inboxLine("bola")).toBe("Before");
+    expect(await inboxLine("ada")).toBe("Only Bola hides this");
+    // Your own, too, and a deleted one.
+    const mine = (await send("bola", { body: "typo" }).expect(201)).body._id;
+    await hide("bola", mine).expect(204);
+    expect(await inboxLine("bola")).toBe("Before");
+    await send("ada", { body: "Something new" }).expect(201);
+    expect(await inboxLine("bola")).toBe("Something new");
+    await hide("chidi", m).expect(404);
+  });
+
+  it("forwards to up to 5 chats or neighbours, marked forwarded; one chat at a time once forwarded many times", async () => {
+    const withChidi = (await t.http.post("/api/conversations").set(t.auth("ada")).send({ recipientUid: "chidi" }).expect(201)).body._id;
+    const m = (await send("bola", { body: "Water is back on Admiralty Way", photos: [] }).expect(201)).body._id;
+    const fwd = (body: Record<string, unknown>, mid = m, uid = "ada") => t.http.post(`/api/conversations/${convo}/messages/${mid}/forward`).set(t.auth(uid)).send(body);
+    const res = (await fwd({ conversationIds: [withChidi], recipientUids: ["dayo"] }).expect(201)).body;
+    expect(res.sent).toHaveLength(2);
+    expect(res.failed).toEqual([]);
+    const there = (await t.http.get(`/api/conversations/${withChidi}/messages`).set(t.auth("chidi")).expect(200)).body as { body: string; senderUid: string; forwarded?: boolean; forwardedManyTimes?: boolean }[];
+    expect(there.at(-1)).toMatchObject({ body: "Water is back on Admiralty Way", senderUid: "ada", forwarded: true });
+    expect(there.at(-1)!.forwardedManyTimes).toBeUndefined();
+    // Someone else's words: not yours to edit.
+    const copy = (there.at(-1) as unknown as { _id: string })._id;
+    await t.http.patch(`/api/conversations/${withChidi}/messages/${copy}`).set(t.auth("ada")).send({ body: "changed" }).expect(403);
+    // The original isn't marked.
+    expect((await thread("ada")).find((x) => x._id === m)).not.toHaveProperty("forwarded");
+    await fwd({}).expect(400);
+    await fwd({ recipientUids: ["a", "b", "c", "d", "e", "f"] }).expect(400);
+    // Not your chat: not your message to forward, nor theirs to forward into.
+    await fwd({ conversationIds: [withChidi] }, m, "chidi").expect(404);
+    const res2 = (await fwd({ conversationIds: [new Types.ObjectId().toHexString()] }).expect(201)).body;
+    expect(res2.failed).toHaveLength(1);
+    // Passed on 5 times already: one chat at a time, and it says so.
+    await t.model("Message").collection.updateOne({ _id: new Types.ObjectId(m) }, { $set: { forwards: 5 } });
+    expect((await thread("ada")).find((x) => x._id === m)).toMatchObject({ forwarded: true, forwardedManyTimes: true });
+    await fwd({ conversationIds: [withChidi], recipientUids: ["dayo"] }).expect(400);
+    await fwd({ conversationIds: [withChidi] }).expect(201);
+    const gone = (await send("bola", { body: "oops" }).expect(201)).body._id;
+    await t.http.delete(`/api/conversations/${convo}/messages/${gone}`).set(t.auth("bola")).expect(200);
+    await fwd({ conversationIds: [withChidi] }, gone).expect(410);
   });
   it("pins a chat to the top of your inbox, up to three, only for you", async () => {
     const others: string[] = [];

@@ -47,6 +47,9 @@ export interface MessageView {
   editedAt?: string;
   /** Deleted for everyone: body and photos are empty. */
   deleted?: boolean;
+  /** It came from another chat (2026-10-28); `forwardedManyTimes` once it has been passed on 5 times or more. */
+  forwarded?: boolean;
+  forwardedManyTimes?: boolean;
   createdAt: string;
 }
 
@@ -66,8 +69,11 @@ export const MAX_PINNED_MESSAGES = 3;
 const PIN_LENGTH_MS = { "24h": 24 * HOUR_MS, "7d": 7 * 24 * HOUR_MS, "30d": 30 * 24 * HOUR_MS } as const;
 /** WhatsApp's window for changing the words of a message. */
 export const EDIT_WINDOW_MS = 15 * 60_000;
-/** How long a sender can still delete a message for everyone. */
-export const DELETE_WINDOW_MS = HOUR_MS;
+/** How long a sender can still delete a message for everyone: WhatsApp's 2 days and 12 hours. */
+export const DELETE_WINDOW_MS = 60 * HOUR_MS;
+/** Forward to up to 5 chats at once; a message forwarded many times (5 hops or more), one at a time (WhatsApp). */
+export const MAX_FORWARD_TO = 5;
+export const MANY_FORWARDS = 5;
 /**
  * A reaction is one emoji: pictographs, with skin tones, joiners and variation selectors, or a flag
  * or keycap. Never words.
@@ -368,7 +374,7 @@ export class ChatService implements OnModuleInit {
    */
   async listMessages(viewer: Viewer, id: string, q: ThreadPageQuery = {}): Promise<MessageView[]> {
     const c = await this.load(viewer, id);
-    const filter: QueryFilter<Message> = { conversationId: id };
+    const filter: QueryFilter<Message> = { conversationId: id, hiddenFor: { $ne: viewer.uid } };
     // Deleted for them: what came before stays hidden from them.
     const cleared = memberOf(c, viewer.uid)?.clearedAt;
     if (cleared) filter.createdAt = { $gt: new Date(cleared) };
@@ -417,13 +423,63 @@ export class ChatService implements OnModuleInit {
     const text = (body ?? "").trim();
     if (!text && !photos.length) throw new BadRequestException("Write a message first.");
     await this.assertOwnMessagePhotos(viewer, photos);
+    return this.deliver(viewer, c, { text, photos, replyTo });
+  }
+
+  /**
+   * Forward a message to up to 5 chats (by conversation, or by neighbour: their chat with you is
+   * opened if need be). It arrives as yours, marked "Forwarded"; its photos come along, a reply's
+   * quote doesn't. One already forwarded many times goes to one chat at a time (WhatsApp's brake
+   * on rumours). Each chat succeeds or fails alone: the answer says which.
+   */
+  async forward(viewer: Viewer, id: string, messageId: string, to: { conversationIds?: string[]; recipientUids?: string[] }): Promise<{ sent: string[]; failed: { target: string; message: string }[] }> {
+    await this.load(viewer, id);
+    const m = await this.loadMessage(id, messageId);
+    if (m.deletedAt) throw new GoneException("This message was deleted.");
+    const conversationIds = [...new Set(to.conversationIds ?? [])];
+    const recipientUids = [...new Set(to.recipientUids ?? [])];
+    const count = conversationIds.length + recipientUids.length;
+    if (!count) throw new BadRequestException("Choose who to forward it to.");
+    if (count > MAX_FORWARD_TO) throw new BadRequestException(`Forward to up to ${MAX_FORWARD_TO} chats at a time.`);
+    if ((m.forwards ?? 0) >= MANY_FORWARDS && count > 1) throw new BadRequestException("Messages forwarded many times can be sent to one chat at a time.");
+    const hops = (m.forwards ?? 0) + 1;
+
+    const sent: string[] = [];
+    const failed: { target: string; message: string }[] = [];
+    const deliverTo = async (target: string, open: () => Promise<ConvRow>) => {
+      try {
+        const c = await open();
+        if (sent.includes(String(c._id))) return;
+        await this.deliver(viewer, c, { text: m.body ?? "", photos: m.photos ?? [], forwards: hops });
+        sent.push(String(c._id));
+      } catch (err) {
+        if (!(err instanceof HttpException)) throw err;
+        failed.push({ target, message: err.message });
+      }
+    };
+    for (const cid of conversationIds) await deliverTo(cid, () => this.load(viewer, cid));
+    for (const uid of recipientUids) {
+      await deliverTo(uid, async () => {
+        const view = await this.start(viewer, { recipientUid: uid });
+        return this.load(viewer, view._id);
+      });
+    }
+    return { sent, failed };
+  }
+
+  /** A new message in `c` from the viewer, already checked: stored, counted unread, announced. */
+  private async deliver(viewer: Viewer, c: ConvRow, { text, photos, replyTo, forwards }: { text: string; photos: string[]; replyTo?: string; forwards?: number }): Promise<MessageView> {
+    const id = String(c._id);
     const others = c.participantUids.filter((u) => u !== viewer.uid);
     // They can still read it; there is nobody left to write to.
     if (others.includes(DELETED_USER_UID)) throw new ForbiddenException("This person has deleted their account, so they can't receive messages.");
     if (await this.blockedBetween(viewer.uid, others[0]!)) throw new ForbiddenException("You can't message this neighbour.");
 
     const msg = await withTransaction(this.connection, async (session) => {
-      const [m] = await this.messages.create([{ conversationId: id, senderUid: viewer.uid, body: text, ...(photos.length && { photos }), ...(replyTo && { replyTo }) }], { session });
+      const [m] = await this.messages.create(
+        [{ conversationId: id, senderUid: viewer.uid, body: text, ...(photos.length && { photos }), ...(replyTo && { replyTo }), ...(forwards && { forwards }) }],
+        { session },
+      );
       await this.conversations
         .updateOne(
           { _id: id },
@@ -502,6 +558,7 @@ export class ChatService implements OnModuleInit {
     const m = await this.loadMessage(id, messageId);
     if (m.senderUid !== viewer.uid) throw new ForbiddenException("You can only edit your own messages.");
     if (m.deletedAt) throw new GoneException("This message was deleted.");
+    if (m.forwards) throw new ForbiddenException("Forwarded messages can't be edited.");
     if (Date.now() - new Date(m.createdAt!).getTime() > EDIT_WINDOW_MS) throw new ForbiddenException("Messages can be edited for 15 minutes after they're sent.");
     const text = body.trim();
     if (!text && !m.photos?.length) throw new BadRequestException("Write a message first.");
@@ -513,7 +570,38 @@ export class ChatService implements OnModuleInit {
   }
 
   /**
-   * Delete for everyone: your own message, within an hour. Everyone sees "This message was deleted";
+   * Delete for me: that message is gone for you only, whoever sent it (WhatsApp). When it was the
+   * latest, your inbox shows the one before it instead.
+   */
+  async hideForMe(viewer: Viewer, id: string, messageId: string): Promise<void> {
+    const c = await this.load(viewer, id);
+    await this.loadMessage(id, messageId);
+    await this.messages.updateOne({ _id: messageId }, { $addToSet: { hiddenFor: viewer.uid } }, { timestamps: false }).exec();
+    await this.refreshPreview(viewer.uid, c);
+    this.realtime.toUsers([viewer.uid], "chat.message", { conversationId: id });
+  }
+
+  /** What your inbox shows for a conversation once you've deleted messages for yourself. */
+  private async refreshPreview(uid: string, c: ConvRow): Promise<void> {
+    if (!c.lastMessage) return;
+    const cleared = memberOf(c, uid)?.clearedAt;
+    const latest = await this.messages
+      .findOne({ conversationId: String(c._id), hiddenFor: { $ne: uid }, ...(cleared && { createdAt: { $gt: new Date(cleared) } }) })
+      .sort({ createdAt: -1, _id: -1 })
+      .lean<MessageRow>()
+      .exec();
+    const isLatest = !!latest && new Date(latest.createdAt!).getTime() === new Date(c.lastMessage.createdAt).getTime() && latest.senderUid === c.lastMessage.senderUid;
+    const preview = isLatest
+      ? null
+      : {
+          forLast: c.lastMessage.createdAt,
+          replacement: latest ? { body: (latest.deletedAt ? DELETED_PREVIEW : latest.body || PHOTO_PREVIEW).slice(0, 200), senderUid: latest.senderUid, createdAt: latest.createdAt! } : null,
+        };
+    await this.conversations.updateOne({ _id: c._id }, { $set: { "members.$[me].preview": preview } }, { arrayFilters: [{ "me.uid": uid }], timestamps: false }).exec();
+  }
+
+  /**
+   * Delete for everyone: your own message, within 2 days and 12 hours. Everyone sees "This message was deleted";
    * what it said is kept out of sight, for a report about it.
    */
   async removeMessage(viewer: Viewer, id: string, messageId: string): Promise<MessageView> {
@@ -521,7 +609,7 @@ export class ChatService implements OnModuleInit {
     const m = await this.loadMessage(id, messageId);
     if (m.senderUid !== viewer.uid) throw new ForbiddenException("You can only delete your own messages for everyone.");
     if (m.deletedAt) return (await this.views([m]))[0]!;
-    if (Date.now() - new Date(m.createdAt!).getTime() > DELETE_WINDOW_MS) throw new ForbiddenException("Messages can be deleted for everyone for an hour after they're sent. You can still delete the chat for yourself.");
+    if (Date.now() - new Date(m.createdAt!).getTime() > DELETE_WINDOW_MS) throw new ForbiddenException("Messages can be deleted for everyone for about 2 days after they're sent. You can still delete it for yourself.");
     await this.messages.updateOne({ _id: messageId }, { $set: { deletedAt: new Date(), removedBody: m.body, body: "" }, $unset: { reactions: 1 } }).exec();
     await this.touchLastMessage(c, m, DELETED_PREVIEW);
     this.realtime.toUsers(c.participantUids, "chat.message", { conversationId: id });
@@ -561,7 +649,7 @@ export class ChatService implements OnModuleInit {
     const cleared = memberOf(c, uid)?.clearedAt;
     const pins = (c.pins ?? []).flatMap((p) => {
       const m = pinnedById.get(p.messageId);
-      if (!m || new Date(p.until) <= now || (cleared && m.createdAt && new Date(m.createdAt) <= new Date(cleared))) return [];
+      if (!m || new Date(p.until) <= now || m.hiddenFor?.includes(uid) || (cleared && m.createdAt && new Date(m.createdAt) <= new Date(cleared))) return [];
       return [{ messageId: p.messageId, by: p.by, until: new Date(p.until).toISOString(), senderUid: m.senderUid, body: (m.body ?? "").slice(0, 140), photo: !!m.photos?.length }];
     });
     return pins.length ? { pins } : {};
@@ -578,7 +666,7 @@ export class ChatService implements OnModuleInit {
       participantUids: c.participantUids,
       participants: c.participantUids.map((u) => ({ uid: u, displayName: cards.get(u)?.displayName ?? "Neighbour", photoURL: cards.get(u)?.photoURL })),
       context: c.context,
-      lastMessage: c.lastMessage ? { ...c.lastMessage, createdAt: new Date(c.lastMessage.createdAt).toISOString() } : undefined,
+      lastMessage: lastMessageFor(c, uid),
       unreadCount: c.members.find((m) => m.uid === uid)?.unread ?? 0,
       // For "Seen": when each person last read the thread.
       readBy: c.members.map((m) => ({ uid: m.uid, lastReadAt: m.lastReadAt ? new Date(m.lastReadAt).toISOString() : undefined })),
@@ -589,6 +677,14 @@ export class ChatService implements OnModuleInit {
       ...(isMuted(memberOf(c, uid)) && { mutedUntil: new Date(memberOf(c, uid)!.mutedUntil!).toISOString() }),
     }));
   }
+}
+
+/** The inbox line for this person: the latest message, or the one before it if they deleted that for themselves. */
+function lastMessageFor(c: ConvRow, uid: string): ConversationView["lastMessage"] {
+  const p = memberOf(c, uid)?.preview;
+  const own = !!p && !!c.lastMessage && new Date(p.forLast).getTime() === new Date(c.lastMessage.createdAt).getTime();
+  const last = own ? p!.replacement : c.lastMessage;
+  return last ? { body: last.body, senderUid: last.senderUid, createdAt: new Date(last.createdAt).toISOString() } : undefined;
 }
 
 function toMessage(m: MessageRow, quoted?: MessageRow): MessageView {
@@ -610,6 +706,7 @@ function toMessage(m: MessageRow, quoted?: MessageRow): MessageView {
     ...(reactions.size && { reactions: [...reactions.entries()].map(([emoji, uids]) => ({ emoji, uids })).sort((a, b) => b.uids.length - a.uids.length) }),
     ...(m.editedAt && !deleted && { editedAt: new Date(m.editedAt).toISOString() }),
     ...(deleted && { deleted: true }),
+    ...(!deleted && m.forwards && { forwarded: true, ...(m.forwards >= MANY_FORWARDS && { forwardedManyTimes: true }) }),
     createdAt: (m.createdAt ?? new Date()).toISOString(),
   };
 }

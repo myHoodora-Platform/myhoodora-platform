@@ -1,6 +1,6 @@
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
-import { ArrowUp, Ban, Delete, FileText, Keyboard as KeyboardIcon, Paperclip, Reply, RotateCcw, Smile, X } from "lucide-react-native";
+import { ArrowUp, Ban, ChevronsRight, Delete, Forward, FileText, Keyboard as KeyboardIcon, Paperclip, Reply, RotateCcw, Smile, X } from "lucide-react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -87,15 +87,25 @@ interface BubbleContent {
   documents?: ChatDocument[];
   quote?: BubbleQuote;
   deleted?: boolean;
+  /** It came from another chat: "Forwarded", or "Forwarded many times" (WhatsApp). */
+  forwarded?: "once" | "many";
 }
 
 /** The bubble itself (no row, no gestures): also what the long-press menu shows lifted. */
-export function BubbleBody({ mine, body, photos = [], documents = [], quote, deleted, onPhoto, onLongPress }: BubbleContent & { onPhoto?: (photos: string[], index: number) => void; onLongPress?: () => void }) {
+export function BubbleBody({ mine, body, photos = [], documents = [], quote, deleted, forwarded, onPhoto, onLongPress }: BubbleContent & { onPhoto?: (photos: string[], index: number) => void; onLongPress?: () => void }) {
   const t = useTheme();
   const fg = mine ? t.colors.primaryForeground : t.colors.foreground;
   const media = !deleted && photos.length > 0;
   return (
     <View style={[styles.bubble, { backgroundColor: mine ? t.colors.primary : t.colors.card }, mine ? styles.bubbleMine : styles.bubbleTheirs, media && styles.bubbleMedia]}>
+      {forwarded && !deleted ? (
+        <View style={[styles.forwarded, media && styles.forwardedInMedia]}>
+          {forwarded === "many" ? <ChevronsRight size={14} color={fg} style={styles.faint} /> : <Forward size={14} color={fg} style={styles.faint} />}
+          <Text variant="caption" style={[{ color: fg }, styles.faint]}>
+            {forwarded === "many" ? "Forwarded many times" : "Forwarded"}
+          </Text>
+        </View>
+      ) : null}
       {quote && !deleted ? (
         <Pressable
           onPress={quote.onPress}
@@ -175,6 +185,7 @@ export function ChatBubble({
   documents = [],
   quote,
   deleted,
+  forwarded,
   reactions,
   meta,
   highlighted = false,
@@ -240,7 +251,7 @@ export function ChatBubble({
           <Pressable onLongPress={hold} delayLongPress={280} accessibilityHint={onLongPress ? "Hold for reply, react and more" : undefined} accessibilityActions={onLongPress ? [{ name: "longpress", label: "Message options" }] : undefined} onAccessibilityAction={(e) => e.nativeEvent.actionName === "longpress" && hold()}>
             {/* Always ringed (transparent unless highlighted): Android draws a border added later wrongly. */}
             <View ref={ref} collapsable={false} style={[styles.ring, { borderColor: highlighted ? t.colors.primary : "transparent" }]}>
-              <BubbleBody mine={mine} body={body} photos={photos} documents={documents} quote={quote} deleted={deleted} onPhoto={onPhoto} onLongPress={hold} />
+              <BubbleBody mine={mine} body={body} photos={photos} documents={documents} quote={quote} deleted={deleted} forwarded={forwarded} onPhoto={onPhoto} onLongPress={hold} />
             </View>
           </Pressable>
           {shown.length ? (
@@ -494,6 +505,9 @@ const styles = StyleSheet.create({
   swipeHint: { position: "absolute", left: 4, width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
   ring: { borderWidth: 2, borderRadius: 22, margin: -2 },
   deleted: { flexDirection: "row", alignItems: "center", gap: 6 },
+  forwarded: { flexDirection: "row", alignItems: "center", gap: 4 },
+  forwardedInMedia: { paddingHorizontal: 8, paddingTop: 4 },
+  faint: { opacity: 0.7 },
   quote: { borderLeftWidth: 3, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, gap: 1, minWidth: 140 },
   quoteInMedia: { margin: 4, marginBottom: 2 },
   reactions: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, marginTop: -10, minHeight: 26 },

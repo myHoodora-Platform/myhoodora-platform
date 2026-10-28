@@ -13,16 +13,18 @@ describe("editing (WhatsApp's 15 minutes)", () => {
     expect(editEndsAt(msg())).toBe(sent + 15 * min);
   });
 
-  it("never someone else's, a deleted one, or photos with no words", () => {
+  it("never someone else's, a deleted or forwarded one, or photos with no words", () => {
     expect(canEdit(msg({ senderUid: "ada" }), "me", sent)).toBe(false);
     expect(canEdit(msg({ deleted: true, body: "" }), "me", sent)).toBe(false);
     expect(canEdit(msg({ body: "", photos: ["p"] }), "me", sent)).toBe(false);
+    expect(canEdit(msg({ forwarded: true }), "me", sent)).toBe(false);
   });
 });
 
-it("deletes for everyone within the hour, your own only", () => {
-  expect(canDeleteForEveryone(msg(), "me", sent + 59 * min)).toBe(true);
-  expect(canDeleteForEveryone(msg(), "me", sent + 61 * min)).toBe(false);
+it("deletes for everyone for 2 days and 12 hours (WhatsApp), your own only", () => {
+  expect(canDeleteForEveryone(msg(), "me", sent + 24 * 60 * min)).toBe(true);
+  expect(canDeleteForEveryone(msg(), "me", sent + 59 * 60 * min)).toBe(true);
+  expect(canDeleteForEveryone(msg(), "me", sent + 61 * 60 * min)).toBe(false);
   expect(canDeleteForEveryone(msg({ senderUid: "ada" }), "me", sent)).toBe(false);
 });
 

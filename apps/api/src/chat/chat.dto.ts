@@ -66,3 +66,9 @@ export class PinMessageDto {
   /** How long it stays pinned, as on WhatsApp. */
   @IsIn(PIN_FOR) for!: (typeof PIN_FOR)[number];
 }
+
+/** Up to 5 chats in all, by conversation or by neighbour (a chat with them is opened if need be). */
+export class ForwardMessageDto {
+  @IsOptional() @IsArray() @ArrayMaxSize(5) @IsMongoId({ each: true }) conversationIds?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(5) @IsString({ each: true }) @Length(1, 128, { each: true }) recipientUids?: string[];
+}

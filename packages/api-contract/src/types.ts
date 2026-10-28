@@ -387,12 +387,24 @@ export interface Message {
   editedAt?: string;
   /** Deleted for everyone: body and photos are empty. */
   deleted?: boolean;
+  /** Came from another chat (2026-10-28). `forwardedManyTimes`: passed on 5 times or more, so it goes to one chat at a time. */
+  forwarded?: boolean;
+  forwardedManyTimes?: boolean;
   createdAt: string;
 }
 
-/** Message actions' limits (contract §5): edit within 15 minutes, delete for everyone within an hour. */
+/** Message actions' limits (contract §5), WhatsApp's: edit within 15 minutes, delete for everyone within 2 days and 12 hours. */
 export const MESSAGE_EDIT_WINDOW_MS = 15 * 60_000;
-export const MESSAGE_DELETE_WINDOW_MS = 60 * 60_000;
+export const MESSAGE_DELETE_WINDOW_MS = 60 * 60 * 60_000;
+/** Forward to up to 5 chats at once; one forwarded many times, to one. */
+export const MAX_FORWARD_TO = 5;
+
+export interface ForwardResult {
+  /** The conversations it went to. */
+  sent: string[];
+  /** Each conversation id or neighbour uid it couldn't go to, and why. */
+  failed: { target: string; message: string }[];
+}
 
 export type MuteLength = "8h" | "1w" | "always" | "off";
 

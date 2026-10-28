@@ -1,5 +1,5 @@
 import type { User } from "@firebase/auth";
-import type { Conversation, Listing, Message, MuteLength, PinLength } from "@myhoodora/api-contract/types";
+import type { Conversation, ForwardResult, Listing, Message, MuteLength, PinLength } from "@myhoodora/api-contract/types";
 import { apiFetch } from "@/core/api/client";
 
 export const chatKeys = {
@@ -71,6 +71,16 @@ export function editMessage(user: User, id: string, messageId: string, body: str
 /** Delete for everyone: your own message, within an hour. */
 export function deleteMessage(user: User, id: string, messageId: string): Promise<Message> {
   return apiFetch<Message>(user, `/conversations/${id}/messages/${messageId}`, { method: "DELETE" });
+}
+
+/** Delete for me: gone for you only, whoever sent it. */
+export function hideMessage(user: User, id: string, messageId: string): Promise<void> {
+  return apiFetch<void>(user, `/conversations/${id}/messages/${messageId}/hidden`, { method: "PUT" });
+}
+
+/** To up to 5 chats or neighbours (one, for a message forwarded many times). Each succeeds or fails alone. */
+export function forwardMessage(user: User, id: string, messageId: string, to: { conversationIds: string[]; recipientUids: string[] }): Promise<ForwardResult> {
+  return apiFetch<ForwardResult>(user, `/conversations/${id}/messages/${messageId}/forward`, { method: "POST", json: to });
 }
 
 /** To the top of your inbox (or off it): up to 3, only you see it. A fourth is a 409 saying so. */

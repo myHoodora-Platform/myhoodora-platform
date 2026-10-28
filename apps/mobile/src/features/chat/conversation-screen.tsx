@@ -279,6 +279,7 @@ function Thread({
               body={m.body}
               photos={m.photos}
               deleted={m.deleted}
+              forwarded={m.forwardedManyTimes ? "many" : m.forwarded ? "once" : undefined}
               quote={q ? { ...quoteOf(q), onPress: q.deleted ? undefined : () => jumpTo(q._id) } : undefined}
               reactions={bubbleReactions(m, me)}
               highlighted={highlight === m._id}

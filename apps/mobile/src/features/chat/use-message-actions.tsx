@@ -2,16 +2,17 @@ import { ApiError, errorMessage } from "@myhoodora/api-contract/errors";
 import type { Conversation, Message, PinLength, PinnedMessage } from "@myhoodora/api-contract/types";
 import { useQueryClient } from "@tanstack/react-query";
 import * as Clipboard from "expo-clipboard";
-import { Copy, Flag, Pencil, Pin, PinOff, Reply, Trash2 } from "lucide-react-native";
+import { Copy, Flag, Forward, Pencil, Pin, PinOff, Reply, Trash2 } from "lucide-react-native";
 import { useEffect, useState } from "react";
 
 import { useSignedInUser } from "@/core/auth/auth-provider";
+import { useRouter } from "@/core/navigation/use-router";
 import type { BubbleFrame } from "@/shared/ui/chat";
 import type { HeldMessage, MessageAction } from "@/shared/ui/message-actions";
 import { ActionSheet } from "@/shared/ui/action-sheet";
 import { showDialog } from "@/shared/ui/dialog";
 import { useToast } from "@/shared/ui/toast";
-import { chatKeys, deleteMessage, editMessage, PIN_CHOICES, pinMessage, reactToMessage, unpinMessage } from "./chat-api";
+import { chatKeys, deleteMessage, editMessage, hideMessage, PIN_CHOICES, pinMessage, reactToMessage, unpinMessage } from "./chat-api";
 import { canDeleteForEveryone, canEdit, EDIT_TIME_UP, editEndsAt, MAX_PINNED_MESSAGES, myReaction, withReaction } from "./message-rules";
 
 export { bubbleReactions } from "./message-rules";
@@ -23,8 +24,8 @@ function patchMessage(rows: Message[] | undefined, id: string, change: (m: Messa
 
 
 /**
- * Everything holding a message leads to (WhatsApp): react, reply, copy, pin, edit (for 15 minutes),
- * delete for everyone, report. Shared by every conversation screen, one-to-one or group.
+ * Everything holding a message leads to (WhatsApp): react, reply, forward, copy, pin, edit (for 15
+ * minutes), delete (for everyone, or for you), report. Shared by every conversation screen, one-to-one or group.
  */
 export function useMessageActions({
   conversationId,
@@ -42,6 +43,7 @@ export function useMessageActions({
 }) {
   const user = useSignedInUser();
   const client = useQueryClient();
+  const router = useRouter();
   const toast = useToast();
   const [held, setHeld] = useState<{ message: Message; frame: BubbleFrame } | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
@@ -73,23 +75,42 @@ export function useMessageActions({
     }
   };
 
+  const forEveryone = async (m: Message) => {
+    try {
+      const fresh = await deleteMessage(user, conversationId, m._id);
+      client.setQueryData<Message[]>(key, (rows) => patchMessage(rows, m._id, () => fresh));
+      void client.invalidateQueries({ queryKey: chatKeys.all });
+    } catch (err) {
+      toast(errorMessage(err), "error");
+    }
+  };
+  const forMe = async (m: Message) => {
+    const before = client.getQueryData<Message[]>(key);
+    client.setQueryData<Message[]>(key, (rows) => rows?.filter((x) => x._id !== m._id));
+    try {
+      await hideMessage(user, conversationId, m._id);
+      toast("Deleted for you.");
+      void client.invalidateQueries({ queryKey: chatKeys.all });
+    } catch (err) {
+      client.setQueryData(key, before);
+      toast(errorMessage(err), "error");
+    }
+  };
+  /**
+   * WhatsApp's choice: your own message, while there's time, for everyone (even once seen: it still
+   * goes from their phone) or just you; anything else, just you.
+   */
   const remove = (m: Message) =>
-    showDialog("Delete for everyone?", "Everyone in the chat will see \"This message was deleted\".", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            const fresh = await deleteMessage(user, conversationId, m._id);
-            client.setQueryData<Message[]>(key, (rows) => patchMessage(rows, m._id, () => fresh));
-            void client.invalidateQueries({ queryKey: chatKeys.all });
-          } catch (err) {
-            toast(errorMessage(err), "error");
-          }
-        },
-      },
-    ]);
+    canDeleteForEveryone(m, user.uid)
+      ? showDialog("Delete message?", "Delete for everyone removes it from the chat on their side too. Delete for me keeps it for them.", [
+          { text: "Delete for everyone", style: "destructive", onPress: () => void forEveryone(m) },
+          { text: "Delete for me", style: "destructive", onPress: () => void forMe(m) },
+          { text: "Cancel", style: "cancel" },
+        ])
+      : showDialog("Delete message?", m.deleted ? "It's removed from this chat for you." : "It's deleted for you only. The other person still has it.", [
+          { text: "Cancel", style: "cancel" },
+          { text: "Delete for me", style: "destructive", onPress: () => void forMe(m) },
+        ]);
 
   /** Sends the edit (the composer calls this instead of sending a new message). */
   const saveEdit = async (body: string): Promise<boolean> => {
@@ -141,7 +162,12 @@ export function useMessageActions({
   const actions: MessageAction[] = !m
     ? []
     : [
-        ...(m.deleted ? [] : [{ key: "reply", label: "Reply", Icon: Reply, onPress: () => (setEditing(null), setReplyingTo(m)) }]),
+        ...(m.deleted
+          ? []
+          : [
+              { key: "reply", label: "Reply", Icon: Reply, onPress: () => (setEditing(null), setReplyingTo(m)) },
+              { key: "forward", label: "Forward", Icon: Forward, onPress: () => router.push({ pathname: "/inbox/forward", params: { from: conversationId, message: m._id } }) },
+            ]),
         ...(m.body && !m.deleted
           ? [
               {
@@ -159,7 +185,7 @@ export function useMessageActions({
           ? []
           : [isPinned(m._id) ? { key: "unpin", label: "Unpin", Icon: PinOff, onPress: () => void unpin(m._id) } : { key: "pin", label: "Pin", Icon: Pin, onPress: () => askPin(m) }]),
         ...(canEdit(m, user.uid) ? [{ key: "edit", label: "Edit", Icon: Pencil, onPress: () => (setReplyingTo(null), setEditing(m), onEdit(m.body)) }] : []),
-        ...(canDeleteForEveryone(m, user.uid) ? [{ key: "delete", label: "Delete for everyone", Icon: Trash2, destructive: true, onPress: () => remove(m) }] : []),
+        { key: "delete", label: "Delete", Icon: Trash2, destructive: true, onPress: () => remove(m) },
         ...(m.senderUid !== user.uid ? [{ key: "report", label: "Report", Icon: Flag, destructive: true, onPress: onReport }] : []),
       ];
 
@@ -181,6 +207,7 @@ export function useMessageActions({
           myReaction: myReaction(m, user.uid),
           canReact: !m.deleted,
           deleted: m.deleted,
+          forwarded: m.forwardedManyTimes ? "many" : m.forwarded ? "once" : undefined,
         }
       : null;
 
@@ -191,8 +218,7 @@ export function useMessageActions({
       : null;
 
   return {
-    // Your own deleted message has nothing left to do (no reacting, pinning or reporting it): holding it does nothing.
-    hold: (message: Message, frame: BubbleFrame) => !(message.deleted && message.senderUid === user.uid) && setHeld({ message, frame }),
+    hold: (message: Message, frame: BubbleFrame) => setHeld({ message, frame }),
     held: heldView,
     close: () => setHeld(null),
     actions,

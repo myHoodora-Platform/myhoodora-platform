@@ -31,6 +31,7 @@ export interface HeldMessage {
   /** No reactions on a deleted message. */
   canReact: boolean;
   deleted?: boolean;
+  forwarded?: "once" | "many";
 }
 
 const BAR_HEIGHT = 52;
@@ -101,7 +102,7 @@ function Layer({ held, actions, onReact, onClose }: { held: HeldMessage; actions
 
       {/* The message, lifted where it was. */}
       <View pointerEvents="none" style={[styles.lifted, side, { top: place.bubbleY, maxHeight: place.bubbleHeight, maxWidth: held.frame.width + 4 }]}>
-        <BubbleBody mine={held.mine} body={held.body} photos={held.photos} quote={held.quote} deleted={held.deleted} />
+        <BubbleBody mine={held.mine} body={held.body} photos={held.photos} quote={held.quote} deleted={held.deleted} forwarded={held.forwarded} />
       </View>
 
       {more ? (

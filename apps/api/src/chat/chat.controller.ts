@@ -4,7 +4,7 @@ import { Throttle } from "@nestjs/throttler";
 import { CurrentViewer, type Viewer } from "../shared/auth/viewer";
 import { Can } from "../shared/authz/can.decorator";
 import { ParseObjectIdPipe, ThreadPageQuery } from "../shared/http/pagination";
-import { ArchiveConversationDto, ConversationListQuery, EditMessageDto, MuteConversationDto, PinChatDto, PinMessageDto, ReactDto, SendMessageDto, StartConversationDto } from "./chat.dto";
+import { ArchiveConversationDto, ConversationListQuery, EditMessageDto, ForwardMessageDto, MuteConversationDto, PinChatDto, PinMessageDto, ReactDto, SendMessageDto, StartConversationDto } from "./chat.dto";
 import { ChatService } from "./chat.service";
 import { ApiNotFound, ApiStandardErrors } from "../shared/http/api-docs";
 
@@ -135,9 +135,27 @@ export class ChatController {
   }
 
   @Delete(":id/messages/:messageId")
-  @ApiOperation({ summary: "Delete your own message for everyone, within an hour. Shows \"This message was deleted\"" })
+  @ApiOperation({ summary: "Delete your own message for everyone, within 2 days and 12 hours. Shows \"This message was deleted\"" })
   @ApiNotFound("Message")
   removeMessage(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Param("messageId", ParseObjectIdPipe) messageId: string) {
     return this.chat.removeMessage(viewer, id, messageId);
+  }
+
+  @Put(":id/messages/:messageId/hidden")
+  @HttpCode(204)
+  @ApiOperation({ summary: "Delete for me: hide any message in the chat from yourself only. The other person keeps it" })
+  @ApiNotFound("Message")
+  async hide(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Param("messageId", ParseObjectIdPipe) messageId: string) {
+    await this.chat.hideForMe(viewer, id, messageId);
+  }
+
+  @Post(":id/messages/:messageId/forward")
+  @Can("messages.send")
+  @Throttle({ medium: { limit: 20, ttl: 60_000 } })
+  @ApiOperation({ summary: "Forward a message to up to 5 chats or neighbours, marked \"Forwarded\". Returns `{ sent: conversationIds, failed: [{ target, message }] }`" })
+  @ApiCreatedResponse()
+  @ApiNotFound("Message")
+  forward(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Param("messageId", ParseObjectIdPipe) messageId: string, @Body() body: ForwardMessageDto) {
+    return this.chat.forward(viewer, id, messageId, body);
   }
 }

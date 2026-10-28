@@ -20,7 +20,8 @@ export const myReaction = (m: Message, uid: string) => m.reactions?.find((r) => 
 /** For the pills under a bubble. */
 export const bubbleReactions = (m: Message, uid: string): BubbleReaction[] => (m.reactions ?? []).map((r) => ({ emoji: r.emoji, count: r.uids.length, mine: r.uids.includes(uid) }));
 
-export const canEdit = (m: Message, uid: string, now = Date.now()) => m.senderUid === uid && !m.deleted && !!m.body && now - new Date(m.createdAt).getTime() < MESSAGE_EDIT_WINDOW_MS;
+/** Your own words, for 15 minutes; never a forwarded message (they're someone else's words). */
+export const canEdit = (m: Message, uid: string, now = Date.now()) => m.senderUid === uid && !m.deleted && !m.forwarded && !!m.body && now - new Date(m.createdAt).getTime() < MESSAGE_EDIT_WINDOW_MS;
 /** When the 15 minutes to edit it run out. */
 export const editEndsAt = (m: Message) => new Date(m.createdAt).getTime() + MESSAGE_EDIT_WINDOW_MS;
 export const EDIT_TIME_UP = "The 15 minutes to edit that message are up. Your words are still here to send as a new message.";
