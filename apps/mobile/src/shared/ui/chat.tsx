@@ -5,8 +5,10 @@ import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { EmojiKeyboard } from "rn-emoji-keyboard";
-import { ActivityIndicator, BackHandler, Keyboard, Linking, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { ActivityIndicator, BackHandler, Linking, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { KeyboardController, KeyboardEvents } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useKeyboardHeight } from "@/shared/hooks/use-keyboard-height";
 import type { PhotoUploads } from "@/core/media/use-photo-uploads";
 import { MIN_TOUCH, useTheme } from "@/shared/theme/theme";
 import { sizedImage } from "@/shared/utils/media";
@@ -352,38 +354,75 @@ export function ChatComposer({
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const input = useRef<TextInput>(null);
-  // WhatsApp's way: the emoji panel takes the keyboard's place, at the keyboard's height, under the box.
-  const [emoji, setEmoji] = useState(false);
+  /**
+   * WhatsApp's way: the emoji panel takes the keyboard's place, at the keyboard's height, and the box
+   * never moves. "toKeyboard": the keyboard is coming back up over the panel.
+   */
+  const [mode, setMode] = useState<"keyboard" | "emoji" | "toKeyboard">("keyboard");
+  const emoji = mode === "emoji";
   const [panelHeight, setPanelHeight] = useState(DEFAULT_PANEL_HEIGHT);
+  // Built once, after the keyboard first shows, so the panel opens full rather than blank.
+  const [panelBuilt, setPanelBuilt] = useState(false);
+  // On the UI thread, read every frame: is the panel's room held, and how tall is it.
+  const reserved = useSharedValue(false);
+  const roomHeight = useSharedValue(DEFAULT_PANEL_HEIGHT);
+  const keyboard = useKeyboardHeight();
   useEffect(() => {
-    const sub = Keyboard.addListener("keyboardDidShow", (e) => setPanelHeight(Math.max(MIN_PANEL_HEIGHT, Math.round(e.endCoordinates.height))));
+    // Once the keyboard is fully up: the panel is the same height next time, and its room can go.
+    const sub = KeyboardEvents.addListener("keyboardDidShow", (e) => {
+      if (e.height <= 0) return;
+      const h = Math.max(MIN_PANEL_HEIGHT, Math.round(e.height));
+      roomHeight.set(h);
+      setPanelHeight(h);
+      reserved.set(false);
+      setMode("keyboard");
+      setTimeout(() => setPanelBuilt(true), 250);
+    });
     return () => sub.remove();
-  }, []);
+  }, [reserved, roomHeight]);
+  // Keyboard and panel together always fill one keyboard's height: as one slides away the other
+  // shows, both ways, so the box stays put.
+  const room = useAnimatedStyle(() => ({ height: reserved.get() ? Math.max(0, roomHeight.get() - keyboard.get()) : 0 }));
   // Android's back closes the panel first, as on WhatsApp, rather than leaving the conversation.
   useEffect(() => {
     if (!emoji) return;
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
-      setEmoji(false);
+      reserved.set(false);
+      setMode("keyboard");
+      void KeyboardController.dismiss();
       return true;
     });
     return () => sub.remove();
-  }, [emoji]);
+  }, [emoji, reserved]);
   // Where the cursor is, so an emoji goes in where they're typing (not always at the end).
   const [selection, setSelection] = useState({ start: text.length, end: text.length });
   // Set only right after an emoji goes in or comes out; otherwise the cursor is the person's own.
   const [placed, setPlaced] = useState<{ start: number; end: number } | undefined>(undefined);
+  // The emoji panel keeps the handler it was first given, so it reads the box from here: without
+  // this, each emoji picked in a row replaced the one before.
+  const latest = useRef({ text, selection });
+  useEffect(() => {
+    latest.current = { text, selection };
+  }, [text, selection]);
   const edit = ({ text: next, cursor }: { text: string; cursor: number }) => {
+    // Updated at once too, for taps quicker than a render.
+    latest.current = { text: next, selection: { start: cursor, end: cursor } };
     onText(next);
     setSelection({ start: cursor, end: cursor });
     setPlaced({ start: cursor, end: cursor });
   };
   const showEmoji = () => {
-    Keyboard.dismiss();
-    setEmoji(true);
+    reserved.set(true);
+    setPanelBuilt(true);
+    setMode("emoji");
+    // The box keeps its cursor, so emoji go in where you were typing and typing carries on there.
+    void KeyboardController.dismiss({ keepFocus: true });
   };
   const showKeyboard = () => {
-    setEmoji(false);
-    input.current?.focus();
+    setMode("toKeyboard");
+    // Focused already: blur and focus again to call the keyboard back.
+    input.current?.blur();
+    setTimeout(() => input.current?.focus(), 0);
   };
   const failed = uploads?.items.find((p) => p.status === "failed");
   const ready = !!uploads && uploads.urls.length > 0 && !uploads.failed;
@@ -433,8 +472,8 @@ export function ChatComposer({
               setSelection(e.nativeEvent.selection);
               setPlaced(undefined);
             }}
-            // Typing again: the keyboard comes back in the panel's place.
-            onFocus={() => setEmoji(false)}
+            // Tapping the box while the panel is open brings the keyboard back in its place.
+            onPressIn={() => emoji && setMode("toKeyboard")}
             showSoftInputOnFocus
             placeholder={uploads?.items.length ? "Add a message (optional)" : placeholder}
             placeholderTextColor={t.colors.mutedForeground}
@@ -450,10 +489,11 @@ export function ChatComposer({
           ) : null}
         </View>
       </View>
-      {emoji ? (
-        <View style={[styles.panel, { height: panelHeight }]}>
+      <Animated.View style={[styles.panelRoom, room]}>
+        {panelBuilt ? (
+          <View style={{ height: panelHeight }} pointerEvents={emoji ? "auto" : "none"} importantForAccessibility={emoji ? "auto" : "no-hide-descendants"}>
           <EmojiKeyboard
-            onEmojiSelected={(e) => edit(insertAt(text, e.emoji, selection))}
+            onEmojiSelected={(e) => edit(insertAt(latest.current.text, e.emoji, latest.current.selection))}
             allowMultipleSelections
             selectedEmojis={false}
             enableRecentlyUsed
@@ -472,7 +512,10 @@ export function ChatComposer({
             styles={{ container: { flex: 1, borderRadius: 0, shadowOpacity: 0, elevation: 0 }, category: { container: { paddingRight: BACKSPACE_ROOM } } }}
           />
           <Pressable
-            onPress={() => edit(deleteBackward(text, selection.start === selection.end ? selection.start : selection.end))}
+            onPress={() => {
+              const { text: now, selection: at } = latest.current;
+              edit(deleteBackward(now, at.start === at.end ? at.start : at.end));
+            }}
             onLongPress={() => edit({ text: "", cursor: 0 })}
             accessibilityRole="button"
             accessibilityLabel="Delete"
@@ -482,8 +525,9 @@ export function ChatComposer({
           >
             <Delete size={22} color={t.colors.mutedForeground} />
           </Pressable>
-        </View>
-      ) : null}
+          </View>
+        ) : null}
+      </Animated.View>
     </GlassSurface>
   );
 }
@@ -495,7 +539,7 @@ const BACKSPACE_ROOM = 52;
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  panel: { marginHorizontal: -8, marginBottom: -8 },
+  panelRoom: { marginHorizontal: -8, overflow: "hidden" },
   banner: { flexDirection: "row", alignItems: "center", gap: 10, borderLeftWidth: 3, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, marginHorizontal: 4 },
   backspace: { position: "absolute", right: 0, bottom: 0, width: BACKSPACE_ROOM, height: 48, alignItems: "center", justifyContent: "center" },
   day: { textAlign: "center", marginVertical: 8 },
