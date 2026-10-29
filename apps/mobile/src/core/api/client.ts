@@ -1,8 +1,9 @@
 import NetInfo from "@react-native-community/netinfo";
 import { onlineManager } from "@tanstack/react-query";
-import { ApiError, FRIENDLY_MESSAGES, REQUEST_TIMEOUT_MS, errorFor, transportError } from "@myhoodora/api-contract/errors";
+import { ApiError, FRIENDLY_MESSAGES, REQUEST_TIMEOUT_MS, errorFor, isHtmlPage, transportError } from "@myhoodora/api-contract/errors";
 import type { User } from "@firebase/auth";
 import { config } from "@/core/config/env";
+import { reportEdgePage } from "@/core/monitoring/monitoring";
 
 /**
  * Requests to the API, and to the web server's address lookups, with the signed-in person's
@@ -69,7 +70,9 @@ async function request<T>(url: string, user: User | null, init: RequestInitWithJ
   if (!onlineManager.isOnline()) onlineManager.setOnline(true);
 
   if (!response.ok) {
-    const error = errorFor(response.status, await response.text().catch(() => ""), response.headers.get("Retry-After"));
+    const text = await response.text().catch(() => "");
+    if (isHtmlPage(text)) reportPage(response, url);
+    const error = errorFor(response.status, text, response.headers.get("Retry-After"));
     if (error.kind === "auth") onUnauthorized?.();
     throw error;
   }
@@ -79,8 +82,23 @@ async function request<T>(url: string, user: User | null, init: RequestInitWithJ
     return (text ? JSON.parse(text) : undefined) as T;
   } catch {
     // A 2xx that isn't JSON (a proxy's error page) is a server fault.
+    if (isHtmlPage(text)) reportPage(response, url);
     throw new ApiError(FRIENDLY_MESSAGES.server, response.status, "server");
   }
+}
+
+/** Something in front of the API answered with a web page: tell the team (see reportEdgePage). */
+function reportPage(response: Response, url: string): void {
+  // The host and the route's first two parts ("/api/feed"): enough to group by, with no ids or query.
+  const match = /^https?:\/\/([^/?#]+)((?:\/[^/?#]*){0,2})/.exec(url);
+  reportEdgePage({
+    status: response.status,
+    host: match?.[1] ?? "unknown",
+    route: match?.[2] || "/",
+    server: response.headers.get("server"),
+    mitigated: response.headers.get("cf-mitigated"),
+    ray: response.headers.get("cf-ray"),
+  });
 }
 
 /** The API (`EXPO_PUBLIC_API_URL`), signed in. `path` starts with "/", e.g. "/users/me". */

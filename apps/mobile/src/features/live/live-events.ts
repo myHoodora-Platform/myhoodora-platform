@@ -44,8 +44,15 @@ export function applyLiveEvent(client: QueryClient, e: LiveEvent): boolean {
       }
       return false;
     case "notification.created":
-    case "unread.changed":
       void client.invalidateQueries({ queryKey: NOTIFICATIONS_QUERY_KEY });
+      return false;
+    case "unread.changed":
+      // Something was read, here or on another device: a notification, or a support conversation.
+      // The web refreshes its counts on this too; without the last two, Messages kept a stale "1".
+      void client.invalidateQueries({ queryKey: NOTIFICATIONS_QUERY_KEY });
+      void client.invalidateQueries({ queryKey: supportKeys.unread });
+      void client.invalidateQueries({ queryKey: supportKeys.list });
+      void client.invalidateQueries({ queryKey: chatKeys.unread });
       return false;
     case "chat.message":
     case "chat.read":
