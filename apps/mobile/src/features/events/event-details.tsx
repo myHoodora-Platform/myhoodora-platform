@@ -200,7 +200,7 @@ function AddToCalendar({ post }: { post: ApiPost }) {
       style={({ pressed }) => [styles.calendar, { opacity: pressed ? 0.6 : 1 }]}
     >
       <CalendarPlus size={16} color={t.colors.primary} />
-      <Text variant="label" tone="primary">
+      <Text variant="label" tone="primary" numberOfLines={1} style={styles.calendarLabel}>
         Add to calendar
       </Text>
     </Pressable>
@@ -233,7 +233,8 @@ const styles = StyleSheet.create({
   liveDot: { width: 6, height: 6, borderRadius: 3 },
   rsvpArea: { gap: 4 },
   rsvp: { flexDirection: "row", gap: 8 },
-  calendar: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: MIN_TOUCH - 8, alignSelf: "center", paddingHorizontal: 12 },
+  calendar: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: MIN_TOUCH - 8, alignSelf: "stretch", paddingHorizontal: 12 },
+  calendarLabel: { flexShrink: 0 },
   rsvpButton: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: MIN_TOUCH, borderRadius: 12, borderWidth: 1 },
   ended: { textAlign: "center" },
 });
