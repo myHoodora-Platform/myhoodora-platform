@@ -3,7 +3,7 @@
  * end-time field, so it's treated as lasting 3 hours.
  */
 import type { Post } from "@/lib/api/types";
-import type { CalendarEvent } from "@/lib/calendar";
+import { eventCalendar, type CalendarEvent } from "@myhoodora/api-contract/calendar";
 
 export const EVENT_LENGTH_MS = 3 * 60 * 60 * 1000;
 const YEAR_MS = 366 * 24 * 60 * 60 * 1000;
@@ -53,17 +53,8 @@ export function eventTitle(post: Pick<Post, "message">): { title: string; rest: 
   return { title, rest: text.slice(cut).trim() };
 }
 
-/** What "Add to calendar" needs from an event post. */
+/** What "Add to calendar" needs from an event post (the rule is shared with the app). */
 export function calendarFor(post: Pick<Post, "_id" | "message" | "meta">, origin = typeof window === "undefined" ? "" : window.location.origin): CalendarEvent | null {
-  if (!post.meta.eventDate) return null;
   const { title, rest } = eventTitle(post);
-  return {
-    id: post._id,
-    title: title.replace(/[.!?]+$/, ""),
-    start: new Date(post.meta.eventDate),
-    end: eventEndsAt(post.meta.eventDate),
-    location: post.meta.eventLocation,
-    url: `${origin}/p/${post._id}`,
-    description: rest || undefined,
-  };
+  return eventCalendar({ id: post._id, title, rest, eventDate: post.meta.eventDate, eventLocation: post.meta.eventLocation }, origin);
 }

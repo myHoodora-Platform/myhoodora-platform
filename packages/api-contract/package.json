@@ -17,7 +17,8 @@
     "./roles": "./src/roles.ts",
     "./settings": "./src/settings.ts",
     "./support": "./src/support.ts",
-    "./geo": "./src/geo.ts"
+    "./geo": "./src/geo.ts",
+    "./calendar": "./src/calendar.ts"
   },
   "scripts": {
     "lint": "eslint .",

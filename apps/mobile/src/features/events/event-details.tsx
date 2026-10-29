@@ -1,16 +1,19 @@
 import { errorMessage } from "@myhoodora/api-contract/errors";
 import type { ApiPost, EventRsvpSummary, RsvpStatus } from "@myhoodora/api-contract/types";
 import { useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, Check, MapPin, Star } from "lucide-react-native";
+import { eventCalendar } from "@myhoodora/api-contract/calendar";
+import { CalendarDays, CalendarPlus, Check, MapPin, Star } from "lucide-react-native";
 import { useRef } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useSignedInUser } from "@/core/auth/auth-provider";
+import { config } from "@/core/config/env";
 import { MIN_TOUCH, tint, useTheme } from "@/shared/theme/theme";
 import { Text } from "@/shared/ui/text";
 import { useToast } from "@/shared/ui/toast";
 import { signal } from "@/features/feedback/engagement";
 import { updatePostEverywhere } from "@/features/feed/use-reaction";
-import { dateBadge, eventPhase, eventWhen, isPastEvent, PHASE_LABEL } from "./event-time";
+import { addToCalendar } from "./add-to-calendar";
+import { dateBadge, eventPhase, eventTitle, eventWhen, isPastEvent, PHASE_LABEL } from "./event-time";
 import { setRsvp, withRsvp } from "./events-api";
 
 const emptyRsvp = (postId: string): EventRsvpSummary => ({ postId, goingCount: 0, interestedCount: 0, myStatus: null });
@@ -145,6 +148,7 @@ export function RsvpBar({ post }: { post: ApiPost }) {
     { status: "interested", label: "Interested", count: s.interestedCount, Icon: Star },
   ];
   return (
+    <View style={styles.rsvpArea}>
     <View style={styles.rsvp} accessibilityRole="radiogroup" accessibilityLabel="Are you going?">
       {options.map(({ status, label, count, Icon }) => {
         const on = s.myStatus === status;
@@ -171,6 +175,35 @@ export function RsvpBar({ post }: { post: ApiPost }) {
         );
       })}
     </View>
+    {s.myStatus ? <AddToCalendar post={post} /> : null}
+    </View>
+  );
+}
+
+/** "Add to calendar", once you're going or interested: the phone's own new-event screen, filled in (Google Calendar's page without one). */
+function AddToCalendar({ post }: { post: ApiPost }) {
+  const t = useTheme();
+  const toast = useToast();
+  const { title, rest } = eventTitle(post.message ?? "");
+  const entry = eventCalendar({ id: post._id, title, rest, eventDate: post.eventDate, eventLocation: post.eventLocation }, config().webUrl);
+  if (!entry) return null;
+  const add = async () => {
+    if (!(await addToCalendar(entry))) toast("Couldn't open a calendar on this phone.", "error");
+  };
+  return (
+    <Pressable
+      onPress={() => void add()}
+      accessibilityRole="button"
+      accessibilityLabel="Add to calendar"
+      accessibilityHint="Opens your calendar with this event filled in"
+      hitSlop={6}
+      style={({ pressed }) => [styles.calendar, { opacity: pressed ? 0.6 : 1 }]}
+    >
+      <CalendarPlus size={16} color={t.colors.primary} />
+      <Text variant="label" tone="primary">
+        Add to calendar
+      </Text>
+    </Pressable>
   );
 }
 
@@ -198,7 +231,9 @@ const styles = StyleSheet.create({
   day: { fontSize: 22, lineHeight: 26 },
   chip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 },
   liveDot: { width: 6, height: 6, borderRadius: 3 },
+  rsvpArea: { gap: 4 },
   rsvp: { flexDirection: "row", gap: 8 },
+  calendar: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: MIN_TOUCH - 8, alignSelf: "center", paddingHorizontal: 12 },
   rsvpButton: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: MIN_TOUCH, borderRadius: 12, borderWidth: 1 },
   ended: { textAlign: "center" },
 });
