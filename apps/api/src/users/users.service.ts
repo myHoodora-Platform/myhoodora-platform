@@ -14,6 +14,8 @@ import { StorageService } from "../storage/storage.service";
 import type { Viewer } from "../shared/auth/viewer";
 import { withTransaction } from "../shared/db/transaction";
 import { EmailVerificationService } from "../verification/email-verification.service";
+import { JobsService } from "../jobs/jobs.service";
+import { SUPPORT_WELCOME_JOB } from "../inbound/support-welcome";
 import { mergePreferences, type Preferences } from "./domain/preferences";
 import { AccountLifecycle, DELETED_USER_NAME, DELETED_USER_UID, RESTORE_WINDOW_MS } from "./account-lifecycle";
 import type { DeactivateDto, OnboardingDto, PreferencesDto, UpdateMeDto, VerifyLocationDto } from "./dto/users.dto";
@@ -109,6 +111,7 @@ export class UsersService implements OnModuleInit {
     private readonly config: ConfigService,
     private readonly storage: StorageService,
     private readonly lifecycle: AccountLifecycle,
+    private readonly jobs: JobsService,
   ) {}
 
   onModuleInit() {
@@ -275,9 +278,24 @@ export class UsersService implements OnModuleInit {
     const set: Partial<User> = { isOnboarded: true };
     if (dto.displayName !== undefined) set.displayName = dto.displayName;
     if (dto.location !== undefined) set.location = dto.location;
+    const firstTime = Boolean(await this.users.exists({ uid, isOnboarded: { $ne: true } }).exec());
     const user = await this.users.findOneAndUpdate({ uid }, { $set: set }, { returnDocument: "after", runValidators: true }).exec();
     if (!user) throw new NotFoundException("Profile not found.");
+    if (firstTime) await this.queueWelcome(uid);
     return toMe(user);
+  }
+
+  /**
+   * The team's welcome (contract §18), a few minutes from now so the app has registered the phone and
+   * it also arrives as a push. One per person (the key, and the handler checks too); a problem here is
+   * logged and never fails onboarding.
+   */
+  private async queueWelcome(uid: string): Promise<void> {
+    if (!this.config.get<boolean>("supportWelcome.enabled")) return;
+    const delayMs = this.config.get<number>("supportWelcome.delayMs") ?? 0;
+    await this.jobs
+      .enqueue(SUPPORT_WELCOME_JOB, { uid }, { dedupeKey: `${SUPPORT_WELCOME_JOB}:${uid}`, runAt: new Date(Date.now() + delayMs) })
+      .catch((err: unknown) => this.logger.warn(`Couldn't queue the welcome for ${uid}: ${err instanceof Error ? err.message : String(err)}`));
   }
 
   /**

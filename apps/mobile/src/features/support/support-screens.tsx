@@ -222,14 +222,22 @@ export function SupportThreadScreen({ id }: { id: string }) {
   const files = usePhotoUploads("support", SUPPORT_ATTACHMENTS_MAX);
   const picking = usePhotoPicking(files, { documents: true });
   const thread = useQuery({ queryKey: supportKeys.one(id), queryFn: () => getSupportThread(user, id), refetchInterval: live.status === "live" ? false : FALLBACK_POLL_MS });
+  // Loading the conversation marks it read on the API (and replying does too): the Messages row and
+  // its count must hear about it, or "1" stays there after you've read it.
+  const loadedAt = thread.dataUpdatedAt;
+  useEffect(() => {
+    if (!loadedAt) return;
+    void client.invalidateQueries({ queryKey: supportKeys.unread });
+    void client.invalidateQueries({ queryKey: supportKeys.list });
+  }, [client, loadedAt]);
   const send = useMutation({
     mutationFn: ({ body, attachments }: { body: string; attachments: { url: string; name?: string }[] }) => replyToSupport(user, id, body, attachments),
     onSuccess: (fresh) => {
       setText("");
       setDraft(user.uid, draftKey, "");
       files.clear();
+      // A new copy of the conversation: the effect above refreshes the list and the count.
       client.setQueryData(supportKeys.one(id), fresh);
-      void client.invalidateQueries({ queryKey: supportKeys.list });
     },
   });
   // As on the web: the team sees you typing, and you see them.
