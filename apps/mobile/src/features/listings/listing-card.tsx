@@ -1,6 +1,6 @@
 import type { Listing } from "@myhoodora/api-contract/types";
 import { Image } from "expo-image";
-import { useRouter } from "expo-router";
+import { useRouter } from "@/core/navigation/use-router";
 import { Package } from "lucide-react-native";
 import { memo } from "react";
 import { Pressable, StyleSheet, View } from "react-native";

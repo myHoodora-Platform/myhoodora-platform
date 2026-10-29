@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
-import { Calendar, Camera, Mail, MapPin, Settings, ShieldCheck } from "lucide-react-native";
+import { useRouter } from "@/core/navigation/use-router";
+import { Bookmark, Calendar, Camera, Mail, MapPin, Settings, ShieldCheck } from "lucide-react-native";
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useAuth, useSignedInUser } from "@/core/auth/auth-provider";
@@ -16,13 +16,9 @@ import { Segmented, SettingsGroup, SettingsRow } from "@/shared/ui/settings";
 import { Skeleton } from "@/shared/ui/skeleton";
 import { EmptyState } from "@/shared/ui/states";
 import { Text } from "@/shared/ui/text";
+import { monthYear } from "@/shared/utils/time";
 import { accountKeys, getPublicProfile } from "./account-api";
-
-/** "October 2026". */
-function monthYear(iso?: string): string | null {
-  const d = iso ? new Date(iso) : null;
-  return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString("en-GB", { month: "long", year: "numeric" }) : null;
-}
+import { useFeatureSignal } from "@/features/feedback/use-feature-signal";
 
 type Tab = "listings" | "about";
 
@@ -61,6 +57,7 @@ function MyListings({ uid, hoodId }: { uid: string; hoodId: string }) {
  * (photo, name, a line about you); the address never shows, only the neighbourhood.
  */
 export function ProfileScreen() {
+  useFeatureSignal("profile");
   const router = useRouter();
   return (
     <AppScreen title="Profile" right={<IconButton Icon={Settings} label="Settings" onPress={() => router.push("/settings")} />}>
@@ -111,6 +108,10 @@ function ProfileContent() {
         )}
         <Button label="Edit profile" variant="secondary" onPress={edit} style={styles.editButton} />
       </View>
+
+      <SettingsGroup>
+        <SettingsRow Icon={Bookmark} label="Saved posts" description="Posts you saved to come back to" onPress={() => router.push("/saved")} />
+      </SettingsGroup>
 
       <Segmented
         label="Profile sections"

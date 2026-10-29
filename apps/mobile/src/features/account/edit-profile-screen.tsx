@@ -1,10 +1,10 @@
 import { errorMessage } from "@myhoodora/api-contract/errors";
 import { BIO_MAX, DISPLAY_NAME_MAX } from "@myhoodora/api-contract/settings";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
+import { useRouter } from "@/core/navigation/use-router";
 import { Camera, Images, Lock, Mail, MapPin, Trash2 } from "lucide-react-native";
 import { useRef, useState } from "react";
-import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from "react-native";
 import { useAuth, useSignedInUser } from "@/core/auth/auth-provider";
 import { hasHood } from "@/core/auth/session-phase";
 import { pickPhotos, preparePhoto, takePhoto, uploadPhoto, type PickResult } from "@/core/media/media";
@@ -20,6 +20,7 @@ import { TextField } from "@/shared/ui/text-field";
 import { useToast } from "@/shared/ui/toast";
 import { accountKeys, hoodKeys, myHoods, updateMe } from "./account-api";
 import { canChangeEmail, profileErrors } from "./account-rules";
+import { FormScrollView } from "@/shared/ui/form-scroll-view";
 
 /** `/settings/profile`: your photo, name and a line about you. */
 export function EditProfileScreen() {
@@ -114,7 +115,7 @@ function EditProfileContent() {
   };
 
   return (
-    <ScrollView
+    <FormScrollView
       contentContainerStyle={[styles.content, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 32 }]}
       scrollIndicatorInsets={{ top: insets.top }}
       keyboardShouldPersistTaps="handled"
@@ -198,7 +199,7 @@ function EditProfileContent() {
         <SheetItem label="Take a photo" icon={<Camera size={20} color={t.colors.primary} />} onPress={() => void changePhoto(takePhoto)} />
         {profile?.photoURL ? <SheetItem label="Remove photo" destructive icon={<Trash2 size={20} color={t.colors.destructive} />} onPress={() => void removePhoto()} /> : null}
       </Sheet>
-    </ScrollView>
+    </FormScrollView>
   );
 }
 

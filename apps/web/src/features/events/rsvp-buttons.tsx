@@ -21,7 +21,7 @@ interface RsvpButtonsProps {
   compact?: boolean;
   /** Closes RSVPs once the event is over (the API refuses them too). */
   eventDate?: string;
-  /** Shown as "Add to calendar" once you're going. */
+  /** Shown as "Add to calendar" once you're going or interested. */
   calendar?: CalendarEvent | null;
 }
 
@@ -93,7 +93,7 @@ export function RsvpButtons({ postId, summary, compact, eventDate, calendar }: R
     <div className="flex flex-wrap items-center gap-2">
       {btn("going", "Going", Check, rsvp?.goingCount)}
       {btn("interested", "Interested", Star, rsvp?.interestedCount)}
-      {calendar && rsvp?.myStatus === "going" && (
+      {calendar && rsvp?.myStatus && (
         <button
           type="button"
           onClick={() => downloadIcs(calendar)}

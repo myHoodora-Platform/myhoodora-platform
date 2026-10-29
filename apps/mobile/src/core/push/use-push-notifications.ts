@@ -1,9 +1,11 @@
 import type { PushData } from "@myhoodora/api-contract/push";
 import { useQueryClient } from "@tanstack/react-query";
 import * as Notifications from "expo-notifications";
-import { useRouter, type Href } from "expo-router";
+import { type Href } from "expo-router";
+import { useRouter } from "@/core/navigation/use-router";
 import { useEffect, useRef } from "react";
 import { useAuth } from "@/core/auth/auth-provider";
+import { reportError } from "@/core/monitoring/monitoring";
 import { registerPush } from "./push";
 import { routeForHref } from "./push-routes";
 
@@ -31,7 +33,7 @@ export function usePushNotifications() {
   useEffect(() => {
     if (phase !== "ready" || !user || registeredFor.current === user.uid) return;
     registeredFor.current = user.uid;
-    registerPush(user).catch((err: Error) => console.warn(`Push registration failed: ${err.message}`));
+    registerPush(user).catch((err: unknown) => reportError(err, "push-register"));
   }, [phase, user]);
 
   useEffect(() => {

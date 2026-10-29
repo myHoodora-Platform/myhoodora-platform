@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
+import { useRouter } from "@/core/navigation/use-router";
 import { Check, EyeOff, Settings2, ShieldCheck, UserPlus } from "lucide-react-native";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useAuth, useSignedInUser } from "@/core/auth/auth-provider";

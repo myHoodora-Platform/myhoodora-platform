@@ -1,8 +1,6 @@
 import { registerSchema } from "@myhoodora/api-contract/auth-validation";
-import * as WebBrowser from "expo-web-browser";
 import { useRef, useState } from "react";
 import { StyleSheet, Switch, View, type TextInput } from "react-native";
-import { config } from "@/core/config/env";
 import { useTheme } from "@/shared/theme/theme";
 import { Button } from "@/shared/ui/button";
 import { InlineAlert } from "@/shared/ui/inline-alert";
@@ -13,6 +11,7 @@ import { AUTH_PHOTOS, AuthShell } from "./auth-shell";
 import { FooterLink } from "./footer-link";
 import { GoogleButton, OrDivider } from "./google-button";
 import { fieldErrors, signInFailure } from "./form-errors";
+import { openWeb } from "@/shared/utils/open-web";
 
 type Errors = { email?: string; password?: string; confirm?: string; agreeToTerms?: string };
 
@@ -52,7 +51,7 @@ export function RegisterScreen() {
     }
   };
 
-  const open = (path: string) => void WebBrowser.openBrowserAsync(`${config().webUrl}${path}`);
+  const open = (path: string) => void openWeb(path);
 
   return (
     <AuthShell photo={AUTH_PHOTOS.register} title="Join your neighbourhood" subtitle="Create your account, then confirm where you live.">

@@ -30,22 +30,29 @@ export function Skeleton({ width = "100%", height = 14, radius, style }: { width
   return <Animated.View style={[{ width, height, borderRadius: radius ?? t.radius.md, backgroundColor: t.colors.muted, opacity }, style]} />;
 }
 
-/** The shape of a post card while the feed loads. */
+/** The shape of a post card while the feed loads: face, name, three lines of text, a photo edge to edge. */
 export function PostSkeleton() {
   const t = useTheme();
   return (
-    <View style={[styles.card, { backgroundColor: t.colors.card, borderRadius: 24 }]}>
-      <View style={styles.row}>
-        <Skeleton width={44} height={44} radius={22} />
+    <View style={[styles.card, { backgroundColor: t.colors.card }]}>
+      <View style={[styles.row, styles.inset]}>
+        <Skeleton width={40} height={40} radius={20} />
         <View style={styles.lines}>
           <Skeleton width="45%" height={14} />
           <Skeleton width="30%" height={12} />
         </View>
       </View>
-      <Skeleton height={14} />
-      <Skeleton width="85%" height={14} />
-      <Skeleton width="60%" height={14} />
-      <Skeleton height={160} radius={16} />
+      <View style={[styles.inset, styles.text]}>
+        <Skeleton height={14} />
+        <Skeleton width="85%" height={14} />
+        <Skeleton width="60%" height={14} />
+      </View>
+      <Skeleton height={220} radius={0} />
+      <View style={[styles.row, styles.inset, styles.bar]}>
+        <Skeleton width="25%" height={14} />
+        <Skeleton width="25%" height={14} />
+        <Skeleton width="25%" height={14} />
+      </View>
     </View>
   );
 }
@@ -61,8 +68,11 @@ export function FeedSkeleton({ label = "Loading posts" }: { label?: string }) {
 }
 
 const styles = StyleSheet.create({
-  card: { padding: 16, gap: 10 },
+  card: { paddingVertical: 12, gap: 12 },
+  inset: { paddingHorizontal: 16 },
+  text: { gap: 8 },
+  bar: { justifyContent: "space-around" },
   row: { flexDirection: "row", alignItems: "center", gap: 12 },
   lines: { flex: 1, gap: 6 },
-  list: { gap: 12 },
+  list: { gap: 8 },
 });

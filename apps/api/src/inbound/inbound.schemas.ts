@@ -9,12 +9,22 @@ export type InboxSource = (typeof INBOX_SOURCES)[number];
 export type InboxStatus = (typeof INBOX_STATUSES)[number];
 export type InboxPriority = (typeof INBOX_PRIORITIES)[number];
 
+/** A photo or PDF sent in a support conversation (2026-10-28): uploaded by its sender for support. */
+export interface ThreadAttachment {
+  url: string;
+  kind: "image" | "document";
+  /** The file's name as the sender had it ("Utility bill.pdf"), for documents. */
+  name?: string;
+  bytes?: number;
+}
+
 export interface ThreadMessage {
   from: "user" | "staff";
   body: string;
   at: Date;
   /** Staff display name on replies. */
   by?: string;
+  attachments?: ThreadAttachment[];
 }
 
 export type InboundMessageDocument = HydratedDocument<InboundMessage>;
@@ -36,7 +46,12 @@ export class InboundMessage {
   /** First message (kept for pass-1 rows; new rows also store it in `messages`). */
   @Prop({ maxlength: 2000 }) message?: string;
   @Prop({ maxlength: 200 }) path?: string;
-  @Prop({ type: [{ from: String, body: String, at: Date, by: String }], _id: false, default: [] }) messages!: ThreadMessage[];
+  @Prop({
+    type: [{ from: String, body: String, at: Date, by: String, attachments: { type: [{ url: String, kind: String, name: String, bytes: Number, _id: false }], default: undefined } }],
+    _id: false,
+    default: [],
+  })
+  messages!: ThreadMessage[];
   @Prop({ type: String, required: true, enum: INBOX_STATUSES, default: "open", index: true }) status!: InboxStatus;
   @Prop({ type: String, enum: INBOX_PRIORITIES, default: "normal" }) priority!: InboxPriority;
   @Prop({ type: Object }) assignee?: { uid: string; displayName: string };

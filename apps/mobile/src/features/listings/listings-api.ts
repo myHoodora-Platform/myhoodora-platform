@@ -104,3 +104,13 @@ export function createListing(user: User, hoodId: string, f: ListingForm, photos
     },
   });
 }
+
+/** `PATCH /listings/:id` (seller only): available, pending (someone's collecting it) or sold. */
+export function setListingStatus(user: User, id: string, status: ListingStatus): Promise<Listing> {
+  return apiFetch<Listing>(user, `/listings/${id}`, { method: "PATCH", json: { status } });
+}
+
+/** `DELETE /listings/:id` (seller only). */
+export function deleteListing(user: User, id: string): Promise<void> {
+  return apiFetch<void>(user, `/listings/${id}`, { method: "DELETE" });
+}

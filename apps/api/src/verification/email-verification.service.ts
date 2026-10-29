@@ -6,6 +6,7 @@ import { Model, type ClientSession } from "mongoose";
 import { CommunicationsService } from "../communications/communications.service";
 import { verifyEmail, welcomeVerifyEmail } from "../communications/templates/email-templates";
 import { getFirebaseAdmin } from "../config/firebase.config";
+import { RealtimeService } from "../realtime/realtime.service";
 import { AccountLifecycle } from "../users/account-lifecycle";
 import { User, UserDocument } from "../users/schemas/user.schema";
 import { EmailVerification, EmailVerificationDocument } from "./email-verification.schema";
@@ -35,6 +36,7 @@ export class EmailVerificationService implements OnModuleInit {
     private readonly comms: CommunicationsService,
     private readonly config: ConfigService,
     private readonly accounts: AccountLifecycle,
+    private readonly realtime: RealtimeService,
   ) {}
 
   onModuleInit() {
@@ -75,7 +77,9 @@ export class EmailVerificationService implements OnModuleInit {
       .exec();
     if (!token) throw new BadRequestException(INVALID);
 
-    await this.users.updateOne({ uid: token.uid, emailVerifiedAt: null }, { $set: { emailVerifiedAt: new Date() } }).exec();
+    const confirmed = await this.users.updateOne({ uid: token.uid, emailVerifiedAt: null }, { $set: { emailVerifiedAt: new Date() } }).exec();
+    // Open apps (web tabs, the phone) refresh the profile, so "Confirm your email" goes and posting opens at once.
+    if (confirmed.modifiedCount > 0) this.realtime.toUser(token.uid, "session.changed");
     // Invalidate any other outstanding links for this user.
     await this.tokens.updateMany({ uid: token.uid, consumedAt: null }, { $set: { consumedAt: new Date() } }).exec();
     try {

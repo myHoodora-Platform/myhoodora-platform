@@ -6,6 +6,7 @@ import { apiFetch } from "@/core/api/client";
 export const accountKeys = {
   preferences: ["me", "preferences"] as const,
   publicProfile: (uid: string) => ["profile", uid] as const,
+  blocks: ["me", "blocks"] as const,
 };
 
 /** `PATCH /users/me`: only these three; anything else is refused (contract §14). `photoURL: null` removes the photo. */
@@ -16,6 +17,20 @@ export function updateMe(user: User, patch: { displayName?: string; bio?: string
 /** What neighbours see of you (and "neighbour since", which only this returns). */
 export function getPublicProfile(user: User, uid: string): Promise<PublicProfile> {
   return apiFetch<PublicProfile>(user, `/users/${uid}/public`);
+}
+
+/** Block a neighbour (contract §8): they disappear from your feed and messages, and can't see your profile. They aren't told. */
+export function blockUser(user: User, uid: string): Promise<void> {
+  return apiFetch<void>(user, "/users/me/blocks", { method: "POST", json: { uid } });
+}
+
+/** The uids you've blocked (contract §8). Their profiles answer 404 to you, so names come from blocked-names.ts. */
+export function listBlocks(user: User): Promise<string[]> {
+  return apiFetch<string[]>(user, "/users/me/blocks");
+}
+
+export function unblockUser(user: User, uid: string): Promise<void> {
+  return apiFetch<void>(user, `/users/me/blocks/${encodeURIComponent(uid)}`, { method: "DELETE" });
 }
 
 export function getPreferences(user: User): Promise<Preferences> {
@@ -73,4 +88,9 @@ export function withdrawHoodRequest(user: User, id: string): Promise<void> {
 
 export function leaveSecondaryHood(user: User, hoodId: string): Promise<void> {
   return apiFetch<void>(user, `/users/me/secondary-hoods/${hoodId}`, { method: "DELETE" });
+}
+
+/** `GET /users/search`: verified neighbours in your Hood by name (group invites, a new message). Blocks hidden. */
+export function searchNeighbours(user: User, q: string): Promise<PublicProfile[]> {
+  return apiFetch<PublicProfile[]>(user, `/users/search?q=${encodeURIComponent(q)}`);
 }

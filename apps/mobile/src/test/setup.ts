@@ -10,3 +10,6 @@ process.env.EXPO_PUBLIC_FIREBASE_API_KEY = "test-key";
 process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN = "test.firebaseapp.com";
 process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID = "test";
 process.env.EXPO_PUBLIC_FIREBASE_APP_ID = "1:1:ios:1";
+
+// The keyboard library is native; its own mock stands in under Jest.
+jest.mock("react-native-keyboard-controller", () => require("react-native-keyboard-controller/jest"));

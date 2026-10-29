@@ -1,9 +1,10 @@
 import { ApiError, errorMessage } from "@myhoodora/api-contract/errors";
 import { useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
+import { useRouter } from "@/core/navigation/use-router";
 import { X } from "lucide-react-native";
 import { useRef, useState } from "react";
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from "react-native";
+import { FormScrollView } from "@/shared/ui/form-scroll-view";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth, useSignedInUser } from "@/core/auth/auth-provider";
 import { usePhotoUploads } from "@/core/media/use-photo-uploads";
@@ -20,9 +21,19 @@ import { EmptyState } from "@/shared/ui/states";
 import { Text } from "@/shared/ui/text";
 import { TextField } from "@/shared/ui/text-field";
 import { useToast } from "@/shared/ui/toast";
-import { ALERT_KINDS, COMPOSE_KINDS, draftErrors, MESSAGE_MAX, newClientId, toNewPost, type Draft, type DraftErrors } from "./compose-rules";
+import { ALERT_KINDS, blankDraft, COMPOSE_KINDS, draftErrors, kindFromParam, MESSAGE_MAX, newClientId, toNewPost, type Draft, type DraftErrors } from "./compose-rules";
+import { EventFields, PlaceRow, PollFields } from "./compose-extras";
+import { useHoodArea } from "@/features/alerts/alerts-data";
+import { PlacePicker } from "@/features/alerts/place-picker";
+import { signal } from "@/features/feedback/engagement";
+import { showDialog } from "@/shared/ui/dialog";
 
 const KINDNESS_TIMEOUT_MS = 3000;
+const POSTED: Partial<Record<Draft["category"], string>> = {
+  alert: "Alert posted to your neighbours.",
+  event: "Event posted. Neighbours can say they're going.",
+  poll: "Poll posted. Votes are anonymous.",
+};
 const REASON_TEXT: Record<string, string> = {
   insult: "It may come across as an insult.",
   threat: "It may read as a threat.",
@@ -33,22 +44,26 @@ const REASON_TEXT: Record<string, string> = {
  * Writing a post (Nextdoor's "Post" button): pick what it is, write it, post. One tap posts once: the
  * draft carries a clientId, so even a retry after a lost response can't make a second post.
  */
-export function ComposeScreen() {
+export function ComposeScreen({ kind: startKind }: { kind?: string }) {
   const t = useTheme();
   const router = useRouter();
   const user = useSignedInUser();
   const { profile } = useAuth();
   const client = useQueryClient();
   const toast = useToast();
-  const [draft, setDraft] = useState<Draft>({ category: "general", message: "", alertCategory: null, urgent: false, thankedName: "" });
+  const [draft, setDraft] = useState<Draft>(() => blankDraft(kindFromParam(startKind)));
   const [errors, setErrors] = useState<DraftErrors | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [clientId] = useState(newClientId);
   const inFlight = useRef(false);
+  const kinds = useRef<ScrollView>(null);
   // Up to 10 photos per post (contract §20).
   const photos = usePhotoUploads("post", 10);
   const kind = COMPOSE_KINDS.find((k) => k.id === draft.category) ?? COMPOSE_KINDS[0]!;
+  // For an alert's place: the neighbourhood on the map.
+  const { area } = useHoodArea(hasHood(profile) ? profile.neighborhoodId : undefined);
+  const [picking, setPicking] = useState(false);
   const close = () => (router.canGoBack() ? router.back() : router.replace("/news-feed"));
 
   if (!hasHood(profile)) {
@@ -71,8 +86,10 @@ export function ComposeScreen() {
     try {
       const created = await createPost(user, hoodId, { ...toNewPost(draft, clientId), ...(photos.urls.length && { mediaUrls: photos.urls }) });
       liveStore.markOwnPost(created._id);
+      // Counts toward feedback prompts and the store review ("after your 5th post").
+      signal(user, draft.category === "recommendation" ? "recommendation_posted" : "post_created", created._id);
       await client.invalidateQueries({ queryKey: feedKeys.all });
-      toast(draft.category === "alert" ? "Alert posted to your neighbours." : "Posted to your neighbourhood.");
+      toast(POSTED[draft.category] ?? "Posted to your neighbourhood.");
       close();
     } catch (err) {
       // 403 says why (e.g. confirm your email first); everything else in the shared wording.
@@ -97,7 +114,7 @@ export function ComposeScreen() {
     if (check?.flagged) {
       setBusy(false);
       const why = check.reasons.map((r) => REASON_TEXT[r]).filter(Boolean).join(" ");
-      Alert.alert("Kindness reminder", `${why} Neighbours are more likely to help when posts are friendly. Would you like to edit it?`, [
+      showDialog("Kindness reminder", `${why} Neighbours are more likely to help when posts are friendly. Would you like to edit it?`, [
         { text: "Edit", style: "cancel", onPress: () => (inFlight.current = false) },
         { text: "Post anyway", onPress: () => void send() },
       ]);
@@ -115,8 +132,8 @@ export function ComposeScreen() {
         <Text variant="heading">New post</Text>
         <Button label="Post" onPress={() => void submit()} loading={busy} style={styles.post} />
       </View>
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      {/* Whatever is being typed in stays above the keyboard, however far down the form it is. */}
+      <FormScrollView style={styles.flex} contentContainerStyle={styles.content}>
           {profile.emailVerified === false ? (
             <InlineAlert tone="warning">Confirm your email address to post. We sent you a link when you signed up; you can ask for a new one on your feed.</InlineAlert>
           ) : null}
@@ -130,9 +147,12 @@ export function ComposeScreen() {
               </Text>
             </View>
           </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} style={styles.chipRow} accessibilityLabel="What kind of post">
+          <ScrollView ref={kinds} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} style={styles.chipRow} accessibilityLabel="What kind of post">
             {COMPOSE_KINDS.map((k) => (
-              <Chip key={k.id} label={k.label} selected={k.id === draft.category} onPress={() => edit({ category: k.id })} />
+              // Opened on a kind further along (Event, Poll): bring its chip into view.
+              <View key={k.id} onLayout={k.id === startKind ? (e) => kinds.current?.scrollTo({ x: Math.max(0, e.nativeEvent.layout.x - 16), animated: false }) : undefined}>
+                <Chip label={k.label} selected={k.id === draft.category} onPress={() => edit({ category: k.id })} />
+              </View>
             ))}
           </ScrollView>
           <Text variant="caption" tone="muted">
@@ -156,11 +176,13 @@ export function ComposeScreen() {
                 </View>
                 <Switch value={draft.urgent} onValueChange={(urgent) => edit({ urgent })} accessibilityLabel="Urgent" trackColor={{ true: t.colors.destructive, false: t.colors.input }} />
               </View>
+              <PlaceRow place={draft.place} ready={!!area} onPick={() => setPicking(true)} onClear={() => edit({ place: null })} />
             </View>
           ) : null}
           {draft.category === "thanks" ? (
             <TextField label="Who are you thanking?" placeholder="e.g. Mama Tunde at the corner shop" value={draft.thankedName} onChangeText={(thankedName) => edit({ thankedName })} maxLength={80} error={errors?.thankedName} autoCapitalize="words" />
           ) : null}
+          {draft.category === "event" ? <EventFields draft={draft} errors={errors} edit={edit} /> : null}
           <TextInput
             value={draft.message}
             onChangeText={(message) => edit({ message })}
@@ -174,9 +196,21 @@ export function ComposeScreen() {
             textAlignVertical="top"
           />
           {errors?.message ? <InlineAlert>{errors.message}</InlineAlert> : null}
+          {draft.category === "poll" ? <PollFields draft={draft} errors={errors} edit={edit} /> : null}
           <PhotoStrip uploads={photos} />
-        </ScrollView>
-      </KeyboardAvoidingView>
+      </FormScrollView>
+      {area ? (
+        <PlacePicker
+          visible={picking}
+          hood={area}
+          initial={draft.place}
+          onClose={() => setPicking(false)}
+          onConfirm={(place) => {
+            edit({ place });
+            setPicking(false);
+          }}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }

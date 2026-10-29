@@ -41,7 +41,7 @@ import { ContentActionsService } from "./content-actions.service";
 import { ApiNotFound, ApiStandardErrors } from "../shared/http/api-docs";
 
 /** §13.1 capability names exposed to the web (owner-only ones omitted). */
-const CONTRACT_CAPABILITIES = ["moderation.act", "moderation.suspend", "verification.review", "hoods.manage", "businesses.review", "broadcasts.send", "team.manage", "settings.manage", "team.manage.admins"];
+const CONTRACT_CAPABILITIES = ["moderation.act", "moderation.suspend", "verification.review", "hoods.manage", "businesses.review", "broadcasts.send", "team.manage", "settings.manage", "ads.manage", "feedback.manage", "team.manage.admins"];
 
 @ApiTags("admin")
 @ApiBearerAuth("firebase-jwt")

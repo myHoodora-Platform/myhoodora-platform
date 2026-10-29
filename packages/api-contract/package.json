@@ -6,6 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./types": "./src/types.ts",
+    "./ads": "./src/ads.ts",
+    "./prompts": "./src/prompts.ts",
     "./errors": "./src/errors.ts",
     "./lookups": "./src/lookups.ts",
     "./push": "./src/push.ts",
@@ -14,7 +16,9 @@
     "./coverage": "./src/coverage.ts",
     "./roles": "./src/roles.ts",
     "./settings": "./src/settings.ts",
-    "./support": "./src/support.ts"
+    "./support": "./src/support.ts",
+    "./geo": "./src/geo.ts",
+    "./calendar": "./src/calendar.ts"
   },
   "scripts": {
     "lint": "eslint .",

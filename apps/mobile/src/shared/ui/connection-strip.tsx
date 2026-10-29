@@ -6,7 +6,7 @@ import { tint, useTheme } from "@/shared/theme/theme";
 import { Text } from "./text";
 
 const COPY: Record<ConnectionNotice, string> = {
-  offline: "No internet connection. You're seeing what loaded last.",
+  offline: "No internet connection. This will update when you're back online.",
   back: "Back online. Refreshing…",
   slow: "Your connection is slow. Still loading…",
 };

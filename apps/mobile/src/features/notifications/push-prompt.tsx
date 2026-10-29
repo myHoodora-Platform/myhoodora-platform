@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useState } from "react";
 import { Linking, StyleSheet, View } from "react-native";
 import { useSignedInUser } from "@/core/auth/auth-provider";
+import { reportError } from "@/core/monitoring/monitoring";
 import { pushPermission, registerPush, requestPushPermission, type PushPermission } from "@/core/push/push";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/layout";
@@ -33,7 +34,7 @@ export function PushPrompt() {
       setPermission(result);
       if (result === "granted") await registerPush(user);
     } catch (err) {
-      console.warn(`Turning on notifications failed: ${(err as Error).message}`);
+      reportError(err, "push-enable");
     } finally {
       setBusy(false);
     }

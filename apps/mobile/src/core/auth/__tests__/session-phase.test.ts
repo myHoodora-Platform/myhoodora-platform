@@ -1,5 +1,5 @@
 import type { UserProfile } from "@myhoodora/api-contract/types";
-import { hasHood, isNewAccount, sessionPhase } from "../session-phase";
+import { FOREGROUND_REFRESH_MS, foregroundRefreshDue, hasHood, isNewAccount, sessionPhase } from "../session-phase";
 
 const onboarded: UserProfile = { isOnboarded: true, neighborhoodId: "h1", verificationStatus: "verified" };
 
@@ -50,5 +50,17 @@ describe("hasHood", () => {
     expect(hasHood({ ...onboarded, verificationStatus: "pending_review" })).toBe(false);
     expect(hasHood({ isOnboarded: true, verificationStatus: "verified" })).toBe(false);
     expect(hasHood(null)).toBe(false);
+  });
+});
+
+describe("foregroundRefreshDue", () => {
+  it("reloads the profile on return to the app, at most once per window", () => {
+    expect(foregroundRefreshDue(true, 0, FOREGROUND_REFRESH_MS)).toBe(true);
+    expect(foregroundRefreshDue(true, 1_000, 1_000 + FOREGROUND_REFRESH_MS - 1)).toBe(false);
+    expect(foregroundRefreshDue(true, 1_000, 1_000 + FOREGROUND_REFRESH_MS)).toBe(true);
+  });
+
+  it("waits for the first profile load instead (no profile on screen yet)", () => {
+    expect(foregroundRefreshDue(false, 0, 10 * FOREGROUND_REFRESH_MS)).toBe(false);
   });
 });

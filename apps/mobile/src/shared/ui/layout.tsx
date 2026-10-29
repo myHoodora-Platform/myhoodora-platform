@@ -1,18 +1,17 @@
 import type { ReactNode } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View, type ViewProps } from "react-native";
+import { StyleSheet, View, type ViewProps } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "@/shared/theme/theme";
+import { FormScrollView } from "./form-scroll-view";
 
 /** A form-style screen: safe areas, scrolls, and keeps the focused field above the keyboard. */
 export function Screen({ children, canvas = false }: { children: ReactNode; canvas?: boolean }) {
   const t = useTheme();
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: canvas ? t.colors.canvas : t.colors.background }]} edges={["top", "bottom"]}>
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          {children}
-        </ScrollView>
-      </KeyboardAvoidingView>
+      <FormScrollView style={styles.flex} contentContainerStyle={styles.content}>
+        {children}
+      </FormScrollView>
     </SafeAreaView>
   );
 }

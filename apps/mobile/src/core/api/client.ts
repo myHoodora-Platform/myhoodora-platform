@@ -1,4 +1,5 @@
 import NetInfo from "@react-native-community/netinfo";
+import { onlineManager } from "@tanstack/react-query";
 import { ApiError, FRIENDLY_MESSAGES, REQUEST_TIMEOUT_MS, errorFor, transportError } from "@myhoodora/api-contract/errors";
 import type { User } from "@firebase/auth";
 import { config } from "@/core/config/env";
@@ -28,9 +29,13 @@ async function isOffline(): Promise<boolean> {
 
 async function request<T>(url: string, user: User | null, init: RequestInitWithJson = {}): Promise<T> {
   const { json, headers, signal, timeoutMs = REQUEST_TIMEOUT_MS, ...rest } = init;
-  if (await isOffline()) throw transportError("offline");
-
-  const token = user ? await user.getIdToken() : null;
+  // Always try: NetInfo can miss a reconnect (the iOS simulator always does), and a request that
+  // gets through is better proof than its say-so. "Offline" is only the reason once one fails.
+  const token = user
+    ? await user.getIdToken().catch(async () => {
+        throw transportError((await isOffline()) ? "offline" : "network");
+      })
+    : null;
   // AbortSignal.timeout is not guaranteed under Hermes: a timer and a controller do the same job.
   const controller = new AbortController();
   let timedOut = false;
@@ -60,6 +65,8 @@ async function request<T>(url: string, user: User | null, init: RequestInitWithJ
   } finally {
     clearTimeout(timer);
   }
+  // Any answer means we're connected, whatever NetInfo last said: clear the strip, resume paused loads.
+  if (!onlineManager.isOnline()) onlineManager.setOnline(true);
 
   if (!response.ok) {
     const error = errorFor(response.status, await response.text().catch(() => ""), response.headers.get("Retry-After"));

@@ -1,7 +1,7 @@
 import { ApiError, errorMessage } from "@myhoodora/api-contract/errors";
 import { addressIssue, EMPTY_ADDRESS, joinAddress, type AddressParts } from "@myhoodora/api-contract/lookups";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
+import { useRouter } from "@/core/navigation/use-router";
 import { ChevronRight, LocateFixed, Search, X } from "lucide-react-native";
 import { useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, SectionList, StyleSheet, TextInput, View } from "react-native";
@@ -22,6 +22,7 @@ import { TextField } from "@/shared/ui/text-field";
 import { useToast } from "@/shared/ui/toast";
 import { hoodKeys, listHoods, myHoods, nearbyHoods, requestHoodChange } from "./account-api";
 import { followable, REASON_MAX, REASON_SUGGESTIONS, reasonProblem } from "./account-rules";
+import { FormScrollView } from "@/shared/ui/form-scroll-view";
 
 /** How many close neighbourhoods to suggest first. */
 const NEAR_HOME_COUNT = 5;
@@ -234,7 +235,7 @@ function WhyStep({
   const t = useTheme();
   const insets = useScreenInsets();
   return (
-    <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled" scrollIndicatorInsets={{ top: insets.top }}>
+    <FormScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled" scrollIndicatorInsets={{ top: insets.top }}>
       <View style={[styles.chosen, { backgroundColor: t.colors.card, borderColor: t.colors.primary }]}>
         <HoodMapBadge size={44} />
         <View style={styles.flex}>
@@ -267,7 +268,7 @@ function WhyStep({
         hint={`${reason.trim().length} / ${REASON_MAX} · our team reviews each request`}
         error={error}
       />
-    </ScrollView>
+    </FormScrollView>
   );
 }
 
@@ -335,7 +336,7 @@ function MoveContent() {
   };
 
   return (
-    <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 }]} keyboardShouldPersistTaps="handled" scrollIndicatorInsets={{ top: insets.top }}>
+    <FormScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 }]} keyboardShouldPersistTaps="handled" scrollIndicatorInsets={{ top: insets.top }}>
       <Text tone="muted">Tell us your new address and we&apos;ll move you to the right neighbourhood. Our team checks every move, so neighbourhoods stay local and trusted. Your address is never shown to neighbours.</Text>
       {submit.problem ? <InlineAlert>{submit.problem}</InlineAlert> : null}
       <Pressable
@@ -370,7 +371,7 @@ function MoveContent() {
         error={errors?.reason}
       />
       <Button label="Send request" onPress={send} loading={submit.busy} />
-    </ScrollView>
+    </FormScrollView>
   );
 }
 

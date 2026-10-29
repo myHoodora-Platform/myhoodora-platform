@@ -1,5 +1,6 @@
 import type { ComponentType, SVGProps } from "react";
 import {
+  BadgeDollarSign,
   BarChart3,
   Building2,
   FileText,
@@ -10,6 +11,7 @@ import {
   MapPin,
   MapPinned,
   Megaphone,
+  MessageSquareHeart,
   Scale,
   ShoppingBag,
   Siren,
@@ -121,6 +123,23 @@ export const ADMIN_NAV: AdminNavSection[] = [
         href: "/admin/broadcasts",
         icon: Megaphone,
         capability: "broadcasts.send",
+      },
+      {
+        title: "Feedback",
+        href: "/admin/feedback",
+        icon: MessageSquareHeart,
+        capability: "feedback.manage",
+      },
+    ],
+  },
+  {
+    label: "Sponsored",
+    items: [
+      {
+        title: "Ads",
+        href: "/admin/ads",
+        icon: BadgeDollarSign,
+        capability: "ads.manage",
       },
     ],
   },

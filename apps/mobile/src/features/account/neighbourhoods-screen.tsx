@@ -1,9 +1,9 @@
 import { errorMessage } from "@myhoodora/api-contract/errors";
 import type { HoodRequestView } from "@myhoodora/api-contract/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
+import { useRouter } from "@/core/navigation/use-router";
 import { Home, MessagesSquare, Plus, Truck, X } from "lucide-react-native";
-import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import {Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useAuth, useSignedInUser } from "@/core/auth/auth-provider";
 import { hasHood } from "@/core/auth/session-phase";
 import { tint, useTheme } from "@/shared/theme/theme";
@@ -16,6 +16,7 @@ import { EmptyState, ErrorState } from "@/shared/ui/states";
 import { Text } from "@/shared/ui/text";
 import { useToast } from "@/shared/ui/toast";
 import { hoodKeys, leaveSecondaryHood, myHoods, withdrawHoodRequest } from "./account-api";
+import { showDialog } from "@/shared/ui/dialog";
 
 const STATUS: Record<HoodRequestView["status"], { label: string; tone: "warning" | "success" | "muted" | "destructive" }> = {
   pending: { label: "Waiting for review", tone: "warning" },
@@ -99,7 +100,7 @@ function NeighbourhoodsContent() {
   };
 
   const leave = (id: string, name: string) =>
-    Alert.alert(`Stop following ${name}?`, "You'll stop seeing its posts and hearing its alerts. To follow it again you'd need to ask again.", [
+    showDialog(`Stop following ${name}?`, "You'll stop seeing its posts and hearing its alerts. To follow it again you'd need to ask again.", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Stop following",
@@ -113,7 +114,7 @@ function NeighbourhoodsContent() {
     ]);
 
   const withdraw = (r: HoodRequestView) =>
-    Alert.alert("Withdraw this request?", undefined, [
+    showDialog("Withdraw this request?", undefined, [
       { text: "Keep it", style: "cancel" },
       {
         text: "Withdraw",

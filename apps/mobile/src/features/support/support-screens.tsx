@@ -1,25 +1,29 @@
 import { errorMessage } from "@myhoodora/api-contract/errors";
-import { SUPPORT_TOPICS, type SupportMessage, type SupportThreadSummary, type SupportTopic } from "@myhoodora/api-contract/support";
+import { SUPPORT_ATTACHMENTS_MAX, SUPPORT_TOPICS, type SupportMessage, type SupportThreadSummary, type SupportTopic } from "@myhoodora/api-contract/support";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
-import { useRouter } from "expo-router";
-import { ArrowUp, Pin } from "lucide-react-native";
-import { useRef, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, TextInput, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter } from "@/core/navigation/use-router";
+import { Pin } from "lucide-react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { getDraft, loadDrafts, setDraft } from "@/features/chat/drafts";
+import { FlatList, Pressable, StyleSheet, TextInput, View } from "react-native";
 import { useSignedInUser } from "@/core/auth/auth-provider";
+import { usePhotoUploads } from "@/core/media/use-photo-uploads";
 import { useLive } from "@/features/live/live-store";
+import { useTypingIndicator, useTypingSignal } from "@/features/live/use-typing";
 import { MIN_TOUCH, tint, useTheme } from "@/shared/theme/theme";
 import { AppScreen, useScreenInsets } from "@/shared/ui/app-screen";
 import { Button } from "@/shared/ui/button";
+import { ChatBubble, ChatComposer, DayLine, withDays, type DayRows } from "@/shared/ui/chat";
 import { Chip } from "@/shared/ui/chip";
-import { GlassSurface } from "@/shared/ui/glass-surface";
 import { InlineAlert } from "@/shared/ui/inline-alert";
+import { PhotoViewer } from "@/shared/ui/photo-viewer";
+import { usePhotoPicking } from "@/shared/ui/photo-strip";
 import { Sheet } from "@/shared/ui/sheet";
 import { EmptyState, ErrorState, LoadingState } from "@/shared/ui/states";
 import { Text } from "@/shared/ui/text";
-import { timeAgo } from "@/shared/utils/time";
-import { contactSupport, getSupportThread, listSupportThreads, replyToSupport, supportKeys, supportUnread } from "./support-api";
+import { clock, timeAgo } from "@/shared/utils/time";
+import { contactSupport, getSupportThread, listSupportThreads, replyToSupport, sendSupportTyping, supportKeys, supportUnread } from "./support-api";
 
 const STATUS_LABEL = { open: "Waiting for the team", waiting: "The team replied", resolved: "Resolved" } as const;
 /** Only while the live connection is down (contract §19). */
@@ -196,48 +200,62 @@ function NewSupportSheet({ visible, onClose }: { visible: boolean; onClose: () =
 
 // ── One conversation ────────────────────────────────────────────────────────
 
-/** `/inbox/support/<id>` */
+/**
+ * `/inbox/support/<id>`: a conversation with the team, made like every other conversation in the app
+ * (shared/ui/chat): day lines, who on the team replied, and photos or PDFs both ways, since the team
+ * may ask for a document (a utility bill to confirm an address) and send one back.
+ */
 export function SupportThreadScreen({ id }: { id: string }) {
-  const t = useTheme();
-  const insets = useSafeAreaInsets();
   const user = useSignedInUser();
   const client = useQueryClient();
   const live = useLive();
-  const list = useRef<FlatList<SupportMessage>>(null);
-  const [text, setText] = useState("");
+  const list = useRef<FlatList<SupportRow>>(null);
+  // What you'd started writing to the team, kept as a draft like any chat's (2026-10-29).
+  const draftKey = `support:${id}`;
+  const [text, setText] = useState(() => getDraft(user.uid, draftKey));
+  useEffect(() => {
+    void loadDrafts(user.uid).then(() => {
+      const saved = getDraft(user.uid, draftKey);
+      if (saved) setText((now) => now || saved);
+    });
+  }, [user.uid, draftKey]);
+  const files = usePhotoUploads("support", SUPPORT_ATTACHMENTS_MAX);
+  const picking = usePhotoPicking(files, { documents: true });
   const thread = useQuery({ queryKey: supportKeys.one(id), queryFn: () => getSupportThread(user, id), refetchInterval: live.status === "live" ? false : FALLBACK_POLL_MS });
   const send = useMutation({
-    mutationFn: (body: string) => replyToSupport(user, id, body),
+    mutationFn: ({ body, attachments }: { body: string; attachments: { url: string; name?: string }[] }) => replyToSupport(user, id, body, attachments),
     onSuccess: (fresh) => {
       setText("");
+      setDraft(user.uid, draftKey, "");
+      files.clear();
       client.setQueryData(supportKeys.one(id), fresh);
       void client.invalidateQueries({ queryKey: supportKeys.list });
     },
   });
-  const body = text.trim();
-  const canSend = body.length > 0 && !send.isPending;
+  // As on the web: the team sees you typing, and you see them.
+  useTypingSignal(text, () => sendSupportTyping(user, id));
+  const teamTyping = useTypingIndicator("support.typing", ["support.message"], (e) => e.threadId === id);
 
   const composer = (
-    <GlassSurface style={[styles.composer, { borderTopColor: t.colors.border, paddingBottom: Math.max(insets.bottom, 8) }]}>
-      {send.isError ? <InlineAlert>{`Not sent: ${errorMessage(send.error)}`}</InlineAlert> : null}
-      <View style={[styles.input, { backgroundColor: t.colors.muted }]}>
-        <TextInput
-          value={text}
-          onChangeText={setText}
-          placeholder="Reply to the team"
-          placeholderTextColor={t.colors.mutedForeground}
-          multiline
-          maxLength={2000}
-          accessibilityLabel="Reply to the team"
-          style={[styles.inputText, { color: t.colors.foreground, fontFamily: t.fonts.regular }]}
-        />
-        {canSend ? (
-          <Pressable onPress={() => send.mutate(body)} accessibilityRole="button" accessibilityLabel="Send" style={[styles.send, { backgroundColor: t.colors.primary }]}>
-            {send.isPending ? <ActivityIndicator size="small" color={t.colors.primaryForeground} /> : <ArrowUp size={18} color={t.colors.primaryForeground} />}
-          </Pressable>
-        ) : null}
-      </View>
-    </GlassSurface>
+    <ChatComposer
+      text={text}
+      onText={(v) => {
+        setText(v);
+        setDraft(user.uid, draftKey, v);
+      }}
+      placeholder="Reply to the team"
+      uploads={files}
+      onAttach={picking.choose}
+      onSend={() => send.mutate({ body: text.trim(), attachments: files.attachments.map(({ url, name }) => ({ url, ...(name && { name }) })) })}
+      sending={send.isPending}
+      error={send.isError ? errorMessage(send.error) : null}
+      above={
+        <>
+          {picking.note}
+          {picking.sheet}
+        </>
+      }
+    />
   );
 
   return (
@@ -250,7 +268,11 @@ export function SupportThreadScreen({ id }: { id: string }) {
             <Text variant="label" numberOfLines={1}>
               {thread.data?.subject ?? "myHoodora Support"}
             </Text>
-            {thread.data ? (
+            {teamTyping ? (
+              <Text variant="caption" tone="primary" accessibilityLiveRegion="polite">
+                The team is typing…
+              </Text>
+            ) : thread.data ? (
               <Text variant="caption" tone="muted">
                 {STATUS_LABEL[thread.data.status]}
               </Text>
@@ -265,38 +287,50 @@ export function SupportThreadScreen({ id }: { id: string }) {
   );
 }
 
-function SupportMessages({ messages, state, list }: { messages?: SupportMessage[]; state: { isPending: boolean; isError: boolean; error: unknown; refetch: () => unknown }; list: React.RefObject<FlatList<SupportMessage> | null> }) {
-  const t = useTheme();
+type SupportRow = DayRows<SupportMessage>[number];
+
+function SupportMessages({ messages, state, list }: { messages?: SupportMessage[]; state: { isPending: boolean; isError: boolean; error: unknown; refetch: () => unknown }; list: React.RefObject<FlatList<SupportRow> | null> }) {
   const insets = useScreenInsets();
+  const [viewing, setViewing] = useState<{ photos: string[]; start: number } | null>(null);
+  const rows = useMemo(() => withDays(messages ?? [], (m) => m.at, (m, i) => `${m.at}-${i}`), [messages]);
   if (state.isPending) return <LoadingState label="Loading the conversation" />;
   if (state.isError && !messages) return <ErrorState error={state.error} onRetry={() => void state.refetch()} title="This conversation isn't available" />;
   return (
-    <FlatList
-      ref={list}
-      data={messages}
-      keyExtractor={(m, i) => `${m.at}-${i}`}
-      contentContainerStyle={[styles.list, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12 }]}
-      keyboardDismissMode="interactive"
-      onContentSizeChange={() => list.current?.scrollToEnd({ animated: false })}
-      renderItem={({ item }) => {
-        const mine = item.from === "user";
-        return (
-          <View style={[styles.bubbleRow, mine && styles.mine]}>
-            {!mine ? (
-              <Text variant="caption" tone="primary">
-                {item.by ? `${item.by} · myHoodora team` : "myHoodora team"}
-              </Text>
-            ) : null}
-            <View style={[styles.bubble, { backgroundColor: mine ? t.colors.primary : t.colors.card }, mine ? styles.bubbleMine : styles.bubbleTheirs]}>
-              <Text style={{ color: mine ? t.colors.primaryForeground : t.colors.foreground }}>{item.body}</Text>
-            </View>
-            <Text variant="caption" tone="muted" style={styles.time}>
-              {timeAgo(item.at)}
-            </Text>
-          </View>
-        );
-      }}
-    />
+    <>
+      <FlatList
+        ref={list}
+        data={rows}
+        keyExtractor={(r) => r.key}
+        contentContainerStyle={[styles.list, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12 }]}
+        scrollIndicatorInsets={{ top: insets.top, bottom: insets.bottom }}
+        keyboardDismissMode="interactive"
+        onContentSizeChange={() => list.current?.scrollToEnd({ animated: false })}
+        // And when the room for it settles (the reply box measures itself after): open at the newest message.
+        onLayout={() => list.current?.scrollToEnd({ animated: false })}
+        ListHeaderComponent={
+          <Text variant="caption" tone="muted" style={styles.intro}>
+            Only you and the myHoodora team can see this conversation. You can send photos or PDFs here if the team asks for them.
+          </Text>
+        }
+        renderItem={({ item }) => {
+          if (item.kind === "day") return <DayLine label={item.label} />;
+          const m = item.item;
+          const files = m.attachments ?? [];
+          return (
+            <ChatBubble
+              mine={m.from === "user"}
+              from={m.by ? `${m.by} · myHoodora team` : "myHoodora team"}
+              body={m.body}
+              photos={files.filter((f) => f.kind === "image").map((f) => f.url)}
+              documents={files.filter((f) => f.kind === "document")}
+              meta={clock(m.at)}
+              onPhoto={(photos, start) => setViewing({ photos, start })}
+            />
+          );
+        }}
+      />
+      {viewing ? <PhotoViewer photos={viewing.photos} start={viewing.start} visible onClose={() => setViewing(null)} label="Photo in the conversation" /> : null}
+    </>
   );
 }
 
@@ -312,19 +346,10 @@ const styles = StyleSheet.create({
   separator: { height: StyleSheet.hairlineWidth, marginLeft: 16 },
   row: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 14, minHeight: MIN_TOUCH + 16 },
   dot: { width: 10, height: 10, borderRadius: 5 },
+  intro: { textAlign: "center", paddingHorizontal: 24, marginBottom: 8 },
   sheetBody: { paddingHorizontal: 12, gap: 12, paddingBottom: 8 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   question: { minHeight: 110, borderRadius: 16, padding: 14, fontSize: 16, textAlignVertical: "top" },
   who: { flexDirection: "row", alignItems: "center", gap: 8, maxWidth: "100%" },
-  composer: { paddingHorizontal: 12, paddingTop: 10, gap: 8, borderTopWidth: StyleSheet.hairlineWidth },
-  input: { flexDirection: "row", alignItems: "flex-end", borderRadius: 22, paddingLeft: 14, paddingRight: 4, paddingVertical: 4, minHeight: MIN_TOUCH - 4 },
-  inputText: { flex: 1, fontSize: 16, maxHeight: 120, paddingVertical: 8 },
-  send: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   list: { paddingHorizontal: 16, gap: 10, flexGrow: 1 },
-  bubbleRow: { alignItems: "flex-start", gap: 3, maxWidth: "82%" },
-  mine: { alignSelf: "flex-end", alignItems: "flex-end" },
-  bubble: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20 },
-  bubbleMine: { borderBottomRightRadius: 6 },
-  bubbleTheirs: { borderBottomLeftRadius: 6 },
-  time: { fontSize: 11 },
 });

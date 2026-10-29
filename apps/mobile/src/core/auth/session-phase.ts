@@ -40,6 +40,18 @@ export function hasHood(profile: UserProfile | null): profile is UserProfile & {
   return !!profile?.neighborhoodId && profile.verificationStatus === "verified";
 }
 
+/** Least time between profile reloads when the app comes back to the foreground. */
+export const FOREGROUND_REFRESH_MS = 30_000;
+
+/**
+ * Coming back to the app reloads the profile: things change elsewhere (the email confirmed in the
+ * mail app, an address approved), and a live event may have been missed while the app slept.
+ * Only with a profile already on screen, and not more than once per window.
+ */
+export function foregroundRefreshDue(hasProfile: boolean, lastRefreshAt: number, now = Date.now()): boolean {
+  return hasProfile && now - lastRefreshAt >= FOREGROUND_REFRESH_MS;
+}
+
 /** Created in the last minute: the first profile load is what sets the account up (docs/authentication.md). */
 export function isNewAccount(user: { metadata: { creationTime?: string } } | null, now = Date.now()): boolean {
   const created = Date.parse(user?.metadata.creationTime ?? "");

@@ -1,6 +1,6 @@
 import type { Listing } from "@myhoodora/api-contract/types";
 import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
+import { useRouter } from "@/core/navigation/use-router";
 import { Plus } from "lucide-react-native";
 import { useCallback, useState } from "react";
 import { FlatList, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
@@ -11,13 +11,13 @@ import { usePullRefresh } from "@/shared/hooks/use-pull-refresh";
 import { useTheme } from "@/shared/theme/theme";
 import { Chip } from "@/shared/ui/chip";
 import { useTabBarSpace } from "@/shared/ui/floating-tab-bar";
-import { IconButton } from "@/shared/ui/icon-button";
+import { TabHeader } from "@/features/navigation/top-actions";
 import { ConnectionStrip } from "@/shared/ui/connection-strip";
 import { Skeleton } from "@/shared/ui/skeleton";
 import { EmptyState, ErrorState } from "@/shared/ui/states";
-import { Text } from "@/shared/ui/text";
 import { ListingCard } from "./listing-card";
 import { LISTING_CATEGORIES, listingKeys, listListings, type ListingFilter } from "./listings-api";
+import { useFeatureSignal } from "@/features/feedback/use-feature-signal";
 
 const FILTERS: { id: ListingFilter; label: string }[] = [{ id: "all", label: "All" }, { id: "free", label: "Free" }, ...LISTING_CATEGORIES];
 
@@ -37,6 +37,7 @@ function GridSkeleton() {
 
 /** For Sale & Free in your neighbourhood (Nextdoor's For Sale tab): a photo grid with filters. */
 export function ForSaleScreen() {
+  useFeatureSignal("for_sale");
   const t = useTheme();
   const user = useSignedInUser();
   const { profile } = useAuth();
@@ -59,13 +60,8 @@ export function ForSaleScreen() {
 
   const header = (
     <View style={styles.header}>
-      <View style={styles.titleRow}>
-        <Text style={[styles.title, { color: t.colors.foreground, fontFamily: t.fonts.bold }]} accessibilityRole="header">
-          For Sale & Free
-        </Text>
-        <IconButton Icon={Plus} label="Sell or give something away" onPress={sell} filled />
-      </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} style={styles.chipRow}>
+        <Chip label="Sell" Icon={Plus} action onPress={sell} accessibilityLabel="Sell or give something away" />
         {FILTERS.map((f) => (
           <Chip key={f.id} label={f.label} selected={f.id === filter} onPress={() => setFilter(f.id)} />
         ))}
@@ -77,6 +73,7 @@ export function ForSaleScreen() {
     return (
       <SafeAreaView style={[styles.flex, { backgroundColor: t.colors.canvas }]} edges={["top"]}>
         <ConnectionStrip style={styles.connection} />
+        <TabHeader title="For Sale & Free" />
         <EmptyState title="Join your neighbourhood first" body="For Sale & Free shows what neighbours are selling and giving away nearby, once you've confirmed where you live." />
       </SafeAreaView>
     );
@@ -84,7 +81,8 @@ export function ForSaleScreen() {
 
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: t.colors.canvas }]} edges={["top"]}>
-        <ConnectionStrip style={styles.connection} />
+      <ConnectionStrip style={styles.connection} />
+      <TabHeader title="For Sale & Free" />
       <FlatList
         data={listings.data ?? []}
         keyExtractor={(l) => l._id}
@@ -116,12 +114,10 @@ export function ForSaleScreen() {
 const styles = StyleSheet.create({
   connection: { marginHorizontal: 16 },
   flex: { flex: 1 },
-  list: { padding: 16, gap: 12, flexGrow: 1 },
+  list: { padding: 16, paddingTop: 4, gap: 12, flexGrow: 1 },
   row: { gap: 12 },
   cell: { flex: 0.5, flexDirection: "row" },
   header: { gap: 12, marginBottom: 4 },
-  titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  title: { fontSize: 28, lineHeight: 34 },
   chipRow: { marginHorizontal: -16 },
   chips: { gap: 8, paddingHorizontal: 16 },
   skeleton: { flexDirection: "row", flexWrap: "wrap", gap: 12 },

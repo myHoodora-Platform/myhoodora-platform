@@ -72,9 +72,27 @@ export interface ApiPost {
   reactionTotal?: number;
   myReaction?: ReactionType | null;
   commentCount?: number;
+  /** Different neighbours who shared it. */
+  shareCount?: number;
+  /** You saved it (GET /posts/saved lists them). */
+  saved?: boolean;
+  /** You hear about new comments on it: its author unless muted, others once they follow it. */
+  following?: boolean;
+  /** When the author last edited the text, or null. */
+  editedAt?: string | null;
   commentsDisabled?: boolean;
   activeUntil?: string;
   resolvedAt?: string | null;
+  /** Alerts only: where it's happening, if the poster said (a pin, or an area found on the map). */
+  location?: AlertPlace;
+}
+
+/** An alert's place: rounded to about 10 m by the API, within a few km of the neighbourhood. */
+export interface AlertPlace {
+  lat: number;
+  lng: number;
+  /** The place in words ("Allen Avenue roundabout"), up to 120 characters. */
+  label?: string;
 }
 
 /**
@@ -137,6 +155,8 @@ export interface Post extends ApiPost {
 export interface CreatePostInput {
   message: string;
   meta: PostMeta;
+  /** Alerts: where it's happening (sent as `location`). */
+  location?: AlertPlace;
   /** Up to 10 photo URLs (from POST /media or pasted). */
   mediaUrls?: string[];
   /**
@@ -173,7 +193,19 @@ export interface Comment {
   content: string;
   createdAt: string;
   likes: string[];
+  /** A reply: the top-level comment it sits under (one level), and whom it answers. */
+  parentId?: string;
+  replyToUid?: string;
+  /** Sent by the live API (contract §2); optional for older payloads. */
+  likeCount?: number;
+  replyCount?: number;
+  /** Whether you like it. */
+  liked?: boolean;
+  /** A deleted comment kept as a placeholder because it has replies (no author, no words). */
+  deleted?: boolean;
 }
+
+export type CommentSort = "top" | "newest" | "oldest";
 
 // ── For Sale & Free (planned) ───────────────────────────────────────────────
 
@@ -215,7 +247,7 @@ export type CreateListingInput = Omit<
   "_id" | "sellerUid" | "neighborhoodId" | "status" | "createdAt" | "seller"
 >;
 
-// ── Groups (planned) ────────────────────────────────────────────────────────
+// ── Groups (§8) ────────────────────────────────────────────────────────
 
 export type GroupCategory = "safety" | "estate" | "parents" | "hobbies" | "business" | "other";
 export type GroupPrivacy = "open" | "private";
@@ -257,11 +289,16 @@ export interface GroupMember {
   uid: string;
   role: "admin" | "member";
   joinedAt: string;
+  /** Sent by the live API since 2026-10-28. */
+  displayName?: string;
+  photoURL?: string;
 }
 
 export interface GroupJoinRequest {
   uid: string;
   requestedAt: string;
+  displayName?: string;
+  photoURL?: string;
 }
 
 export interface GroupPost {
@@ -301,22 +338,88 @@ export interface Conversation {
   _id: string;
   participantUids: string[];
   context?: ConversationContext;
-  lastMessage?: { body: string; senderUid: string; createdAt: string };
+  /** `system`: a group notice ("Ada added Bola"), shown without a name in front (2026-10-29). */
+  lastMessage?: { body: string; senderUid: string; createdAt: string; system?: boolean };
   unreadCount: number;
   updatedAt: string;
   /** Embedded by the live API (names/photos of both people). */
   participants?: { uid: string; displayName: string; photoURL?: string }[];
   /** When each person last read the thread (for "Seen"). */
   readBy?: { uid: string; lastReadAt?: string }[];
+  /** Viewer-relative, since 2026-10-28: you archived it. */
+  archived?: boolean;
+  /** Viewer-relative: you muted it until then (absent when not muted). */
+  mutedUntil?: string;
+  /** Viewer-relative (2026-10-28): you pinned it to the top of your inbox (up to 3). */
+  pinned?: boolean;
+  /** Messages pinned for everyone in the chat, still current, newest first (up to 3). */
+  pins?: PinnedMessage[];
+  /** 2026-10-29: "direct" (absent from older APIs) or "group", with its name and admins; `groupId` for a community Group's own chat. */
+  kind?: "direct" | "group";
+  title?: string;
+  admins?: string[];
+  groupId?: string;
+  /** Viewer-relative: a message request waiting for you to accept. */
+  request?: boolean;
 }
+
+/** People in an ad-hoc group chat, you included (contract §5). */
+export const MAX_GROUP_MEMBERS = 50;
+
+/** A pinned message, in brief, for the bar under a chat's header. */
+export interface PinnedMessage {
+  messageId: string;
+  /** Who pinned it. */
+  by: string;
+  /** When it stops being pinned. */
+  until: string;
+  senderUid: string;
+  body: string;
+  photo: boolean;
+}
+
+/** How long a message stays pinned (WhatsApp's choices). */
+export type PinLength = "24h" | "7d" | "30d";
+export const MAX_PINNED_CHATS = 3;
 
 export interface Message {
   _id: string;
   conversationId: string;
   senderUid: string;
+  /** Empty when the message is photos only. */
   body: string;
+  /** Up to 4, since 2026-10-28. */
+  photos?: string[];
+  /** The message it replies to, in brief (2026-10-28). `deleted`: it was deleted for everyone since. */
+  replyTo?: { _id: string; senderUid: string; body: string; photo: boolean; deleted: boolean };
+  /** Reactions grouped by emoji, most first; one per person (2026-10-28). */
+  reactions?: { emoji: string; uids: string[] }[];
+  /** The sender changed the words (within 15 minutes). */
+  editedAt?: string;
+  /** Deleted for everyone: body and photos are empty. */
+  deleted?: boolean;
+  /** Came from another chat (2026-10-28). `forwardedManyTimes`: passed on 5 times or more, so it goes to one chat at a time. */
+  forwarded?: boolean;
+  forwardedManyTimes?: boolean;
+  /** A notice in a group ("Ada added Bola"), its words in `body`: shown centred, with no actions. */
+  system?: { type: "created" | "added" | "removed" | "left" | "renamed" | "joined"; actor: string; targets?: string[] };
   createdAt: string;
 }
+
+/** Message actions' limits (contract §5), WhatsApp's: edit within 15 minutes, delete for everyone within 2 days and 12 hours. */
+export const MESSAGE_EDIT_WINDOW_MS = 15 * 60_000;
+export const MESSAGE_DELETE_WINDOW_MS = 60 * 60 * 60_000;
+/** Forward to up to 5 chats at once; one forwarded many times, to one. */
+export const MAX_FORWARD_TO = 5;
+
+export interface ForwardResult {
+  /** The conversations it went to. */
+  sent: string[];
+  /** Each conversation id or neighbour uid it couldn't go to, and why. */
+  failed: { target: string; message: string }[];
+}
+
+export type MuteLength = "8h" | "1w" | "always" | "off";
 
 // ── Notifications (planned) ─────────────────────────────────────────────────
 
@@ -341,6 +444,12 @@ export interface AppNotification {
   /** What it's about (e.g. the event's post id). */
   subjectId?: string;
   actorUid?: string;
+  /** The people behind it, most recent first (up to three): faces for the row. */
+  actors?: { uid: string; displayName: string; photoURL?: string }[];
+  /** How many people in all, when more than one (a grouped row: "Ada and 3 others"). */
+  actorCount?: number;
+  /** A picture of what it's about (the post's first photo), when there is one. */
+  preview?: { image: string };
   title: string;
   body?: string;
   href: string;
@@ -466,4 +575,47 @@ export interface AdminHoodRequest extends HoodRequestView {
   address?: string;
   point?: { lat: number; lng: number };
   decidedBy?: string;
+}
+
+// ── Hood Leads, your decisions and appeals (contract §15) ───────────────────
+
+export type LeadVote = "keep" | "maybe_remove" | "remove";
+
+/** GET /moderation/lead/status */
+export interface LeadStatus {
+  isLead: boolean;
+  hoodId: string | null;
+  /** Reports waiting for the viewer's vote. */
+  waiting: number;
+}
+
+/** GET /moderation/lead/queue items (Leads only; reporters are never shown). */
+export interface LeadCase {
+  id: string;
+  target: { type: string; id: string; preview: string };
+  /** The content as reported (kind-specific: post, comment, listing, group). */
+  content: Record<string, unknown>;
+  reasons: { reason: string; count: number }[];
+  reporterCount: number;
+  firstReportedAt: string;
+  /** Votes cast so far (the split stays hidden until voting ends, to avoid bias). */
+  votes: number;
+  myVote: LeadVote | null;
+  /** After this, an undecided report goes to the myHoodora team. */
+  closesAt: string;
+}
+
+export type ModerationActionType = "keep" | "remove_content" | "warn_author" | "restrict_author" | "suspend_author" | "escalate";
+
+/** GET /moderation/my-decisions items (the last 90 days). */
+export interface MyDecision {
+  caseId: string;
+  /** "author": about your content · "reporter": the outcome of your report. */
+  role: "author" | "reporter";
+  target: { type: string; id: string; preview: string };
+  action: ModerationActionType;
+  reason: string;
+  decidedAt: string;
+  canAppeal: boolean;
+  appeal?: { status: "open" | "upheld" | "overturned"; outcomeReason?: string; at: string };
 }

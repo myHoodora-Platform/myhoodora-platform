@@ -46,11 +46,22 @@ src/shared/       theme (from @myhoodora/design-tokens), UI components, utilitie
 
 The API pushes every notification the person would see in the app, following their per-category settings (contract §30). The app registers the phone after sign-in once notifications are allowed (the feed asks, in context, before the system prompt), removes it on logout, and opens the matching screen when a push is tapped.
 
+**Firebase native config files.** `google-services.json` (Android: FCM) and `GoogleService-Info.plist` (iOS: Google sign-in) come from Firebase console → Project settings → Your apps (project `myhoodora-e9ba5`, `com.myhoodora.app`). They are git-ignored everywhere and must never be committed. Locally, keep them in `apps/mobile/` (not in `ios/` or `android/`, which `expo prebuild --clean` regenerates); `app.config.ts` picks them up. For EAS builds, store each as an EAS **file** variable per environment: `eas env:set --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --visibility secret --environment development --environment preview --environment production` (and `GOOGLE_SERVICE_INFO_PLIST` likewise). Without them a build still works, minus Android push.
+
 Before pushes reach real phones, once per Expo project:
 
 1. **Android:** upload an FCM V1 service-account key: `npx eas-cli credentials` → Android → Google Service Account → FCM V1.
 2. **iOS:** let EAS create an APNs key for `com.myhoodora.app` (`npx eas-cli credentials` → iOS → Push Notifications). Needs the Apple Developer account.
 3. If "enhanced push security" is turned on for the Expo project, create an access token and set it as `EXPO_ACCESS_TOKEN` on the API.
+
+## Crash reporting (Sentry)
+
+`src/core/monitoring/`: on in **preview** and **production** builds that have `EXPO_PUBLIC_SENTRY_DSN`; off in development, where `reportError()` logs to the console instead. Use `reportError(error, "<feature>")` for failures the team should hear about; don't add `console.warn`.
+
+- **Privacy:** every event and breadcrumb goes through `scrub.ts`: no request bodies, headers or query strings; emails, phone numbers, tokens (Bearer, JWT, Expo push) redacted; values under keys like `message`, `content`, `address`, `email` filtered; tapped components keep their name but not their label; the device's name is removed. The user is the Firebase uid only. No screenshots, view hierarchy or session replay. Tests: `src/core/monitoring/__tests__/scrub.test.ts`.
+- **Crash screen:** a render error anywhere shows "Something went wrong / Restart" (`shared/ui/crash-screen.tsx`, via `Sentry.ErrorBoundary` in `app/_layout.tsx`) instead of a white screen.
+- **Tags:** `environment` (development/preview/production), `app_version`, `build_number`; Sentry's release is `com.myhoodora.app@<version>+<build>`. Once `expo-updates` is installed, Sentry adds the update ID by itself (`ota_updates` context).
+- **Readable stack traces:** EAS builds upload source maps and debug symbols through the config plugin when the EAS environment has `SENTRY_ORG`, `SENTRY_PROJECT` (plain) and `SENTRY_AUTH_TOKEN` (**secret**). After `eas update`, upload that update's maps: `npx sentry-expo-upload-sourcemaps dist` (same three variables). Local `pnpm … ios|android` builds skip uploads.
 
 ## Builds and releases
 

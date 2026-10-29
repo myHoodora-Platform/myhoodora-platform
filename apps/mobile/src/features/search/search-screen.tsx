@@ -1,9 +1,9 @@
 import type { PublicProfile } from "@myhoodora/api-contract/types";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Search as SearchIcon, ShieldCheck, X } from "lucide-react-native";
+import { ChevronLeft, Search as SearchIcon, ShieldCheck, X } from "lucide-react-native";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth, useSignedInUser } from "@/core/auth/auth-provider";
 import { hasHood } from "@/core/auth/session-phase";
 import { PostCard } from "@/features/feed/post-card";
@@ -11,11 +11,13 @@ import { ListingCard } from "@/features/listings/listing-card";
 import { MIN_TOUCH, useTheme } from "@/shared/theme/theme";
 import { Avatar } from "@/shared/ui/avatar";
 import { Chip } from "@/shared/ui/chip";
-import { useTabBarSpace } from "@/shared/ui/floating-tab-bar";
+import { IconButton } from "@/shared/ui/icon-button";
+import { useRouter } from "@/core/navigation/use-router";
 import { ConnectionStrip } from "@/shared/ui/connection-strip";
 import { EmptyState, ErrorState } from "@/shared/ui/states";
 import { Text } from "@/shared/ui/text";
 import { search, SEARCH_MIN, type SearchType } from "./search-api";
+import { useFeatureSignal } from "@/features/feedback/use-feature-signal";
 
 const TYPES: { id: SearchType; label: string }[] = [
   { id: "all", label: "All" },
@@ -67,14 +69,16 @@ function Section({ title, children, show }: { title: string; children: React.Rea
   );
 }
 
-/** Search your neighbourhood: posts, things for sale, neighbours (contract §21). */
+/** `/search`, opened from the top bar: posts, things for sale, neighbours (contract §21). */
 export function SearchScreen() {
+  useFeatureSignal("search");
   const t = useTheme();
   const user = useSignedInUser();
   const { profile } = useAuth();
   const [text, setText] = useState("");
   const [type, setType] = useState<SearchType>("all");
-  const bottomSpace = useTabBarSpace();
+  const router = useRouter();
+  const bottomSpace = useSafeAreaInsets().bottom + 24;
   const q = useDebounced(text.trim());
   const ready = q.length >= SEARCH_MIN && hasHood(profile);
   const results = useQuery({ queryKey: ["search", q, type], queryFn: () => search(user, q, type), enabled: ready, placeholderData: keepPreviousData });
@@ -87,10 +91,9 @@ export function SearchScreen() {
     <SafeAreaView style={[styles.flex, { backgroundColor: t.colors.canvas }]} edges={["top"]}>
         <ConnectionStrip style={styles.connection} />
       <View style={styles.top}>
-        <Text style={[styles.title, { color: t.colors.foreground, fontFamily: t.fonts.bold }]} accessibilityRole="header">
-          Search
-        </Text>
-        <View style={[styles.box, { backgroundColor: t.colors.card, borderColor: t.colors.border }]}>
+        <View style={styles.searchRow}>
+        <IconButton Icon={ChevronLeft} label="Back" onPress={() => (router.canGoBack() ? router.back() : router.replace("/news-feed"))} />
+        <View style={[styles.box, styles.flex, { backgroundColor: t.colors.card, borderColor: t.colors.border }]}>
           <SearchIcon size={20} color={t.colors.mutedForeground} />
           <TextInput
             value={text}
@@ -98,6 +101,7 @@ export function SearchScreen() {
             placeholder="Search posts, items and neighbours"
             placeholderTextColor={t.colors.mutedForeground}
             returnKeyType="search"
+            autoFocus
             autoCorrect={false}
             maxLength={100}
             accessibilityLabel="Search your neighbourhood"
@@ -109,6 +113,7 @@ export function SearchScreen() {
               <X size={18} color={t.colors.mutedForeground} />
             </Pressable>
           ) : null}
+        </View>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} style={styles.chipRow}>
           {TYPES.map((x) => (
@@ -162,7 +167,7 @@ const styles = StyleSheet.create({
   connection: { marginHorizontal: 16 },
   flex: { flex: 1 },
   top: { paddingHorizontal: 16, paddingTop: 8, gap: 12 },
-  title: { fontSize: 28, lineHeight: 34 },
+  searchRow: { flexDirection: "row", alignItems: "center", gap: 4, marginLeft: -8 },
   box: { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderRadius: 999, paddingHorizontal: 16, minHeight: MIN_TOUCH },
   input: { flex: 1, fontSize: 16, paddingVertical: 10 },
   chipRow: { marginHorizontal: -16 },

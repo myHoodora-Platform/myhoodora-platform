@@ -1,10 +1,11 @@
 import type { User } from "@firebase/auth";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
+import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { apiFetch } from "@/core/api/client";
 
 /** What the API stores photos for (contract §20). */
-export type MediaPurpose = "post" | "listing" | "avatar";
+export type MediaPurpose = "post" | "listing" | "group" | "avatar" | "message" | "support";
 
 export interface PickedPhoto {
   uri: string;
@@ -69,4 +70,33 @@ export async function uploadPhoto(user: User, uri: string, purpose: MediaPurpose
 /** Best effort: a photo removed from a draft before posting. */
 export async function deleteMedia(user: User, id: string): Promise<void> {
   await apiFetch<void>(user, `/media/${id}`, { method: "DELETE" }).catch(() => undefined);
+}
+
+/** A PDF chosen from the phone's files (support conversations only: the API takes documents nowhere else). */
+export interface PickedDocument {
+  uri: string;
+  name: string;
+  size?: number;
+}
+
+/** The API's limit for a document (contract §20). */
+export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
+
+export type DocumentPickResult = { ok: true; documents: PickedDocument[] } | { ok: false; reason: "cancelled" | "too_big" };
+
+/** The system file picker, PDFs only. Copied into the app's cache so the upload can read it. */
+export async function pickDocuments(limit: number): Promise<DocumentPickResult> {
+  const result = await DocumentPicker.getDocumentAsync({ type: "application/pdf", multiple: limit > 1, copyToCacheDirectory: true });
+  if (result.canceled) return { ok: false, reason: "cancelled" };
+  const docs = result.assets.slice(0, limit).map((a) => ({ uri: a.uri, name: a.name, size: a.size }));
+  if (docs.some((d) => (d.size ?? 0) > MAX_DOCUMENT_BYTES)) return { ok: false, reason: "too_big" };
+  return { ok: true, documents: docs };
+}
+
+/** `POST /media` with a PDF; the API checks it really is one (its first bytes), whatever it's called. */
+export async function uploadDocument(user: User, doc: PickedDocument, purpose: MediaPurpose): Promise<UploadedMedia> {
+  const form = new FormData();
+  form.append("file", { uri: doc.uri, name: doc.name || "document.pdf", type: "application/pdf" } as unknown as Blob);
+  form.append("purpose", purpose);
+  return apiFetch<UploadedMedia>(user, "/media", { method: "POST", body: form, timeoutMs: UPLOAD_TIMEOUT_MS });
 }
