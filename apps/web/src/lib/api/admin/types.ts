@@ -1,3 +1,4 @@
+import type { SupportAttachment } from "@myhoodora/api-contract/support";
 /**
  * Admin API types — mirror docs/api-contract.md §13 exactly. When the
  * backend ships an endpoint, these shapes are what it must return.
@@ -33,6 +34,10 @@ export type Capability =
   | "broadcasts.send"
   | "team.manage"
   | "settings.manage"
+  /** Sponsored items in the feed. */
+  | "ads.manage"
+  /** Feedback prompts, their answers, and store-review rules. */
+  | "feedback.manage"
   /** Owner only: grant or revoke admin/owner. */
   | "team.manage.admins";
 
@@ -177,6 +182,8 @@ export interface VerificationAttempt {
 
 export interface NeighbourDetail extends AdminNeighbour {
   location?: { address: string; lat: number; lng: number };
+  /** Neighbourhoods they read and hear alerts from besides home (contract §31). */
+  secondaryHoods?: { id: string; name: string; city?: string; since: string }[];
   verificationAttempts: VerificationAttempt[];
   timeline: AuditEvent[];
 }
@@ -341,7 +348,7 @@ export interface InboxThread {
   status: InboxStatus;
   priority: "low" | "normal" | "high";
   assignee?: { uid: string; displayName: string };
-  messages: { from: "user" | "staff"; body: string; at: string; by?: string }[];
+  messages: { from: "user" | "staff"; body: string; at: string; by?: string; attachments?: SupportAttachment[] }[];
   createdAt: string;
   updatedAt: string;
 }
@@ -385,6 +392,8 @@ export interface AdminOverview {
     liveUrgentAlerts: number;
     /** Appeals waiting for a reviewer. */
     openAppeals?: number;
+    /** Requests to follow another neighbourhood or to move, waiting for staff (contract §31). */
+    pendingHoodRequests?: number;
   };
   pulse: { newNeighbours: Trend; posts: Trend; activeHoods: Trend; medianResolveHours: Trend };
   recentActions: AuditEvent[];

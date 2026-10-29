@@ -9,6 +9,9 @@ import { ChatComposer, ChatMessageList, localId, type ChatItem } from "@/feature
 import { SUPPORT_REPLY_TIME } from "@/features/help/support-form";
 import { errorKind } from "@/lib/api/client";
 import { getSupportThread, replyToSupport, sendSupportTyping, type SupportThread } from "@/lib/api/support";
+import { SUPPORT_ACCEPT } from "@/lib/api/media";
+import { SUPPORT_ATTACHMENTS_MAX } from "@myhoodora/api-contract/support";
+import { useAttachments } from "@/features/chat/use-attachments";
 import { useTypingIndicator, useTypingSignal } from "@/features/chat/use-typing";
 import { useRealtime, useRealtimeResync } from "@/lib/realtime/use-realtime";
 import { ROUTES } from "@/lib/routes";
@@ -21,6 +24,7 @@ const supportThreadCache = createMemoryCache<SupportThread>(20);
 interface Pending {
   id: string;
   body: string;
+  files: { url: string; kind: "image" | "document"; name: string }[];
   at: string;
   state: "sending" | "failed";
 }
@@ -32,6 +36,8 @@ export function SupportThreadView({ id }: { id: string }) {
   const [pending, setPending] = useState<Pending[]>([]);
   const [draft, setDraft] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  // Photos or PDFs, if the team asks for one (2026-10-28).
+  const files = useAttachments(user, "support", SUPPORT_ATTACHMENTS_MAX);
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -59,7 +65,7 @@ export function SupportThreadView({ id }: { id: string }) {
   const deliver = async (p: Pending) => {
     if (!user) return;
     try {
-      const next = await replyToSupport(user, id, p.body);
+      const next = await replyToSupport(user, id, p.body, p.files.map((f) => ({ url: f.url, ...(f.kind === "document" && { name: f.name }) })));
       setPending((prev) => prev.filter((x) => x.id !== p.id));
       supportThreadCache.set(`${user.uid}:${id}`, next);
       setThread(next);
@@ -70,9 +76,10 @@ export function SupportThreadView({ id }: { id: string }) {
 
   const send = () => {
     const body = draft.trim();
-    if (!body) return;
-    const p: Pending = { id: localId(), body, at: new Date().toISOString(), state: "sending" };
+    if (!body && !files.ready.length) return;
+    const p: Pending = { id: localId(), body, files: files.ready, at: new Date().toISOString(), state: "sending" };
     setDraft("");
+    files.clear();
     setPending((prev) => [...prev, p]);
     void deliver(p);
     inputRef.current?.focus();
@@ -111,10 +118,20 @@ export function SupportThreadView({ id }: { id: string }) {
       id: `${i}-${m.at}`,
       mine: m.from === "user",
       body: m.body,
+      photos: m.attachments?.filter((a) => a.kind === "image").map((a) => a.url),
+      documents: m.attachments?.filter((a) => a.kind === "document"),
       at: m.at,
       label: m.from === "staff" ? `myHoodora team${m.by ? ` · ${m.by}` : ""}` : undefined,
     })),
-    ...pending.map((p) => ({ id: p.id, mine: true, body: p.body, at: p.at, state: p.state })),
+    ...pending.map((p) => ({
+      id: p.id,
+      mine: true,
+      body: p.body,
+      photos: p.files.filter((f) => f.kind === "image").map((f) => f.url),
+      documents: p.files.filter((f) => f.kind === "document"),
+      at: p.at,
+      state: p.state,
+    })),
   ];
 
   return (
@@ -147,7 +164,7 @@ export function SupportThreadView({ id }: { id: string }) {
 
       <ChatMessageList items={items} onRetry={retry} typing={teamTyping ? "myHoodora team" : null} />
 
-      <ChatComposer value={draft} onChange={setDraft} onSend={send} label="Message myHoodora Support" placeholder="Write to the team…" inputRef={inputRef} />
+      <ChatComposer value={draft} onChange={setDraft} onSend={send} label="Message myHoodora Support" placeholder="Write to the team…" inputRef={inputRef} attachments={files} accept={SUPPORT_ACCEPT} />
     </>
   );
 }

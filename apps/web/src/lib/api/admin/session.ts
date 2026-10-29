@@ -18,6 +18,8 @@ export const ROLE_CAPABILITIES: Record<AdminRole, Capability[]> = {
     "broadcasts.send",
     "team.manage",
     "settings.manage",
+    "ads.manage",
+    "feedback.manage",
   ],
   owner: [
     "moderation.act",
@@ -28,6 +30,8 @@ export const ROLE_CAPABILITIES: Record<AdminRole, Capability[]> = {
     "broadcasts.send",
     "team.manage",
     "settings.manage",
+    "ads.manage",
+    "feedback.manage",
     "team.manage.admins",
   ],
 };

@@ -116,9 +116,9 @@ describe("Overlapping Hoods", () => {
       expect(await record("previewer")).toMatchObject({ verificationStatus: "unverified", verificationAttempts: [] });
     });
 
-    it("the preview warns a verified neighbour who can't move Hood yet", async () => {
+    it("the preview tells a verified neighbour that moving is a request (contract §31)", async () => {
       await t.member("settler", bodija);
-      expect((await preview("settler", east(4000)).expect(200)).body).toMatchObject({ hood: { id: agodi }, cannotJoin: expect.stringMatching(/Bodija.*90 days/) });
+      expect((await preview("settler", east(4000)).expect(200)).body).toMatchObject({ hood: { id: agodi }, cannotJoin: expect.stringMatching(/Bodija.*ask us to move you/) });
     });
 
     it("verifies only into the Hood the neighbour confirmed", async () => {

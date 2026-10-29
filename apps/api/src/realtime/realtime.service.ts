@@ -80,7 +80,8 @@ export class RealtimeService implements OnModuleDestroy {
   /** Everything this person may hear about: their own channel, their Hood, and staff news. */
   streamFor(viewer: Viewer): Observable<RealtimeEvent> {
     const channels = [channel.user(viewer.uid)];
-    if (viewer.hoodId) channels.push(channel.hood(viewer.hoodId));
+    // Home and any secondary Hoods: they read those feeds, so they hear about them too (contract §31).
+    for (const hoodId of viewer.readableHoodIds) channels.push(channel.hood(hoodId));
     if (viewer.role !== "member") channels.push(channel.staff);
     return this.bus.stream(channels);
   }

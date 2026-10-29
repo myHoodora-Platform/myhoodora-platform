@@ -41,7 +41,7 @@ import { ContentActionsService } from "./content-actions.service";
 import { ApiNotFound, ApiStandardErrors } from "../shared/http/api-docs";
 
 /** §13.1 capability names exposed to the web (owner-only ones omitted). */
-const CONTRACT_CAPABILITIES = ["moderation.act", "moderation.suspend", "verification.review", "hoods.manage", "businesses.review", "broadcasts.send", "team.manage", "settings.manage", "team.manage.admins"];
+const CONTRACT_CAPABILITIES = ["moderation.act", "moderation.suspend", "verification.review", "hoods.manage", "businesses.review", "broadcasts.send", "team.manage", "settings.manage", "ads.manage", "feedback.manage", "team.manage.admins"];
 
 @ApiTags("admin")
 @ApiBearerAuth("firebase-jwt")
@@ -153,6 +153,8 @@ export class AdminController {
       counts: await this.read.neighbourCounts(uid),
       location: mayReadAddress && u.location?.address ? { address: u.location.address, lat: u.location.lat ?? 0, lng: u.location.lng ?? 0 } : undefined,
       verificationAttempts: (u.verificationAttempts ?? []).map((a) => ({ at: a.at.toISOString(), address: a.address ?? "", point: { lat: a.lat, lng: a.lng }, result: a.result })),
+      // Read-and-alerts neighbourhoods besides home (contract §31); staff can remove them.
+      secondaryHoods: (u.secondaryHoods ?? []).map((h) => ({ id: h.id, name: h.name, city: h.city, since: new Date(h.since).toISOString() })),
       timeline: await this.audit.forTarget("user", uid),
     };
   }

@@ -49,6 +49,8 @@ export async function getOverview(user: User): Promise<AdminOverview> {
         pendingVerifications: ppl.filter((n) => n.verificationStatus === "pending_review" || (n.verificationStatus === "unverified" && n.attempts.length > 0)).length,
         businessApplications: businessRecords().filter((b) => !states[b.id] || states[b.id]!.status === "applied" || states[b.id]!.status === "info_requested").length,
         unansweredInbox: buildThreads().filter((t) => t.status === "open").length,
+        // Preview mode has no neighbourhood requests (contract §31 is live-only).
+        pendingHoodRequests: 0,
         liveUrgentAlerts: liveAlerts.total,
       },
       pulse: {

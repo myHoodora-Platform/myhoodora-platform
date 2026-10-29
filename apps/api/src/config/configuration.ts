@@ -22,12 +22,6 @@ function positiveInt(value: string | undefined, fallback: number): number {
   return Number.isInteger(requested) && requested >= 1 ? requested : fallback;
 }
 
-/** A whole number of days, 0 or more; anything else falls back to the default. */
-function days(value: string | undefined, fallback: number): number {
-  const requested = value === undefined || value.trim() === "" ? fallback : Number(value);
-  return Number.isFinite(requested) && requested >= 0 ? Math.floor(requested) : fallback;
-}
-
 /** Seconds → ms, 30 s by default, never negative and never more than 5 minutes. */
 function revocationCacheMs(seconds: string | undefined): number {
   const requested = seconds === undefined || seconds.trim() === "" ? 30 : Number(seconds);
@@ -79,6 +73,14 @@ export default () => ({
     replyTo: process.env.MAIL_REPLY_TO || undefined,
   },
 
+  /** Push to the mobile app (docs/api-contract.md §30). */
+  push: {
+    /** expo (default): Expo's push service. log: record only (tests, local runs without phones). */
+    provider: (process.env.PUSH_PROVIDER?.trim() || "expo").toLowerCase(),
+    /** Only needed when "enhanced push security" is on in the Expo project. Server-side only. */
+    expoAccessToken: process.env.EXPO_ACCESS_TOKEN?.trim() || undefined,
+  },
+
   /** Address verification (docs/api-contract.md §16). */
   verification: {
     /** How far outside a Hood's edge an address can be and still be offered "ask to join". */
@@ -97,8 +99,6 @@ export default () => ({
      * verification emails can't be delivered yet, or nobody who signed up with a password could post.
      */
     requireConfirmedEmail: process.env.EMAIL_CONFIRMATION_REQUIRED !== "false",
-    /** Days after being verified before an address check may move a neighbour to a different Hood. 0 = no wait. HOOD_CHANGE_COOLDOWN_DAYS. */
-    hoodChangeCooldownDays: days(process.env.HOOD_CHANGE_COOLDOWN_DAYS, 90),
   },
 
   /** Event reminders and follow-ups (docs/api-contract.md §23). On unless EVENT_REMINDERS_ENABLED=false. */

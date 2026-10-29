@@ -64,6 +64,7 @@ export class AccountGuard implements CanActivate {
       accountStatus: effectiveAccountStatus(subject),
       verificationStatus: subject.verificationStatus,
       hoodId: subject.hoodId,
+      readableHoodIds: subject.hoodId ? [subject.hoodId, ...(doc?.secondaryHoods ?? []).map((h) => h.id).filter((id) => id !== subject.hoodId)] : [],
       capabilities: doc?.deactivatedAt ? [] : capabilitiesOf(subject),
       exists: Boolean(doc),
     };

@@ -1,0 +1,3 @@
+# Findings checked and known not to be secrets. One fingerprint per line (gitleaks).
+# A made-up JWT ({"alg":"RS256"} / {"uid":"abc123"}, signature "signature-value"): a test that tokens are redacted from crash reports.
+3695635dd6c289c8b99a25eb4074cf2a2cd13922:apps/mobile/src/core/monitoring/__tests__/scrub.test.ts:jwt:4

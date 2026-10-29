@@ -68,7 +68,7 @@ export class SupportController {
   @ApiOkResponse()
   @ApiNotFound("Conversation")
   reply(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Body() body: SupportMessageDto) {
-    return this.inbound.userReply(viewer, id, body.body);
+    return this.inbound.userReply(viewer, id, body.body, body.attachments);
   }
 }
 

@@ -6,7 +6,9 @@ import type { Connection, Model } from "mongoose";
 import request from "supertest";
 import { AppModule } from "../../src/app.module";
 import type { LogEmailAdapter } from "../../src/communications/providers/log-email.adapter";
-import { EMAIL_PROVIDER } from "../../src/communications/providers/providers";
+import type { LogPushAdapter } from "../../src/communications/providers/log-push.adapter";
+import { EMAIL_PROVIDER, PUSH_PROVIDER } from "../../src/communications/providers/providers";
+import { PushService } from "../../src/push/push.service";
 import { Neighborhood } from "../../src/hoods/schemas/hood.schema";
 import { User } from "../../src/users/schemas/user.schema";
 
@@ -29,6 +31,7 @@ export async function createTestApp(customise?: (builder: TestingModuleBuilder) 
   // Tests stay on this machine: no shared Redis channel and no real storage account, whatever a local .env holds.
   process.env.REALTIME_BUS = "memory";
   process.env.CLOUDINARY_URL = "";
+  process.env.PUSH_PROVIDER = "log";
 
   const builder = Test.createTestingModule({ imports: [AppModule] });
   const moduleRef = await (customise ? customise(builder) : builder).compile();
@@ -58,6 +61,15 @@ export class TestApp {
 
   get outbox() {
     return (this.app.get(EMAIL_PROVIDER) as LogEmailAdapter).outbox;
+  }
+
+  /** What would have been pushed to phones. Call `await t.pushSettled()` first: delivery runs after the request. */
+  get pushProvider() {
+    return this.app.get(PUSH_PROVIDER) as LogPushAdapter;
+  }
+
+  pushSettled() {
+    return this.app.get(PushService).settled();
   }
 
   model<T>(name: string): Model<T> {

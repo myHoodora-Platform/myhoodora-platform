@@ -6,6 +6,8 @@
 | --- | --- | --- | --- |
 | API unit (Jest, `apps/api/src/**/*.spec.ts`) | `pnpm test` | nothing | yes |
 | Web unit (Vitest, `apps/web/src/**/*.test.ts`) | `pnpm test` | nothing | yes |
+| Mobile unit and component (Jest + React Native Testing Library, `apps/mobile/src/**/__tests__`) | `pnpm test` | nothing | yes |
+| Mobile bundle (iOS and Android, `expo export`) and SDK dependency check | `pnpm --filter @myhoodora/mobile export:check` · `… exec expo install --check` | nothing | yes |
 | API integration (Jest, `apps/api/test/*.e2e-spec.ts`) | `pnpm test:e2e:api` | nothing (in-memory MongoDB) | yes |
 | Browser, signed-out (Playwright, `apps/web/e2e/public.spec.ts`) | `pnpm --filter web test:e2e:public` | the web app | yes |
 | Browser, signed-in (Playwright, `apps/web/e2e/auth.spec.ts`) | `pnpm --filter web test:e2e` | web + API running, a test account | **no** |
@@ -37,6 +39,7 @@ They boot the real `AppModule` against `mongodb-memory-server` in replica-set mo
 | `moderation-engagement` | Reports to decisions, reactions, polls, comments, blocks, media shapes on posts |
 | `marketplace-chat` | Listings, threads, unread counts, messaging preferences |
 | `groups`, `leads-appeals`, `inbound-business`, `communications` | Their domains end to end |
+| `push` | Registering phones (idempotent, moving between accounts, the 10-phone cap), logout, push per category preference and defaults, broadcasts, dead tokens dropped, sign out everywhere and account deletion removing phones |
 | `admin-contract` | Every `/admin/*` response has the fields the web's types require |
 | `migrations` | Dry run writes nothing; migrations are idempotent |
 

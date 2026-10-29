@@ -24,6 +24,10 @@ dist/
 android/
 ios/
 
+# Firebase native config files (mobile): never committed, anywhere in the repo
+google-services*.json
+GoogleService-Info*.plist
+
 # Testing
 coverage/
 .nyc_output/

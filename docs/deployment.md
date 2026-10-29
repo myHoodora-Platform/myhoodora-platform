@@ -106,6 +106,10 @@ E2E_BASE_URL=https://<web-host> E2E_EMAIL=… E2E_PASSWORD=… pnpm --filter web
 
 (The signed-in suite signs that account out everywhere when it finishes.)
 
+## Releasing with the mobile app
+
+Order stays **API → web → mobile builds**: the app needs the API's `/push/devices` routes and the web's lookup routes accepting a Bearer token. On the API, `PUSH_PROVIDER` defaults to `expo` (set `EXPO_ACCESS_TOKEN` only if Expo's enhanced push security is on). Building, credentials and store steps: [`apps/mobile/README.md`](../apps/mobile/README.md). A mobile binary can't be rolled back once installed, so API changes must keep working for app versions already on phones.
+
 ## Rollback
 
 - **Web:** redeploy the previous build. It is stateless.

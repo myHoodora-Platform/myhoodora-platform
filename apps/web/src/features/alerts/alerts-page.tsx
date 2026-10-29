@@ -43,13 +43,15 @@ export function AlertsPage() {
     () => posts.filter((p) => isRecentAlert(p) && !blocked.has(p.authorUid)),
     [posts, blocked],
   );
-  const ofType = filter === "all" ? alerts : alerts.filter((p) => (p.meta.alertCategory ?? "other") === filter);
+  const ofType = useMemo(() => (filter === "all" ? alerts : alerts.filter((p) => (p.meta.alertCategory ?? "other") === filter)), [alerts, filter]);
   // Urgent first, then newest; ended/resolved move to "Earlier this week".
   const rank = { urgent: 0, active: 1, resolved: 2, ended: 2 } as const;
   const active = ofType
     .filter((p) => isActiveAlert(p))
     .sort((a, b) => rank[alertStatus(a)] - rank[alertStatus(b)] || b.createdAt.localeCompare(a.createdAt));
   const earlier = ofType.filter((p) => !isActiveAlert(p));
+  // The week's alerts that said where, for the map (the same list, so filters apply).
+  const pinned = useMemo(() => ofType.filter((p) => p.location), [ofType]);
 
   // Chip counts show what's active now, so a busy category stands out.
   const chips: ChipItem<AlertFilter>[] = [
@@ -69,7 +71,7 @@ export function AlertsPage() {
       <div className="overflow-hidden rounded-2xl border border-border bg-card">
         <div className="relative h-56 sm:h-72">
           {lat !== undefined && lng !== undefined ? (
-            <AlertsMap lat={lat} lng={lng} radiusMeters={hood?.radiusMeters ?? 1500} />
+            <AlertsMap lat={lat} lng={lng} radiusMeters={hood?.radiusMeters ?? 1500} alerts={pinned} />
           ) : (
             <Skeleton className="size-full rounded-none" />
           )}

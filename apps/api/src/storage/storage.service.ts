@@ -37,7 +37,7 @@ const UNUSED_UPLOAD_KEPT_MS = DAY_MS;
 /** Files looked at per sweep. */
 const SWEEP_BATCH = 200;
 /** Everything that keeps stored files. A sweep without all of them would delete files the missing one is using. */
-const REFERENCE_SOURCES = ["posts", "listings", "groups", "users"] as const;
+const REFERENCE_SOURCES = ["posts", "listings", "groups", "users", "ads", "messages", "support"] as const;
 
 /** A module that keeps URLs of stored files, and can say which of a set it still needs. */
 export interface MediaReferenceSource {
@@ -55,7 +55,7 @@ export interface SweepReport {
 }
 export const REMOTE_FILE_FETCHER = Symbol("REMOTE_FILE_FETCHER");
 /** Files stream to disk, then to storage in chunks, so videos can be as big as the provider's free plan allows. */
-export const MAX_BYTES: Record<StorageResourceType, number> = { image: 10 * MB, video: 100 * MB };
+export const MAX_BYTES: Record<StorageResourceType, number> = { image: 10 * MB, video: 100 * MB, document: 10 * MB };
 /** Short clips only, like Nextdoor's "short video": checked on the stored file, not the client's claim. */
 export const MAX_VIDEO_SECONDS = 60;
 /** Upper bound for the multipart parser; the per-type limit is checked after. */
@@ -76,10 +76,13 @@ const ACCEPTED: Record<string, StorageResourceType> = {
   "video/mp4": "video",
   "video/quicktime": "video",
   "video/webm": "video",
+  "application/pdf": "document",
 };
 
 /** The purposes that take video; profile photos, listings and group covers are photos only. */
-const VIDEO_PURPOSES: readonly MediaPurpose[] = ["post"];
+const VIDEO_PURPOSES: readonly MediaPurpose[] = ["post", "ad"];
+/** The purposes that take documents (PDF): a support conversation, where the team may ask for one. */
+const DOCUMENT_PURPOSES: readonly MediaPurpose[] = ["support"];
 
 /** An uploaded file: on disk (multer disk storage, downloaded links) or, for small ones, in memory. */
 export interface UploadedFileInput {
@@ -444,6 +447,19 @@ export class StorageService implements OnModuleInit {
     return new Map(rows.map((r) => [r.url, Number((r.width! / r.height!).toFixed(4))]));
   }
 
+  /**
+   * What we stored at these URLs (kind, size, dimensions), for content that must use our own files
+   * (ads): a URL we didn't store is simply absent.
+   */
+  async describe(urls: string[]): Promise<Map<string, Pick<MediaAsset, "url" | "resourceType" | "width" | "height" | "bytes" | "purpose" | "ownerUid">>> {
+    if (!urls.length) return new Map();
+    const rows = await this.assets
+      .find({ url: { $in: [...new Set(urls)] }, status: { $ne: "pending" } }, { url: 1, resourceType: 1, width: 1, height: 1, bytes: 1, purpose: 1, ownerUid: 1 })
+      .lean<Pick<MediaAsset, "url" | "resourceType" | "width" | "height" | "bytes" | "purpose" | "ownerUid">[]>()
+      .exec();
+    return new Map(rows.map((r) => [r.url, r]));
+  }
+
   /** Delivery URL for a stored file (e.g. after changing delivery settings). */
   getUrl(asset: Pick<MediaAsset, "providerId" | "resourceType">): string {
     return this.requireProvider().url(asset.providerId, asset.resourceType);
@@ -451,11 +467,14 @@ export class StorageService implements OnModuleInit {
 
   private resourceTypeFor(mimetype: string, purpose: MediaPurpose): StorageResourceType {
     const resourceType = ACCEPTED[mimetype];
-    if (!resourceType || (resourceType === "video" && !VIDEO_PURPOSES.includes(purpose))) {
+    const allowed = resourceType && (resourceType === "image" || (resourceType === "video" ? VIDEO_PURPOSES.includes(purpose) : DOCUMENT_PURPOSES.includes(purpose)));
+    if (!allowed) {
       throw new BadRequestException(
         VIDEO_PURPOSES.includes(purpose)
           ? "Only photos (JPG, PNG, WebP, GIF, HEIC) and videos (MP4, MOV, WebM) can be uploaded."
-          : "Only photos (JPG, PNG, WebP, GIF, HEIC) can be uploaded here.",
+          : DOCUMENT_PURPOSES.includes(purpose)
+            ? "Only photos (JPG, PNG, WebP, GIF, HEIC) and PDF documents can be uploaded here."
+            : "Only photos (JPG, PNG, WebP, GIF, HEIC) can be uploaded here.",
       );
     }
     return resourceType;

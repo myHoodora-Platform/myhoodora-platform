@@ -10,9 +10,11 @@ A neighbourhood network for Nigeria: verified neighbours share posts, safety ale
 apps/
   web/       Next.js 16 app: marketing site, the signed-in app, the staff admin
   api/       NestJS 10 REST API on MongoDB
-  mobile/    Expo starter. Post-MVP, not part of the workspace or CI
+  mobile/    Expo (React Native) app for iOS and Android: sign-in, onboarding, Hood feed, notifications, push
 packages/
-  ui/                  shared React components
+  ui/                  shared React components (web)
+  api-contract/        API types, error wording and form rules shared by web and mobile
+  design-tokens/       colours, type and spacing for the mobile app (checked against the web's CSS)
   eslint-config/       shared ESLint config
   typescript-config/   shared TypeScript config
 docs/        documentation of record (and an archive of older plans)

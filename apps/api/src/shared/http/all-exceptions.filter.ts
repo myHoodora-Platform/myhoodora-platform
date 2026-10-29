@@ -29,6 +29,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
       const message = typeof body === "string" ? body : ((body as { message?: string | string[] }).message ?? e.message);
       return { status: e.getStatus(), message };
     }
+    // A bad upload form. Nest only recognises multer errors by their message text, which multer
+    // changes between versions, so they are told apart here by their code instead.
+    if (isMulterError(e)) {
+      return { status: e.code === "LIMIT_FILE_SIZE" ? HttpStatus.PAYLOAD_TOO_LARGE : HttpStatus.BAD_REQUEST, message: e.message };
+    }
+    // A request body the parser refused (too large, bad encoding, a broken compressed stream).
+    if (isClientHttpError(e)) return { status: e.status, message: e.message };
     if (e instanceof MongooseError.CastError) return { status: HttpStatus.BAD_REQUEST, message: `Invalid ${e.path}.` };
     if (e instanceof MongooseError.ValidationError) {
       return { status: HttpStatus.BAD_REQUEST, message: Object.values(e.errors).map((x) => x.message) };
@@ -38,4 +45,16 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
     return { status: HttpStatus.INTERNAL_SERVER_ERROR, message: "Something went wrong on our side." };
   }
+}
+
+/** multer's MulterError (multer is a dependency of @nestjs/platform-express, not of this app). */
+function isMulterError(e: unknown): e is Error & { code: string } {
+  return e instanceof Error && e.name === "MulterError" && typeof (e as { code?: unknown }).code === "string";
+}
+
+/** An http-errors 4xx (what body-parser throws); `expose` means its message is safe to show. */
+function isClientHttpError(e: unknown): e is Error & { status: number } {
+  if (!(e instanceof Error)) return false;
+  const { status, expose } = e as { status?: unknown; expose?: unknown };
+  return expose === true && typeof status === "number" && status >= 400 && status < 500;
 }
