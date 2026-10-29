@@ -151,7 +151,8 @@ describe("Who may read a Hood", () => {
       await t.member("hopper", lekki);
       const res = await verify("hopper", YABA).expect(409);
       expect(res.body.message).toMatch(/Lekki Phase 1/);
-      expect(res.body.message).toMatch(/90 days/);
+      // Moving is a request staff review (contract §31), and the message says where to make it.
+      expect(res.body.message).toMatch(/ask us to move you/);
 
       const record = await t.users.findOne({ uid: "hopper" }).lean();
       expect(record?.neighborhoodId).toBe(lekki);
@@ -169,24 +170,14 @@ describe("Who may read a Hood", () => {
       expect(await audits("settled")).toEqual([]);
     });
 
-    it("someone verified more than 90 days ago can move once, and the move is audited", async () => {
-      await t.member("mover", lekki, { verifiedAt: new Date(Date.now() - 91 * DAY) });
-      const res = await verify("mover", YABA).expect(200);
-      expect(res.body).toMatchObject({ verificationStatus: "verified", neighborhoodId: yaba });
-
-      const record = await t.users.findOne({ uid: "mover" }).lean();
-      expect(record?.neighborhoodId).toBe(yaba);
-      expect(Date.now() - record!.verifiedAt!.getTime()).toBeLessThan(60_000);
-      expect(await audits("mover")).toEqual([expect.objectContaining({ target: expect.objectContaining({ label: "Yaba" }), reason: expect.stringContaining("Lekki Phase 1") })]);
-
-      // The clock restarted: straight back is refused.
-      await verify("mover", LEKKI).expect(409);
-      expect(await audits("mover")).toHaveLength(1);
-    });
-
-    it("89 days is not enough", async () => {
-      await t.member("early", lekki, { verifiedAt: new Date(Date.now() - 89 * DAY) });
-      await verify("early", YABA).expect(409);
+    it("however long ago they were verified, a neighbour can't move themselves (since §31 staff move them on request)", async () => {
+      await t.member("longtime", lekki, { verifiedAt: new Date(Date.now() - 400 * DAY) });
+      await verify("longtime", YABA).expect(409);
+      expect((await t.users.findOne({ uid: "longtime" }).lean())?.neighborhoodId).toBe(lekki);
+      expect(await audits("longtime")).toEqual([]);
+      // The preview says so before they try.
+      const preview = await t.http.post("/api/users/me/verify-location/preview").set(t.auth("longtime")).send(YABA).expect(200);
+      expect(preview.body.cannotJoin).toMatch(/ask us to move you/);
     });
   });
 

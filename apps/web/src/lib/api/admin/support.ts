@@ -69,8 +69,8 @@ export async function startInboxConversation(user: User, input: { uid: string; s
 }
 
 /** live: POST /admin/inbox/:id/reply → emails / notifies the neighbour */
-export async function replyToThread(user: User, id: string, body: string, role: AdminRole, resolve = false): Promise<InboxThread> {
-  if (isLive("admin.inbox")) return adminSend(user, `/inbox/${id}/reply`, { body, resolve });
+export async function replyToThread(user: User, id: string, body: string, role: AdminRole, resolve = false, attachments: { url: string; name?: string }[] = []): Promise<InboxThread> {
+  if (isLive("admin.inbox")) return adminSend(user, `/inbox/${id}/reply`, { body, resolve, ...(attachments.length && { attachments }) });
   await mock(() => {
     const t = buildThreads().find((x) => x.id === id);
     if (!t) notFound("Conversation");

@@ -50,6 +50,8 @@ type GroupRow = Group & { _id: Types.ObjectId };
 const MAX_GROUPS_PER_DAY = 3;
 /** "Nearby" boundary = Hoods whose centres are within this distance of yours. */
 
+/** Name and photo beside a member or request (added 2026-10-28; older clients ignore them). */
+const person = (c?: { displayName: string; photoURL?: string }) => ({ displayName: c?.displayName ?? "Neighbour", ...(c?.photoURL && { photoURL: c.photoURL }) });
 const newToken = () => randomBytes(18).toString("base64url");
 const sameToken = (a: string, b: string) => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 
@@ -371,15 +373,17 @@ export class GroupsService implements OnModuleInit {
     const g = await this.loadVisible(viewer, id);
     await this.requireReadable(viewer, g);
     const rows = await this.members.find({ groupId: id }).lean<GroupMember[]>().exec();
+    const cards = await this.users.authorCards(rows.map((m) => m.uid));
     return rows
-      .map((m) => ({ uid: m.uid, role: m.role, joinedAt: (m.joinedAt ?? new Date()).toISOString() }))
+      .map((m) => ({ uid: m.uid, role: m.role, joinedAt: (m.joinedAt ?? new Date()).toISOString(), ...person(cards.get(m.uid)) }))
       .sort((a, b) => Number(b.role === "admin") - Number(a.role === "admin") || a.joinedAt.localeCompare(b.joinedAt));
   }
 
   async listRequests(viewer: Viewer, id: string) {
     await this.requireAdmin(viewer, id);
     const rows = await this.requests.find({ groupId: id }).sort({ requestedAt: 1 }).lean<GroupRequest[]>().exec();
-    return rows.map((r) => ({ uid: r.uid, requestedAt: (r.requestedAt ?? new Date()).toISOString() }));
+    const cards = await this.users.authorCards(rows.map((r) => r.uid));
+    return rows.map((r) => ({ uid: r.uid, requestedAt: (r.requestedAt ?? new Date()).toISOString(), ...person(cards.get(r.uid)) }));
   }
 
   async approve(viewer: Viewer, id: string, uid: string): Promise<void> {

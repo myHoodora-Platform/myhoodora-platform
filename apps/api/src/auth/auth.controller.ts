@@ -8,6 +8,7 @@ import { extractBearerToken } from "../shared/auth/firebase-auth.guard";
 import { Public } from "../shared/auth/public.decorator";
 import { SessionCookieAuth } from "../shared/auth/session-cookie-auth.decorator";
 import { AllowSuspended, CurrentViewer, type Viewer } from "../shared/auth/viewer";
+import { PushService } from "../push/push.service";
 import { EmailVerificationService } from "../verification/email-verification.service";
 import { Can } from "../shared/authz/can.decorator";
 import { FLOOD } from "../shared/throttle/throttle.guards";
@@ -42,6 +43,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly emailVerification: EmailVerificationService,
+    private readonly push: PushService,
   ) {}
 
   /**
@@ -95,6 +97,8 @@ export class AuthController {
   @ApiOperation({ summary: "Sign out everywhere: revokes all of the user's Firebase refresh tokens and session cookies" })
   async logoutEverywhere(@CurrentViewer() viewer: Viewer): Promise<void> {
     await this.authService.revokeTokens(viewer.uid);
+    // Signed out on every phone too, so none of them keeps receiving this account's pushes.
+    await this.push.removeAll(viewer.uid);
   }
 
   /** Public: the link is opened from an email, possibly on another device. Strictly throttled against guessing. */

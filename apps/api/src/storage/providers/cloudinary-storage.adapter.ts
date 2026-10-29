@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { Logger } from "@nestjs/common";
 import { v2 as cloudinary, type UploadApiErrorResponse, type UploadApiOptions, type UploadApiResponse } from "cloudinary";
 import { StorageError, type DirectUploadTicket, type StorageProvider, type StorageResourceType, type StorageUpload, type StoredObject } from "./storage-provider";
@@ -24,6 +25,9 @@ export function parseCloudinaryUrl(url: string): { cloudName: string; apiKey: st
 }
 
 /** The only file that knows about the Cloudinary SDK. */
+/** Cloudinary's name for our kinds: documents are "raw" files, delivered byte for byte, never processed. */
+const cloudinaryType = (t: StorageResourceType): "image" | "video" | "raw" => (t === "document" ? "raw" : t);
+
 export class CloudinaryStorageAdapter implements StorageProvider {
   readonly name = "cloudinary";
   readonly cloudName: string;
@@ -45,9 +49,14 @@ export class CloudinaryStorageAdapter implements StorageProvider {
 
   async upload(file: StorageUpload): Promise<StoredObject> {
     const options = {
-      resource_type: file.resourceType,
+      resource_type: cloudinaryType(file.resourceType),
       folder: file.folder,
-      ...(file.publicId ? { public_id: file.publicId, overwrite: true } : { unique_filename: true, overwrite: false }),
+      // A raw file keeps its extension only in its id, so a PDF is delivered as one.
+      ...(file.publicId
+        ? { public_id: file.publicId, overwrite: true }
+        : file.resourceType === "document"
+          ? { public_id: `${randomBytes(12).toString("base64url")}.pdf`, overwrite: false }
+          : { unique_filename: true, overwrite: false }),
       timeout: UPLOAD_TIMEOUT_MS,
       // Stored photos are capped in size; delivery URLs strip camera metadata (GPS) and pick the format.
       ...(file.resourceType === "image" && { transformation: [{ width: MAX_IMAGE_EDGE, height: MAX_IMAGE_EDGE, crop: "limit" }] }),
@@ -87,7 +96,7 @@ export class CloudinaryStorageAdapter implements StorageProvider {
   async delete(providerId: string, resourceType: StorageResourceType): Promise<void> {
     let result: { result?: string } | undefined;
     try {
-      result = (await this.sdk.uploader.destroy(providerId, { resource_type: resourceType, invalidate: true })) as { result?: string };
+      result = (await this.sdk.uploader.destroy(providerId, { resource_type: cloudinaryType(resourceType), invalidate: true })) as { result?: string };
     } catch (err) {
       throw this.toError("delete", err as UploadApiErrorResponse);
     }
@@ -98,6 +107,7 @@ export class CloudinaryStorageAdapter implements StorageProvider {
   }
 
   url(providerId: string, resourceType: StorageResourceType): string {
+    if (resourceType === "document") return this.sdk.url(providerId, { resource_type: "raw", secure: true });
     if (resourceType === "video") {
       // MP4 plays everywhere (iOS included) and makes the URL recognisably a video; capped at 1280 px.
       return this.sdk.url(providerId, { resource_type: "video", secure: true, ...VIDEO_DELIVERY });
@@ -128,7 +138,7 @@ export class CloudinaryStorageAdapter implements StorageProvider {
     let res: { public_id: string; format?: string; bytes: number; width?: number; height?: number; duration?: number };
     try {
       // media_metadata makes Cloudinary report the real duration it measured.
-      res = await this.sdk.api.resource(providerId, { resource_type: resourceType, media_metadata: true });
+      res = await this.sdk.api.resource(providerId, { resource_type: cloudinaryType(resourceType), media_metadata: true });
     } catch (err) {
       const e = err as { http_code?: number; error?: { http_code?: number; message?: string } };
       if ((e.error?.http_code ?? e.http_code) === 404) return null;

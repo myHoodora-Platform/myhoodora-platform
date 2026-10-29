@@ -1,117 +1,12 @@
 import type { User } from "firebase/auth";
+import { ApiError, FRIENDLY_MESSAGES, MAX_RETRY_AFTER_MS, REQUEST_TIMEOUT_MS, errorFor } from "@myhoodora/api-contract/errors";
 import { API_BASE_URL } from "./config";
 
-/** What went wrong, so each screen can say something specific and offer the right fix. */
-export type ApiErrorKind =
-  | "offline" // the device has no connection
-  | "timeout" // the request took too long (slow network)
-  | "network" // the server couldn't be reached
-  | "auth" // 401: session expired
-  | "forbidden" // 403
-  | "not_found" // 404
-  | "server" // 5xx
-  | "rate_limited" // 429 from the rate limiter: too many requests, try again shortly
-  | "client"; // other 4xx (validation etc.) — message comes from the API
-
-/** A non-2xx response (or network failure) from our API, with a readable message. */
-export class ApiError extends Error {
-  constructor(
-    message: string,
-    /** HTTP status; 0 means the request never got a response. */
-    readonly status: number,
-    readonly kind: ApiErrorKind,
-    /** Rate-limited only: how long the API asked us to wait before trying again. */
-    readonly retryAfterMs?: number,
-  ) {
-    super(message);
-    this.name = "ApiError";
-  }
-
-  get isNetworkError() {
-    return this.kind === "offline" || this.kind === "timeout" || this.kind === "network";
-  }
-
-  /** Worth retrying automatically (transient). */
-  get isRetryable() {
-    return this.isNetworkError || this.kind === "server" || this.kind === "rate_limited";
-  }
-}
-
-export const FRIENDLY_MESSAGES: Record<ApiErrorKind, string> = {
-  offline: "You're offline. Check your connection and try again.",
-  timeout: "This is taking longer than usual. Your connection may be slow. Try again.",
-  network: "We can't reach myHoodora right now. Try again in a moment.",
-  auth: "Your session has expired. Please log in again.",
-  forbidden: "You don't have access to this.",
-  not_found: "We couldn't find what you were looking for.",
-  server: "Something went wrong on our side. Please try again in a moment.",
-  rate_limited: "You're doing that a lot. Give it a moment and try again.",
-  client: "That didn't work. Please check and try again.",
-};
-
-const REQUEST_TIMEOUT_MS = 15_000;
-/** The longest withRetry will wait because the API said so; asked to wait longer, it gives up and says why. */
-const MAX_RETRY_AFTER_MS = 10_000;
-
-/**
- * The API's rate limiter says how long to wait (Retry-After, in seconds). That header is also what
- * tells its 429 from the API's own rules that use the same status and carry a message worth showing
- * ("You can post one urgent alert every 6 hours"): those have no Retry-After and stay "client".
- */
-function retryAfterMs(status: number, header: string | null): number | undefined {
-  if (status !== 429 || header === null) return undefined;
-  const seconds = Number(header);
-  return Number.isFinite(seconds) && seconds >= 0 ? seconds * 1000 : 0;
-}
-
-function kindForStatus(status: number, rateLimited = false): ApiErrorKind {
-  if (status === 401) return "auth";
-  if (status === 403) return "forbidden";
-  if (status === 404) return "not_found";
-  if (status >= 500) return "server";
-  if (rateLimited) return "rate_limited";
-  return "client";
-}
-
-/** The typed error for a non-2xx response, given its body text and Retry-After header. */
-function errorFor(status: number, text: string, retryAfterHeader: string | null): ApiError {
-  const wait = retryAfterMs(status, retryAfterHeader);
-  const kind = kindForStatus(status, wait !== undefined);
-  return new ApiError(messageFromText(text, kind), status, kind, wait);
-}
+// Classification and wording are shared with the mobile app (packages/api-contract); transport stays here.
+export { ApiError, FRIENDLY_MESSAGES, errorKind, errorMessage, type ApiErrorKind } from "@myhoodora/api-contract/errors";
 
 async function errorFrom(response: Response): Promise<ApiError> {
   return errorFor(response.status, await response.text().catch(() => ""), response.headers.get("Retry-After"));
-}
-
-/**
- * A 403/404 whose message the API wrote for people ("Ada has restricted who can message them…")
- * rather than the framework's stock "Forbidden resource" / "Cannot GET /x".
- */
-function customMessage(text: string): string | undefined {
-  try {
-    const body = JSON.parse(text) as { message?: unknown; error?: unknown };
-    const message = body.message;
-    if (typeof message !== "string" || !message || message === body.error) return undefined;
-    if (message === "Forbidden resource" || message.startsWith("Cannot ")) return undefined;
-    return message;
-  } catch {
-    return undefined;
-  }
-}
-
-function messageFromText(text: string, kind: ApiErrorKind): string {
-  if (kind === "forbidden" || kind === "not_found") return customMessage(text) ?? FRIENDLY_MESSAGES[kind];
-  // Only validation-style errors carry a message worth showing verbatim.
-  if (kind !== "client") return FRIENDLY_MESSAGES[kind];
-  try {
-    const body = JSON.parse(text) as { message?: string | string[] };
-    if (Array.isArray(body.message)) return body.message.join(", ");
-    if (body.message) return body.message;
-  } catch {
-    // Not JSON — fall through.
-  }
-  return text || FRIENDLY_MESSAGES.client;
 }
 
 /**
@@ -237,13 +132,4 @@ export async function withRetry<T>(fn: () => Promise<T>, retries = 1, delayMs = 
     await new Promise((r) => setTimeout(r, Math.max(delayMs, asked)));
     return withRetry(fn, retries - 1, delayMs * 2);
   }
-}
-
-/** User-facing message for any thrown value. */
-export function errorMessage(err: unknown, fallback = "Something went wrong."): string {
-  return err instanceof Error && err.message ? err.message : fallback;
-}
-
-export function errorKind(err: unknown): ApiErrorKind | null {
-  return err instanceof ApiError ? err.kind : null;
 }

@@ -1,5 +1,5 @@
-import { Type } from "class-transformer";
-import { IsBoolean, IsIn, IsLatitude, IsLongitude, IsMongoId, IsOptional, IsString, IsUrl, Length, MaxLength, ValidateIf, ValidateNested } from "class-validator";
+import { Transform, Type } from "class-transformer";
+import { IsBoolean, IsEmail, IsIn, IsLatitude, IsLongitude, IsMongoId, IsOptional, IsString, IsUrl, Length, MaxLength, ValidateIf, ValidateNested } from "class-validator";
 
 /** PATCH /users/me — profile fields only. `neighborhoodId` is NOT accepted (security: Hood changes go through verification or staff). */
 export class UpdateMeDto {
@@ -182,4 +182,14 @@ export class UserSearchQuery {
   @IsString()
   @MaxLength(60)
   q?: string;
+}
+
+/** POST /users/me/email: a new address, while the current one is still unconfirmed. */
+export class ChangeEmailDto {
+  /** @example ada.okafor@example.com */
+  // Phones' autofill often adds a space; the address itself is what's checked.
+  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @IsEmail({}, { message: "Enter a valid email address." })
+  @MaxLength(254)
+  email!: string;
 }

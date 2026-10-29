@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, GoneException, HttpException, HttpStatus, Injectable, NotFoundException, OnModuleInit } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, GoneException, HttpException, HttpStatus, Injectable, NotFoundException, OnModuleInit } from "@nestjs/common";
 import { InjectConnection, InjectModel } from "@nestjs/mongoose";
 import { Connection, Model, Types, type QueryFilter } from "mongoose";
 import { ListingsService } from "../listings/listings.service";
@@ -11,18 +11,35 @@ import { THREAD_PAGE_MAX, type ThreadPageQuery } from "../shared/http/pagination
 import { User, UserDocument } from "../users/schemas/user.schema";
 import { AccountLifecycle, DELETED_USER_UID } from "../users/account-lifecycle";
 import { UsersService } from "../users/users.service";
-import type { StartConversationDto } from "./chat.dto";
-import { Conversation, ConversationDocument, Message, type ChatContext } from "./chat.schemas";
+import { StorageService } from "../storage/storage.service";
+import type { MUTE_FOR, StartConversationDto } from "./chat.dto";
+import { GroupMember } from "../groups/group.schemas";
+import { Group } from "../groups/group.schemas";
+import { Conversation, ConversationDocument, Message, type ChatContext, type ConversationKind, type ConversationMember, type SystemNote } from "./chat.schemas";
 
 export interface ConversationView {
   _id: string;
   participantUids: string[];
   participants: { uid: string; displayName: string; photoURL?: string }[];
   context?: ChatContext;
-  lastMessage?: { body: string; senderUid: string; createdAt: string };
+  lastMessage?: { body: string; senderUid: string; createdAt: string; system?: boolean };
   unreadCount: number;
   readBy: { uid: string; lastReadAt?: string }[];
   updatedAt: string;
+  /** Viewer-relative (2026-10-28): you archived it; you muted it (until when). */
+  archived: boolean;
+  mutedUntil?: string;
+  /** Viewer-relative (2026-10-28): you pinned it to the top of your inbox. */
+  pinned: boolean;
+  /** Messages pinned for everyone in it, still current, newest first (2026-10-28). */
+  pins?: { messageId: string; by: string; until: string; senderUid: string; body: string; photo: boolean }[];
+  /** 2026-10-29: a direct chat or a group (with its name and admins; `groupId` for a community Group's chat). */
+  kind: ConversationKind;
+  title?: string;
+  groupId?: string;
+  admins?: string[];
+  /** Viewer-relative: a message request waiting for you to accept (it isn't in your inbox yet). */
+  request?: boolean;
 }
 
 export interface MessageView {
@@ -30,12 +47,65 @@ export interface MessageView {
   conversationId: string;
   senderUid: string;
   body: string;
+  /** Photos sent with it (2026-10-28). */
+  photos?: string[];
+  /** The message it replies to, in brief (2026-10-28). */
+  replyTo?: { _id: string; senderUid: string; body: string; photo: boolean; deleted: boolean };
+  /** Reactions grouped by emoji, most first, with who (2026-10-28). */
+  reactions?: { emoji: string; uids: string[] }[];
+  editedAt?: string;
+  /** Deleted for everyone: body and photos are empty. */
+  deleted?: boolean;
+  /** It came from another chat (2026-10-28); `forwardedManyTimes` once it has been passed on 5 times or more. */
+  forwarded?: boolean;
+  forwardedManyTimes?: boolean;
+  /** A notice in a group ("Ada added Bola"), with its words in `body`. */
+  system?: SystemNote;
   createdAt: string;
 }
 
 type ConvRow = Conversation & { _id: Types.ObjectId; updatedAt?: Date };
 /** Anti-spam: new threads a neighbour may start per rolling day. */
 const MAX_NEW_THREADS_PER_DAY = 20;
+const MAX_PHOTOS = 4;
+const HOUR_MS = 3_600_000;
+/** "Until I turn it back on": far enough to never come. */
+const MUTED_FOREVER = new Date("9999-12-31T00:00:00Z");
+/** What the inbox shows for a message that is only photos. */
+const PHOTO_PREVIEW = "📷 Photo";
+const DELETED_PREVIEW = "🚫 This message was deleted";
+/** WhatsApp's limits: three chats pinned in your inbox, three messages pinned in a chat. */
+export const MAX_PINNED_CHATS = 3;
+export const MAX_PINNED_MESSAGES = 3;
+const PIN_LENGTH_MS = { "24h": 24 * HOUR_MS, "7d": 7 * 24 * HOUR_MS, "30d": 30 * 24 * HOUR_MS } as const;
+/** WhatsApp's window for changing the words of a message. */
+export const EDIT_WINDOW_MS = 15 * 60_000;
+/** How long a sender can still delete a message for everyone: WhatsApp's 2 days and 12 hours. */
+export const DELETE_WINDOW_MS = 60 * HOUR_MS;
+/** Forward to up to 5 chats at once; a message forwarded many times (5 hops or more), one at a time (WhatsApp). */
+export const MAX_FORWARD_TO = 5;
+export const MANY_FORWARDS = 5;
+/** People in an ad-hoc group, you included. Moderate on purpose: neighbours, not broadcasts. */
+export const MAX_GROUP_MEMBERS = 50;
+/**
+ * A reaction is one emoji: pictographs, with skin tones, joiners and variation selectors, or a flag
+ * or keycap. Never words.
+ */
+const EMOJI = /^(?:\p{Extended_Pictographic}|\p{Emoji_Modifier}|\p{Regional_Indicator}|[#*0-9]\uFE0F?\u20E3|\u200D|\uFE0F)+$/u;
+export const isEmoji = (s: string) => s.length <= 16 && EMOJI.test(s) && /\p{Extended_Pictographic}|\p{Regional_Indicator}|\u20E3/u.test(s);
+
+type MessageRow = Message & { _id: Types.ObjectId };
+
+const memberOf = (c: Pick<ConvRow, "members">, uid: string): ConversationMember | undefined => c.members.find((m) => m.uid === uid);
+/** Deleted for them, and nothing new since: it stays out of their inbox. */
+const clearedFor = (c: ConvRow, uid: string) => {
+  const cleared = memberOf(c, uid)?.clearedAt;
+  return !!cleared && (!c.lastMessage || new Date(c.lastMessage.createdAt) <= new Date(cleared));
+};
+const isMuted = (m: ConversationMember | undefined, now = Date.now()) => !!m?.mutedUntil && new Date(m.mutedUntil).getTime() > now;
+const isGroup = (c: Pick<ConvRow, "kind">) => c.kind === "group";
+/** A message request waiting for this person. */
+const requestFor = (c: Pick<ConvRow, "members">, uid: string) => !!memberOf(c, uid)?.requestedAt;
 
 @Injectable()
 export class ChatService implements OnModuleInit {
@@ -43,6 +113,8 @@ export class ChatService implements OnModuleInit {
     @InjectModel(Conversation.name) private readonly conversations: Model<ConversationDocument>,
     @InjectModel(Message.name) private readonly messages: Model<Message>,
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+    @InjectModel(GroupMember.name) private readonly groupMembers: Model<GroupMember>,
+    @InjectModel(Group.name) private readonly groups: Model<Group>,
     @InjectConnection() private readonly connection: Connection,
     private readonly users: UsersService,
     private readonly listings: ListingsService,
@@ -50,17 +122,27 @@ export class ChatService implements OnModuleInit {
     private readonly registry: ModerationRegistry,
     private readonly realtime: RealtimeService,
     private readonly accounts: AccountLifecycle,
+    private readonly storage: StorageService,
   ) {}
 
   /** Reports use targetType "message" with the conversation id (contract §5). */
   onModuleInit() {
     this.accounts.register({ name: "chat", purge: (uid, dryRun) => this.purgeParticipant(uid, dryRun) });
+    // A photo stays while a message carries it (StorageService.sweepUnreferenced).
+    this.storage.registerReferenceSource({
+      name: "messages",
+      inUse: async (urls) => {
+        const rows = await this.messages.find({ photos: { $in: urls } }).select({ photos: 1 }).lean<Pick<Message, "photos">[]>().exec();
+        return rows.flatMap((r) => r.photos ?? []);
+      },
+    });
     this.registry.register({
       type: "message",
       load: async (id) => {
         const c = Types.ObjectId.isValid(id) ? await this.conversations.findById(id).lean<ConvRow>().exec() : null;
         if (!c) return null;
-        const recent = await this.messages.find({ conversationId: id }).sort({ createdAt: -1 }).limit(20).lean<Message[]>().exec();
+        // Deleted-for-everyone messages show reviewers what they said.
+        const recent = await this.messages.find({ conversationId: id }).select("+removedBody").sort({ createdAt: -1 }).limit(20).lean<Message[]>().exec();
         return {
           type: "message",
           id,
@@ -71,7 +153,7 @@ export class ChatService implements OnModuleInit {
           content: {
             kind: "conversation",
             participants: c.participantUids,
-            messages: recent.reverse().map((m) => ({ senderUid: m.senderUid, body: m.body, createdAt: m.createdAt?.toISOString() })),
+            messages: recent.reverse().map((m) => ({ senderUid: m.senderUid, body: m.deletedAt ? `[deleted] ${m.removedBody ?? ""}` : m.body, createdAt: m.createdAt?.toISOString() })),
             removed: Boolean(c.removedAt),
           },
         };
@@ -85,6 +167,11 @@ export class ChatService implements OnModuleInit {
   private async load(viewer: Viewer, id: string): Promise<ConvRow> {
     const c = Types.ObjectId.isValid(id) ? await this.conversations.findById(id).lean<ConvRow>().exec() : null;
     if (!c || c.removedAt || !c.participantUids.includes(viewer.uid)) throw new NotFoundException("Conversation not found.");
+    // A community Group's chat is for its members now: someone who left the Group leaves it too.
+    if (c.groupId && !(await this.groupMembers.exists({ groupId: c.groupId, uid: viewer.uid }).exec())) {
+      await this.dropMembers(c, [viewer.uid]);
+      throw new NotFoundException("Conversation not found.");
+    }
     return c;
   }
 
@@ -134,28 +221,159 @@ export class ChatService implements OnModuleInit {
     return (await this.users.hiddenAuthorsFor(a)).includes(b);
   }
 
-  async list(viewer: Viewer): Promise<ConversationView[]> {
+  /**
+   * Your conversations, newest activity first. Archived ones only with `archived` (and only them);
+   * ones you deleted stay out until something new arrives.
+   */
+  async list(viewer: Viewer, opts: { archived?: boolean; requests?: boolean } = {}): Promise<ConversationView[]> {
     const hidden = await this.users.hiddenAuthorsFor(viewer.uid);
+    const mine = { uid: viewer.uid, archivedAt: { $ne: null } };
+    const asked = { uid: viewer.uid, requestedAt: { $ne: null } };
+    // Requests (2026-10-29) have their own list; the inbox and the archive leave them out.
+    const members = opts.requests
+      ? { $elemMatch: asked }
+      : { $not: { $elemMatch: opts.archived ? { $or: [asked] } : { $or: [mine, asked] } }, ...(opts.archived && { $elemMatch: mine }) };
     const rows = await this.conversations
-      .find({ participantUids: viewer.uid, removedAt: null, lastMessage: { $exists: true } })
+      .find({
+        participantUids: viewer.uid,
+        removedAt: null,
+        lastMessage: { $exists: true },
+        members,
+      })
       .sort({ updatedAt: -1 })
       .limit(100)
       .lean<ConvRow[]>()
       .exec();
-    return this.toViews(rows.filter((c) => !c.participantUids.some((u) => hidden.includes(u))), viewer.uid);
+    const visible = rows.filter((c) => (isGroup(c) || !c.participantUids.some((u) => hidden.includes(u))) && !clearedFor(c, viewer.uid));
+    // Pinned ones first, most recently pinned on top; the rest by their latest activity.
+    const pinnedAt = (c: ConvRow) => {
+      const at = memberOf(c, viewer.uid)?.pinnedAt;
+      return at ? new Date(at).getTime() : 0;
+    };
+    visible.sort((a, b) => pinnedAt(b) - pinnedAt(a));
+    return this.toViews(visible, viewer.uid);
+  }
+
+  /** Pin to (or off) the top of your inbox: up to three, as on WhatsApp. Only you see it. */
+  async setPinned(viewer: Viewer, id: string, pinned: boolean): Promise<{ pinned: boolean }> {
+    await this.load(viewer, id);
+    if (pinned) {
+      const already = await this.conversations
+        .countDocuments({ _id: { $ne: id }, participantUids: viewer.uid, removedAt: null, members: { $elemMatch: { uid: viewer.uid, pinnedAt: { $ne: null } } } })
+        .exec();
+      if (already >= MAX_PINNED_CHATS) throw new ConflictException(`You can pin up to ${MAX_PINNED_CHATS} chats. Unpin one first.`);
+    }
+    await this.conversations
+      .updateOne({ _id: id }, { $set: { "members.$[me].pinnedAt": pinned ? new Date() : null } }, { arrayFilters: [{ "me.uid": viewer.uid }], timestamps: false })
+      .exec();
+    return { pinned };
+  }
+
+  /**
+   * Pin a message for everyone in the conversation, for 24 hours, 7 or 30 days. A fourth replaces
+   * the oldest (WhatsApp). Pinning it again sets a new length.
+   */
+  async pinMessage(viewer: Viewer, id: string, messageId: string, length: keyof typeof PIN_LENGTH_MS): Promise<ConversationView> {
+    const c = await this.load(viewer, id);
+    const m = await this.loadMessage(id, messageId);
+    if (m.deletedAt) throw new GoneException("This message was deleted.");
+    const now = new Date();
+    const current = (c.pins ?? []).filter((p) => new Date(p.until) > now && p.messageId !== messageId);
+    const pins = [{ messageId, by: viewer.uid, at: now, until: new Date(now.getTime() + PIN_LENGTH_MS[length]) }, ...current].slice(0, MAX_PINNED_MESSAGES);
+    await this.conversations.updateOne({ _id: id }, { $set: { pins } }, { timestamps: false }).exec();
+    this.realtime.toUsers(c.participantUids, "chat.message", { conversationId: id });
+    return this.get(viewer, id);
+  }
+
+  async unpinMessage(viewer: Viewer, id: string, messageId: string): Promise<ConversationView> {
+    const c = await this.load(viewer, id);
+    await this.conversations.updateOne({ _id: id }, { $pull: { pins: { messageId } } }, { timestamps: false }).exec();
+    this.realtime.toUsers(c.participantUids, "chat.message", { conversationId: id });
+    return this.get(viewer, id);
+  }
+
+  /** Out of your inbox (or back in). Something new arriving brings it back by itself. */
+  async setArchived(viewer: Viewer, id: string, archived: boolean): Promise<void> {
+    await this.load(viewer, id);
+    await this.conversations
+      .updateOne({ _id: id }, { $set: { "members.$[me].archivedAt": archived ? new Date() : null } }, { arrayFilters: [{ "me.uid": viewer.uid }], timestamps: false })
+      .exec();
+  }
+
+  /** No notifications from this conversation for a while, or until turned back on. Unread still counts. */
+  async setMuted(viewer: Viewer, id: string, length: (typeof MUTE_FOR)[number]): Promise<{ mutedUntil: string | null }> {
+    await this.load(viewer, id);
+    const until = length === "off" ? null : length === "always" ? MUTED_FOREVER : new Date(Date.now() + (length === "8h" ? 8 : 7 * 24) * HOUR_MS);
+    await this.conversations
+      .updateOne({ _id: id }, { $set: { "members.$[me].mutedUntil": until } }, { arrayFilters: [{ "me.uid": viewer.uid }], timestamps: false })
+      .exec();
+    return { mutedUntil: until?.toISOString() ?? null };
+  }
+
+  /**
+   * Delete for you (WhatsApp's "Delete chat"): it leaves your inbox and its messages so far are
+   * hidden from you. The other person keeps everything. If they write again, the conversation comes
+   * back with only the new messages.
+   */
+  async clearForMe(viewer: Viewer, id: string): Promise<void> {
+    await this.load(viewer, id);
+    await this.conversations
+      .updateOne(
+        { _id: id },
+        { $set: { "members.$[me].clearedAt": new Date(), "members.$[me].archivedAt": null, "members.$[me].unread": 0 } },
+        { arrayFilters: [{ "me.uid": viewer.uid }], timestamps: false },
+      )
+      .exec();
+    this.realtime.toUsers([viewer.uid], "chat.read", { conversationId: id });
   }
 
   async get(viewer: Viewer, id: string): Promise<ConversationView> {
     return (await this.toViews([await this.load(viewer, id)], viewer.uid))[0]!;
   }
 
-  async unreadCount(viewer: Viewer): Promise<{ count: number }> {
+  /** Unread messages in your inbox (requests aren't counted), and how many requests are waiting. */
+  async unreadCount(viewer: Viewer): Promise<{ count: number; requests: number }> {
     const rows = await this.conversations
       .find({ participantUids: viewer.uid, removedAt: null })
-      .select({ members: 1 })
-      .lean<Pick<ConvRow, "members">[]>()
+      .select({ members: 1, lastMessage: 1 })
+      .lean<Pick<ConvRow, "members" | "lastMessage">[]>()
       .exec();
-    return { count: rows.reduce((n, c) => n + (c.members.find((m) => m.uid === viewer.uid)?.unread ?? 0), 0) };
+    let count = 0;
+    let requests = 0;
+    for (const c of rows) {
+      const me = memberOf(c, viewer.uid);
+      if (me?.requestedAt) requests += c.lastMessage && !(me.clearedAt && new Date(c.lastMessage.createdAt) <= new Date(me.clearedAt)) ? 1 : 0;
+      else count += me?.unread ?? 0;
+    }
+    return { count, requests };
+  }
+
+  /** Accept a message request: into your inbox, read, and they see "Seen" from now on. */
+  async acceptRequest(viewer: Viewer, id: string): Promise<ConversationView> {
+    const c = await this.load(viewer, id);
+    if (requestFor(c, viewer.uid)) {
+      await this.conversations
+        .updateOne({ _id: id }, { $set: { "members.$[me].requestedAt": null, "members.$[me].unread": 0, "members.$[me].lastReadAt": new Date() } }, { arrayFilters: [{ "me.uid": viewer.uid }], timestamps: false })
+        .exec();
+      this.realtime.toUsers(c.participantUids, "chat.read", { conversationId: id });
+    }
+    return this.get(viewer, id);
+  }
+
+  /**
+   * Why `recipient` won't take a new conversation (or being added to a group) from the viewer, or
+   * null if they will: their messaging preference (contract §10).
+   */
+  private async wontAccept(viewer: Viewer, recipient: User, aboutListing: boolean): Promise<string | null> {
+    const pref = recipient.preferences?.privacy?.messaging ?? "neighbourhood";
+    // "Only people I've messaged": someone the recipient has themselves written to, in any conversation between the two.
+    const closed = pref === "nobody" || (pref === "contacts" && !(await this.hasWrittenTo(recipient.uid, viewer.uid)));
+    const name = recipient.displayName ?? "This neighbour";
+    if (closed) return `${name} has restricted who can message them and isn't accepting new messages.`;
+    if (pref === "neighbourhood" && recipient.neighborhoodId !== viewer.hoodId && !aboutListing) {
+      return `${name} is outside your neighbourhood, so you can't start a conversation. Neighbours can only message people in their own neighbourhood.`;
+    }
+    return null;
   }
 
   /** Idempotent per pair + context: tapping "Message seller" twice reuses the thread. */
@@ -186,14 +404,10 @@ export class ChatService implements OnModuleInit {
     }
 
     // New thread: respect the recipient's messaging preference (contract §10).
-    const pref = recipient.preferences?.privacy?.messaging ?? "neighbourhood";
-    // "Only people I've messaged": someone the recipient has themselves written to, in any conversation between the two.
-    const closed = pref === "nobody" || (pref === "contacts" && !(await this.hasWrittenTo(recipient.uid, viewer.uid)));
-    const name = recipient.displayName ?? "This neighbour";
-    if (closed) throw new ForbiddenException(`${name} has restricted who can message them and isn't accepting new messages.`);
-    if (pref === "neighbourhood" && recipient.neighborhoodId !== viewer.hoodId && !context) {
-      throw new ForbiddenException(`${name} is outside your neighbourhood, so you can't start a conversation. Neighbours can only message people in their own neighbourhood.`);
-    }
+    const refused = await this.wontAccept(viewer, recipient, !!context);
+    if (refused) throw new ForbiddenException(refused);
+    // Someone they've never written to, and not about a listing: a message request (2026-10-29).
+    const request = !context && !(await this.hasWrittenTo(recipient.uid, viewer.uid));
     const started = await this.conversations.countDocuments({ startedBy: viewer.uid, createdAt: { $gt: new Date(Date.now() - 86_400_000) } }).exec();
     if (started >= MAX_NEW_THREADS_PER_DAY) throw new HttpException("You've started a lot of conversations today. Try again tomorrow.", HttpStatus.TOO_MANY_REQUESTS);
 
@@ -201,8 +415,9 @@ export class ChatService implements OnModuleInit {
       const doc = await this.conversations.create({
         threadKey,
         participantUids,
-        members: participantUids.map((uid) => ({ uid, unread: 0 })),
+        members: participantUids.map((uid) => ({ uid, unread: 0, ...(request && uid === recipient.uid && { requestedAt: new Date() }) })),
         context,
+        kind: "direct",
         startedBy: viewer.uid,
       });
       return (await this.toViews([doc.toObject() as ConvRow], viewer.uid))[0]!;
@@ -220,22 +435,26 @@ export class ChatService implements OnModuleInit {
    */
   async listMessages(viewer: Viewer, id: string, q: ThreadPageQuery = {}): Promise<MessageView[]> {
     const c = await this.load(viewer, id);
-    const filter: QueryFilter<Message> = { conversationId: id };
+    const filter: QueryFilter<Message> = { conversationId: id, hiddenFor: { $ne: viewer.uid } };
+    // Deleted for them: what came before stays hidden from them.
+    const cleared = memberOf(c, viewer.uid)?.clearedAt;
+    if (cleared) filter.createdAt = { $gt: new Date(cleared) };
     if (q.before) {
       const cursor = await this.messages.findOne({ _id: q.before, conversationId: id }).select({ createdAt: 1 }).lean<Pick<Message, "createdAt"> & { _id: Types.ObjectId }>().exec();
       // Not a message of this thread: there is nothing "before" it here.
       if (!cursor) return [];
-      filter.$or = [{ createdAt: { $lt: cursor.createdAt } }, { createdAt: cursor.createdAt, _id: { $lt: cursor._id } }];
+      filter.$and = [{ $or: [{ createdAt: { $lt: cursor.createdAt } }, { createdAt: cursor.createdAt, _id: { $lt: cursor._id } }] }];
     }
     const newestFirst = await this.messages
       .find(filter)
       .sort({ createdAt: -1, _id: -1 })
       .limit(q.limit ?? THREAD_PAGE_MAX)
-      .lean<(Message & { _id: Types.ObjectId })[]>()
+      .lean<MessageRow[]>()
       .exec();
     const rows = newestFirst.reverse();
-    // Reading back through earlier messages is not reading the new ones.
-    if (q.before) return rows.map(toMessage);
+    // Reading back through earlier messages is not reading the new ones; nor is looking at a request
+    // before accepting it (no "Seen" for the sender yet).
+    if (q.before || requestFor(c, viewer.uid)) return this.views(rows);
     // Only when there was something unread: announcing every open would make
     // two open threads refetch each other forever.
     const read = await this.conversations
@@ -246,7 +465,7 @@ export class ChatService implements OnModuleInit {
       )
       .exec();
     if (read.modifiedCount) this.realtime.toUsers(c.participantUids, "chat.read", { conversationId: id });
-    return rows.map(toMessage);
+    return this.views(rows);
   }
 
   /** "… is typing": to the other member only; ephemeral, never stored. */
@@ -260,22 +479,85 @@ export class ChatService implements OnModuleInit {
     );
   }
 
-  async send(viewer: Viewer, id: string, body: string): Promise<MessageView> {
+  async send(viewer: Viewer, id: string, body: string | undefined, photos: string[] = [], replyTo?: string): Promise<MessageView> {
     const c = await this.load(viewer, id);
-    const text = body.trim();
-    if (!text) throw new BadRequestException("Write a message first.");
-    const others = c.participantUids.filter((u) => u !== viewer.uid);
-    // They can still read it; there is nobody left to write to.
-    if (others.includes(DELETED_USER_UID)) throw new ForbiddenException("This person has deleted their account, so they can't receive messages.");
-    if (await this.blockedBetween(viewer.uid, others[0]!)) throw new ForbiddenException("You can't message this neighbour.");
+    if (replyTo && !(await this.messages.exists({ _id: replyTo, conversationId: id }).exec())) throw new BadRequestException("The message you're replying to isn't in this conversation.");
+    const text = (body ?? "").trim();
+    if (!text && !photos.length) throw new BadRequestException("Write a message first.");
+    await this.assertOwnMessagePhotos(viewer, photos);
+    return this.deliver(viewer, c, { text, photos, replyTo });
+  }
+
+  /**
+   * Forward a message to up to 5 chats (by conversation, or by neighbour: their chat with you is
+   * opened if need be). It arrives as yours, marked "Forwarded"; its photos come along, a reply's
+   * quote doesn't. One already forwarded many times goes to one chat at a time (WhatsApp's brake
+   * on rumours). Each chat succeeds or fails alone: the answer says which.
+   */
+  async forward(viewer: Viewer, id: string, messageId: string, to: { conversationIds?: string[]; recipientUids?: string[] }): Promise<{ sent: string[]; failed: { target: string; message: string }[] }> {
+    await this.load(viewer, id);
+    const m = await this.loadMessage(id, messageId);
+    if (m.deletedAt) throw new GoneException("This message was deleted.");
+    const conversationIds = [...new Set(to.conversationIds ?? [])];
+    const recipientUids = [...new Set(to.recipientUids ?? [])];
+    const count = conversationIds.length + recipientUids.length;
+    if (!count) throw new BadRequestException("Choose who to forward it to.");
+    if (count > MAX_FORWARD_TO) throw new BadRequestException(`Forward to up to ${MAX_FORWARD_TO} chats at a time.`);
+    if ((m.forwards ?? 0) >= MANY_FORWARDS && count > 1) throw new BadRequestException("Messages forwarded many times can be sent to one chat at a time.");
+    const hops = (m.forwards ?? 0) + 1;
+
+    const sent: string[] = [];
+    const failed: { target: string; message: string }[] = [];
+    const deliverTo = async (target: string, open: () => Promise<ConvRow>) => {
+      try {
+        const c = await open();
+        if (sent.includes(String(c._id))) return;
+        await this.deliver(viewer, c, { text: m.body ?? "", photos: m.photos ?? [], forwards: hops });
+        sent.push(String(c._id));
+      } catch (err) {
+        if (!(err instanceof HttpException)) throw err;
+        failed.push({ target, message: err.message });
+      }
+    };
+    for (const cid of conversationIds) await deliverTo(cid, () => this.load(viewer, cid));
+    for (const uid of recipientUids) {
+      await deliverTo(uid, async () => {
+        const view = await this.start(viewer, { recipientUid: uid });
+        return this.load(viewer, view._id);
+      });
+    }
+    return { sent, failed };
+  }
+
+  /** A new message in `c` from the viewer, already checked: stored, counted unread, announced. */
+  private async deliver(viewer: Viewer, c: ConvRow, { text, photos, replyTo, forwards }: { text: string; photos: string[]; replyTo?: string; forwards?: number }): Promise<MessageView> {
+    const id = String(c._id);
+    const group = isGroup(c);
+    const others = c.participantUids.filter((u) => u !== viewer.uid && u !== (group ? DELETED_USER_UID : ""));
+    if (!group) {
+      // They can still read it; there is nobody left to write to.
+      if (others.includes(DELETED_USER_UID)) throw new ForbiddenException("This person has deleted their account, so they can't receive messages.");
+      if (await this.blockedBetween(viewer.uid, others[0]!)) throw new ForbiddenException("You can't message this neighbour.");
+    } else if (!others.length) throw new ForbiddenException("There's nobody else in this group.");
 
     const msg = await withTransaction(this.connection, async (session) => {
-      const [m] = await this.messages.create([{ conversationId: id, senderUid: viewer.uid, body: text }], { session });
+      const [m] = await this.messages.create(
+        [{ conversationId: id, senderUid: viewer.uid, body: text, ...(photos.length && { photos }), ...(replyTo && { replyTo }), ...(forwards && { forwards }) }],
+        { session },
+      );
       await this.conversations
         .updateOne(
           { _id: id },
           {
-            $set: { lastMessage: { body: text.slice(0, 200), senderUid: viewer.uid, createdAt: m!.createdAt }, "members.$[me].lastReadAt": new Date(), "members.$[me].unread": 0 },
+            $set: {
+              lastMessage: { body: (text || PHOTO_PREVIEW).slice(0, 200), senderUid: viewer.uid, createdAt: m!.createdAt },
+              "members.$[me].lastReadAt": new Date(),
+              "members.$[me].unread": 0,
+              // Writing back accepts a request.
+              "members.$[me].requestedAt": null,
+              // Something new brings an archived conversation back to everyone's inbox.
+              "members.$[].archivedAt": null,
+            },
             $inc: { "members.$[other].unread": 1 },
           },
           { arrayFilters: [{ "me.uid": viewer.uid }, { "other.uid": { $ne: viewer.uid } }], session },
@@ -284,37 +566,415 @@ export class ChatService implements OnModuleInit {
       return m!;
     });
 
-    await this.notifications.notify({
-      uids: others,
+    // Muted: no notification, though it still counts as unread. A request: one quiet note, for its first message only.
+    const name = viewer.displayName ?? "A neighbour";
+    const listening = others.filter((u) => !isMuted(memberOf(c, u)) && !requestFor(c, u));
+    const asked = c.lastMessage ? [] : others.filter((u) => requestFor(c, u));
+    if (listening.length) await this.notifications.notify({
+      uids: listening,
       type: "message",
       actorUid: viewer.uid,
-      title: `${viewer.displayName ?? "A neighbour"} sent you a message`,
-      body: text.slice(0, 140),
+      title: group ? `${name} in ${c.title ?? "your group"}` : `${name} ${text ? "sent you a message" : photos.length > 1 ? "sent you photos" : "sent you a photo"}`,
+      body: (text || PHOTO_PREVIEW).slice(0, 140),
+      href: `/inbox/${id}`,
+      category: "messages",
+      groupKey: `conversation:${id}`,
+    });
+    if (asked.length) await this.notifications.notify({
+      uids: asked,
+      type: "message",
+      actorUid: viewer.uid,
+      title: `${name} wants to message you`,
+      body: "It's in your message requests. They won't know you've seen it until you accept.",
       href: `/inbox/${id}`,
       category: "messages",
       groupKey: `conversation:${id}`,
     });
     // Everyone in the thread, including the sender's other tabs.
     this.realtime.toUsers(c.participantUids, "chat.message", { conversationId: id });
-    return toMessage(msg.toObject() as Message & { _id: Types.ObjectId });
+    return (await this.views([msg.toObject() as MessageRow]))[0]!;
+  }
+
+  /** A message of this conversation. A group notice ("Ada added Bola") only where `notices` says so: it can't be reacted to, edited, pinned or forwarded. */
+  private async loadMessage(conversationId: string, messageId: string, opts: { notices?: boolean } = {}): Promise<MessageRow> {
+    const m = Types.ObjectId.isValid(messageId) ? await this.messages.findOne({ _id: messageId, conversationId }).lean<MessageRow>().exec() : null;
+    if (!m) throw new NotFoundException("Message not found.");
+    if (m.system && !opts.notices) throw new BadRequestException("That's a notice in the group, not a message.");
+    return m;
+  }
+
+  // ── Groups (2026-10-29) ────────────────────────────────────────────────────
+
+  /**
+   * A group chat with neighbours you choose (WhatsApp's "New group"): its name and up to
+   * MAX_GROUP_MEMBERS people, you included. Each must accept messages from you (their messaging
+   * preference) and not have blocked you. You're its first admin.
+   */
+  async createGroup(viewer: Viewer, title: string, memberUids: string[]): Promise<ConversationView> {
+    const name = title.trim();
+    if (!name) throw new BadRequestException("Give the group a name.");
+    const uids = [...new Set(memberUids)].filter((u) => u !== viewer.uid);
+    if (!uids.length) throw new BadRequestException("Add at least one neighbour.");
+    if (uids.length + 1 > MAX_GROUP_MEMBERS) throw new BadRequestException(`A group can have up to ${MAX_GROUP_MEMBERS} people.`);
+    await this.assertCanAdd(viewer, uids);
+    const started = await this.conversations.countDocuments({ startedBy: viewer.uid, createdAt: { $gt: new Date(Date.now() - 86_400_000) } }).exec();
+    if (started >= MAX_NEW_THREADS_PER_DAY) throw new HttpException("You've started a lot of conversations today. Try again tomorrow.", HttpStatus.TOO_MANY_REQUESTS);
+    const participantUids = [viewer.uid, ...uids];
+    const doc = await this.conversations.create({
+      threadKey: `group:${new Types.ObjectId().toHexString()}`,
+      kind: "group",
+      title: name,
+      admins: [viewer.uid],
+      participantUids,
+      members: participantUids.map((uid) => ({ uid, unread: 0 })),
+      startedBy: viewer.uid,
+    });
+    const c = doc.toObject() as ConvRow;
+    await this.note(c, { type: "created", actor: viewer.uid }, `${await this.nameOf(viewer.uid)} created the group “${name}”`);
+    return this.get(viewer, String(c._id));
+  }
+
+  /**
+   * A community Group's own chat, for its members (made the first time someone opens it). Its
+   * members follow the Group's: joiners are added, leavers dropped, each time it's opened; someone
+   * new sees the messages from when they joined, as on WhatsApp.
+   */
+  async groupChat(viewer: Viewer, groupId: string): Promise<ConversationView> {
+    const group = Types.ObjectId.isValid(groupId) ? await this.groups.findOne({ _id: groupId, archivedAt: null }).lean<Group & { _id: Types.ObjectId }>().exec() : null;
+    if (!group) throw new NotFoundException("Group not found.");
+    if (!(await this.groupMembers.exists({ groupId, uid: viewer.uid }).exec())) throw new ForbiddenException("Join the group to use its chat.");
+    const people = await this.groupMembers.find({ groupId }).select({ uid: 1, role: 1 }).lean<Pick<GroupMember, "uid" | "role">[]>().exec();
+    const uids = people.map((p) => p.uid);
+    const admins = people.filter((p) => p.role === "admin").map((p) => p.uid);
+    const threadKey = `group:g:${groupId}`;
+    let c = await this.conversations.findOne({ threadKey }).lean<ConvRow>().exec();
+    if (!c) {
+      try {
+        const doc = await this.conversations.create({ threadKey, kind: "group", groupId, title: group.name.slice(0, 60), admins, participantUids: uids, members: uids.map((uid) => ({ uid, unread: 0 })), startedBy: viewer.uid });
+        c = doc.toObject() as ConvRow;
+      } catch (err) {
+        if ((err as { code?: number }).code !== 11000) throw err;
+        c = await this.conversations.findOne({ threadKey }).lean<ConvRow>().exec();
+      }
+    } else {
+      if (c.removedAt) throw new ForbiddenException("This chat was closed by our team.");
+      const joined = uids.filter((u) => !c!.participantUids.includes(u));
+      const left = c.participantUids.filter((u) => !uids.includes(u));
+      const now = new Date();
+      if (joined.length) {
+        await this.conversations
+          .updateOne({ _id: c._id }, { $addToSet: { participantUids: { $each: joined } }, $push: { members: { $each: joined.map((uid) => ({ uid, unread: 0, clearedAt: now })) } } }, { timestamps: false })
+          .exec();
+      }
+      if (left.length) await this.dropMembers(c, left);
+      await this.conversations.updateOne({ _id: c._id }, { $set: { title: group.name.slice(0, 60), admins } }, { timestamps: false }).exec();
+    }
+    return this.get(viewer, String(c!._id));
+  }
+
+  /** Add neighbours to your group (admins). They see what's said from now on. */
+  async addMembers(viewer: Viewer, id: string, memberUids: string[]): Promise<ConversationView> {
+    const c = await this.loadGroup(viewer, id, { admin: true, adHoc: true });
+    const uids = [...new Set(memberUids)].filter((u) => !c.participantUids.includes(u));
+    if (!uids.length) return this.get(viewer, id);
+    if (c.participantUids.length + uids.length > MAX_GROUP_MEMBERS) throw new BadRequestException(`A group can have up to ${MAX_GROUP_MEMBERS} people.`);
+    await this.assertCanAdd(viewer, uids);
+    const now = new Date();
+    await this.conversations
+      .updateOne({ _id: id }, { $addToSet: { participantUids: { $each: uids } }, $push: { members: { $each: uids.map((uid) => ({ uid, unread: 0, clearedAt: now })) } } }, { timestamps: false })
+      .exec();
+    const names = await Promise.all(uids.map((u) => this.nameOf(u)));
+    await this.note({ ...c, participantUids: [...c.participantUids, ...uids] }, { type: "added", actor: viewer.uid, targets: uids }, `${await this.nameOf(viewer.uid)} added ${listNames(names)}`);
+    return this.get(viewer, id);
+  }
+
+  /** Take someone out of your group (admins). */
+  async removeMember(viewer: Viewer, id: string, uid: string): Promise<ConversationView> {
+    const c = await this.loadGroup(viewer, id, { admin: true, adHoc: true });
+    if (uid === viewer.uid) throw new BadRequestException("To go, leave the group.");
+    if (!c.participantUids.includes(uid)) throw new NotFoundException("They're not in this group.");
+    await this.note(c, { type: "removed", actor: viewer.uid, targets: [uid] }, `${await this.nameOf(viewer.uid)} removed ${await this.nameOf(uid)}`);
+    await this.dropMembers(c, [uid]);
+    return this.get(viewer, id);
+  }
+
+  /** Leave a group. The last admin to leave hands it to whoever has been in it longest. */
+  async leaveGroup(viewer: Viewer, id: string): Promise<void> {
+    const c = await this.loadGroup(viewer, id, { adHoc: true });
+    await this.note(c, { type: "left", actor: viewer.uid }, `${await this.nameOf(viewer.uid)} left`);
+    await this.dropMembers(c, [viewer.uid]);
+  }
+
+  /** Rename your group (admins). */
+  async renameGroup(viewer: Viewer, id: string, title: string): Promise<ConversationView> {
+    const c = await this.loadGroup(viewer, id, { admin: true, adHoc: true });
+    const name = title.trim();
+    if (!name) throw new BadRequestException("Give the group a name.");
+    if (name === c.title) return this.get(viewer, id);
+    await this.conversations.updateOne({ _id: id }, { $set: { title: name } }, { timestamps: false }).exec();
+    await this.note(c, { type: "renamed", actor: viewer.uid }, `${await this.nameOf(viewer.uid)} renamed the group “${name}”`);
+    return this.get(viewer, id);
+  }
+
+  /** Make someone an admin of your group, or not (admins). There's always at least one. */
+  async setAdmin(viewer: Viewer, id: string, uid: string, admin: boolean): Promise<ConversationView> {
+    const c = await this.loadGroup(viewer, id, { admin: true, adHoc: true });
+    if (!c.participantUids.includes(uid)) throw new NotFoundException("They're not in this group.");
+    const admins = new Set(c.admins ?? []);
+    if (admin) admins.add(uid);
+    else admins.delete(uid);
+    if (!admins.size) throw new BadRequestException("A group needs at least one admin.");
+    await this.conversations.updateOne({ _id: id }, { $set: { admins: [...admins] } }, { timestamps: false }).exec();
+    this.realtime.toUsers(c.participantUids, "chat.message", { conversationId: id });
+    return this.get(viewer, id);
+  }
+
+  /** A group you're in; `admin`: you must be one; `adHoc`: not a community Group's chat (that follows the Group). */
+  private async loadGroup(viewer: Viewer, id: string, opts: { admin?: boolean; adHoc?: boolean }): Promise<ConvRow> {
+    const c = await this.load(viewer, id);
+    if (!isGroup(c)) throw new BadRequestException("That's not a group.");
+    if (opts.adHoc && c.groupId) throw new BadRequestException("This chat's members are the group's: join or leave the group itself.");
+    if (opts.admin && !(c.admins ?? []).includes(viewer.uid)) throw new ForbiddenException("Only the group's admins can do that.");
+    return c;
+  }
+
+  /** Everyone added must exist, be active, not have blocked you (nor you them), and accept messages from you. */
+  private async assertCanAdd(viewer: Viewer, uids: string[]): Promise<void> {
+    const people = await this.userModel.find({ uid: { $in: uids } }).lean<User[]>().exec();
+    const hidden = await this.users.hiddenAuthorsFor(viewer.uid);
+    const problems: string[] = [];
+    for (const uid of uids) {
+      const p = people.find((x) => x.uid === uid);
+      if (!p || p.deactivatedAt || p.purgedAt || p.accountStatus === "suspended" || hidden.includes(uid)) {
+        problems.push(`${p?.displayName ?? "Someone you chose"} isn't available.`);
+        continue;
+      }
+      const refused = await this.wontAccept(viewer, p, false);
+      if (refused) problems.push(refused);
+    }
+    if (problems.length) throw new ForbiddenException(problems.join(" "));
+  }
+
+  /** Out of the group: no longer a participant, member or admin. An admin-less group gets its longest member as admin. */
+  private async dropMembers(c: ConvRow, uids: string[]): Promise<void> {
+    const remaining = c.participantUids.filter((u) => !uids.includes(u));
+    const admins = (c.admins ?? []).filter((u) => !uids.includes(u));
+    if (isGroup(c) && !admins.length && remaining.length && !c.groupId) admins.push(remaining[0]!);
+    await this.conversations
+      .updateOne({ _id: c._id }, { $pull: { participantUids: { $in: uids }, members: { uid: { $in: uids } } }, $set: { admins } }, { timestamps: false })
+      .exec();
+    this.realtime.toUsers([...c.participantUids], "chat.message", { conversationId: String(c._id) });
+  }
+
+  /** A notice in the group's history ("Ada added Bola"): the inbox line too, but nobody's unread. */
+  private async note(c: ConvRow, system: SystemNote, text: string): Promise<void> {
+    const [m] = await this.messages.create([{ conversationId: String(c._id), senderUid: system.actor, body: text.slice(0, 2000), system }]);
+    await this.conversations
+      .updateOne({ _id: c._id }, { $set: { lastMessage: { body: text.slice(0, 200), senderUid: system.actor, createdAt: m!.createdAt, system: true } } })
+      .exec();
+    this.realtime.toUsers(c.participantUids, "chat.message", { conversationId: String(c._id) });
+  }
+
+  private async nameOf(uid: string): Promise<string> {
+    return (await this.users.authorCards([uid])).get(uid)?.displayName ?? "A neighbour";
+  }
+
+  /**
+   * Your reaction to a message: one emoji, which replaces any you had; `null` takes it back. The
+   * sender hears about it (unless they muted the conversation, or it's their own message).
+   */
+  async react(viewer: Viewer, id: string, messageId: string, emoji: string | null | undefined): Promise<MessageView> {
+    const c = await this.load(viewer, id);
+    const m = await this.loadMessage(id, messageId);
+    if (m.deletedAt) throw new GoneException("This message was deleted.");
+    const pick = emoji?.trim() || null;
+    if (pick && !isEmoji(pick)) throw new BadRequestException("React with one emoji.");
+    await this.messages.updateOne({ _id: messageId }, { $pull: { reactions: { uid: viewer.uid } } }).exec();
+    if (pick) await this.messages.updateOne({ _id: messageId }, { $push: { reactions: { uid: viewer.uid, emoji: pick } } }).exec();
+    const changed = (m.reactions ?? []).find((r) => r.uid === viewer.uid)?.emoji !== pick;
+    if (pick && changed && m.senderUid !== viewer.uid && !isMuted(memberOf(c, m.senderUid))) {
+      await this.notifications.notify({
+        uids: [m.senderUid],
+        type: "message",
+        actorUid: viewer.uid,
+        title: `${viewer.displayName ?? "A neighbour"} reacted ${pick} to your message`,
+        body: (m.body || PHOTO_PREVIEW).slice(0, 140),
+        href: `/inbox/${id}`,
+        category: "messages",
+        // One line per message, however many react.
+        groupKey: `reaction:${messageId}`,
+      });
+    }
+    this.realtime.toUsers(c.participantUids, "chat.message", { conversationId: id });
+    return (await this.views([(await this.loadMessage(id, messageId))]))[0]!;
+  }
+
+  /** Change the words of your own message, within 15 minutes. It shows "Edited". */
+  async edit(viewer: Viewer, id: string, messageId: string, body: string): Promise<MessageView> {
+    const c = await this.load(viewer, id);
+    const m = await this.loadMessage(id, messageId);
+    if (m.senderUid !== viewer.uid) throw new ForbiddenException("You can only edit your own messages.");
+    if (m.deletedAt) throw new GoneException("This message was deleted.");
+    if (m.forwards) throw new ForbiddenException("Forwarded messages can't be edited.");
+    if (Date.now() - new Date(m.createdAt!).getTime() > EDIT_WINDOW_MS) throw new ForbiddenException("Messages can be edited for 15 minutes after they're sent.");
+    const text = body.trim();
+    if (!text && !m.photos?.length) throw new BadRequestException("Write a message first.");
+    if (text === m.body) return (await this.views([m]))[0]!;
+    await this.messages.updateOne({ _id: messageId }, { $set: { body: text, editedAt: new Date() } }).exec();
+    await this.touchLastMessage(c, m, text || PHOTO_PREVIEW);
+    this.realtime.toUsers(c.participantUids, "chat.message", { conversationId: id });
+    return (await this.views([(await this.loadMessage(id, messageId))]))[0]!;
+  }
+
+  /**
+   * Delete for me: that message is gone for you only, whoever sent it (WhatsApp). When it was the
+   * latest, your inbox shows the one before it instead.
+   */
+  async hideForMe(viewer: Viewer, id: string, messageId: string): Promise<void> {
+    const c = await this.load(viewer, id);
+    await this.loadMessage(id, messageId, { notices: true });
+    await this.messages.updateOne({ _id: messageId }, { $addToSet: { hiddenFor: viewer.uid } }, { timestamps: false }).exec();
+    await this.refreshPreview(viewer.uid, c);
+    this.realtime.toUsers([viewer.uid], "chat.message", { conversationId: id });
+  }
+
+  /** What your inbox shows for a conversation once you've deleted messages for yourself. */
+  private async refreshPreview(uid: string, c: ConvRow): Promise<void> {
+    if (!c.lastMessage) return;
+    const cleared = memberOf(c, uid)?.clearedAt;
+    const latest = await this.messages
+      .findOne({ conversationId: String(c._id), hiddenFor: { $ne: uid }, ...(cleared && { createdAt: { $gt: new Date(cleared) } }) })
+      .sort({ createdAt: -1, _id: -1 })
+      .lean<MessageRow>()
+      .exec();
+    const isLatest = !!latest && new Date(latest.createdAt!).getTime() === new Date(c.lastMessage.createdAt).getTime() && latest.senderUid === c.lastMessage.senderUid;
+    const preview = isLatest
+      ? null
+      : {
+          forLast: c.lastMessage.createdAt,
+          replacement: latest ? { body: (latest.deletedAt ? DELETED_PREVIEW : latest.body || PHOTO_PREVIEW).slice(0, 200), senderUid: latest.senderUid, createdAt: latest.createdAt! } : null,
+        };
+    await this.conversations.updateOne({ _id: c._id }, { $set: { "members.$[me].preview": preview } }, { arrayFilters: [{ "me.uid": uid }], timestamps: false }).exec();
+  }
+
+  /**
+   * Delete for everyone: your own message, within 2 days and 12 hours. Everyone sees "This message was deleted";
+   * what it said is kept out of sight, for a report about it.
+   */
+  async removeMessage(viewer: Viewer, id: string, messageId: string): Promise<MessageView> {
+    const c = await this.load(viewer, id);
+    const m = await this.loadMessage(id, messageId);
+    if (m.senderUid !== viewer.uid) throw new ForbiddenException("You can only delete your own messages for everyone.");
+    if (m.deletedAt) return (await this.views([m]))[0]!;
+    if (Date.now() - new Date(m.createdAt!).getTime() > DELETE_WINDOW_MS) throw new ForbiddenException("Messages can be deleted for everyone for about 2 days after they're sent. You can still delete it for yourself.");
+    await this.messages.updateOne({ _id: messageId }, { $set: { deletedAt: new Date(), removedBody: m.body, body: "" }, $unset: { reactions: 1 } }).exec();
+    await this.touchLastMessage(c, m, DELETED_PREVIEW);
+    this.realtime.toUsers(c.participantUids, "chat.message", { conversationId: id });
+    return (await this.views([(await this.loadMessage(id, messageId))]))[0]!;
+  }
+
+  /** The inbox line follows an edit or delete of the newest message. Not "activity": the order stays. */
+  private async touchLastMessage(c: ConvRow, m: MessageRow, preview: string): Promise<void> {
+    const last = c.lastMessage;
+    if (!last || last.senderUid !== m.senderUid || new Date(last.createdAt).getTime() !== new Date(m.createdAt!).getTime()) return;
+    await this.conversations.updateOne({ _id: c._id }, { $set: { "lastMessage.body": preview.slice(0, 200) } }, { timestamps: false }).exec();
+  }
+
+  /** Messages as clients see them: the reply's quote filled in, reactions grouped, deleted ones emptied. */
+  private async views(rows: MessageRow[]): Promise<MessageView[]> {
+    const ids = [...new Set(rows.map((r) => r.replyTo).filter((x): x is string => !!x && Types.ObjectId.isValid(x)))];
+    const quoted = ids.length ? await this.messages.find({ _id: { $in: ids } }).lean<MessageRow[]>().exec() : [];
+    const byId = new Map(quoted.map((q) => [String(q._id), q]));
+    return rows.map((m) => toMessage(m, m.replyTo ? byId.get(m.replyTo) : undefined));
+  }
+
+  /** Message photos must be photos the sender uploaded for messages: never someone else's, never a link to anywhere. */
+  private async assertOwnMessagePhotos(viewer: Viewer, photos: string[]): Promise<void> {
+    if (!photos.length) return;
+    if (photos.length > MAX_PHOTOS) throw new BadRequestException(`Send up to ${MAX_PHOTOS} photos at a time.`);
+    if (new Set(photos).size !== photos.length) throw new BadRequestException("The same photo is in there twice.");
+    const known = await this.storage.describe(photos);
+    const ok = photos.every((u) => {
+      const a = known.get(u);
+      return a && a.ownerUid === viewer.uid && a.purpose === "message" && a.resourceType === "image";
+    });
+    if (!ok) throw new BadRequestException("Those photos couldn't be attached. Add them again.");
+  }
+
+  /** The chat's current pins, of messages still there and not cleared from your history. */
+  private pinsFor(c: ConvRow, uid: string, now: Date, pinnedById: Map<string, MessageRow>): Pick<ConversationView, "pins"> {
+    const cleared = memberOf(c, uid)?.clearedAt;
+    const pins = (c.pins ?? []).flatMap((p) => {
+      const m = pinnedById.get(p.messageId);
+      if (!m || new Date(p.until) <= now || m.hiddenFor?.includes(uid) || (cleared && m.createdAt && new Date(m.createdAt) <= new Date(cleared))) return [];
+      return [{ messageId: p.messageId, by: p.by, until: new Date(p.until).toISOString(), senderUid: m.senderUid, body: (m.body ?? "").slice(0, 140), photo: !!m.photos?.length }];
+    });
+    return pins.length ? { pins } : {};
   }
 
   private async toViews(rows: ConvRow[], uid: string): Promise<ConversationView[]> {
     const cards = await this.users.authorCards(rows.flatMap((r) => r.participantUids));
+    const now = new Date();
+    const pinIds = rows.flatMap((r) => (r.pins ?? []).filter((p) => new Date(p.until) > now).map((p) => p.messageId)).filter((x) => Types.ObjectId.isValid(x));
+    const pinned = pinIds.length ? await this.messages.find({ _id: { $in: pinIds }, deletedAt: null }).lean<MessageRow[]>().exec() : [];
+    const pinnedById = new Map(pinned.map((m) => [String(m._id), m]));
     return rows.map((c) => ({
       _id: String(c._id),
       participantUids: c.participantUids,
       participants: c.participantUids.map((u) => ({ uid: u, displayName: cards.get(u)?.displayName ?? "Neighbour", photoURL: cards.get(u)?.photoURL })),
       context: c.context,
-      lastMessage: c.lastMessage ? { ...c.lastMessage, createdAt: new Date(c.lastMessage.createdAt).toISOString() } : undefined,
+      lastMessage: lastMessageFor(c, uid),
       unreadCount: c.members.find((m) => m.uid === uid)?.unread ?? 0,
       // For "Seen": when each person last read the thread.
       readBy: c.members.map((m) => ({ uid: m.uid, lastReadAt: m.lastReadAt ? new Date(m.lastReadAt).toISOString() : undefined })),
       updatedAt: (c.updatedAt ?? new Date()).toISOString(),
+      archived: !!memberOf(c, uid)?.archivedAt,
+      pinned: !!memberOf(c, uid)?.pinnedAt,
+      kind: c.kind ?? "direct",
+      ...(isGroup(c) && { title: c.title ?? "Group", admins: c.admins ?? [], ...(c.groupId && { groupId: c.groupId }) }),
+      ...(requestFor(c, uid) && { request: true }),
+      ...this.pinsFor(c, uid, now, pinnedById),
+      ...(isMuted(memberOf(c, uid)) && { mutedUntil: new Date(memberOf(c, uid)!.mutedUntil!).toISOString() }),
     }));
   }
 }
 
-function toMessage(m: Message & { _id: Types.ObjectId }): MessageView {
-  return { _id: String(m._id), conversationId: m.conversationId, senderUid: m.senderUid, body: m.body, createdAt: (m.createdAt ?? new Date()).toISOString() };
+/** The inbox line for this person: the latest message, or the one before it if they deleted that for themselves. */
+function lastMessageFor(c: ConvRow, uid: string): ConversationView["lastMessage"] {
+  const p = memberOf(c, uid)?.preview;
+  const own = !!p && !!c.lastMessage && new Date(p.forLast).getTime() === new Date(c.lastMessage.createdAt).getTime();
+  const last = own ? p!.replacement : c.lastMessage;
+  return last ? { body: last.body, senderUid: last.senderUid, createdAt: new Date(last.createdAt).toISOString(), ...("system" in last && last.system ? { system: true } : {}) } : undefined;
+}
+
+function toMessage(m: MessageRow, quoted?: MessageRow): MessageView {
+  const deleted = !!m.deletedAt;
+  const reactions = new Map<string, string[]>();
+  for (const r of deleted ? [] : (m.reactions ?? [])) reactions.set(r.emoji, [...(reactions.get(r.emoji) ?? []), r.uid]);
+  return {
+    _id: String(m._id),
+    conversationId: m.conversationId,
+    senderUid: m.senderUid,
+    body: deleted ? "" : (m.body ?? ""),
+    ...(!deleted && m.photos?.length && { photos: m.photos }),
+    ...(m.replyTo &&
+      !deleted && {
+        replyTo: quoted
+          ? { _id: String(quoted._id), senderUid: quoted.senderUid, body: quoted.deletedAt ? "" : (quoted.body ?? "").slice(0, 140), photo: !quoted.deletedAt && !!quoted.photos?.length, deleted: !!quoted.deletedAt }
+          : { _id: m.replyTo, senderUid: "", body: "", photo: false, deleted: true },
+      }),
+    ...(reactions.size && { reactions: [...reactions.entries()].map(([emoji, uids]) => ({ emoji, uids })).sort((a, b) => b.uids.length - a.uids.length) }),
+    ...(m.editedAt && !deleted && { editedAt: new Date(m.editedAt).toISOString() }),
+    ...(deleted && { deleted: true }),
+    ...(!deleted && m.forwards && { forwarded: true, ...(m.forwards >= MANY_FORWARDS && { forwardedManyTimes: true }) }),
+    ...(m.system && { system: m.system }),
+    createdAt: (m.createdAt ?? new Date()).toISOString(),
+  };
+}
+
+/** "Bola", "Bola and Chidi", "Bola, Chidi and 3 others". */
+function listNames(names: string[]): string {
+  if (names.length <= 2) return names.join(" and ");
+  if (names.length === 3) return `${names[0]}, ${names[1]} and ${names[2]}`;
+  return `${names[0]}, ${names[1]} and ${names.length - 2} others`;
 }

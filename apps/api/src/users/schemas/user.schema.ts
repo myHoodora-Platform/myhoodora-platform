@@ -102,6 +102,13 @@ export class User {
   })
   verificationAttempts!: { at: Date; lat: number; lng: number; address?: string; result: "matched" | "outside_coverage" | "low_accuracy" | "mismatch" }[];
 
+  /**
+   * Hoods besides home that staff let this person read and hear alerts from (contract §31). Never
+   * for posting, selling or messaging: those stay in `neighborhoodId`. At most two.
+   */
+  @Prop({ type: [{ id: String, name: String, city: String, since: Date, _id: false }], default: [] })
+  secondaryHoods!: { id: string; name: string; city?: string; since: Date }[];
+
   /** A pending "ask to join" a nearby Hood (contract §16). Cleared on approve, reject, cancel or an address match. */
   @Prop({ type: { id: String, name: String, requestedAt: Date }, _id: false, default: null })
   requestedHood?: { id: string; name: string; requestedAt: Date } | null;
@@ -114,3 +121,5 @@ export const UserSchema = SchemaFactory.createForClass(User);
 UserSchema.index({ createdAt: -1 });
 // "Who has blocked this person?" (UsersService.hiddenAuthorsFor) runs on nearly every read.
 UserSchema.index({ blockedUids: 1 });
+// Alert fan-out also reaches people who read the Hood as a secondary one.
+UserSchema.index({ "secondaryHoods.id": 1 });

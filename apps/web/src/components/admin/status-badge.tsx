@@ -31,6 +31,7 @@ const STATUS: Record<string, { label: string; tone: Tone }> = {
   sold: { label: "Sold", tone: "grey" },
   archived: { label: "Archived", tone: "grey" },
   paused: { label: "Paused", tone: "amber" },
+  draft: { label: "Draft", tone: "grey" },
   // alerts
   urgent: { label: "Urgent", tone: "red" },
   ended: { label: "Ended", tone: "grey" },

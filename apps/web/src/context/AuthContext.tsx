@@ -13,6 +13,7 @@ import { usePathname } from "next/navigation";
 import { onIdTokenChanged, User } from "firebase/auth";
 import { toast } from "sonner";
 import { auth } from "@/lib/firebase/config";
+import { returnRefreshDue } from "@/lib/auth/refresh-on-return";
 import {
   fetchUserProfile,
   completeOnboardingApi,
@@ -259,6 +260,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     window.addEventListener("pageshow", handlePageShow);
     return () => window.removeEventListener("pageshow", handlePageShow);
+  }, [refreshProfile]);
+
+  // Back to this tab: reload the profile quietly (the one on screen stays while it loads), so an
+  // email confirmed in another tab or an approval made meanwhile shows without a reload.
+  const lastReturnRefresh = useRef(0);
+  useEffect(() => {
+    const handleVisible = () => {
+      if (document.visibilityState !== "visible" || !returnRefreshDue(!!auth.currentUser, lastReturnRefresh.current)) return;
+      lastReturnRefresh.current = Date.now();
+      void refreshProfile();
+    };
+    document.addEventListener("visibilitychange", handleVisible);
+    return () => document.removeEventListener("visibilitychange", handleVisible);
   }, [refreshProfile]);
 
   // Writes that return the updated profile. A 401 ends the session like a

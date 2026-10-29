@@ -42,7 +42,7 @@ const COLUMNS: { title: string; links: { label: string; href: string; soon?: boo
 
 export function Footer() {
   return (
-    <footer className="border-t border-slate-900 bg-slate-950 px-4 py-16 text-slate-400 sm:px-6 lg:px-8">
+    <footer data-site-chrome className="border-t border-slate-900 bg-slate-950 px-4 py-16 text-slate-400 sm:px-6 lg:px-8">
       <div className="mx-auto grid max-w-6xl grid-cols-2 gap-10 text-sm md:grid-cols-3 lg:grid-cols-6">
         <div className="col-span-2 space-y-6 md:col-span-3 lg:col-span-2">
           <MascotLockup size="md" />

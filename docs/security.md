@@ -68,6 +68,52 @@ If the web app is ever served through **Firebase Hosting rewrites**, the product
 - `?next=` after login only accepts paths inside the app (`safeNextPath`).
 - Non-staff get an ordinary 404 for `/admin`; the server checks before sending any admin code.
 
+## Dependency overrides
+
+`package.json` → `pnpm.overrides` forces two packages that `@nestjs/platform-express` 10 pins to exact, vulnerable versions. Even its newest 10.x release keeps them, and Nest 11 still pins a vulnerable multer, so a Nest upgrade would not remove the need.
+
+| Override | Fixes | Remove when |
+| --- | --- | --- |
+| `@nestjs/platform-express>multer: ^2.5.0` | Upload-form denial of service (GHSA-v52c-386h-88mc, GHSA-xf7r-hgr6-v32p, GHSA-5528-5vmv-3xc2, GHSA-72gw-mp4g-v24j, GHSA-wc9g-mqfw-jrwm, GHSA-535w-7cp7-47q4, GHSA-q7qp-rjg7-q26m) | `@nestjs/platform-express` itself depends on multer ≥ 2.5.0 |
+| `@nestjs/platform-express>body-parser: ^1.20.9` | A compressed body with trailing bytes crashes the process (GHSA-27r3-jxmh-p828) | it depends on body-parser ≥ 1.20.9 |
+
+multer's guards against crafted field names (`fieldNestingDepth`, `fieldArrayIndexLimit`) are off unless set, so `POST /media` sets both to 0 (`storage.controller.ts`). The exception filter maps multer and body-parser errors by code and status, because Nest 10 matches multer errors by message text, which multer 2.4 changed.
+| `qs@>=6.7.0 <6.16.1: ^6.16.1` | Denial of service in query-string parsing (GHSA advisories for qs ≤ 6.16.0, 29 October 2026) | express and body-parser accept qs ≥ 6.16.1 (they pin `~6.14.0`) |
+| `js-yaml@>=4.0.0 <4.3.2: ^4.3.2` | Quadratic CPU on crafted YAML merge keys and `!!omap` | `@nestjs/swagger` depends on js-yaml ≥ 4.3.2 (it pins exactly 4.1.1) |
+
+These four are the only lasting overrides. Other fixes from the audit below were lockfile refreshes within the ranges the packages already allow: they stay fixed without an override.
+
+## Dependency audit (29 October 2026)
+
+`pnpm audit` (pnpm 9) didn't finish on this lockfile (it ran for over 15 minutes and was stopped), so the lockfile's 1,600 packages were checked against npm's advisory database directly (the same `/-/npm/v1/security/advisories/bulk` endpoint `pnpm audit` uses), keeping only advisories whose range includes an installed version, and tracing each to the app that uses it.
+
+**Before: 46 vulnerable package versions (107 advisories). After: 17 (26).** Fixed in three batches, each checked before the next, with no major-version upgrades:
+
+| Batch | What | Checked with |
+| --- | --- | --- |
+| 1. API runtime (`929c544`) | proxy-addr 2.0.8 (IP spoofing), qs 6.16.2, body-parser 2.4.0 (express 5); mongoose 9.7.4 (prototype pollution); @fastify/busboy 3.2.4, @grpc/grpc-js 1.14.6, form-data 2.5.6/4.0.6, protobufjs 7.6.6 (firebase-admin); js-yaml 3.15.2/4.3.2 | API types, unit tests, all integration suites |
+| 2. Web and app builds (`e56cc1f`) | postcss, nanoid, source-map-js, picomatch 2, minimatch 3/9, brace-expansion 1/2, browserslist, baseline-browser-mapping, node-forge | web unit tests and production build; app tests and iOS/Android bundle export |
+| 3. Dev tooling (`d835565`) | handlebars, vite 7.3.7, fast-uri, flatted, follow-redirects, @humanfs/node, ajv 6 | lint, web and API unit tests |
+
+**mongoose is held at `~9.7`.** 9.10 and later bring MongoDB driver 7.7, whose connection handshake the test database (mongod 8.2) refused ("Missing required sub-document 'driver'"), failing every API test. 9.7.4 has the fix and keeps driver 7.2. Before moving past 9.7, check the newer driver against Atlas and the test database.
+
+**Left open, with why** (none reachable in a way that matters today):
+
+| Package | Severity | Where | Why it stays | To fix |
+| --- | --- | --- | --- | --- |
+| @nestjs/core 10.4.22 | moderate | API | SSE `type`/`id` aren't stripped of newlines. Ours sends only fixed event names and no `id` (`realtime.controller.ts`), so nothing user-controlled reaches them | NestJS 11 (≥ 11.1.18): a major upgrade |
+| file-type 20.4.1 | moderate | API, via @nestjs/common | Only used by Nest's `FileTypeValidator`, which the API doesn't use (uploads are checked by `StorageService`) | NestJS 11 |
+| zod 3.25.76 | high | web, app, contract | Memory on oversized collections. Used for form and config validation of the person's own input in their own browser or phone | zod 4: API changes across the forms |
+| @grpc/grpc-js 1.9.16 | high | web, app, via the Firebase client SDK's Firestore | Firestore isn't used (Auth only), and grpc-js is Node-only, not in the browser or app bundles | a Firebase SDK release that moves off `~1.9` |
+| uuid 9.0.1 / 7.0.3 | moderate | firebase-admin's google-gax; Expo's build plugins | Only affects v3/v5/v6 called with a buffer; these call v4, or run at build time | upstream releases |
+| decode-uri-component 0.2.2 | moderate | app, via expo-router's query-string | Slow decoding of a crafted link on the person's own phone, not a server | an expo-router release on query-string 8+ |
+| deepmerge 4.3.1 | low | build tooling | No fixed version exists | — |
+| vitest 3 (tinypool, @vitest/mocker) | critical/moderate | web tests only | Never in a build or deploy | vitest 4 |
+| glob 10.4.5, picomatch 4.0.1, ajv 8.12.0, webpack 5.97.1, tmp 0.0.33 | high–low | `@nestjs/cli` 10 (exact pins) | Dev CLI, trusted input only | NestJS CLI 11 |
+| sharp 0.34.5 | high | web dev dependency | Not used in production builds | sharp 0.35 (0.x minor, may change output) |
+
+Next pass: the NestJS 11 upgrade clears five of these rows at once.
+
 ## Secrets
 
 - All secrets are API-side. The web app needs none except the geocoding key (server-side only).

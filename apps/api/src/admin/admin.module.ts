@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { MongooseModule } from "@nestjs/mongoose";
 import { CommentsModule } from "../comments/comments.module";
+import { HoodRequest, HoodRequestSchema } from "../hood-requests/hood-request.schema";
 import { HoodsModule } from "../hoods/hoods.module";
 import { InboundModule } from "../inbound/inbound.module";
 import { ModerationModule } from "../moderation/moderation.module";
@@ -17,7 +18,11 @@ import { Broadcast, BroadcastSchema, BroadcastsService } from "./broadcasts.serv
 /** Thin §13 API over the domain modules — no business rules of its own. */
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: Broadcast.name, schema: BroadcastSchema }]),
+    MongooseModule.forFeature([
+      { name: Broadcast.name, schema: BroadcastSchema },
+      // For the overview's "waiting" count only; the requests themselves are HoodRequestsModule's.
+      { name: HoodRequest.name, schema: HoodRequestSchema },
+    ]),
     HoodsModule,
     PostsModule,
     CommentsModule,

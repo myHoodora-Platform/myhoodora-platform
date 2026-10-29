@@ -204,3 +204,9 @@ h6,
   }
 }
 
+
+/* Inside the myHoodora app's web view the app draws its own header, so the site's header and footer
+   step aside (the app sets data-in-app on <html>; apps/mobile/src/features/web/web-screen.tsx). */
+html[data-in-app] [data-site-chrome] {
+  display: none !important;
+}

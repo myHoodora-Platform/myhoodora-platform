@@ -18,10 +18,30 @@ import { removeTemp, UPLOAD_TMP_DIR } from "./temp-files";
  * onboarding asks for one before the address is verified.
  */
 function assertMayUpload(viewer: Viewer, purpose: MediaPurpose): void {
+  // Ad creative is staff work: only people who manage ads.
+  if (purpose === "ad") {
+    if (viewer.capabilities.includes("ads.manage")) return;
+    throw new ForbiddenException("Only admins can upload ad media.");
+  }
+  // Photos in a message: anyone who may send messages.
+  if (purpose === "message") {
+    if (viewer.capabilities.includes("messages.send")) return;
+    throw new ForbiddenException(whyNoWriting(viewer));
+  }
+  // Attachments in a support conversation: anyone signed in may write to the team (even when restricted),
+  // and staff replying. What they're attached to is checked when the message is sent.
+  if (purpose === "support") return;
   if (viewer.capabilities.includes(purpose === "avatar" ? "profile.manage" : "content.create")) return;
   // The same words CapabilityGuard uses for content.create.
   throw new ForbiddenException(whyNoWriting(viewer));
 }
+
+/**
+ * Limits for the upload form, which has only flat fields (`file`, `purpose`). The last two turn
+ * away crafted field names like `a[a][a]…` or `list[999999999]`, which multer allows by default.
+ * Declared apart because Nest 10's MulterOptions type doesn't list them yet.
+ */
+const UPLOAD_LIMITS = { fileSize: MAX_UPLOAD_BYTES, files: 1, fields: 5, fieldNestingDepth: 0, fieldArrayIndexLimit: 0 };
 
 export class DirectUploadDto {
   @IsIn(MEDIA_PURPOSES) purpose!: MediaPurpose;
@@ -52,11 +72,11 @@ export class StorageController {
   @Post()
   @Throttle({ medium: { limit: 30, ttl: 60_000 } })
   // Streams to a temp file on disk (never the whole file in memory); removed after it's stored.
-  @UseInterceptors(FileInterceptor("file", { dest: UPLOAD_TMP_DIR, limits: { fileSize: MAX_UPLOAD_BYTES, files: 1, fields: 5 } }))
+  @UseInterceptors(FileInterceptor("file", { dest: UPLOAD_TMP_DIR, limits: UPLOAD_LIMITS }))
   @ApiOperation({
     summary: "Upload a photo or video",
     description:
-      "Multipart form: `file` plus `purpose` (post | listing | group | avatar). Photos (JPG, PNG, WebP, GIF, HEIC) up to 10 MB; videos (MP4, MOV, WebM) up to 100 MB and 60 s, posts only. The type is read from the file's bytes, not its name. The file streams to disk and then to storage (videos in chunks), so it's never held in memory. Returns the HTTPS `url` to put in `mediaUrls`, `photos` or `photoURL`, and an `id` for `DELETE /media/:id`. 503 if the server is busy with other uploads; retry shortly.",
+      "Multipart form: `file` plus `purpose` (post | listing | group | avatar | ad). Photos (JPG, PNG, WebP, GIF, HEIC) up to 10 MB; videos (MP4, MOV, WebM) up to 100 MB and 60 s, for posts and ads only. `ad` is for admins who manage ads. The type is read from the file's bytes, not its name. The file streams to disk and then to storage (videos in chunks), so it's never held in memory. Returns the HTTPS `url` to put in `mediaUrls`, `photos` or `photoURL`, and an `id` for `DELETE /media/:id`. 503 if the server is busy with other uploads; retry shortly.",
   })
   @ApiConsumes("multipart/form-data")
   @ApiBody({

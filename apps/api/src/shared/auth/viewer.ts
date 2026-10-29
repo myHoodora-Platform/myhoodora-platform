@@ -18,6 +18,12 @@ export interface Viewer {
    * Null unless they are a verified neighbour (see AccountGuard).
    */
   hoodId: string | null;
+  /**
+   * Hoods they may *read*: home, plus secondary Hoods staff approved (contract §31). Feeds, posts and
+   * comments use this; everything that writes (posting, reacting, selling, messaging) uses `hoodId`.
+   * Empty unless they are a verified neighbour.
+   */
+  readableHoodIds: string[];
   capabilities: Capability[];
   /** false until GET /users/me has created the record. */
   exists: boolean;

@@ -15,7 +15,10 @@ import { fieldInputClass } from "@/components/shared/field";
 import { useAuth } from "@/context/AuthContext";
 import { errorMessage } from "@/lib/api/client";
 import { getThread, replyToThread, sendStaffTyping, updateThread } from "@/lib/api/admin/support";
-import { TypingDots } from "@/features/chat/chat-ui";
+import { AttachButton, AttachmentTray, DocumentLinks, TypingDots } from "@/features/chat/chat-ui";
+import { useAttachments } from "@/features/chat/use-attachments";
+import { SUPPORT_ACCEPT } from "@/lib/api/media";
+import { SUPPORT_ATTACHMENTS_MAX } from "@myhoodora/api-contract/support";
 import { useTypingIndicator, useTypingSignal } from "@/features/chat/use-typing";
 import type { InboxStatus } from "@/lib/api/admin/types";
 import { useAdminSession } from "../session";
@@ -38,17 +41,20 @@ export function ThreadPage({ id }: { id: string }) {
   // Live: see the neighbour typing; let them see you typing a reply.
   const neighbourTyping = useTypingIndicator("support.typing", ["inbox.updated"], (e) => e.threadId === id);
   useTypingSignal(reply, () => (user ? sendStaffTyping(user, id) : Promise.resolve()));
+  // Photos or PDFs with a reply: a form to fill in, a screenshot of where to tap (2026-10-28).
+  const files = useAttachments(user, "support", SUPPORT_ATTACHMENTS_MAX);
 
   if (thread.loading && !thread.data) return <DetailSkeleton />;
   if (!thread.data) return <AdminProblem error={thread.error} onRetry={thread.refetch} backHref="/admin/inbox" />;
   const t = thread.data;
 
   const send = async (resolve: boolean) => {
-    if (!user || !reply.trim()) return;
+    if (!user || (!reply.trim() && !files.ready.length) || files.uploading) return;
     setBusy(resolve ? "resolve" : "reply");
     try {
-      thread.setData(await replyToThread(user, id, reply.trim(), role, resolve));
+      thread.setData(await replyToThread(user, id, reply.trim(), role, resolve, files.ready.map((f) => ({ url: f.url, ...(f.kind === "document" && { name: f.name }) }))));
       setReply("");
+      files.clear();
       toast.success(resolve ? "Replied and resolved" : "Reply sent");
     } catch (err) {
       toast.error(errorMessage(err, "Couldn't send your reply."));
@@ -91,7 +97,20 @@ export function ThreadPage({ id }: { id: string }) {
                       {initials(m.from === "staff" ? (m.by ?? "Staff") : t.from.name)}
                     </span>
                     <div className={cn("max-w-[80%] rounded-2xl px-4 py-3 text-sm", m.from === "staff" ? "bg-primary/10" : "bg-muted")}>
-                      <p className="whitespace-pre-line">{m.body}</p>
+                      {m.attachments?.some((a) => a.kind === "image") ? (
+                        <div className="mb-2 grid max-w-72 grid-cols-2 gap-1">
+                          {m.attachments
+                            .filter((a) => a.kind === "image")
+                            .map((a) => (
+                              <a key={a.url} href={a.url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl">
+                                {/* eslint-disable-next-line @next/next/no-img-element -- a photo sent in support */}
+                                <img src={a.url} alt="Photo in the conversation" className="aspect-square w-full object-cover" loading="lazy" />
+                              </a>
+                            ))}
+                        </div>
+                      ) : null}
+                      {m.attachments?.some((a) => a.kind === "document") ? <DocumentLinks documents={m.attachments.filter((a) => a.kind === "document")} /> : null}
+                      {m.body ? <p className="whitespace-pre-line">{m.body}</p> : null}
                       <p className="mt-1 text-xs text-muted-foreground">
                         {m.from === "staff" ? m.by : t.from.name} · {dateTimeLabel(m.at)}
                       </p>
@@ -121,11 +140,15 @@ export function ThreadPage({ id }: { id: string }) {
                     className={fieldInputClass}
                     placeholder={`Reply to ${t.from.name.split(" ")[0]}. They'll get it by ${t.from.uid ? "in-app notification and email" : "email"}.`}
                   />
-                  <div className="flex flex-wrap justify-end gap-2">
-                    <Button variant="outline" onClick={() => void send(false)} disabled={!reply.trim() || busy !== null} loading={busy === "reply"}>
+                  <AttachmentTray attachments={files} />
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    <span className="mr-auto">
+                      <AttachButton attachments={files} accept={SUPPORT_ACCEPT} />
+                    </span>
+                    <Button variant="outline" onClick={() => void send(false)} disabled={(!reply.trim() && !files.ready.length) || files.uploading || busy !== null} loading={busy === "reply"}>
                       Send reply
                     </Button>
-                    <Button onClick={() => void send(true)} disabled={!reply.trim() || busy !== null} loading={busy === "resolve"}>
+                    <Button onClick={() => void send(true)} disabled={(!reply.trim() && !files.ready.length) || files.uploading || busy !== null} loading={busy === "resolve"}>
                       Send &amp; resolve
                     </Button>
                   </div>
