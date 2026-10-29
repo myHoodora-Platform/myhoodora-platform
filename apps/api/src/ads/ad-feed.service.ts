@@ -82,19 +82,20 @@ export class AdFeedService {
 
   /** For each `listings` ad: its seller and their items available now. Absent when there are none to show. */
   private async promotedItems(viewer: Viewer, ads: { _id: unknown; format: string; sellerUid?: string }[]) {
-    const out = new Map<string, { seller: { uid: string; name: string; photoURL?: string }; listings: PromotedListing[] }>();
+    const out = new Map<string, { seller: { uid: string; name: string; photoURL?: string }; listings: PromotedListing[]; total: number }>();
     const promos = ads.filter((a) => a.format === "listings" && a.sellerUid);
     if (!promos.length) return out;
     const hidden = new Set(await this.users.hiddenAuthorsFor(viewer.uid));
     await Promise.all(
       promos.map(async (a) => {
         if (hidden.has(a.sellerUid!)) return;
-        const items = await this.listings.forPromotion(a.sellerUid!);
+        const { items, total } = await this.listings.forPromotion(a.sellerUid!);
         const first = items[0];
         if (!first) return;
         out.set(String(a._id), {
           seller: { uid: first.seller.uid, name: first.seller.displayName, photoURL: first.seller.photoURL },
           listings: items.map((l) => ({ _id: l._id, title: l.title, priceNaira: l.priceNaira, negotiable: l.negotiable, photoUrl: l.photos[0] })),
+          total,
         });
       }),
     );

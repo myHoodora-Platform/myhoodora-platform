@@ -8,6 +8,7 @@ interface Promo {
   cta: { type: string; label: string; url?: string } | null;
   seller?: { uid: string; name: string };
   listings?: { _id: string; title: string; priceNaira: number | null; photoUrl?: string }[];
+  listingsTotal?: number;
 }
 type Item = { type: "post"; data: { _id: string } } | { type: "ad"; slotId: string; data: Promo };
 
@@ -104,6 +105,22 @@ describe("Promoted listings (a seller's items as an ad)", () => {
       expect(card!.listings!.map((l) => l.title)).toEqual(["Bookshelf", "Office chair"]);
       expect(card!.listings![0]!.photoUrl).toBe(PHOTO(5));
       expect(card!.cta).toEqual({ type: "shop", label: "See all from Sade" });
+      expect(card!.listingsTotal).toBe(2);
+    });
+
+    it("shows her newest 4 items at most, and says how many she has in all", async () => {
+      const extra = ["Lamp", "Rug", "Mirror", "Side table", "Stool"].map((title, i) => ({
+        sellerUid: "sade", neighborhoodId: yaba, title, description: "", priceNaira: 5000, negotiable: false,
+        category: "furniture", condition: "good", photos: [PHOTO(100 + i)], status: "available", createdAt: new Date(Date.now() - i * 1000),
+      }));
+      const rows = await t.model<{ _id: unknown }>("Listing").insertMany(extra);
+      try {
+        const [card] = await promos("ada", lekki);
+        expect(card!.listings!.map((l) => l.title)).toEqual(["Lamp", "Rug", "Mirror", "Side table"]);
+        expect(card!.listingsTotal).toBe(7);
+      } finally {
+        await t.model("Listing").deleteMany({ _id: { $in: rows.map((r) => r._id) } });
+      }
     });
 
     it("Lekki neighbours may open her items and see all of them", async () => {

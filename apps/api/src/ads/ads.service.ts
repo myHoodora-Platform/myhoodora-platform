@@ -47,6 +47,7 @@ export interface AdView {
   /** `listings` ads: the seller, and their items for sale now (filled in by the feed). */
   seller?: { uid: string; name: string; photoURL?: string };
   listings?: PromotedListing[];
+  listingsTotal?: number;
 }
 
 /** One of a promoted seller's items, as the feed card shows it. */
@@ -272,7 +273,7 @@ export class AdsService implements OnModuleInit {
    * `promoted`: for a `listings` ad, the seller and their items now. They stand in for the advertiser,
    * and the button opens all of that seller's items in the app.
    */
-  toView(r: AdRow, hoodName?: string, aspects?: Map<string, number>, promoted?: { seller: { uid: string; name: string; photoURL?: string }; listings: PromotedListing[] }): AdView {
+  toView(r: AdRow, hoodName?: string, aspects?: Map<string, number>, promoted?: { seller: { uid: string; name: string; photoURL?: string }; listings: PromotedListing[]; total: number }): AdView {
     const aimed = r.hoodIds.length || r.cities.length || r.near;
     const seller = promoted?.seller;
     const advertiserName = seller?.name ?? r.advertiserName;
@@ -290,7 +291,7 @@ export class AdsService implements OnModuleInit {
       media: r.media.map((m) => ({ url: m.url, kind: m.kind, posterUrl: m.posterUrl, aspect: aspects?.get(m.url) })),
       cards: r.cards.map((c) => ({ imageUrl: c.imageUrl, headline: c.headline, url: c.url })),
       background: r.background,
-      ...(promoted && { seller: promoted.seller, listings: promoted.listings }),
+      ...(promoted && { seller: promoted.seller, listings: promoted.listings, listingsTotal: promoted.total }),
       why: r.near?.label && !r.hoodIds.length && !r.cities.length ? `You're seeing this because ${advertiserName} chose to reach neighbourhoods within ${r.near.radiusKm} km of ${r.near.label}. Ads never use your posts, messages or exact location.` : aimed && hoodName ? `You're seeing this because ${advertiserName} chose to reach neighbours in ${hoodName}. Ads never use your posts, messages or exact location.` : `You're seeing this because ${advertiserName} is shown to neighbours across myHoodora. Ads never use your posts, messages or exact location.`,
     };
   }

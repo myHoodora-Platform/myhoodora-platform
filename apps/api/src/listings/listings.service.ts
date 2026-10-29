@@ -12,6 +12,9 @@ import { AccountLifecycle } from "../users/account-lifecycle";
 import { UsersService } from "../users/users.service";
 import { DELETED_MEDIA_KEPT_MS, REMOVED_MEDIA_KEPT_MS, StorageService } from "../storage/storage.service";
 import type { CreateListingDto, ListingQuery } from "./listings.dto";
+
+/** A promoted seller's feed card shows at most this many items (PROMOTED_ITEMS_SHOWN in the contract). */
+export const PROMOTED_ITEMS_SHOWN = 4;
 import { Listing, ListingDocument, type ListingStatus } from "./listing.schema";
 
 /** Contract §4 shape, plus the seller card so the web never needs N+1 lookups. */
@@ -145,15 +148,11 @@ export class ListingsService implements OnModuleInit {
     return ads.some((a) => reaches(a, { id: viewer.hoodId!, city: hood?.city, lat, lng }));
   }
 
-  /** A promoted seller's items for the feed card: available ones, newest first. */
-  async forPromotion(sellerUid: string, limit = 10): Promise<ListingView[]> {
-    const rows = await this.listings
-      .find({ sellerUid, deletedAt: null, removedAt: null, sellerDeactivated: { $ne: true }, status: "available" })
-      .sort({ createdAt: -1 })
-      .limit(limit)
-      .lean<Row[]>()
-      .exec();
-    return this.toViews(rows);
+  /** A promoted seller's items for the feed card: the newest available ones, and how many there are in all. */
+  async forPromotion(sellerUid: string, limit = PROMOTED_ITEMS_SHOWN): Promise<{ items: ListingView[]; total: number }> {
+    const filter = { sellerUid, deletedAt: null, removedAt: null, sellerDeactivated: { $ne: true }, status: "available" as const };
+    const [rows, total] = await Promise.all([this.listings.find(filter).sort({ createdAt: -1 }).limit(limit).lean<Row[]>().exec(), this.listings.countDocuments(filter).exec()]);
+    return { items: await this.toViews(rows), total };
   }
 
   async list(viewer: Viewer, q: ListingQuery): Promise<ListingView[]> {

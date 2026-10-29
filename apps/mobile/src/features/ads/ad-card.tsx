@@ -1,9 +1,9 @@
-import type { AdMedia, FeedAd, PromotedListing } from "@myhoodora/api-contract/ads";
+import { PROMOTED_ITEMS_SHOWN, type AdMedia, type FeedAd, type PromotedListing } from "@myhoodora/api-contract/ads";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEvent } from "expo";
 import { Image } from "expo-image";
 import { useVideoPlayer, VideoView, type VideoPlayer } from "expo-video";
-import { Ellipsis, EyeOff, Flag, Info, Package, Volume2, VolumeX } from "lucide-react-native";
+import { ArrowRight, Ellipsis, EyeOff, Flag, Info, Package, Volume2, VolumeX } from "lucide-react-native";
 import { memo, useEffect, useState } from "react";
 import {FlatList, Linking, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import { useSignedInUser } from "@/core/auth/auth-provider";
@@ -106,7 +106,9 @@ export const AdCard = memo(function AdCard({ entry, session, active }: { entry: 
         </View>
       ) : null}
 
-      {ad.format === "listings" && ad.listings?.length ? <SellerItems items={ad.listings} onOpen={openItem} onSwipe={() => track("swipe")} /> : null}
+      {ad.format === "listings" && ad.listings?.length ? (
+        <SellerItems items={ad.listings} total={ad.listingsTotal ?? ad.listings.length} sellerName={ad.seller?.name ?? ad.advertiser.name} onOpen={openItem} onSeeAll={() => open()} onSwipe={() => track("swipe")} />
+      ) : null}
       {ad.format === "carousel" ? <Carousel ad={ad} onOpen={open} onSwipe={() => track("swipe")} /> : null}
       {(ad.format === "image" || ad.format === "business") && ad.media[0] ? <AdImage media={ad.media[0]} onPress={() => open()} /> : null}
       {ad.format === "video" && ad.media[0] ? <AdVideo media={ad.media[0]} active={active} onPress={() => open()} onPlay={() => track("video_play")} onUnmute={() => track("unmute")} /> : null}
@@ -121,7 +123,7 @@ export const AdCard = memo(function AdCard({ entry, session, active }: { entry: 
             ) : null}
             {ad.seller ? (
               <Text variant="caption" tone="muted" numberOfLines={1}>
-                {ad.listings?.length === 1 ? "1 item for sale" : `${ad.listings?.length ?? 0} items for sale`}
+                {(ad.listingsTotal ?? ad.listings?.length) === 1 ? "1 item for sale" : `${ad.listingsTotal ?? ad.listings?.length ?? 0} items for sale`}
               </Text>
             ) : ad.cta.type === "call" ? (
               <Text variant="caption" tone="muted" numberOfLines={1}>
@@ -245,49 +247,125 @@ function toggleSound(player: VideoPlayer) {
 }
 
 /**
- * A promoted seller's items to swipe through: photo, price, title, as in For Sale. Each opens its
- * listing in the app.
+ * A promoted seller's items (at most `PROMOTED_ITEMS_SHOWN`). One item: its photo, blurred, fills the
+ * card and the item sits in the middle. Several: a slider with dots, ending in "See all" when the seller
+ * has more than are shown. Each item opens its listing in the app.
  */
-function SellerItems({ items, onOpen, onSwipe }: { items: PromotedListing[]; onOpen: (id: string) => void; onSwipe: () => void }) {
+function SellerItems({ items, total, sellerName, onOpen, onSeeAll, onSwipe }: { items: PromotedListing[]; total: number; sellerName: string; onOpen: (id: string) => void; onSeeAll: () => void; onSwipe: () => void }) {
+  const shown = items.slice(0, PROMOTED_ITEMS_SHOWN);
+  if (shown.length === 1 && total <= 1) return <OneItem item={shown[0]!} onOpen={onOpen} />;
+  return <ItemSlider items={shown} total={Math.max(total, shown.length)} sellerName={sellerName} onOpen={onOpen} onSeeAll={onSeeAll} onSwipe={onSwipe} />;
+}
+
+function OneItem({ item, onOpen }: { item: PromotedListing; onOpen: (id: string) => void }) {
   const t = useTheme();
   const { width } = useWindowDimensions();
-  // About two and a half tiles in view, so it's clear there are more to swipe to.
-  const tile = Math.round((width - 32) / 2.4);
+  const height = Math.round(Math.min(width * 0.82, 380));
+  const tile = Math.round(Math.min(width * 0.54, 240));
   return (
-    <FlatList
-      horizontal
-      data={items}
-      keyExtractor={(l) => l._id}
-      showsHorizontalScrollIndicator={false}
-      snapToInterval={tile + 8}
-      decelerationRate="fast"
-      onMomentumScrollEnd={(e) => e.nativeEvent.contentOffset.x > 0 && onSwipe()}
-      contentContainerStyle={styles.carousel}
-      renderItem={({ item }) => (
-        <Pressable
-          onPress={() => onOpen(item._id)}
-          accessibilityRole="link"
-          accessibilityLabel={`${item.title}, ${formatNaira(item.priceNaira)}`}
-          style={({ pressed }) => [styles.carouselCard, { width: tile, borderColor: t.colors.border, backgroundColor: t.colors.card, opacity: pressed ? 0.85 : 1 }]}
-        >
-          <View style={[styles.itemPhoto, { width: tile, height: tile, backgroundColor: t.colors.muted }]}>
-            {item.photoUrl ? (
-              <Image source={{ uri: sizedImage(item.photoUrl, tile) }} style={StyleSheet.absoluteFill} contentFit="cover" recyclingKey={item._id} accessibilityIgnoresInvertColors />
-            ) : (
-              <Package size={28} color={t.colors.mutedForeground} />
-            )}
-          </View>
-          <View style={styles.itemFoot}>
-            <Text variant="label" style={item.priceNaira === null ? { color: t.colors.primary } : undefined}>
-              {formatNaira(item.priceNaira)}
-            </Text>
-            <Text variant="caption" numberOfLines={1}>
-              {item.title}
-            </Text>
-          </View>
-        </Pressable>
-      )}
-    />
+    <View style={[styles.stage, { height, backgroundColor: tint(t.colors.primary, 0.08) }]}>
+      {item.photoUrl ? (
+        <>
+          {/* A small copy is enough under a heavy blur. */}
+          <Image source={{ uri: sizedImage(item.photoUrl, 160) }} style={StyleSheet.absoluteFill} contentFit="cover" blurRadius={30} accessible={false} accessibilityIgnoresInvertColors />
+          <View style={[StyleSheet.absoluteFill, styles.scrim]} />
+        </>
+      ) : null}
+      <ItemTile item={item} width={tile} onOpen={onOpen} raised />
+    </View>
+  );
+}
+
+type Slide = { kind: "item"; item: PromotedListing } | { kind: "more" };
+
+function ItemSlider({ items, total, sellerName, onOpen, onSeeAll, onSwipe }: { items: PromotedListing[]; total: number; sellerName: string; onOpen: (id: string) => void; onSeeAll: () => void; onSwipe: () => void }) {
+  const t = useTheme();
+  const { width } = useWindowDimensions();
+  // Big enough to see the item, with the next one peeking in so it's clear you can slide.
+  const card = Math.round(Math.min(width * 0.62, 280));
+  const step = card + 10;
+  const slides: Slide[] = [...items.map((item) => ({ kind: "item" as const, item })), ...(total > items.length ? [{ kind: "more" as const }] : [])];
+  const [index, setIndex] = useState(0);
+  return (
+    <View style={styles.slider}>
+      <FlatList
+        horizontal
+        data={slides}
+        keyExtractor={(s) => (s.kind === "item" ? s.item._id : "see-all")}
+        showsHorizontalScrollIndicator={false}
+        snapToInterval={step}
+        decelerationRate="fast"
+        disableIntervalMomentum
+        onMomentumScrollEnd={(e) => {
+          const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+          const atEnd = contentOffset.x >= contentSize.width - layoutMeasurement.width - 4;
+          setIndex(atEnd ? slides.length - 1 : Math.round(contentOffset.x / step));
+          if (contentOffset.x > 0) onSwipe();
+        }}
+        contentContainerStyle={styles.sliderRow}
+        renderItem={({ item: s }) =>
+          s.kind === "item" ? (
+            <ItemTile item={s.item} width={card} onOpen={onOpen} />
+          ) : (
+            <Pressable
+              onPress={onSeeAll}
+              accessibilityRole="link"
+              accessibilityLabel={`See all ${total} items from ${sellerName}`}
+              style={({ pressed }) => [styles.seeAll, { width: card, borderColor: t.colors.border, backgroundColor: tint(t.colors.primary, 0.08), opacity: pressed ? 0.85 : 1 }]}
+            >
+              <View style={[styles.seeAllIcon, { backgroundColor: t.colors.primary }]}>
+                <ArrowRight size={22} color={t.colors.primaryForeground} />
+              </View>
+              <Text variant="label" tone="primary">
+                See all {total} items
+              </Text>
+              <Text variant="caption" tone="muted" numberOfLines={1}>
+                from {sellerName.split(" ")[0]}
+              </Text>
+            </Pressable>
+          )
+        }
+      />
+      {slides.length > 1 ? (
+        <View style={styles.dots} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+          {slides.map((s, i) => (
+            <View key={s.kind === "item" ? s.item._id : "see-all"} style={[styles.dot, { width: i === index ? 16 : 6, backgroundColor: i === index ? t.colors.primary : t.colors.border }]} />
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/** Photo, price, title, as in For Sale. `raised`: floats over the blurred photo. */
+function ItemTile({ item, width, onOpen, raised = false }: { item: PromotedListing; width: number; onOpen: (id: string) => void; raised?: boolean }) {
+  const t = useTheme();
+  return (
+    <View style={[styles.tileShadow, raised ? styles.raised : null, { backgroundColor: t.colors.card }]}>
+      <Pressable
+        onPress={() => onOpen(item._id)}
+        accessibilityRole="link"
+        accessibilityLabel={`${item.title}, ${formatNaira(item.priceNaira)}`}
+        style={({ pressed }) => [styles.tile, { width, borderColor: raised ? "transparent" : t.colors.border, backgroundColor: t.colors.card, opacity: pressed ? 0.85 : 1 }]}
+      >
+        <View style={[styles.itemPhoto, { width, height: width, backgroundColor: t.colors.muted }]}>
+          {item.photoUrl ? (
+            <Image source={{ uri: sizedImage(item.photoUrl, width) }} style={StyleSheet.absoluteFill} contentFit="cover" recyclingKey={item._id} accessibilityIgnoresInvertColors />
+          ) : (
+            <Package size={28} color={t.colors.mutedForeground} />
+          )}
+        </View>
+        <View style={styles.itemFoot}>
+          <Text variant="label" numberOfLines={1} style={item.priceNaira === null ? { color: t.colors.primary } : undefined}>
+            {formatNaira(item.priceNaira)}
+            {item.negotiable && item.priceNaira !== null ? <Text variant="caption" tone="muted">{"  ·  Negotiable"}</Text> : null}
+          </Text>
+          <Text variant="caption" numberOfLines={1}>
+            {item.title}
+          </Text>
+        </View>
+      </Pressable>
+    </View>
   );
 }
 
@@ -343,6 +421,17 @@ const styles = StyleSheet.create({
   carousel: { paddingHorizontal: 16, gap: 8 },
   carouselCard: { borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, overflow: "hidden" },
   itemPhoto: { alignItems: "center", justifyContent: "center" },
+  stage: { alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  scrim: { backgroundColor: "rgba(0,0,0,0.18)" },
+  tileShadow: { borderRadius: 14 },
+  raised: { shadowColor: "#000", shadowOpacity: 0.22, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
+  tile: { borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, overflow: "hidden" },
+  slider: { gap: 10 },
+  sliderRow: { paddingHorizontal: 16, gap: 10 },
+  seeAll: { flex: 1, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, alignItems: "center", justifyContent: "center", gap: 6, padding: 16 },
+  seeAllIcon: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", marginBottom: 4 },
+  dots: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 5 },
+  dot: { height: 6, borderRadius: 3 },
   itemFoot: { paddingHorizontal: 10, paddingVertical: 8, gap: 1 },
   carouselFoot: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, padding: 10 },
 });

@@ -57,10 +57,15 @@ export interface FeedAd {
   background?: AdBackground;
   /** "Why am I seeing this?" */
   why: string;
-  /** `listings` ads: the seller (also the advertiser) and their items for sale now, newest first. */
+  /** `listings` ads: the seller (also the advertiser) and their items for sale now, newest first (at most `PROMOTED_ITEMS_SHOWN`). */
   seller?: { uid: string; name: string; photoURL?: string };
   listings?: PromotedListing[];
+  /** `listings` ads: how many items the seller has for sale now, shown or not. */
+  listingsTotal?: number;
 }
+
+/** A promoted seller's card shows at most this many items; "See all" opens the rest. */
+export const PROMOTED_ITEMS_SHOWN = 4;
 
 /** One of a promoted seller's items. Tapping it opens the listing; the button opens all their items. */
 export interface PromotedListing {
