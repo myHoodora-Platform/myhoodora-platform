@@ -248,8 +248,8 @@ function toggleSound(player: VideoPlayer) {
 
 /**
  * A promoted seller's items (at most `PROMOTED_ITEMS_SHOWN`). One item: its photo, blurred, fills the
- * card and the item sits in the middle. Several: a slider with dots, ending in "See all" when the seller
- * has more than are shown. Each item opens its listing in the app.
+ * card and the item sits in the middle. Several: a slider with dots, ending in a "+N more" card when the
+ * seller has more than are shown. Each item opens its listing in the app.
  */
 function SellerItems({ items, total, sellerName, onOpen, onSeeAll, onSwipe }: { items: PromotedListing[]; total: number; sellerName: string; onOpen: (id: string) => void; onSeeAll: () => void; onSwipe: () => void }) {
   const shown = items.slice(0, PROMOTED_ITEMS_SHOWN);
@@ -310,17 +310,18 @@ function ItemSlider({ items, total, sellerName, onOpen, onSeeAll, onSwipe }: { i
             <Pressable
               onPress={onSeeAll}
               accessibilityRole="link"
-              accessibilityLabel={`See all ${total} items from ${sellerName}`}
+              accessibilityLabel={`${total - items.length} more ${total - items.length === 1 ? "item" : "items"} from ${sellerName}. Shows all of them`}
               style={({ pressed }) => [styles.seeAll, { width: card, borderColor: t.colors.border, backgroundColor: tint(t.colors.primary, 0.08), opacity: pressed ? 0.85 : 1 }]}
             >
               <View style={[styles.seeAllIcon, { backgroundColor: t.colors.primary }]}>
                 <ArrowRight size={22} color={t.colors.primaryForeground} />
               </View>
-              <Text variant="label" tone="primary">
-                See all {total} items
+              {/* Only what's left: "See all from …" is the button under the card. */}
+              <Text variant="label" tone="primary" style={styles.moreCount}>
+                +{total - items.length}
               </Text>
-              <Text variant="caption" tone="muted" numberOfLines={1}>
-                from {sellerName.split(" ")[0]}
+              <Text variant="caption" tone="muted">
+                {total - items.length === 1 ? "more item" : "more items"}
               </Text>
             </Pressable>
           )
@@ -432,6 +433,7 @@ const styles = StyleSheet.create({
   seeAllIcon: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", marginBottom: 4 },
   dots: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 5 },
   dot: { height: 6, borderRadius: 3 },
+  moreCount: { fontSize: 22, lineHeight: 28 },
   itemFoot: { paddingHorizontal: 10, paddingVertical: 8, gap: 1 },
   carouselFoot: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, padding: 10 },
 });
