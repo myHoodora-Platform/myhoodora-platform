@@ -9,3 +9,10 @@ export function useUnreadMessages(): number {
   const { data } = useQuery({ queryKey: chatKeys.unread, queryFn: () => unreadMessages(user), staleTime: 30_000 });
   return (data?.count ?? 0) + useSupportUnread();
 }
+
+/** Message requests waiting (they don't count in the badge, as on WhatsApp and Instagram). */
+export function useMessageRequests(): number {
+  const user = useSignedInUser();
+  const { data } = useQuery({ queryKey: chatKeys.unread, queryFn: () => unreadMessages(user), staleTime: 30_000 });
+  return data?.requests ?? 0;
+}

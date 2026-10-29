@@ -4,7 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { useRouter } from "@/core/navigation/use-router";
 import { Pin } from "lucide-react-native";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { getDraft, loadDrafts, setDraft } from "@/features/chat/drafts";
 import { FlatList, Pressable, StyleSheet, TextInput, View } from "react-native";
 import { useSignedInUser } from "@/core/auth/auth-provider";
 import { usePhotoUploads } from "@/core/media/use-photo-uploads";
@@ -209,7 +210,15 @@ export function SupportThreadScreen({ id }: { id: string }) {
   const client = useQueryClient();
   const live = useLive();
   const list = useRef<FlatList<SupportRow>>(null);
-  const [text, setText] = useState("");
+  // What you'd started writing to the team, kept as a draft like any chat's (2026-10-29).
+  const draftKey = `support:${id}`;
+  const [text, setText] = useState(() => getDraft(user.uid, draftKey));
+  useEffect(() => {
+    void loadDrafts(user.uid).then(() => {
+      const saved = getDraft(user.uid, draftKey);
+      if (saved) setText((now) => now || saved);
+    });
+  }, [user.uid, draftKey]);
   const files = usePhotoUploads("support", SUPPORT_ATTACHMENTS_MAX);
   const picking = usePhotoPicking(files, { documents: true });
   const thread = useQuery({ queryKey: supportKeys.one(id), queryFn: () => getSupportThread(user, id), refetchInterval: live.status === "live" ? false : FALLBACK_POLL_MS });
@@ -217,6 +226,7 @@ export function SupportThreadScreen({ id }: { id: string }) {
     mutationFn: ({ body, attachments }: { body: string; attachments: { url: string; name?: string }[] }) => replyToSupport(user, id, body, attachments),
     onSuccess: (fresh) => {
       setText("");
+      setDraft(user.uid, draftKey, "");
       files.clear();
       client.setQueryData(supportKeys.one(id), fresh);
       void client.invalidateQueries({ queryKey: supportKeys.list });
@@ -229,7 +239,10 @@ export function SupportThreadScreen({ id }: { id: string }) {
   const composer = (
     <ChatComposer
       text={text}
-      onText={setText}
+      onText={(v) => {
+        setText(v);
+        setDraft(user.uid, draftKey, v);
+      }}
       placeholder="Reply to the team"
       uploads={files}
       onAttach={picking.choose}

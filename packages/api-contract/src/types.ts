@@ -338,7 +338,8 @@ export interface Conversation {
   _id: string;
   participantUids: string[];
   context?: ConversationContext;
-  lastMessage?: { body: string; senderUid: string; createdAt: string };
+  /** `system`: a group notice ("Ada added Bola"), shown without a name in front (2026-10-29). */
+  lastMessage?: { body: string; senderUid: string; createdAt: string; system?: boolean };
   unreadCount: number;
   updatedAt: string;
   /** Embedded by the live API (names/photos of both people). */
@@ -353,7 +354,17 @@ export interface Conversation {
   pinned?: boolean;
   /** Messages pinned for everyone in the chat, still current, newest first (up to 3). */
   pins?: PinnedMessage[];
+  /** 2026-10-29: "direct" (absent from older APIs) or "group", with its name and admins; `groupId` for a community Group's own chat. */
+  kind?: "direct" | "group";
+  title?: string;
+  admins?: string[];
+  groupId?: string;
+  /** Viewer-relative: a message request waiting for you to accept. */
+  request?: boolean;
 }
+
+/** People in an ad-hoc group chat, you included (contract §5). */
+export const MAX_GROUP_MEMBERS = 50;
 
 /** A pinned message, in brief, for the bar under a chat's header. */
 export interface PinnedMessage {
@@ -390,6 +401,8 @@ export interface Message {
   /** Came from another chat (2026-10-28). `forwardedManyTimes`: passed on 5 times or more, so it goes to one chat at a time. */
   forwarded?: boolean;
   forwardedManyTimes?: boolean;
+  /** A notice in a group ("Ada added Bola"), its words in `body`: shown centred, with no actions. */
+  system?: { type: "created" | "added" | "removed" | "left" | "renamed" | "joined"; actor: string; targets?: string[] };
   createdAt: string;
 }
 

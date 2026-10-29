@@ -2,7 +2,8 @@ import { errorMessage } from "@myhoodora/api-contract/errors";
 import type { Group, GroupPost } from "@myhoodora/api-contract/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
-import { Check, ChevronDown, Lock, LogOut, MoreHorizontal, Send, Settings2, Trash2, UserPlus, X } from "lucide-react-native";
+import { Check, ChevronDown, Lock, LogOut, MessageCircle, MoreHorizontal, Send, Settings2, Trash2, UserPlus, X } from "lucide-react-native";
+import { openGroupChat } from "@/features/chat/chat-api";
 import { useState } from "react";
 import {ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, TextInput, View } from "react-native";
 import { useAuth, useSignedInUser } from "@/core/auth/auth-provider";
@@ -173,6 +174,19 @@ function Actions({ group: g, invite }: { group: Group; invite?: string }) {
       { text: "Leave", style: "destructive", onPress: () => leave.mutate() },
     ]);
 
+  // The group's own chat (2026-10-29): everyone in the group, made the first time someone opens it.
+  const [opening, setOpening] = useState(false);
+  const openChat = async () => {
+    setOpening(true);
+    try {
+      const c = await openGroupChat(user, g._id);
+      router.push(`/inbox/${c._id}`);
+    } catch (err) {
+      toast(errorMessage(err), "error");
+    } finally {
+      setOpening(false);
+    }
+  };
   const busy = join.isPending || leave.isPending;
   const member = g.membership === "member";
   const requested = g.membership === "requested";
@@ -197,6 +211,20 @@ function Actions({ group: g, invite }: { group: Group; invite?: string }) {
         </Text>
         {member ? <ChevronDown size={16} color={t.colors.foreground} /> : null}
       </Pressable>
+      {member ? (
+        <Pressable
+          onPress={() => void openChat()}
+          disabled={opening}
+          accessibilityRole="button"
+          accessibilityLabel="Group chat"
+          style={({ pressed }) => [styles.action, styles.flex, { backgroundColor: tint(t.colors.primary, 0.12), opacity: pressed || opening ? 0.75 : 1 }]}
+        >
+          {opening ? <ActivityIndicator size="small" color={t.colors.primary} /> : <MessageCircle size={18} color={t.colors.primary} />}
+          <Text variant="label" style={{ color: t.colors.primary }}>
+            Chat
+          </Text>
+        </Pressable>
+      ) : null}
       {canInvite(g) ? (
         <Pressable
           onPress={() => router.push(`/g/${g._id}/invite`)}

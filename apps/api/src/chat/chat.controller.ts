@@ -4,7 +4,7 @@ import { Throttle } from "@nestjs/throttler";
 import { CurrentViewer, type Viewer } from "../shared/auth/viewer";
 import { Can } from "../shared/authz/can.decorator";
 import { ParseObjectIdPipe, ThreadPageQuery } from "../shared/http/pagination";
-import { ArchiveConversationDto, ConversationListQuery, EditMessageDto, ForwardMessageDto, MuteConversationDto, PinChatDto, PinMessageDto, ReactDto, SendMessageDto, StartConversationDto } from "./chat.dto";
+import { AddGroupMembersDto, ArchiveConversationDto, ConversationListQuery, CreateGroupChatDto, EditMessageDto, GroupAdminDto, RenameGroupChatDto, ForwardMessageDto, MuteConversationDto, PinChatDto, PinMessageDto, ReactDto, SendMessageDto, StartConversationDto } from "./chat.dto";
 import { ChatService } from "./chat.service";
 import { ApiNotFound, ApiStandardErrors } from "../shared/http/api-docs";
 
@@ -17,13 +17,13 @@ export class ChatController {
   constructor(private readonly chat: ChatService) {}
 
   @Get()
-  @ApiOperation({ summary: "Your conversations, newest activity first (viewer-relative unreadCount). `archived=true`: only the ones you archived" })
+  @ApiOperation({ summary: "Your conversations, newest activity first (viewer-relative unreadCount). `archived=true`: only the ones you archived; `requests=true`: only message requests" })
   list(@CurrentViewer() viewer: Viewer, @Query() q: ConversationListQuery) {
-    return this.chat.list(viewer, { archived: q.archived === "true" });
+    return this.chat.list(viewer, { archived: q.archived === "true", requests: q.requests === "true" });
   }
 
   @Get("unread-count")
-  @ApiOperation({ summary: "Unread messages across all conversations → { count }" })
+  @ApiOperation({ summary: "Unread messages in your inbox (requests not counted), and message requests waiting → { count, requests }" })
   unread(@CurrentViewer() viewer: Viewer) {
     return this.chat.unreadCount(viewer);
   }
@@ -37,6 +37,22 @@ export class ChatController {
   @ApiCreatedResponse({ description: "The conversation (an existing one is returned if you already have one about the same thing)" })
   start(@CurrentViewer() viewer: Viewer, @Body() body: StartConversationDto) {
     return this.chat.start(viewer, body);
+  }
+
+  @Post("groups")
+  @Can("messages.send")
+  @Throttle({ medium: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({ summary: "Start a group chat: a name and up to 49 neighbours who accept messages from you. You're its admin" })
+  @ApiForbiddenResponse({ description: "Someone chosen doesn't accept messages from you (each is named)" })
+  createGroup(@CurrentViewer() viewer: Viewer, @Body() body: CreateGroupChatDto) {
+    return this.chat.createGroup(viewer, body.title, body.memberUids);
+  }
+
+  @Post("for-group/:groupId")
+  @Can("messages.send")
+  @ApiOperation({ summary: "A community Group's own chat, for its members (made the first time). Its members follow the Group's" })
+  groupChat(@CurrentViewer() viewer: Viewer, @Param("groupId", ParseObjectIdPipe) groupId: string) {
+    return this.chat.groupChat(viewer, groupId);
   }
 
   @Get(":id")
@@ -157,5 +173,43 @@ export class ChatController {
   @ApiNotFound("Message")
   forward(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Param("messageId", ParseObjectIdPipe) messageId: string, @Body() body: ForwardMessageDto) {
     return this.chat.forward(viewer, id, messageId, body);
+  }
+
+  @Put(":id/request")
+  @ApiOperation({ summary: "Accept a message request: it moves to your inbox and the sender sees when you've read it" })
+  accept(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string) {
+    return this.chat.acceptRequest(viewer, id);
+  }
+
+  @Patch(":id")
+  @ApiOperation({ summary: "Rename a group (its admins)" })
+  rename(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Body() body: RenameGroupChatDto) {
+    return this.chat.renameGroup(viewer, id, body.title);
+  }
+
+  @Post(":id/members")
+  @Can("messages.send")
+  @ApiOperation({ summary: "Add neighbours to a group (its admins). They see messages from now on" })
+  addMembers(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Body() body: AddGroupMembersDto) {
+    return this.chat.addMembers(viewer, id, body.uids);
+  }
+
+  @Delete(":id/members/:uid")
+  @ApiOperation({ summary: "Remove someone from a group (its admins)" })
+  removeMember(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Param("uid") uid: string) {
+    return this.chat.removeMember(viewer, id, uid);
+  }
+
+  @Put(":id/admins/:uid")
+  @ApiOperation({ summary: "Make someone a group admin, or not (its admins). A group always keeps one" })
+  setAdmin(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Param("uid") uid: string, @Body() body: GroupAdminDto) {
+    return this.chat.setAdmin(viewer, id, uid, body.admin);
+  }
+
+  @Post(":id/leave")
+  @HttpCode(204)
+  @ApiOperation({ summary: "Leave a group. If you were its last admin, whoever has been in it longest becomes admin" })
+  leave(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string) {
+    return this.chat.leaveGroup(viewer, id);
   }
 }

@@ -23,6 +23,21 @@ export interface ConversationMember {
    * they can still see) while the conversation's latest is still the one sent at `forLast`.
    */
   preview?: { forLast: Date; replacement: { body: string; senderUid: string; createdAt: Date } | null } | null;
+  /**
+   * A message request (2026-10-29): someone they've never written to started this direct chat. It
+   * waits in their Requests, not their inbox, until they accept or reply.
+   */
+  requestedAt?: Date | null;
+}
+
+export const CONVERSATION_KINDS = ["direct", "group"] as const;
+export type ConversationKind = (typeof CONVERSATION_KINDS)[number];
+
+/** A line in a group's history that isn't anyone's message: "Ada added Bola". */
+export interface SystemNote {
+  type: "created" | "added" | "removed" | "left" | "renamed" | "joined";
+  actor: string;
+  targets?: string[];
 }
 
 /** A message pinned in the conversation for everyone in it, until `until` (24 h, 7 or 30 days). */
@@ -40,6 +55,14 @@ export type ConversationDocument = HydratedDocument<Conversation>;
 export class Conversation {
   /** Sorted participant uids + ":" + context id — makes POST idempotent. */
   @Prop({ required: true, unique: true }) threadKey!: string;
+  /** Absent on chats from before 2026-10-29: direct. */
+  @Prop({ type: String, enum: CONVERSATION_KINDS }) kind?: ConversationKind;
+  /** Groups: their name. */
+  @Prop({ trim: true, maxlength: 60 }) title?: string;
+  /** A community Group's own chat: its members are the Group's. */
+  @Prop() groupId?: string;
+  /** Groups: who may add, remove, rename and make admins. */
+  @Prop({ type: [String], default: undefined }) admins?: string[];
   @Prop({ type: [String], required: true, index: true }) participantUids!: string[];
   /**
    * Per person: unread count, when they last read it, and their own choices (2026-10-28): archived
@@ -47,7 +70,7 @@ export class Conversation {
    * hidden from them only) and muted (no notifications until then).
    */
   @Prop({
-    type: [{ uid: String, unread: { type: Number, default: 0 }, lastReadAt: Date, archivedAt: Date, clearedAt: Date, mutedUntil: Date, pinnedAt: Date, preview: Object }],
+    type: [{ uid: String, unread: { type: Number, default: 0 }, lastReadAt: Date, archivedAt: Date, clearedAt: Date, mutedUntil: Date, pinnedAt: Date, preview: Object, requestedAt: Date }],
     _id: false,
     default: [],
   })
@@ -55,7 +78,8 @@ export class Conversation {
   @Prop({ type: Object }) context?: ChatContext;
   /** Pinned messages, newest first, at most 3 (WhatsApp's pinned bar). */
   @Prop({ type: [{ messageId: String, by: String, at: Date, until: Date }], _id: false, default: undefined }) pins?: PinnedMessage[];
-  @Prop({ type: Object }) lastMessage?: { body: string; senderUid: string; createdAt: Date };
+  /** `system`: a group notice ("Ada added Bola"), shown without a name in front. */
+  @Prop({ type: Object }) lastMessage?: { body: string; senderUid: string; createdAt: Date; system?: boolean };
   @Prop({ required: true }) startedBy!: string;
   /** Closed by staff after a report. */
   @Prop({ type: Date, default: null }) removedAt!: Date | null;
@@ -87,6 +111,8 @@ export class Message {
   @Prop({ type: [String], default: undefined }) hiddenFor?: string[];
   /** How many times it had been forwarded to get here (0 or absent: written here). */
   @Prop() forwards?: number;
+  /** A notice in a group ("Ada added Bola"): `body` holds its words. Not anyone's message. */
+  @Prop({ type: Object }) system?: SystemNote;
   createdAt?: Date;
 }
 export const MessageSchema = SchemaFactory.createForClass(Message);

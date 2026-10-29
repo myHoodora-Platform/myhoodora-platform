@@ -338,6 +338,32 @@ interface Message { _id; conversationId; senderUid; body; createdAt }
 | `DELETE /conversations/:id/messages/:messageId/pin` | Unpin it for everyone. Returns the conversation. |
 
 Messages now carry `reactions?: { emoji, uids[] }[]` (most first), `editedAt?`, `deleted?`, `forwarded?` and `forwardedManyTimes?`. Conversations carry `pinned` (yours) and `pins?: { messageId, by, until, senderUid, body, photo }[]` (current, newest first; a deleted message or one cleared from your history drops out). Every change, pins included, is announced as `chat.message`, so open threads refetch.
+
+### Message requests and group chats (2026-10-29)
+
+**Requests.** A new direct chat that isn't about a listing, from someone the recipient has never written to (in any chat the two share), starts as a **request** for the recipient. It isn't in their inbox (`GET /conversations`) or archive, isn't counted in their unread total, sends one quiet notification ("Ada wants to message you") for its first message only, and opening it doesn't mark it read, so the sender sees no "Seen". The sender's side is an ordinary chat.
+
+| Route | |
+| --- | --- |
+| `GET /conversations?requests=true` | Only your requests. Each carries viewer-relative `request: true`. |
+| `GET /conversations/unread-count` | Now `{ count, requests }`: unread in your inbox, and requests waiting. |
+| `PUT /conversations/:id/request` | Accept: into your inbox, marked read; "Seen" from now on. Replying accepts too. |
+| `DELETE /conversations/:id` | On a request: it leaves your requests (it comes back if they write again). Block with the usual block route. |
+
+**Group chats.** `Conversation.kind` is `"direct"` (absent on older data) or `"group"`, with `title`, `admins[]` and, for a community Group's own chat, `groupId`. Up to 50 people. Messages may carry `system: { type, actor, targets? }`: a notice ("Ada added Bola"), with its words in `body`; it can't be reacted to, edited, pinned or forwarded (`400`), only deleted for you. `lastMessage.system` marks a notice in the inbox line. Blocking someone doesn't take you out of a group with them.
+
+| Route | |
+| --- | --- |
+| `POST /conversations/groups` | `{ title (1–60), memberUids (1–49) }` → the group; you're its admin. Each person must exist, not have blocked you (nor you them) and accept messages from you (their messaging preference), else `403` naming them. Counts toward the 20 new chats a day. |
+| `POST /conversations/for-group/:groupId` | A community Group's chat, for its members (`403` otherwise), made the first time. Each open adds people who joined the Group since (they see messages from then on) and drops those who left; someone who left the Group gets `404` from the chat. |
+| `PATCH /conversations/:id` | `{ title }`: rename (admins). |
+| `POST /conversations/:id/members` | `{ uids }`: add (admins; not for a community Group's chat, whose members follow the Group). New members see messages from then on. |
+| `DELETE /conversations/:id/members/:uid` | Remove someone (admins). |
+| `PUT /conversations/:id/admins/:uid` | `{ admin }`: make or dismiss an admin (admins). A group keeps at least one. |
+| `POST /conversations/:id/leave` | Leave (204). If you were the last admin, whoever has been in it longest becomes admin. |
+
+In a group, every other member gets each message, its unread count and a notification ("Ada in Road 4"), unless they muted it; typing shows to all.
+
 ---
 
 ## 6. Notifications ✅

@@ -5,6 +5,7 @@ import { apiFetch } from "@/core/api/client";
 export const chatKeys = {
   all: ["conversations"] as const,
   list: (archived: boolean) => ["conversations", "list", archived ? "archived" : "inbox"] as const,
+  requests: ["conversations", "list", "requests"] as const,
   unread: ["conversations", "unread"] as const,
   one: (id: string) => ["conversations", id] as const,
   messages: (id: string) => ["conversations", id, "messages"] as const,
@@ -30,9 +31,54 @@ export function deleteConversation(user: User, id: string): Promise<void> {
   return apiFetch<void>(user, `/conversations/${id}`, { method: "DELETE" });
 }
 
-export function unreadMessages(user: User): Promise<{ count: number }> {
-  return apiFetch<{ count: number }>(user, "/conversations/unread-count");
+/** Unread in your inbox (requests aren't counted), and message requests waiting (2026-10-29; absent from older APIs). */
+export function unreadMessages(user: User): Promise<{ count: number; requests?: number }> {
+  return apiFetch<{ count: number; requests?: number }>(user, "/conversations/unread-count");
 }
+
+/** Message requests: new chats from people you've never written to, waiting for you. */
+export function listRequests(user: User): Promise<Conversation[]> {
+  return apiFetch<Conversation[]>(user, "/conversations?requests=true");
+}
+
+/** Accept a request: into your inbox; they see "Seen" from now on. Replying accepts it too. */
+export function acceptRequest(user: User, id: string): Promise<Conversation> {
+  return apiFetch<Conversation>(user, `/conversations/${id}/request`, { method: "PUT" });
+}
+
+// ── Groups (2026-10-29) ──
+
+/** A group chat: a name and up to 49 neighbours who accept messages from you. You're its admin. */
+export function createGroupChat(user: User, title: string, memberUids: string[]): Promise<Conversation> {
+  return apiFetch<Conversation>(user, "/conversations/groups", { method: "POST", json: { title, memberUids } });
+}
+
+/** A community Group's own chat (made the first time). Its members are the Group's. */
+export function openGroupChat(user: User, groupId: string): Promise<Conversation> {
+  return apiFetch<Conversation>(user, `/conversations/for-group/${groupId}`, { method: "POST" });
+}
+
+export function renameGroupChat(user: User, id: string, title: string): Promise<Conversation> {
+  return apiFetch<Conversation>(user, `/conversations/${id}`, { method: "PATCH", json: { title } });
+}
+
+export function addGroupMembers(user: User, id: string, uids: string[]): Promise<Conversation> {
+  return apiFetch<Conversation>(user, `/conversations/${id}/members`, { method: "POST", json: { uids } });
+}
+
+export function removeGroupMember(user: User, id: string, uid: string): Promise<Conversation> {
+  return apiFetch<Conversation>(user, `/conversations/${id}/members/${encodeURIComponent(uid)}`, { method: "DELETE" });
+}
+
+export function setGroupAdmin(user: User, id: string, uid: string, admin: boolean): Promise<Conversation> {
+  return apiFetch<Conversation>(user, `/conversations/${id}/admins/${encodeURIComponent(uid)}`, { method: "PUT", json: { admin } });
+}
+
+export function leaveGroupChat(user: User, id: string): Promise<void> {
+  return apiFetch<void>(user, `/conversations/${id}/leave`, { method: "POST" });
+}
+
+export const isGroupChat = (c: Pick<Conversation, "kind">) => c.kind === "group";
 
 export function getConversation(user: User, id: string): Promise<Conversation> {
   return apiFetch<Conversation>(user, `/conversations/${id}`);

@@ -55,6 +55,27 @@ export class MuteConversationDto {
 export class ConversationListQuery {
   /** `true`: only the conversations you archived. Otherwise they're left out. */
   @IsOptional() @IsIn(["true", "false"]) archived?: "true" | "false";
+  /** `true`: only message requests waiting for you (2026-10-29). Otherwise they're left out. */
+  @IsOptional() @IsIn(["true", "false"]) requests?: "true" | "false";
+}
+
+/** POST /conversations/groups: a group chat with neighbours you choose (up to 49 others). */
+export class CreateGroupChatDto {
+  /** @example "Road 4 neighbours" */
+  @IsString() @Length(1, 60) title!: string;
+  @IsArray() @ArrayMaxSize(49) @IsString({ each: true }) @Length(1, 128, { each: true }) memberUids!: string[];
+}
+
+export class RenameGroupChatDto {
+  @IsString() @Length(1, 60) title!: string;
+}
+
+export class AddGroupMembersDto {
+  @IsArray() @ArrayMaxSize(49) @IsString({ each: true }) @Length(1, 128, { each: true }) uids!: string[];
+}
+
+export class GroupAdminDto {
+  @IsBoolean() admin!: boolean;
 }
 
 export class PinChatDto {

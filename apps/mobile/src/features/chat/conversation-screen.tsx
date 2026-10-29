@@ -2,7 +2,7 @@ import { errorMessage } from "@myhoodora/api-contract/errors";
 import type { Conversation, Message } from "@myhoodora/api-contract/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
-import { BellOff, ChevronRight, MoreVertical } from "lucide-react-native";
+import { BellOff, ChevronRight, MoreVertical, Users } from "lucide-react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, Pressable, StyleSheet, View } from "react-native";
 import { useSignedInUser } from "@/core/auth/auth-provider";
@@ -24,7 +24,10 @@ import { clock } from "@/shared/utils/time";
 import { useLive } from "@/features/live/live-store";
 import { useTypingIndicator, useTypingSignal } from "@/features/live/use-typing";
 import { signal } from "@/features/feedback/engagement";
-import { chatKeys, getConversation, isMuted, listMessages, otherPerson, sendMessage, sendTyping } from "./chat-api";
+import { acceptRequest, chatKeys, deleteConversation, getConversation, isGroupChat, isMuted, listMessages, otherPerson, sendMessage, sendTyping } from "./chat-api";
+import { blockUser } from "@/features/account/account-api";
+import { Button } from "@/shared/ui/button";
+import { showDialog } from "@/shared/ui/dialog";
 import { ConversationActions } from "./conversation-actions";
 import { getDraft, loadDrafts, setDraft } from "./drafts";
 import { PinnedBar, PINNED_BAR_HEIGHT } from "./pinned-bar";
@@ -38,6 +41,16 @@ const FALLBACK_POLL_MS = 15_000;
 const MAX_PHOTOS = 4;
 
 type Row = DayRows<{ message: Message; seen: boolean }>[number];
+
+/**
+ * When the others last read the thread: the other person's, or in a group the earliest of everyone
+ * else's (so "Seen" means seen by all), or nothing until all have read it.
+ */
+function readByOthers(convo: Conversation | undefined, me: string): string | undefined {
+  const others = (convo?.readBy ?? []).filter((r) => r.uid !== me);
+  if (!others.length || others.some((r) => !r.lastReadAt)) return undefined;
+  return others.map((r) => r.lastReadAt!).sort()[0];
+}
 
 /** Messages with a day line wherever the day changes, and "Seen" under your last one they've read. */
 function rowsFor(messages: Message[], me: string, theirLastRead?: string): Row[] {
@@ -105,6 +118,37 @@ export function ConversationScreen({ id }: { id: string }) {
   const otherTyping = useTypingIndicator("chat.typing", ["chat.message"], (e) => e.conversationId === id);
 
   const other = convo.data ? otherPerson(convo.data, user.uid) : undefined;
+  const group = !!convo.data && isGroupChat(convo.data);
+  const request = !!convo.data?.request;
+  const toast = useToast();
+  const leave = () => (router.canGoBack() ? router.back() : router.replace("/inbox"));
+  const accept = () =>
+    void acceptRequest(user, id).then(
+      (c) => {
+        client.setQueryData(chatKeys.one(id), c);
+        void client.invalidateQueries({ queryKey: chatKeys.all });
+      },
+      (err) => toast(errorMessage(err), "error"),
+    );
+  const declineOrBlock = (block: boolean) =>
+    showDialog(
+      block ? `Block ${other?.displayName ?? "them"}?` : "Delete this request?",
+      block ? "They won't be able to message you, and their posts and messages are hidden from you. They aren't told." : "It leaves your requests. If they write again, it comes back.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: block ? "Block" : "Delete",
+          style: "destructive",
+          onPress: () =>
+            void (block && other ? blockUser(user, other.uid) : Promise.resolve())
+              .then(() => deleteConversation(user, id))
+              .then(() => {
+                void client.invalidateQueries({ queryKey: chatKeys.all });
+                leave();
+              }, (err) => toast(errorMessage(err), "error")),
+        },
+      ],
+    );
   const body = text.trim();
   const ready = photos.urls.length > 0 && !photos.uploading && !photos.failed;
   const canSend = (body.length > 0 || ready) && !photos.uploading && !send.isPending;
@@ -134,6 +178,20 @@ export function ConversationScreen({ id }: { id: string }) {
       error={send.isError ? errorMessage(send.error) : null}
       above={
         <>
+          {request ? (
+            // A message request (2026-10-29): they don't know you've read it until you accept or reply.
+            <View style={[styles.request, { backgroundColor: t.colors.muted }]}>
+              <Text variant="label">{other?.displayName ?? "Someone"} wants to message you</Text>
+              <Text variant="caption" tone="muted">
+                {"You haven't written to each other before. They won't know you've read this until you accept or reply."}
+              </Text>
+              <View style={styles.requestButtons}>
+                <Button label="Block" variant="secondary" onPress={() => declineOrBlock(true)} style={styles.flex} />
+                <Button label="Delete" variant="secondary" onPress={() => declineOrBlock(false)} style={styles.flex} />
+                <Button label="Accept" onPress={accept} style={styles.flex} />
+              </View>
+            </View>
+          ) : null}
           {picking.note}
           {picking.sheet}
         </>
@@ -146,15 +204,31 @@ export function ConversationScreen({ id }: { id: string }) {
     <AppScreen
       fallback="/inbox"
       center={
-        <Pressable onPress={() => other && router.push(`/u/${other.uid}`)} disabled={!other} accessibilityRole="link" accessibilityLabel={other ? `${other.displayName}'s profile` : undefined} style={styles.who}>
-          <Avatar name={other?.displayName} photoURL={other?.photoURL} size={34} />
+        <Pressable
+          onPress={() => (group ? router.push({ pathname: "/inbox/[id]/info", params: { id } }) : other && router.push(`/u/${other.uid}`))}
+          disabled={!group && !other}
+          accessibilityRole="link"
+          accessibilityLabel={group ? `${convo.data?.title}: group info` : other ? `${other.displayName}'s profile` : undefined}
+          style={styles.who}
+        >
+          {group ? (
+            <View style={[styles.groupAvatar, { backgroundColor: t.colors.muted }]}>
+              <Users size={18} color={t.colors.primary} />
+            </View>
+          ) : (
+            <Avatar name={other?.displayName} photoURL={other?.photoURL} size={34} />
+          )}
           <View style={styles.shrink}>
             <Text variant="label" numberOfLines={1}>
-              {other?.displayName ?? "Message"}
+              {group ? convo.data?.title : (other?.displayName ?? "Message")}
             </Text>
             {otherTyping ? (
               <Text variant="caption" tone="primary" accessibilityLiveRegion="polite">
                 typing…
+              </Text>
+            ) : group ? (
+              <Text variant="caption" tone="muted" numberOfLines={1}>
+                {convo.data?.participants?.length ?? 0} people · tap for info
               </Text>
             ) : muted ? (
               <View style={styles.inline}>
@@ -173,7 +247,8 @@ export function ConversationScreen({ id }: { id: string }) {
       <Thread
         convo={convo.data}
         me={user.uid}
-        other={other?.displayName}
+        other={group ? convo.data?.title : other?.displayName}
+        group={group}
         messages={messages}
         list={list}
         quoteOf={acts.quoteOf}
@@ -206,6 +281,7 @@ function Thread({
   convo,
   me,
   other,
+  group,
   messages,
   list,
   quoteOf,
@@ -218,6 +294,7 @@ function Thread({
   convo?: Conversation;
   me: string;
   other?: string;
+  group: boolean;
   messages: { data?: Message[]; isPending: boolean; isError: boolean; error: unknown; refetch: () => unknown };
   list: React.RefObject<FlatList<Row> | null>;
   quoteOf: (q: NonNullable<Message["replyTo"]>) => { who: string; body: string; photo?: boolean; deleted?: boolean };
@@ -231,7 +308,7 @@ function Thread({
   const router = useRouter();
   const insets = useScreenInsets();
   const [viewing, setViewing] = useState<{ photos: string[]; start: number } | null>(null);
-  const theirRead = convo?.readBy?.find((r) => r.uid !== me)?.lastReadAt;
+  const theirRead = readByOthers(convo, me);
   const rows = useMemo(() => rowsFor(messages.data ?? [], me, theirRead), [messages.data, me, theirRead]);
   const context = convo?.context;
   // Tapping a quote goes to the message it quotes, ringed for a moment.
@@ -284,13 +361,20 @@ function Thread({
             </Pressable>
           ) : null
         }
-        renderItem={({ item }) => {
+        renderItem={({ item, index }) => {
           if (item.kind === "day") return <DayLine label={item.label} />;
           const m = item.item.message;
+          // A notice in a group ("Ada added Bola"): a line in the middle, nothing to do with it.
+          if (m.system) return <DayLine label={m.body} />;
           const q = m.replyTo;
+          // In a group, who wrote it, above the first of theirs in a run.
+          const before = index > 0 ? rows[index - 1] : undefined;
+          const run = before?.kind === "item" && before.item.message.senderUid === m.senderUid && !before.item.message.system;
+          const from = group && m.senderUid !== me && !run ? nameOf(m.senderUid) : undefined;
           return (
             <ChatBubble
               mine={m.senderUid === me}
+              from={from}
               body={m.body}
               photos={m.photos}
               deleted={m.deleted}
@@ -325,6 +409,9 @@ const styles = StyleSheet.create({
   who: { flexDirection: "row", alignItems: "center", gap: 8, maxWidth: "100%" },
   shrink: { flexShrink: 1 },
   thumb: { width: 48, height: 48, borderRadius: 10 },
+  groupAvatar: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
+  request: { borderRadius: 16, padding: 12, gap: 6, marginHorizontal: 4 },
+  requestButtons: { flexDirection: "row", gap: 8, marginTop: 4 },
   list: { padding: 16, gap: 6, flexGrow: 1 },
   empty: { textAlign: "center", marginTop: 40 },
 });

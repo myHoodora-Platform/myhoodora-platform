@@ -1,7 +1,7 @@
 import type { Conversation } from "@myhoodora/api-contract/types";
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
-import { BellOff, Pin, Search, SquarePen, X } from "lucide-react-native";
+import { BellOff, Pin, Search, SquarePen, Users, X } from "lucide-react-native";
 import { useEffect, useMemo, useState } from "react";
 import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { useSignedInUser } from "@/core/auth/auth-provider";
@@ -19,17 +19,19 @@ import { formatNaira } from "@/shared/utils/format";
 import { timeAgo } from "@/shared/utils/time";
 import { SupportPinnedRow } from "@/features/support/support-screens";
 import { useFeatureSignal } from "@/features/feedback/use-feature-signal";
-import { aboutListing, chatKeys, isMuted, listConversations, otherPerson } from "./chat-api";
+import { aboutListing, chatKeys, isGroupChat, isMuted, listConversations, listRequests, otherPerson } from "./chat-api";
+import { useMessageRequests } from "./use-unread-messages";
 import { ConversationActions } from "./conversation-actions";
 import { loadDrafts, useDrafts } from "./drafts";
 
 export { otherPerson } from "./chat-api";
 
-type Filter = "all" | "unread" | "listings" | "archived";
+type Filter = "all" | "unread" | "listings" | "requests" | "archived";
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "all", label: "All" },
   { id: "unread", label: "Unread" },
   { id: "listings", label: "Buying & selling" },
+  { id: "requests", label: "Requests" },
   { id: "archived", label: "Archived" },
 ];
 
@@ -37,7 +39,7 @@ const FILTERS: { id: Filter; label: string }[] = [
 function matches(c: Conversation, me: string, q: string): boolean {
   if (!q) return true;
   const needle = q.toLowerCase();
-  return [otherPerson(c, me)?.displayName, c.context?.title, c.lastMessage?.body].some((s) => s?.toLowerCase().includes(needle));
+  return [isGroupChat(c) ? c.title : otherPerson(c, me)?.displayName, c.context?.title, c.lastMessage?.body].some((s) => s?.toLowerCase().includes(needle));
 }
 
 function Row({ c, me, draft }: { c: Conversation; me: string; draft?: string }) {
@@ -45,9 +47,13 @@ function Row({ c, me, draft }: { c: Conversation; me: string; draft?: string }) 
   const router = useRouter();
   const [menu, setMenu] = useState(false);
   const other = otherPerson(c, me);
+  const group = isGroupChat(c);
+  const name = group ? (c.title ?? "Group") : (other?.displayName ?? "A neighbour");
   const unread = c.unreadCount > 0;
   const muted = isMuted(c);
-  const last = c.lastMessage ? `${c.lastMessage.senderUid === me ? "You: " : ""}${c.lastMessage.body}` : "No messages yet";
+  // In a group, who said it ("Ada: …"); a notice ("Ada added Bola") as it is.
+  const sender = c.lastMessage && !c.lastMessage.system ? (c.lastMessage.senderUid === me ? "You: " : group ? `${(c.participants?.find((p) => p.uid === c.lastMessage!.senderUid)?.displayName ?? "Someone").split(" ")[0]}: ` : "") : "";
+  const last = c.lastMessage ? `${sender}${c.lastMessage.body}` : "No messages yet";
   const draftLine = draft?.replace(/\s+/g, " ").trim();
   return (
     <>
@@ -56,17 +62,23 @@ function Row({ c, me, draft }: { c: Conversation; me: string; draft?: string }) 
         onLongPress={() => setMenu(true)}
         delayLongPress={350}
         accessibilityRole="button"
-        accessibilityLabel={`${c.pinned ? "Pinned. " : ""}${unread ? "Unread. " : ""}${other?.displayName ?? "A neighbour"}${c.context ? `, about ${c.context.title}` : ""}${muted ? ", muted" : ""}. ${draftLine ? `Draft: ${draftLine}` : last}`}
+        accessibilityLabel={`${c.pinned ? "Pinned. " : ""}${unread ? "Unread. " : ""}${c.request ? "Message request. " : ""}${group ? `Group ${name}` : name}${c.context ? `, about ${c.context.title}` : ""}${muted ? ", muted" : ""}. ${draftLine ? `Draft: ${draftLine}` : last}`}
         accessibilityHint="Hold for options"
         accessibilityActions={[{ name: "longpress", label: "Options" }]}
         onAccessibilityAction={(e) => e.nativeEvent.actionName === "longpress" && setMenu(true)}
         style={({ pressed }) => [styles.row, { backgroundColor: pressed ? t.colors.muted : unread ? tint(t.colors.primary, 0.05) : t.colors.background }]}
       >
-        <Avatar name={other?.displayName} photoURL={other?.photoURL} size={52} />
+        {group ? (
+          <View style={[styles.groupAvatar, { backgroundColor: tint(t.colors.primary, 0.1) }]}>
+            <Users size={24} color={t.colors.primary} />
+          </View>
+        ) : (
+          <Avatar name={other?.displayName} photoURL={other?.photoURL} size={52} />
+        )}
         <View style={styles.flex}>
           <View style={styles.line}>
             <Text variant="label" style={[styles.flex, unread && { fontFamily: t.fonts.bold }]} numberOfLines={1}>
-              {other?.displayName ?? "A neighbour"}
+              {name}
             </Text>
             {muted ? <BellOff size={14} color={t.colors.mutedForeground} accessibilityLabel="Muted" /> : null}
             {c.pinned ? <Pin size={14} color={t.colors.mutedForeground} accessibilityLabel="Pinned" /> : null}
@@ -130,7 +142,9 @@ function InboxList() {
   const [filter, setFilter] = useState<Filter>("all");
   const [text, setText] = useState("");
   const archived = filter === "archived";
-  const list = useQuery({ queryKey: chatKeys.list(archived), queryFn: () => listConversations(user, archived) });
+  const requests = filter === "requests";
+  const list = useQuery({ queryKey: requests ? chatKeys.requests : chatKeys.list(archived), queryFn: () => (requests ? listRequests(user) : listConversations(user, archived)) });
+  const waiting = useMessageRequests();
   const drafts = useDrafts(user.uid);
   useEffect(() => {
     void loadDrafts(user.uid);
@@ -141,7 +155,9 @@ function InboxList() {
     () => (list.data ?? []).filter((c) => (filter === "unread" ? c.unreadCount > 0 : filter === "listings" ? aboutListing(c) : true) && matches(c, user.uid, q)),
     [list.data, filter, q, user.uid],
   );
-  const unreadCount = (filter === "archived" ? [] : (list.data ?? [])).filter((c) => c.unreadCount > 0).length;
+  const unreadCount = (filter === "archived" || requests ? [] : (list.data ?? [])).filter((c) => c.unreadCount > 0).length;
+  // Requests shows only while there are some (or it's the one chosen).
+  const filters = FILTERS.filter((f) => f.id !== "requests" || waiting > 0 || requests);
 
   const header = (
     <View style={styles.header}>
@@ -164,8 +180,8 @@ function InboxList() {
         ) : null}
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} style={styles.chipRow} accessibilityLabel="Show">
-        {FILTERS.map((f) => (
-          <Chip key={f.id} label={f.id === "unread" && unreadCount ? `Unread (${unreadCount})` : f.label} selected={f.id === filter} onPress={() => setFilter(f.id)} />
+        {filters.map((f) => (
+          <Chip key={f.id} label={f.id === "unread" && unreadCount ? `Unread (${unreadCount})` : f.id === "requests" && waiting ? `Requests (${waiting})` : f.label} selected={f.id === filter} onPress={() => setFilter(f.id)} />
         ))}
       </ScrollView>
       {filter === "all" && !q ? <SupportPinnedRow /> : null}
@@ -179,6 +195,8 @@ function InboxList() {
       <EmptyState title="You're all caught up" body="No unread messages." />
     ) : filter === "listings" ? (
       <EmptyState title="No chats about listings yet" body="Message a seller from For Sale & Free and the chat shows here." action={{ label: "Browse For Sale", onPress: () => router.push("/for-sale") }} />
+    ) : requests ? (
+      <EmptyState title="No message requests" body="When someone you haven't written to messages you, it waits here until you accept. They don't know you've read it until then." />
     ) : archived ? (
       <EmptyState title="Nothing archived" body="Hold a chat in Messages and choose Archive to tidy it away. A new message brings it back." />
     ) : (
@@ -232,6 +250,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 12, minHeight: MIN_TOUCH + 24 },
   line: { flexDirection: "row", alignItems: "center", gap: 6 },
   thumb: { width: 48, height: 48, borderRadius: 10 },
+  groupAvatar: { width: 52, height: 52, borderRadius: 26, alignItems: "center", justifyContent: "center" },
   count: { minWidth: 20, height: 20, borderRadius: 10, paddingHorizontal: 5, alignItems: "center", justifyContent: "center" },
   countText: { fontSize: 11, lineHeight: 13 },
   separator: { height: StyleSheet.hairlineWidth, marginLeft: 80 },

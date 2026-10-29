@@ -115,6 +115,8 @@ describe("For Sale & Free + chat", () => {
 
       beforeAll(async () => {
         direct = (await t.http.post("/api/conversations").set(t.auth("ada")).send({ recipientUid: "chidi" }).expect(201)).body._id;
+        // They haven't written to each other: it starts as a request for Chidi (2026-10-29). Accepted, it's an ordinary chat.
+        await t.http.put(`/api/conversations/${direct}/request`).set(t.auth("chidi")).expect(200);
       });
 
       it("sends photos you uploaded for messages, with or without text; never someone else's or a link", async () => {

@@ -1,7 +1,7 @@
 import { errorMessage } from "@myhoodora/api-contract/errors";
 import type { Conversation } from "@myhoodora/api-contract/types";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Search, ShieldCheck, X } from "lucide-react-native";
+import { Search, ShieldCheck, Users, X } from "lucide-react-native";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, TextInput, View } from "react-native";
 import { useSignedInUser } from "@/core/auth/auth-provider";
@@ -107,6 +107,14 @@ function NewMessage() {
                 <Search size={18} color={t.colors.mutedForeground} />
               )}
             </View>
+            {!searching ? (
+              <Pressable onPress={() => router.push("/inbox/new-group")} accessibilityRole="button" style={({ pressed }) => [styles.newGroup, { backgroundColor: pressed ? t.colors.muted : "transparent" }]}>
+                <View style={[styles.newGroupIcon, { backgroundColor: t.colors.primary }]}>
+                  <Users size={20} color={t.colors.primaryForeground} />
+                </View>
+                <Text variant="label">New group</Text>
+              </Pressable>
+            ) : null}
             {people.length ? (
               <Text variant="caption" tone="muted" style={styles.section}>
                 {searching ? "Neighbours" : "Recent"}
@@ -166,6 +174,8 @@ const styles = StyleSheet.create({
   box: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 14, paddingHorizontal: 14, minHeight: MIN_TOUCH },
   input: { flex: 1, fontSize: 16, paddingVertical: 8 },
   section: { marginTop: 6, textTransform: "uppercase" },
+  newGroup: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 6, borderRadius: 12, minHeight: MIN_TOUCH + 8 },
+  newGroupIcon: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
   inline: { flexDirection: "row", alignItems: "center", gap: 6 },
   row: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 10, minHeight: MIN_TOUCH + 16 },
 });

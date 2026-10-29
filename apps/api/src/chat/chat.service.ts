@@ -13,14 +13,16 @@ import { AccountLifecycle, DELETED_USER_UID } from "../users/account-lifecycle";
 import { UsersService } from "../users/users.service";
 import { StorageService } from "../storage/storage.service";
 import type { MUTE_FOR, StartConversationDto } from "./chat.dto";
-import { Conversation, ConversationDocument, Message, type ChatContext, type ConversationMember } from "./chat.schemas";
+import { GroupMember } from "../groups/group.schemas";
+import { Group } from "../groups/group.schemas";
+import { Conversation, ConversationDocument, Message, type ChatContext, type ConversationKind, type ConversationMember, type SystemNote } from "./chat.schemas";
 
 export interface ConversationView {
   _id: string;
   participantUids: string[];
   participants: { uid: string; displayName: string; photoURL?: string }[];
   context?: ChatContext;
-  lastMessage?: { body: string; senderUid: string; createdAt: string };
+  lastMessage?: { body: string; senderUid: string; createdAt: string; system?: boolean };
   unreadCount: number;
   readBy: { uid: string; lastReadAt?: string }[];
   updatedAt: string;
@@ -31,6 +33,13 @@ export interface ConversationView {
   pinned: boolean;
   /** Messages pinned for everyone in it, still current, newest first (2026-10-28). */
   pins?: { messageId: string; by: string; until: string; senderUid: string; body: string; photo: boolean }[];
+  /** 2026-10-29: a direct chat or a group (with its name and admins; `groupId` for a community Group's chat). */
+  kind: ConversationKind;
+  title?: string;
+  groupId?: string;
+  admins?: string[];
+  /** Viewer-relative: a message request waiting for you to accept (it isn't in your inbox yet). */
+  request?: boolean;
 }
 
 export interface MessageView {
@@ -50,6 +59,8 @@ export interface MessageView {
   /** It came from another chat (2026-10-28); `forwardedManyTimes` once it has been passed on 5 times or more. */
   forwarded?: boolean;
   forwardedManyTimes?: boolean;
+  /** A notice in a group ("Ada added Bola"), with its words in `body`. */
+  system?: SystemNote;
   createdAt: string;
 }
 
@@ -74,6 +85,8 @@ export const DELETE_WINDOW_MS = 60 * HOUR_MS;
 /** Forward to up to 5 chats at once; a message forwarded many times (5 hops or more), one at a time (WhatsApp). */
 export const MAX_FORWARD_TO = 5;
 export const MANY_FORWARDS = 5;
+/** People in an ad-hoc group, you included. Moderate on purpose: neighbours, not broadcasts. */
+export const MAX_GROUP_MEMBERS = 50;
 /**
  * A reaction is one emoji: pictographs, with skin tones, joiners and variation selectors, or a flag
  * or keycap. Never words.
@@ -90,6 +103,9 @@ const clearedFor = (c: ConvRow, uid: string) => {
   return !!cleared && (!c.lastMessage || new Date(c.lastMessage.createdAt) <= new Date(cleared));
 };
 const isMuted = (m: ConversationMember | undefined, now = Date.now()) => !!m?.mutedUntil && new Date(m.mutedUntil).getTime() > now;
+const isGroup = (c: Pick<ConvRow, "kind">) => c.kind === "group";
+/** A message request waiting for this person. */
+const requestFor = (c: Pick<ConvRow, "members">, uid: string) => !!memberOf(c, uid)?.requestedAt;
 
 @Injectable()
 export class ChatService implements OnModuleInit {
@@ -97,6 +113,8 @@ export class ChatService implements OnModuleInit {
     @InjectModel(Conversation.name) private readonly conversations: Model<ConversationDocument>,
     @InjectModel(Message.name) private readonly messages: Model<Message>,
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+    @InjectModel(GroupMember.name) private readonly groupMembers: Model<GroupMember>,
+    @InjectModel(Group.name) private readonly groups: Model<Group>,
     @InjectConnection() private readonly connection: Connection,
     private readonly users: UsersService,
     private readonly listings: ListingsService,
@@ -149,6 +167,11 @@ export class ChatService implements OnModuleInit {
   private async load(viewer: Viewer, id: string): Promise<ConvRow> {
     const c = Types.ObjectId.isValid(id) ? await this.conversations.findById(id).lean<ConvRow>().exec() : null;
     if (!c || c.removedAt || !c.participantUids.includes(viewer.uid)) throw new NotFoundException("Conversation not found.");
+    // A community Group's chat is for its members now: someone who left the Group leaves it too.
+    if (c.groupId && !(await this.groupMembers.exists({ groupId: c.groupId, uid: viewer.uid }).exec())) {
+      await this.dropMembers(c, [viewer.uid]);
+      throw new NotFoundException("Conversation not found.");
+    }
     return c;
   }
 
@@ -202,21 +225,26 @@ export class ChatService implements OnModuleInit {
    * Your conversations, newest activity first. Archived ones only with `archived` (and only them);
    * ones you deleted stay out until something new arrives.
    */
-  async list(viewer: Viewer, opts: { archived?: boolean } = {}): Promise<ConversationView[]> {
+  async list(viewer: Viewer, opts: { archived?: boolean; requests?: boolean } = {}): Promise<ConversationView[]> {
     const hidden = await this.users.hiddenAuthorsFor(viewer.uid);
     const mine = { uid: viewer.uid, archivedAt: { $ne: null } };
+    const asked = { uid: viewer.uid, requestedAt: { $ne: null } };
+    // Requests (2026-10-29) have their own list; the inbox and the archive leave them out.
+    const members = opts.requests
+      ? { $elemMatch: asked }
+      : { $not: { $elemMatch: opts.archived ? { $or: [asked] } : { $or: [mine, asked] } }, ...(opts.archived && { $elemMatch: mine }) };
     const rows = await this.conversations
       .find({
         participantUids: viewer.uid,
         removedAt: null,
         lastMessage: { $exists: true },
-        members: opts.archived ? { $elemMatch: mine } : { $not: { $elemMatch: mine } },
+        members,
       })
       .sort({ updatedAt: -1 })
       .limit(100)
       .lean<ConvRow[]>()
       .exec();
-    const visible = rows.filter((c) => !c.participantUids.some((u) => hidden.includes(u)) && !clearedFor(c, viewer.uid));
+    const visible = rows.filter((c) => (isGroup(c) || !c.participantUids.some((u) => hidden.includes(u))) && !clearedFor(c, viewer.uid));
     // Pinned ones first, most recently pinned on top; the rest by their latest activity.
     const pinnedAt = (c: ConvRow) => {
       const at = memberOf(c, viewer.uid)?.pinnedAt;
@@ -303,13 +331,49 @@ export class ChatService implements OnModuleInit {
     return (await this.toViews([await this.load(viewer, id)], viewer.uid))[0]!;
   }
 
-  async unreadCount(viewer: Viewer): Promise<{ count: number }> {
+  /** Unread messages in your inbox (requests aren't counted), and how many requests are waiting. */
+  async unreadCount(viewer: Viewer): Promise<{ count: number; requests: number }> {
     const rows = await this.conversations
       .find({ participantUids: viewer.uid, removedAt: null })
-      .select({ members: 1 })
-      .lean<Pick<ConvRow, "members">[]>()
+      .select({ members: 1, lastMessage: 1 })
+      .lean<Pick<ConvRow, "members" | "lastMessage">[]>()
       .exec();
-    return { count: rows.reduce((n, c) => n + (c.members.find((m) => m.uid === viewer.uid)?.unread ?? 0), 0) };
+    let count = 0;
+    let requests = 0;
+    for (const c of rows) {
+      const me = memberOf(c, viewer.uid);
+      if (me?.requestedAt) requests += c.lastMessage && !(me.clearedAt && new Date(c.lastMessage.createdAt) <= new Date(me.clearedAt)) ? 1 : 0;
+      else count += me?.unread ?? 0;
+    }
+    return { count, requests };
+  }
+
+  /** Accept a message request: into your inbox, read, and they see "Seen" from now on. */
+  async acceptRequest(viewer: Viewer, id: string): Promise<ConversationView> {
+    const c = await this.load(viewer, id);
+    if (requestFor(c, viewer.uid)) {
+      await this.conversations
+        .updateOne({ _id: id }, { $set: { "members.$[me].requestedAt": null, "members.$[me].unread": 0, "members.$[me].lastReadAt": new Date() } }, { arrayFilters: [{ "me.uid": viewer.uid }], timestamps: false })
+        .exec();
+      this.realtime.toUsers(c.participantUids, "chat.read", { conversationId: id });
+    }
+    return this.get(viewer, id);
+  }
+
+  /**
+   * Why `recipient` won't take a new conversation (or being added to a group) from the viewer, or
+   * null if they will: their messaging preference (contract §10).
+   */
+  private async wontAccept(viewer: Viewer, recipient: User, aboutListing: boolean): Promise<string | null> {
+    const pref = recipient.preferences?.privacy?.messaging ?? "neighbourhood";
+    // "Only people I've messaged": someone the recipient has themselves written to, in any conversation between the two.
+    const closed = pref === "nobody" || (pref === "contacts" && !(await this.hasWrittenTo(recipient.uid, viewer.uid)));
+    const name = recipient.displayName ?? "This neighbour";
+    if (closed) return `${name} has restricted who can message them and isn't accepting new messages.`;
+    if (pref === "neighbourhood" && recipient.neighborhoodId !== viewer.hoodId && !aboutListing) {
+      return `${name} is outside your neighbourhood, so you can't start a conversation. Neighbours can only message people in their own neighbourhood.`;
+    }
+    return null;
   }
 
   /** Idempotent per pair + context: tapping "Message seller" twice reuses the thread. */
@@ -340,14 +404,10 @@ export class ChatService implements OnModuleInit {
     }
 
     // New thread: respect the recipient's messaging preference (contract §10).
-    const pref = recipient.preferences?.privacy?.messaging ?? "neighbourhood";
-    // "Only people I've messaged": someone the recipient has themselves written to, in any conversation between the two.
-    const closed = pref === "nobody" || (pref === "contacts" && !(await this.hasWrittenTo(recipient.uid, viewer.uid)));
-    const name = recipient.displayName ?? "This neighbour";
-    if (closed) throw new ForbiddenException(`${name} has restricted who can message them and isn't accepting new messages.`);
-    if (pref === "neighbourhood" && recipient.neighborhoodId !== viewer.hoodId && !context) {
-      throw new ForbiddenException(`${name} is outside your neighbourhood, so you can't start a conversation. Neighbours can only message people in their own neighbourhood.`);
-    }
+    const refused = await this.wontAccept(viewer, recipient, !!context);
+    if (refused) throw new ForbiddenException(refused);
+    // Someone they've never written to, and not about a listing: a message request (2026-10-29).
+    const request = !context && !(await this.hasWrittenTo(recipient.uid, viewer.uid));
     const started = await this.conversations.countDocuments({ startedBy: viewer.uid, createdAt: { $gt: new Date(Date.now() - 86_400_000) } }).exec();
     if (started >= MAX_NEW_THREADS_PER_DAY) throw new HttpException("You've started a lot of conversations today. Try again tomorrow.", HttpStatus.TOO_MANY_REQUESTS);
 
@@ -355,8 +415,9 @@ export class ChatService implements OnModuleInit {
       const doc = await this.conversations.create({
         threadKey,
         participantUids,
-        members: participantUids.map((uid) => ({ uid, unread: 0 })),
+        members: participantUids.map((uid) => ({ uid, unread: 0, ...(request && uid === recipient.uid && { requestedAt: new Date() }) })),
         context,
+        kind: "direct",
         startedBy: viewer.uid,
       });
       return (await this.toViews([doc.toObject() as ConvRow], viewer.uid))[0]!;
@@ -391,8 +452,9 @@ export class ChatService implements OnModuleInit {
       .lean<MessageRow[]>()
       .exec();
     const rows = newestFirst.reverse();
-    // Reading back through earlier messages is not reading the new ones.
-    if (q.before) return this.views(rows);
+    // Reading back through earlier messages is not reading the new ones; nor is looking at a request
+    // before accepting it (no "Seen" for the sender yet).
+    if (q.before || requestFor(c, viewer.uid)) return this.views(rows);
     // Only when there was something unread: announcing every open would make
     // two open threads refetch each other forever.
     const read = await this.conversations
@@ -470,10 +532,13 @@ export class ChatService implements OnModuleInit {
   /** A new message in `c` from the viewer, already checked: stored, counted unread, announced. */
   private async deliver(viewer: Viewer, c: ConvRow, { text, photos, replyTo, forwards }: { text: string; photos: string[]; replyTo?: string; forwards?: number }): Promise<MessageView> {
     const id = String(c._id);
-    const others = c.participantUids.filter((u) => u !== viewer.uid);
-    // They can still read it; there is nobody left to write to.
-    if (others.includes(DELETED_USER_UID)) throw new ForbiddenException("This person has deleted their account, so they can't receive messages.");
-    if (await this.blockedBetween(viewer.uid, others[0]!)) throw new ForbiddenException("You can't message this neighbour.");
+    const group = isGroup(c);
+    const others = c.participantUids.filter((u) => u !== viewer.uid && u !== (group ? DELETED_USER_UID : ""));
+    if (!group) {
+      // They can still read it; there is nobody left to write to.
+      if (others.includes(DELETED_USER_UID)) throw new ForbiddenException("This person has deleted their account, so they can't receive messages.");
+      if (await this.blockedBetween(viewer.uid, others[0]!)) throw new ForbiddenException("You can't message this neighbour.");
+    } else if (!others.length) throw new ForbiddenException("There's nobody else in this group.");
 
     const msg = await withTransaction(this.connection, async (session) => {
       const [m] = await this.messages.create(
@@ -488,6 +553,8 @@ export class ChatService implements OnModuleInit {
               lastMessage: { body: (text || PHOTO_PREVIEW).slice(0, 200), senderUid: viewer.uid, createdAt: m!.createdAt },
               "members.$[me].lastReadAt": new Date(),
               "members.$[me].unread": 0,
+              // Writing back accepts a request.
+              "members.$[me].requestedAt": null,
               // Something new brings an archived conversation back to everyone's inbox.
               "members.$[].archivedAt": null,
             },
@@ -499,14 +566,26 @@ export class ChatService implements OnModuleInit {
       return m!;
     });
 
-    // Muted: no notification, though it still counts as unread.
-    const listening = others.filter((u) => !isMuted(memberOf(c, u)));
+    // Muted: no notification, though it still counts as unread. A request: one quiet note, for its first message only.
+    const name = viewer.displayName ?? "A neighbour";
+    const listening = others.filter((u) => !isMuted(memberOf(c, u)) && !requestFor(c, u));
+    const asked = c.lastMessage ? [] : others.filter((u) => requestFor(c, u));
     if (listening.length) await this.notifications.notify({
       uids: listening,
       type: "message",
       actorUid: viewer.uid,
-      title: `${viewer.displayName ?? "A neighbour"} ${text ? "sent you a message" : photos.length > 1 ? "sent you photos" : "sent you a photo"}`,
+      title: group ? `${name} in ${c.title ?? "your group"}` : `${name} ${text ? "sent you a message" : photos.length > 1 ? "sent you photos" : "sent you a photo"}`,
       body: (text || PHOTO_PREVIEW).slice(0, 140),
+      href: `/inbox/${id}`,
+      category: "messages",
+      groupKey: `conversation:${id}`,
+    });
+    if (asked.length) await this.notifications.notify({
+      uids: asked,
+      type: "message",
+      actorUid: viewer.uid,
+      title: `${name} wants to message you`,
+      body: "It's in your message requests. They won't know you've seen it until you accept.",
       href: `/inbox/${id}`,
       category: "messages",
       groupKey: `conversation:${id}`,
@@ -516,10 +595,188 @@ export class ChatService implements OnModuleInit {
     return (await this.views([msg.toObject() as MessageRow]))[0]!;
   }
 
-  private async loadMessage(conversationId: string, messageId: string): Promise<MessageRow> {
+  /** A message of this conversation. A group notice ("Ada added Bola") only where `notices` says so: it can't be reacted to, edited, pinned or forwarded. */
+  private async loadMessage(conversationId: string, messageId: string, opts: { notices?: boolean } = {}): Promise<MessageRow> {
     const m = Types.ObjectId.isValid(messageId) ? await this.messages.findOne({ _id: messageId, conversationId }).lean<MessageRow>().exec() : null;
     if (!m) throw new NotFoundException("Message not found.");
+    if (m.system && !opts.notices) throw new BadRequestException("That's a notice in the group, not a message.");
     return m;
+  }
+
+  // ── Groups (2026-10-29) ────────────────────────────────────────────────────
+
+  /**
+   * A group chat with neighbours you choose (WhatsApp's "New group"): its name and up to
+   * MAX_GROUP_MEMBERS people, you included. Each must accept messages from you (their messaging
+   * preference) and not have blocked you. You're its first admin.
+   */
+  async createGroup(viewer: Viewer, title: string, memberUids: string[]): Promise<ConversationView> {
+    const name = title.trim();
+    if (!name) throw new BadRequestException("Give the group a name.");
+    const uids = [...new Set(memberUids)].filter((u) => u !== viewer.uid);
+    if (!uids.length) throw new BadRequestException("Add at least one neighbour.");
+    if (uids.length + 1 > MAX_GROUP_MEMBERS) throw new BadRequestException(`A group can have up to ${MAX_GROUP_MEMBERS} people.`);
+    await this.assertCanAdd(viewer, uids);
+    const started = await this.conversations.countDocuments({ startedBy: viewer.uid, createdAt: { $gt: new Date(Date.now() - 86_400_000) } }).exec();
+    if (started >= MAX_NEW_THREADS_PER_DAY) throw new HttpException("You've started a lot of conversations today. Try again tomorrow.", HttpStatus.TOO_MANY_REQUESTS);
+    const participantUids = [viewer.uid, ...uids];
+    const doc = await this.conversations.create({
+      threadKey: `group:${new Types.ObjectId().toHexString()}`,
+      kind: "group",
+      title: name,
+      admins: [viewer.uid],
+      participantUids,
+      members: participantUids.map((uid) => ({ uid, unread: 0 })),
+      startedBy: viewer.uid,
+    });
+    const c = doc.toObject() as ConvRow;
+    await this.note(c, { type: "created", actor: viewer.uid }, `${await this.nameOf(viewer.uid)} created the group “${name}”`);
+    return this.get(viewer, String(c._id));
+  }
+
+  /**
+   * A community Group's own chat, for its members (made the first time someone opens it). Its
+   * members follow the Group's: joiners are added, leavers dropped, each time it's opened; someone
+   * new sees the messages from when they joined, as on WhatsApp.
+   */
+  async groupChat(viewer: Viewer, groupId: string): Promise<ConversationView> {
+    const group = Types.ObjectId.isValid(groupId) ? await this.groups.findOne({ _id: groupId, archivedAt: null }).lean<Group & { _id: Types.ObjectId }>().exec() : null;
+    if (!group) throw new NotFoundException("Group not found.");
+    if (!(await this.groupMembers.exists({ groupId, uid: viewer.uid }).exec())) throw new ForbiddenException("Join the group to use its chat.");
+    const people = await this.groupMembers.find({ groupId }).select({ uid: 1, role: 1 }).lean<Pick<GroupMember, "uid" | "role">[]>().exec();
+    const uids = people.map((p) => p.uid);
+    const admins = people.filter((p) => p.role === "admin").map((p) => p.uid);
+    const threadKey = `group:g:${groupId}`;
+    let c = await this.conversations.findOne({ threadKey }).lean<ConvRow>().exec();
+    if (!c) {
+      try {
+        const doc = await this.conversations.create({ threadKey, kind: "group", groupId, title: group.name.slice(0, 60), admins, participantUids: uids, members: uids.map((uid) => ({ uid, unread: 0 })), startedBy: viewer.uid });
+        c = doc.toObject() as ConvRow;
+      } catch (err) {
+        if ((err as { code?: number }).code !== 11000) throw err;
+        c = await this.conversations.findOne({ threadKey }).lean<ConvRow>().exec();
+      }
+    } else {
+      if (c.removedAt) throw new ForbiddenException("This chat was closed by our team.");
+      const joined = uids.filter((u) => !c!.participantUids.includes(u));
+      const left = c.participantUids.filter((u) => !uids.includes(u));
+      const now = new Date();
+      if (joined.length) {
+        await this.conversations
+          .updateOne({ _id: c._id }, { $addToSet: { participantUids: { $each: joined } }, $push: { members: { $each: joined.map((uid) => ({ uid, unread: 0, clearedAt: now })) } } }, { timestamps: false })
+          .exec();
+      }
+      if (left.length) await this.dropMembers(c, left);
+      await this.conversations.updateOne({ _id: c._id }, { $set: { title: group.name.slice(0, 60), admins } }, { timestamps: false }).exec();
+    }
+    return this.get(viewer, String(c!._id));
+  }
+
+  /** Add neighbours to your group (admins). They see what's said from now on. */
+  async addMembers(viewer: Viewer, id: string, memberUids: string[]): Promise<ConversationView> {
+    const c = await this.loadGroup(viewer, id, { admin: true, adHoc: true });
+    const uids = [...new Set(memberUids)].filter((u) => !c.participantUids.includes(u));
+    if (!uids.length) return this.get(viewer, id);
+    if (c.participantUids.length + uids.length > MAX_GROUP_MEMBERS) throw new BadRequestException(`A group can have up to ${MAX_GROUP_MEMBERS} people.`);
+    await this.assertCanAdd(viewer, uids);
+    const now = new Date();
+    await this.conversations
+      .updateOne({ _id: id }, { $addToSet: { participantUids: { $each: uids } }, $push: { members: { $each: uids.map((uid) => ({ uid, unread: 0, clearedAt: now })) } } }, { timestamps: false })
+      .exec();
+    const names = await Promise.all(uids.map((u) => this.nameOf(u)));
+    await this.note({ ...c, participantUids: [...c.participantUids, ...uids] }, { type: "added", actor: viewer.uid, targets: uids }, `${await this.nameOf(viewer.uid)} added ${listNames(names)}`);
+    return this.get(viewer, id);
+  }
+
+  /** Take someone out of your group (admins). */
+  async removeMember(viewer: Viewer, id: string, uid: string): Promise<ConversationView> {
+    const c = await this.loadGroup(viewer, id, { admin: true, adHoc: true });
+    if (uid === viewer.uid) throw new BadRequestException("To go, leave the group.");
+    if (!c.participantUids.includes(uid)) throw new NotFoundException("They're not in this group.");
+    await this.note(c, { type: "removed", actor: viewer.uid, targets: [uid] }, `${await this.nameOf(viewer.uid)} removed ${await this.nameOf(uid)}`);
+    await this.dropMembers(c, [uid]);
+    return this.get(viewer, id);
+  }
+
+  /** Leave a group. The last admin to leave hands it to whoever has been in it longest. */
+  async leaveGroup(viewer: Viewer, id: string): Promise<void> {
+    const c = await this.loadGroup(viewer, id, { adHoc: true });
+    await this.note(c, { type: "left", actor: viewer.uid }, `${await this.nameOf(viewer.uid)} left`);
+    await this.dropMembers(c, [viewer.uid]);
+  }
+
+  /** Rename your group (admins). */
+  async renameGroup(viewer: Viewer, id: string, title: string): Promise<ConversationView> {
+    const c = await this.loadGroup(viewer, id, { admin: true, adHoc: true });
+    const name = title.trim();
+    if (!name) throw new BadRequestException("Give the group a name.");
+    if (name === c.title) return this.get(viewer, id);
+    await this.conversations.updateOne({ _id: id }, { $set: { title: name } }, { timestamps: false }).exec();
+    await this.note(c, { type: "renamed", actor: viewer.uid }, `${await this.nameOf(viewer.uid)} renamed the group “${name}”`);
+    return this.get(viewer, id);
+  }
+
+  /** Make someone an admin of your group, or not (admins). There's always at least one. */
+  async setAdmin(viewer: Viewer, id: string, uid: string, admin: boolean): Promise<ConversationView> {
+    const c = await this.loadGroup(viewer, id, { admin: true, adHoc: true });
+    if (!c.participantUids.includes(uid)) throw new NotFoundException("They're not in this group.");
+    const admins = new Set(c.admins ?? []);
+    if (admin) admins.add(uid);
+    else admins.delete(uid);
+    if (!admins.size) throw new BadRequestException("A group needs at least one admin.");
+    await this.conversations.updateOne({ _id: id }, { $set: { admins: [...admins] } }, { timestamps: false }).exec();
+    this.realtime.toUsers(c.participantUids, "chat.message", { conversationId: id });
+    return this.get(viewer, id);
+  }
+
+  /** A group you're in; `admin`: you must be one; `adHoc`: not a community Group's chat (that follows the Group). */
+  private async loadGroup(viewer: Viewer, id: string, opts: { admin?: boolean; adHoc?: boolean }): Promise<ConvRow> {
+    const c = await this.load(viewer, id);
+    if (!isGroup(c)) throw new BadRequestException("That's not a group.");
+    if (opts.adHoc && c.groupId) throw new BadRequestException("This chat's members are the group's: join or leave the group itself.");
+    if (opts.admin && !(c.admins ?? []).includes(viewer.uid)) throw new ForbiddenException("Only the group's admins can do that.");
+    return c;
+  }
+
+  /** Everyone added must exist, be active, not have blocked you (nor you them), and accept messages from you. */
+  private async assertCanAdd(viewer: Viewer, uids: string[]): Promise<void> {
+    const people = await this.userModel.find({ uid: { $in: uids } }).lean<User[]>().exec();
+    const hidden = await this.users.hiddenAuthorsFor(viewer.uid);
+    const problems: string[] = [];
+    for (const uid of uids) {
+      const p = people.find((x) => x.uid === uid);
+      if (!p || p.deactivatedAt || p.purgedAt || p.accountStatus === "suspended" || hidden.includes(uid)) {
+        problems.push(`${p?.displayName ?? "Someone you chose"} isn't available.`);
+        continue;
+      }
+      const refused = await this.wontAccept(viewer, p, false);
+      if (refused) problems.push(refused);
+    }
+    if (problems.length) throw new ForbiddenException(problems.join(" "));
+  }
+
+  /** Out of the group: no longer a participant, member or admin. An admin-less group gets its longest member as admin. */
+  private async dropMembers(c: ConvRow, uids: string[]): Promise<void> {
+    const remaining = c.participantUids.filter((u) => !uids.includes(u));
+    const admins = (c.admins ?? []).filter((u) => !uids.includes(u));
+    if (isGroup(c) && !admins.length && remaining.length && !c.groupId) admins.push(remaining[0]!);
+    await this.conversations
+      .updateOne({ _id: c._id }, { $pull: { participantUids: { $in: uids }, members: { uid: { $in: uids } } }, $set: { admins } }, { timestamps: false })
+      .exec();
+    this.realtime.toUsers([...c.participantUids], "chat.message", { conversationId: String(c._id) });
+  }
+
+  /** A notice in the group's history ("Ada added Bola"): the inbox line too, but nobody's unread. */
+  private async note(c: ConvRow, system: SystemNote, text: string): Promise<void> {
+    const [m] = await this.messages.create([{ conversationId: String(c._id), senderUid: system.actor, body: text.slice(0, 2000), system }]);
+    await this.conversations
+      .updateOne({ _id: c._id }, { $set: { lastMessage: { body: text.slice(0, 200), senderUid: system.actor, createdAt: m!.createdAt, system: true } } })
+      .exec();
+    this.realtime.toUsers(c.participantUids, "chat.message", { conversationId: String(c._id) });
+  }
+
+  private async nameOf(uid: string): Promise<string> {
+    return (await this.users.authorCards([uid])).get(uid)?.displayName ?? "A neighbour";
   }
 
   /**
@@ -575,7 +832,7 @@ export class ChatService implements OnModuleInit {
    */
   async hideForMe(viewer: Viewer, id: string, messageId: string): Promise<void> {
     const c = await this.load(viewer, id);
-    await this.loadMessage(id, messageId);
+    await this.loadMessage(id, messageId, { notices: true });
     await this.messages.updateOne({ _id: messageId }, { $addToSet: { hiddenFor: viewer.uid } }, { timestamps: false }).exec();
     await this.refreshPreview(viewer.uid, c);
     this.realtime.toUsers([viewer.uid], "chat.message", { conversationId: id });
@@ -673,6 +930,9 @@ export class ChatService implements OnModuleInit {
       updatedAt: (c.updatedAt ?? new Date()).toISOString(),
       archived: !!memberOf(c, uid)?.archivedAt,
       pinned: !!memberOf(c, uid)?.pinnedAt,
+      kind: c.kind ?? "direct",
+      ...(isGroup(c) && { title: c.title ?? "Group", admins: c.admins ?? [], ...(c.groupId && { groupId: c.groupId }) }),
+      ...(requestFor(c, uid) && { request: true }),
       ...this.pinsFor(c, uid, now, pinnedById),
       ...(isMuted(memberOf(c, uid)) && { mutedUntil: new Date(memberOf(c, uid)!.mutedUntil!).toISOString() }),
     }));
@@ -684,7 +944,7 @@ function lastMessageFor(c: ConvRow, uid: string): ConversationView["lastMessage"
   const p = memberOf(c, uid)?.preview;
   const own = !!p && !!c.lastMessage && new Date(p.forLast).getTime() === new Date(c.lastMessage.createdAt).getTime();
   const last = own ? p!.replacement : c.lastMessage;
-  return last ? { body: last.body, senderUid: last.senderUid, createdAt: new Date(last.createdAt).toISOString() } : undefined;
+  return last ? { body: last.body, senderUid: last.senderUid, createdAt: new Date(last.createdAt).toISOString(), ...("system" in last && last.system ? { system: true } : {}) } : undefined;
 }
 
 function toMessage(m: MessageRow, quoted?: MessageRow): MessageView {
@@ -707,6 +967,14 @@ function toMessage(m: MessageRow, quoted?: MessageRow): MessageView {
     ...(m.editedAt && !deleted && { editedAt: new Date(m.editedAt).toISOString() }),
     ...(deleted && { deleted: true }),
     ...(!deleted && m.forwards && { forwarded: true, ...(m.forwards >= MANY_FORWARDS && { forwardedManyTimes: true }) }),
+    ...(m.system && { system: m.system }),
     createdAt: (m.createdAt ?? new Date()).toISOString(),
   };
+}
+
+/** "Bola", "Bola and Chidi", "Bola, Chidi and 3 others". */
+function listNames(names: string[]): string {
+  if (names.length <= 2) return names.join(" and ");
+  if (names.length === 3) return `${names[0]}, ${names[1]} and ${names[2]}`;
+  return `${names[0]}, ${names[1]} and ${names.length - 2} others`;
 }

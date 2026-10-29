@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { ArrowDown, FileText, Loader2, Paperclip, RotateCw, SendHorizontal, X } from "lucide-react";
+import { ArrowDown, Ban, FileText, Forward, Loader2, Paperclip, RotateCw, SendHorizontal, X } from "lucide-react";
 import { cn } from "@myhoodora/ui/utils";
 import { EmojiPickerButton, insertAtCaret } from "@/components/shared/emoji-picker-button";
 import type { Attachments } from "./use-attachments";
@@ -20,6 +20,15 @@ export interface ChatItem {
   state?: "sending" | "failed";
   /** Small label above a bubble (e.g. "myHoodora team · Ada"). */
   label?: string;
+  /** WhatsApp-style extras (neighbour chat, 2026-10-29). */
+  replyTo?: { name: string; body: string; photo?: boolean; deleted?: boolean };
+  reactions?: { emoji: string; count: number; mine: boolean }[];
+  edited?: boolean;
+  /** Deleted for everyone: shown as a placeholder. */
+  deleted?: boolean;
+  forwarded?: "once" | "many";
+  /** A notice in a group ("Ada added Bola"): a centred line, nothing to do with it. */
+  notice?: boolean;
 }
 
 /** "2.4 MB", "820 KB". */
@@ -72,8 +81,14 @@ export function ChatMessageList({
   seenAt,
   onRetry,
   typing,
+  menu,
+  onReaction,
   mineClassName = "bg-primary text-primary-foreground",
 }: {
+  /** Per-message actions (a menu button shown beside the bubble on hover or focus). */
+  menu?: (m: ChatItem) => ReactNode;
+  /** Tapping a reaction chip: add yours, or take it back. */
+  onReaction?: (m: ChatItem, emoji: string) => void;
   items: ChatItem[];
   empty?: ReactNode;
   /** Shown above the first message, inside the scrolling area (e.g. "Load earlier messages"). */
@@ -115,7 +130,7 @@ export function ChatMessageList({
     if (typing && nearBottom.current) scrollToBottom(true);
   }, [typing]);
 
-  const lastMine = [...items].reverse().find((m) => m.mine && !m.state);
+  const lastMine = [...items].reverse().find((m) => m.mine && !m.state && !m.notice);
   const seen = Boolean(seenAt && lastMine && new Date(seenAt) >= new Date(lastMine.at));
 
   return (
@@ -138,18 +153,41 @@ export function ChatMessageList({
           return (
             <Fragment key={m.id}>
               {newDay && <p className="py-2 text-center text-xs font-semibold text-muted-foreground">{dayLabel(m.at)}</p>}
+              {m.notice ? (
+                <p className="mx-auto w-fit max-w-[85%] rounded-full bg-muted px-3 py-1 text-center text-xs text-muted-foreground">{m.body}</p>
+              ) : (
+              <>
               {m.label && (!prev || prev.label !== m.label || newDay) && (
                 <p className={cn("px-1 pt-1 text-xs font-semibold text-muted-foreground", m.mine && "text-right")}>{m.label}</p>
               )}
-              <div className={cn("flex", m.mine ? "justify-end" : "justify-start")}>
+              <div id={`message-${m.id}`} className={cn("group flex items-center gap-1", m.mine ? "flex-row-reverse justify-start" : "justify-start")}>
                 <div
                   className={cn(
                     "max-w-[80%] rounded-2xl px-3.5 py-2 text-[15px]",
+                    m.deleted && "italic opacity-80",
                     m.mine ? cn("rounded-br-md", mineClassName) : "rounded-bl-md bg-muted text-foreground",
                     m.state === "sending" && "opacity-70",
                     m.state === "failed" && "bg-danger-soft text-foreground",
                   )}
                 >
+                  {m.forwarded && (
+                    <p className={cn("mb-0.5 flex items-center gap-1 text-xs italic", m.mine ? "text-primary-foreground/75" : "text-muted-foreground")}>
+                      <Forward className="size-3" aria-hidden /> {m.forwarded === "many" ? "Forwarded many times" : "Forwarded"}
+                    </p>
+                  )}
+                  {m.replyTo && (
+                    <div className={cn("-mx-1.5 mb-1 rounded-xl border-l-[3px] px-2.5 py-1.5 text-[13px]", m.mine ? "border-primary-foreground/70 bg-primary-foreground/15" : "border-primary bg-background/70")}>
+                      <p className="font-semibold">{m.replyTo.name}</p>
+                      <p className={cn("line-clamp-2", m.mine ? "text-primary-foreground/80" : "text-muted-foreground")}>
+                        {m.replyTo.deleted ? "This message was deleted" : m.replyTo.body || (m.replyTo.photo ? "Photo" : "")}
+                      </p>
+                    </div>
+                  )}
+                  {m.deleted ? (
+                    <p className="flex items-center gap-1.5">
+                      <Ban className="size-3.5" aria-hidden /> {m.mine ? "You deleted this message" : "This message was deleted"}
+                    </p>
+                  ) : null}
                   {m.photos?.length ? (
                     <div className={cn("-mx-1.5 mb-1 grid gap-1", m.photos.length > 1 && "grid-cols-2")}>
                       {m.photos.map((url) => (
@@ -163,10 +201,28 @@ export function ChatMessageList({
                   {m.documents?.length ? <DocumentLinks documents={m.documents} mine={m.mine} /> : null}
                   {m.body ? <p className="whitespace-pre-wrap">{m.body}</p> : null}
                   <p className={cn("mt-0.5 text-right text-[11px]", m.mine && !m.state ? "text-primary-foreground/70" : "text-muted-foreground")}>
-                    {m.state === "sending" ? "Sending…" : m.state === "failed" ? "Not sent" : clock(m.at)}
+                    {m.state === "sending" ? "Sending…" : m.state === "failed" ? "Not sent" : `${m.edited && !m.deleted ? "Edited · " : ""}${clock(m.at)}`}
                   </p>
                 </div>
+                {menu && !m.state ? <div className="opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">{menu(m)}</div> : null}
               </div>
+              {m.reactions?.length ? (
+                <div className={cn("-mt-1 flex gap-1 px-2", m.mine ? "justify-end" : "justify-start")}>
+                  {m.reactions.map((r) => (
+                    <button
+                      key={r.emoji}
+                      type="button"
+                      onClick={() => onReaction?.(m, r.emoji)}
+                      aria-pressed={r.mine}
+                      aria-label={`${r.emoji} ${r.count}${r.mine ? ", yours: remove" : ""}`}
+                      className={cn("inline-flex items-center gap-1 rounded-full border bg-card px-2 py-0.5 text-xs shadow-sm", r.mine ? "border-primary/50" : "border-border")}
+                    >
+                      <span>{r.emoji}</span>
+                      {r.count > 1 && <span className="text-muted-foreground">{r.count}</span>}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
               {m.state === "failed" && onRetry && (
                 <div className="flex justify-end">
                   <button type="button" onClick={() => onRetry(m.id)} className="inline-flex items-center gap-1 px-1 text-xs font-semibold text-destructive hover:underline">
@@ -175,6 +231,8 @@ export function ChatMessageList({
                 </div>
               )}
               {seen && m === lastMine && <p className="px-1 text-right text-[11px] font-semibold text-muted-foreground">Seen</p>}
+              </>
+              )}
             </Fragment>
           );
         })}
@@ -204,7 +262,10 @@ export function ChatComposer({
   inputRef,
   attachments,
   accept,
+  banner,
 }: {
+  /** Above the box: "Replying to Ada" or "Editing", with ✕. */
+  banner?: { title: string; body: string; onCancel: () => void } | null;
   value: string;
   onChange: (v: string) => void;
   onSend: () => void;
@@ -236,6 +297,17 @@ export function ChatComposer({
       }}
       className="border-t border-border p-3"
     >
+      {banner ? (
+        <div className="mb-2 flex items-center gap-3 rounded-xl border-l-[3px] border-primary bg-muted px-3 py-2" aria-live="polite">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xs font-semibold text-primary">{banner.title}</p>
+            <p className="truncate text-xs text-muted-foreground">{banner.body}</p>
+          </div>
+          <button type="button" onClick={banner.onCancel} aria-label={`Cancel: ${banner.title}`} className="flex size-7 items-center justify-center rounded-full text-muted-foreground hover:bg-background">
+            <X className="size-4" aria-hidden />
+          </button>
+        </div>
+      ) : null}
       {attachments ? <AttachmentTray attachments={attachments} /> : null}
       <div className="flex items-end gap-2">
       {attachments ? <AttachButton attachments={attachments} accept={accept} /> : null}
