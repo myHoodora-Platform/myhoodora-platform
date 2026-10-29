@@ -82,7 +82,7 @@ function kindForStatus(status: number, rateLimited = false): ApiErrorKind {
  * restarts, Cloudflare's "Just a moment…" check), not the API. Whatever its status, it says nothing
  * about the request or the session.
  */
-function isHtmlPage(text: string): boolean {
+export function isHtmlPage(text: string): boolean {
   return /^\s*<(!doctype|html|head|body)\b/i.test(text);
 }
 
