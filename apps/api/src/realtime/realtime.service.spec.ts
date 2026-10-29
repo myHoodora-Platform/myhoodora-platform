@@ -5,7 +5,7 @@ import { RealtimeService } from "./realtime.service";
 import type { RealtimeEvent } from "./realtime.types";
 
 const viewer = (uid: string, hoodId: string | null, role: Viewer["role"] = "member") =>
-  ({ uid, hoodId, role, capabilities: [], accountStatus: "active", verificationStatus: "verified", emailVerified: true, exists: true }) as Viewer;
+  ({ uid, hoodId, readableHoodIds: hoodId ? [hoodId] : [], role, capabilities: [], accountStatus: "active", verificationStatus: "verified", emailVerified: true, exists: true }) as Viewer;
 
 function listen(service: RealtimeService, v: Viewer) {
   const got: RealtimeEvent[] = [];

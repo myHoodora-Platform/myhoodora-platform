@@ -25,9 +25,13 @@ export class Listing {
   @Prop({ type: String, required: true, enum: LISTING_STATUSES, default: "available" }) status!: ListingStatus;
   @Prop({ type: Date, default: null }) removedAt!: Date | null;
   @Prop({ type: Date, default: null }) deletedAt!: Date | null;
+  /** The seller has deactivated their account: hidden from neighbours until they come back (AccountLifecycle). */
+  @Prop() sellerDeactivated?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }
 
 export const ListingSchema = SchemaFactory.createForClass(Listing);
 ListingSchema.index({ neighborhoodId: 1, deletedAt: 1, removedAt: 1, createdAt: -1 });
+// "Is this stored file still used by a listing?" (StorageService.sweepUnreferenced).
+ListingSchema.index({ photos: 1 });

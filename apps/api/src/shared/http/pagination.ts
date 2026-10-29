@@ -1,9 +1,31 @@
 import { BadRequestException, Injectable, PipeTransform } from "@nestjs/common";
 import { Transform, Type } from "class-transformer";
-import { IsDateString, IsInt, IsOptional, IsString, Max, MaxLength, Min } from "class-validator";
+import { IsDateString, IsInt, IsMongoId, IsOptional, IsString, Max, MaxLength, Min } from "class-validator";
 import { isValidObjectId } from "mongoose";
 
 /** Feed-style cursor paging (contract §1: `?before=<createdAt>`), with legacy `skip`. */
+/** Most items a thread returns at once, and how many it returns when the client doesn't say. */
+export const THREAD_PAGE_MAX = 500;
+
+/**
+ * Paging back through a thread (messages, comments). No parameters: the newest page. `before`: the
+ * page that ends just before that item, for "load earlier". Pages are oldest-first, like the thread.
+ */
+export class ThreadPageQuery {
+  /** The id of the oldest item you already have. */
+  @IsOptional()
+  @IsMongoId()
+  before?: string;
+
+  /** 1 to 500. Default 500. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(THREAD_PAGE_MAX)
+  limit?: number;
+}
+
 export class CursorQuery {
   @IsOptional()
   @Type(() => Number)

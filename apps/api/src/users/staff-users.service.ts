@@ -65,6 +65,11 @@ export class StaffUsersService {
     private readonly realtime: RealtimeService,
   ) {}
 
+  /** See `verification.strictHoodAccess` in configuration.ts. */
+  private get strictHoodAccess(): boolean {
+    return this.config.get<boolean>("verification.strictHoodAccess") !== false;
+  }
+
   async list(q: NeighbourQuery): Promise<Page<NeighbourRow>> {
     const re = searchRegex(q.q);
     const filter: QueryFilter<User> = {
@@ -108,11 +113,16 @@ export class StaffUsersService {
     });
   }
 
-  /** One staff action on one neighbour, with its audit entry, atomically. */
-  async act(actor: Viewer, uid: string, input: NeighbourActionInput, session?: ClientSession): Promise<User> {
+  /** Whether this person may take this action on anyone at all (nothing to do with which neighbour). */
+  assertMayTake(actor: Viewer, input: Pick<NeighbourActionInput, "action" | "days">): void {
     if ((ADMIN_ONLY.includes(input.action) || (input.days ?? 0) > 7) && !actor.capabilities.includes("moderation.suspend")) {
       throw new ForbiddenException("Only admins can do that.");
     }
+  }
+
+  /** One staff action on one neighbour, with its audit entry, atomically. */
+  async act(actor: Viewer, uid: string, input: NeighbourActionInput, session?: ClientSession): Promise<User> {
+    this.assertMayTake(actor, input);
     if (uid === actor.uid) throw new BadRequestException("You can't take staff action on your own account.");
 
     // Set inside the transaction; used afterwards to tell the neighbour.
@@ -133,6 +143,11 @@ export class StaffUsersService {
         case "verify":
         case "change_hood": {
           if (!input.hoodId) throw new BadRequestException("Choose a Hood first.");
+          // A Hood only counts for a verified neighbour, so "moving" anyone else would change nothing they
+          // can see while telling them it had. Placing someone who isn't verified is what "verify" is for.
+          if (input.action === "change_hood" && target.verificationStatus !== "verified" && this.strictHoodAccess) {
+            throw new BadRequestException("This neighbour isn't verified yet. Verify them to place them in a Hood.");
+          }
           const hood = await this.hoods.findById(input.hoodId);
           if (hood.status === "archived") throw new BadRequestException("That Hood is archived.");
           hoodName = hood.name;
@@ -146,6 +161,12 @@ export class StaffUsersService {
         case "reject_verification":
           // Turning down a join request isn't a verdict on the person: they can fix their address or ask again.
           target.verificationStatus = joinRequest ? "unverified" : "rejected";
+          // Rejected means "not a neighbour here": the Hood goes too, or they would keep reading it.
+          // Where they were is kept for staff, who can put them back with "verify".
+          if (!joinRequest && target.neighborhoodId && this.strictHoodAccess) {
+            target.lastNeighborhoodId = target.neighborhoodId;
+            target.neighborhoodId = undefined;
+          }
           break;
         case "restrict":
           target.accountStatus = "restricted";

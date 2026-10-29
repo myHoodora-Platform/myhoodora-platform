@@ -271,7 +271,7 @@ export function GetStartedFlow() {
 
 export function GetStartedHeader() {
   return (
-    <header className="flex items-center justify-between border-b border-border bg-card px-4 py-3 sm:px-8">
+    <header data-site-chrome className="flex items-center justify-between border-b border-border bg-card px-4 py-3 sm:px-8">
       <Link href="/business" aria-label="myHoodora for Business">
         <MascotWordmark size="sm" />
       </Link>

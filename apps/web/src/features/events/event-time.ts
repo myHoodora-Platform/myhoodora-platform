@@ -3,7 +3,7 @@
  * end-time field, so it's treated as lasting 3 hours.
  */
 import type { Post } from "@/lib/api/types";
-import type { CalendarEvent } from "@/lib/calendar";
+import { eventCalendar, type CalendarEvent } from "@myhoodora/api-contract/calendar";
 
 export const EVENT_LENGTH_MS = 3 * 60 * 60 * 1000;
 const YEAR_MS = 366 * 24 * 60 * 60 * 1000;
@@ -11,6 +11,19 @@ const YEAR_MS = 366 * 24 * 60 * 60 * 1000;
 export type EventPhase = "upcoming" | "today" | "live" | "ended";
 
 export const eventEndsAt = (startIso: string) => new Date(new Date(startIso).getTime() + EVENT_LENGTH_MS);
+
+/**
+ * Events posted before dates were required have none. One counts as upcoming for this long after it
+ * was posted (it was usually "this Saturday"), then as past, so it can't sit in Upcoming for ever.
+ * Same rule in the app (apps/mobile/src/features/events/event-time.ts).
+ */
+export const UNDATED_UPCOMING_DAYS = 14;
+
+export function isPastEvent(eventDate: string | undefined, createdAt: string | undefined, now = new Date()): boolean {
+  if (eventDate) return eventEndsAt(eventDate) <= now;
+  const posted = createdAt ? new Date(createdAt).getTime() : NaN;
+  return !Number.isNaN(posted) && now.getTime() - posted > UNDATED_UPCOMING_DAYS * 86_400_000;
+}
 
 /** Where an event is in its life, for labels ("Today", "Happening now", "Ended") and closing RSVPs. */
 export function eventPhase(startIso: string | undefined, now = new Date()): EventPhase {
@@ -40,17 +53,8 @@ export function eventTitle(post: Pick<Post, "message">): { title: string; rest: 
   return { title, rest: text.slice(cut).trim() };
 }
 
-/** What "Add to calendar" needs from an event post. */
+/** What "Add to calendar" needs from an event post (the rule is shared with the app). */
 export function calendarFor(post: Pick<Post, "_id" | "message" | "meta">, origin = typeof window === "undefined" ? "" : window.location.origin): CalendarEvent | null {
-  if (!post.meta.eventDate) return null;
   const { title, rest } = eventTitle(post);
-  return {
-    id: post._id,
-    title: title.replace(/[.!?]+$/, ""),
-    start: new Date(post.meta.eventDate),
-    end: eventEndsAt(post.meta.eventDate),
-    location: post.meta.eventLocation,
-    url: `${origin}/p/${post._id}`,
-    description: rest || undefined,
-  };
+  return eventCalendar({ id: post._id, title, rest, eventDate: post.meta.eventDate, eventLocation: post.meta.eventLocation }, origin);
 }

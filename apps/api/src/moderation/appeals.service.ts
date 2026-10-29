@@ -69,8 +69,8 @@ export class AppealsService {
     const reportedCaseIds = (await this.reports.find({ reporterUid: viewer.uid }).select({ caseId: 1 }).lean<Pick<Report, "caseId">[]>().exec()).map((r) => r.caseId);
     const rows = await this.cases
       .find({
+        // Whatever the case's status: one reopened by a new report still carries its earlier decision, which stays appealable.
         "resolution.at": { $gte: since },
-        status: { $in: ["resolved", "dismissed"] },
         $or: [{ authorUid: viewer.uid }, { _id: { $in: reportedCaseIds.filter((id) => Types.ObjectId.isValid(id)).map((id) => new Types.ObjectId(id)) } }],
       })
       .sort({ "resolution.at": -1 })
@@ -152,6 +152,8 @@ export class AppealsService {
       throw new ForbiddenException("Only admins can reverse account restrictions or suspensions.");
     }
 
+    // A reporter's appeal against "keep" succeeding is a removal: a new decision about the author's content.
+    const removesContent = outcome === "overturned" && action === "keep" && Boolean(this.registry.get(kase.targetType));
     await withTransaction(this.connection, async (session) => {
       const res = await this.appeals
         .updateOne({ _id: id, status: "open" }, { $set: { status: outcome, outcome: { reason, by: actor.displayName ?? "Staff", byUid: actor.uid, at: new Date() } } }, { session })
@@ -161,6 +163,17 @@ export class AppealsService {
         const handler = this.registry.get(kase.targetType);
         if (action === "remove_content" && handler) await handler.setRemoved(kase.targetId, false, actor.uid, session);
         if (action === "keep" && handler) await handler.setRemoved(kase.targetId, true, actor.uid, session);
+        if (removesContent) {
+          // The case must say what was done and by whom: that is what the author sees, and what they appeal
+          // (to someone other than the person who removed it).
+          await this.cases
+            .updateOne(
+              { _id: kase._id },
+              { $set: { status: "resolved", resolution: { action: "remove_content", reason, by: actor.displayName ?? "Staff", byUid: actor.uid, at: new Date() } }, $unset: { reopenedAt: 1 } },
+              { session },
+            )
+            .exec();
+        }
         if ((action === "restrict_author" || action === "suspend_author") && kase.authorUid) {
           await this.staffUsers.act(actor, kase.authorUid, { action: "reinstate", reason: `Appeal upheld: ${reason}` }, session);
         }
@@ -171,6 +184,17 @@ export class AppealsService {
     if (outcome === "overturned") {
       if (action === "remove_content" || action === "keep") await this.registry.announce(kase.targetType, kase.targetId);
       if ((action === "restrict_author" || action === "suspend_author") && kase.authorUid) this.realtime.toUser(kase.authorUid, "session.changed");
+    }
+
+    if (removesContent && kase.authorUid) {
+      // The same notice as any removal (ModerationService.afterDecision): the author must hear it from us.
+      await this.notifications.notify({
+        uids: [kase.authorUid],
+        type: "moderation",
+        title: `Your ${kase.targetType} was removed`,
+        body: `It broke the community guidelines: ${reason}. You can appeal within 30 days.`,
+        href: "/settings/moderation",
+      });
     }
 
     await this.notifications.notify({

@@ -1,10 +1,11 @@
 import { searchRegex } from "../shared/http/pagination";
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, GoneException, Injectable, Logger, NotFoundException, type OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { InjectConnection, InjectModel } from "@nestjs/mongoose";
 import type { DecodedIdToken } from "firebase-admin/auth";
 import { Connection, Model } from "mongoose";
 import { AuthService } from "../auth/auth.service";
+import { getFirebaseAdmin } from "../config/firebase.config";
 import { AuditService } from "../audit/audit.service";
 import { HoodsService, isOpenHood, type NearbyHood } from "../hoods/hoods.service";
 import { NotificationsService } from "../notifications/notifications.service";
@@ -14,11 +15,18 @@ import type { Viewer } from "../shared/auth/viewer";
 import { withTransaction } from "../shared/db/transaction";
 import { EmailVerificationService } from "../verification/email-verification.service";
 import { mergePreferences, type Preferences } from "./domain/preferences";
+import { AccountLifecycle, DELETED_USER_NAME, DELETED_USER_UID, RESTORE_WINDOW_MS } from "./account-lifecycle";
 import type { DeactivateDto, OnboardingDto, PreferencesDto, UpdateMeDto, VerifyLocationDto } from "./dto/users.dto";
 import { User, UserDocument } from "./schemas/user.schema";
 
 const MAX_BLOCKS = 500;
+/** The name shown in place of someone who has deactivated their account. */
+export const FORMER_NEIGHBOUR = "Former neighbour";
 const MAX_ATTEMPTS_KEPT = 10;
+/** How recent a sign-in must be to change the email (the app asks for the password again first). */
+const RECENT_SIGN_IN_S = 5 * 60;
+export const REAUTH_MESSAGE = "For your security, enter your password again to change your email.";
+const EMAIL_TAKEN = "That email address is already used by another account.";
 
 export interface MeResponse {
   uid: string;
@@ -36,7 +44,20 @@ export interface MeResponse {
   location?: User["location"];
   /** Set while waiting for staff to approve a join request (contract §16). */
   requestedHood: { id: string; name: string; requestedAt: string } | null;
+  /** Hoods they may read and hear alerts from besides home (contract §31). */
+  secondaryHoods: { id: string; name: string; city?: string; since: string }[];
   createdAt?: string;
+}
+
+/** POST /users/me/verify-location/preview: what verifying at a point would do (contract §29). */
+export interface LocationPreview {
+  /** The Hood the point would join, or null when it's outside every Hood. */
+  hood: { id: string; name: string; city: string } | null;
+  distanceMeters?: number;
+  /** Outside every Hood: the close ones, to ask to join (§16). */
+  nearbyHoods: NearbyHood[];
+  /** Why joining `hood` would be refused: a verified neighbour moving Hood too soon (§26). */
+  cannotJoin?: string;
 }
 
 export interface PublicProfile {
@@ -66,13 +87,14 @@ export function toMe(u: User): MeResponse {
     restrictedUntil: u.restrictedUntil?.toISOString() ?? null,
     location: u.location,
     requestedHood: u.requestedHood ? { id: u.requestedHood.id, name: u.requestedHood.name, requestedAt: u.requestedHood.requestedAt.toISOString() } : null,
+    secondaryHoods: (u.secondaryHoods ?? []).map((h) => ({ id: h.id, name: h.name, city: h.city, since: new Date(h.since).toISOString() })),
     createdAt: u.createdAt?.toISOString(),
   };
 }
 
 /** Self-service account operations (the signed-in neighbour acting on themselves). */
 @Injectable()
-export class UsersService {
+export class UsersService implements OnModuleInit {
   private readonly logger = new Logger(UsersService.name);
 
   constructor(
@@ -86,7 +108,16 @@ export class UsersService {
     private readonly realtime: RealtimeService,
     private readonly config: ConfigService,
     private readonly storage: StorageService,
+    private readonly lifecycle: AccountLifecycle,
   ) {}
+
+  onModuleInit() {
+    // A profile photo is in use for as long as it is someone's photo (StorageService.sweepUnreferenced).
+    this.storage.registerReferenceSource({
+      name: "users",
+      inUse: async (urls) => (await this.users.find({ photoURL: { $in: urls } }).select({ photoURL: 1 }).lean<Pick<User, "photoURL">[]>().exec()).map((u) => u.photoURL!),
+    });
+  }
 
   findByUid(uid: string): Promise<UserDocument | null> {
     return this.users.findOne({ uid }).exec();
@@ -105,9 +136,19 @@ export class UsersService {
       // An existing account is never recreated or overwritten by signing in, whichever method is used:
       // name, photo, Hood, role and onboarding stay exactly as they are. Only two things can change here.
       let changed = false;
+      // Deleted for good. (Their Firebase sign-in went with it; this covers a token issued just before.)
+      if (existing.purgedAt) throw new GoneException("This account has been deleted.");
       if (existing.deactivatedAt) {
-        // Logging back in within 30 days restores the account (contract §10).
+        // Past the 30 days, with deletion running: it is about to be deleted, and must not be half-restored meanwhile.
+        const pastWindow = Date.now() - existing.deactivatedAt.getTime() > RESTORE_WINDOW_MS;
+        if (pastWindow && this.config.get<string>("deletion.mode") === "live") {
+          throw new GoneException("This account was deactivated more than 30 days ago and can no longer be restored.");
+        }
+        // Logging back in within 30 days restores the account (contract §10). Their content comes back
+        // first: if that fails they are still deactivated, and the next sign-in tries again.
+        await this.lifecycle.unhide(existing.uid);
         existing.deactivatedAt = null;
+        existing.deactivation = null;
         changed = true;
       }
       if (!existing.emailVerifiedAt && providerVerified) {
@@ -171,13 +212,55 @@ export class UsersService {
       $set: { ...rest, ...(photoURL && { photoURL }) },
       ...(photoURL === null && { $unset: { photoURL: 1 } }),
     };
-    const before = await this.users.findOneAndUpdate({ uid }, update, { new: false, runValidators: true }).exec();
+    const before = await this.users.findOneAndUpdate({ uid }, update, { returnDocument: "before", runValidators: true }).exec();
     if (!before) throw new NotFoundException("Profile not found.");
     if (photoURL !== undefined && before.photoURL && before.photoURL !== photoURL) {
       // Only files this person uploaded through us are touched; Google/Apple photos are left alone.
       void this.storage.discardByUrl(uid, before.photoURL);
     }
     return toMe((await this.findByUid(uid))!);
+  }
+
+  /**
+   * POST /users/me/email: change an address that was never confirmed (a typo at sign-up, or one they
+   * can't reach). A confirmed address is the account's proven identity and can't be changed here.
+   *
+   * - Email-and-password sign-ins only (Google proves its own address, and it's confirmed already).
+   * - A recent sign-in (the app asks for the password again first), so a phone left unlocked can't
+   *   be used to take the account over.
+   * - Firebase (where people sign in) and our record change together: if ours fails, Firebase is put
+   *   back. Links sent to the old address are deleted and the new address gets its own.
+   */
+  async changeEmail(viewer: Viewer, token: DecodedIdToken, rawEmail: string): Promise<MeResponse> {
+    const email = rawEmail.trim().toLowerCase();
+    const user = await this.findByUid(viewer.uid);
+    if (!user) throw new NotFoundException("Profile not found.");
+    if (user.emailVerifiedAt || token.email_verified) throw new ConflictException("Your email address is confirmed, so it can't be changed.");
+    if (token.firebase?.sign_in_provider !== "password") throw new BadRequestException("Your email comes from the account you sign in with, so it can't be changed here.");
+    if (Date.now() / 1000 - token.auth_time > RECENT_SIGN_IN_S) throw new ForbiddenException(REAUTH_MESSAGE);
+    if (email === user.email) throw new BadRequestException("That's already your email address.");
+    if (await this.users.exists({ email, uid: { $ne: viewer.uid } })) throw new ConflictException(EMAIL_TAKEN);
+
+    const firebase = getFirebaseAdmin().auth();
+    try {
+      await firebase.updateUser(viewer.uid, { email, emailVerified: false });
+    } catch (err) {
+      if ((err as { code?: string }).code === "auth/email-already-exists") throw new ConflictException(EMAIL_TAKEN);
+      throw err;
+    }
+    try {
+      await withTransaction(this.connection, async (s) => {
+        await this.users.updateOne({ uid: viewer.uid }, { $set: { email, emailVerifiedAt: null } }, { session: s }).exec();
+        await this.audit.record(viewer, "email_change", { type: "user", id: viewer.uid, label: user.displayName ?? viewer.uid }, { reason: "Changed before it was confirmed" }, s);
+      });
+    } catch (err) {
+      // Never leave the two disagreeing: sign-in would use one address and our emails the other.
+      await firebase.updateUser(viewer.uid, { email: user.email }).catch(() => this.logger.error(`Email change for ${viewer.uid} failed half-way; Firebase still has the new address.`));
+      throw err;
+    }
+    const updated = (await this.findByUid(viewer.uid))!;
+    await this.emailVerification.restartFor(updated).catch(() => this.logger.warn("Confirmation email for a changed address could not be queued."));
+    return toMe(updated);
   }
 
   /**
@@ -192,7 +275,7 @@ export class UsersService {
     const set: Partial<User> = { isOnboarded: true };
     if (dto.displayName !== undefined) set.displayName = dto.displayName;
     if (dto.location !== undefined) set.location = dto.location;
-    const user = await this.users.findOneAndUpdate({ uid }, { $set: set }, { new: true, runValidators: true }).exec();
+    const user = await this.users.findOneAndUpdate({ uid }, { $set: set }, { returnDocument: "after", runValidators: true }).exec();
     if (!user) throw new NotFoundException("Profile not found.");
     return toMe(user);
   }
@@ -201,6 +284,10 @@ export class UsersService {
    * Address verification: match the point to an open Hood. Records every
    * attempt (last 10) so staff can review failures in the verification queue.
    * Outside every Hood, offers the close ones to ask to join (contract §16).
+   *
+   * The coordinates come from the caller, so this is only as strong as their honesty. It must at least
+   * not let a verified neighbour walk from Hood to Hood: a point in a *different* Hood is 409 and they
+   * stay where they are. Moving is a request staff review (contract §31), done with change_hood.
    */
   async verifyLocation(viewer: Viewer, dto: VerifyLocationDto) {
     const user = await this.findByUid(viewer.uid);
@@ -209,11 +296,22 @@ export class UsersService {
       throw new ForbiddenException("Your address couldn't be verified. Contact support if you think that's wrong.");
     }
     const match = await this.hoods.findVerifiedMatch(dto.lng, dto.lat);
-    const attempt = { at: new Date(), lat: dto.lat, lng: dto.lng, address: dto.address, result: match ? ("matched" as const) : ("outside_coverage" as const) };
+    // The neighbour confirmed a Hood (from the preview): never put them anywhere else.
+    if (dto.neighborhoodId !== undefined && match?.neighborhoodId !== dto.neighborhoodId) {
+      const hoods = await this.hoods.findManyByIds(match ? [dto.neighborhoodId, match.neighborhoodId] : [dto.neighborhoodId]);
+      const chosen = hoods.get(dto.neighborhoodId)?.name ?? "the neighbourhood you chose";
+      const actual = match && hoods.get(match.neighborhoodId)?.name;
+      throw new ConflictException(actual ? `That pin is in ${actual}, not ${chosen}. Check it and confirm again.` : `That pin isn't in ${chosen} any more. Check it and confirm again.`);
+    }
+    const { movingFrom, tooSoon } = this.hoodMove(user, match?.neighborhoodId);
+
+    const result = !match ? ("outside_coverage" as const) : tooSoon ? ("mismatch" as const) : ("matched" as const);
+    const attempt = { at: new Date(), lat: dto.lat, lng: dto.lng, address: dto.address, result };
     const attempts = [...(user.verificationAttempts ?? []), attempt].slice(-MAX_ATTEMPTS_KEPT);
 
-    if (!match) {
+    if (!match || tooSoon) {
       await this.users.updateOne({ uid: viewer.uid }, { $set: { lastKnownLocation: { lat: dto.lat, lng: dto.lng }, verificationAttempts: attempts } }).exec();
+      if (tooSoon) throw new ConflictException(await this.tooSoonMessage(movingFrom!));
       return {
         verificationStatus: user.verificationStatus === "verified" ? "verified" : "unverified",
         reason: "outside_coverage" as const,
@@ -222,25 +320,68 @@ export class UsersService {
     }
 
     const changedHood = user.neighborhoodId !== match.neighborhoodId;
-    await this.users
-      .updateOne(
-        { uid: viewer.uid },
-        {
-          $set: {
-            neighborhoodId: match.neighborhoodId,
-            verificationStatus: "verified",
-            verifiedAt: changedHood || !user.verifiedAt ? new Date() : user.verifiedAt,
-            lastKnownLocation: { lat: dto.lat, lng: dto.lng },
-            verificationAttempts: attempts,
-            requestedHood: null,
-          },
-        },
-      )
-      .exec();
+    const update = {
+      $set: {
+        neighborhoodId: match.neighborhoodId,
+        verificationStatus: "verified" as const,
+        verifiedAt: changedHood || !user.verifiedAt ? new Date() : user.verifiedAt,
+        lastKnownLocation: { lat: dto.lat, lng: dto.lng },
+        verificationAttempts: attempts,
+        requestedHood: null,
+      },
+    };
+    if (movingFrom) {
+      // A neighbour moving themselves is recorded with the move, so staff can see it (and a pattern of it).
+      const hoods = await this.hoods.findManyByIds([movingFrom, match.neighborhoodId]);
+      const from = hoods.get(movingFrom)?.name ?? "another Hood";
+      await withTransaction(this.connection, async (s) => {
+        await this.users.updateOne({ uid: viewer.uid }, update, { session: s }).exec();
+        await this.audit.record(
+          viewer,
+          "hood_self_change",
+          { type: "user", id: viewer.uid, label: hoods.get(match.neighborhoodId)?.name ?? "another Hood" },
+          { reason: dto.address ? `From ${from} · ${dto.address}` : `From ${from}` },
+          s,
+        );
+      });
+    } else {
+      await this.users.updateOne({ uid: viewer.uid }, update).exec();
+    }
     if (user.verificationStatus !== "verified") {
       await this.notifications.notify({ uids: [viewer.uid], type: "verification", title: "You're a verified neighbour", body: "Welcome to your Hood.", href: "/news-feed" });
     }
     return { verificationStatus: "verified" as const, neighborhoodId: match.neighborhoodId, distanceMeters: Math.round(match.distanceMeters) };
+  }
+
+  /**
+   * What verifyLocation would do with a point, without doing it or recording anything: the Hood it
+   * would join, or the Hoods near it to ask to join. The app shows this so the neighbour sees (and can
+   * correct) their Hood before committing, then passes `hood.id` to verifyLocation (contract §29).
+   */
+  async previewLocation(viewer: Viewer, point: { lat: number; lng: number }): Promise<LocationPreview> {
+    const match = await this.hoods.findVerifiedMatch(point.lng, point.lat);
+    if (!match) return { hood: null, nearbyHoods: await this.nearbyHoods(point.lng, point.lat) };
+    const [user, hood] = await Promise.all([this.findByUid(viewer.uid), this.hoods.findById(match.neighborhoodId)]);
+    const move = user ? this.hoodMove(user, match.neighborhoodId) : null;
+    return {
+      hood: { id: match.neighborhoodId, name: hood.name, city: hood.city },
+      distanceMeters: Math.round(match.distanceMeters),
+      nearbyHoods: [],
+      ...(move?.tooSoon && { cannotJoin: await this.tooSoonMessage(move.movingFrom!) }),
+    };
+  }
+
+  /** Whether joining `matchId` would move a verified neighbour out of their Hood, and whether that is too soon (§26). */
+  private hoodMove(user: Pick<User, "verificationStatus" | "neighborhoodId" | "verifiedAt">, matchId: string | undefined) {
+    const movingFrom = matchId && user.verificationStatus === "verified" && user.neighborhoodId && user.neighborhoodId !== matchId ? user.neighborhoodId : undefined;
+    // Since §31 a verified neighbour never moves themselves: they ask, and staff move them.
+    const tooSoon = Boolean(movingFrom) && this.config.get<boolean>("verification.strictHoodAccess") !== false;
+    return { movingFrom, tooSoon };
+  }
+
+  private async tooSoonMessage(movingFrom: string) {
+    const current = (await this.hoods.findManyByIds([movingFrom])).get(movingFrom);
+    return `You're a verified neighbour in ${current?.name ?? "another neighbourhood"}. If you've moved, ask us to move you: in the myHoodora app go to Your neighbourhoods, or contact us from Help, and our team will take care of it.`;
   }
 
   private nearbyHoods(lng: number, lat: number): Promise<NearbyHood[]> {
@@ -271,7 +412,7 @@ export class UsersService {
         .findOneAndUpdate(
           { uid: viewer.uid, verificationStatus: { $in: ["unverified", "pending_review"] } },
           { $set: { verificationStatus: "pending_review", requestedHood: { id: hood.id, name: hood.name, requestedAt: new Date() } } },
-          { new: true, session: s },
+          { returnDocument: "after", session: s },
         )
         .exec();
       if (!doc) throw new ConflictException("Your verification status just changed. Refresh and try again.");
@@ -302,14 +443,31 @@ export class UsersService {
 
   /**
    * GET /users/:uid/public — name, Hood name, badge, bio. Never email,
-   * address or coordinates. 404 outside the caller's Hood (staff excepted),
-   * and for blocked or deactivated people.
+   * address or coordinates. 410 for deactivated people, 404 for blocks (never say who blocked whom).
+   * Visible to neighbours of their own Hood and, with "Nearby neighbourhoods too"
+   * (privacy.profileVisibility), verified neighbours of the Hoods near it. Staff excepted. Beyond
+   * that: 403 "restricted" when the viewer is in a nearby Hood and the owner kept it closed, and
+   * 404 "outside your coverage" when the viewer is simply too far away for the owner's choice to matter.
    */
   async publicProfile(viewer: Viewer, uid: string): Promise<PublicProfile> {
-    const target = await this.users.findOne({ uid, deactivatedAt: null }).lean<User>().exec();
+    const target = await this.users.findOne({ uid }).lean<User>().exec();
     const staff = viewer.capabilities.includes("admin.access");
-    if (!target || (!staff && uid !== viewer.uid && (target.neighborhoodId !== viewer.hoodId || !viewer.hoodId))) {
-      throw new NotFoundException("This neighbour isn't available.");
+    if (!target) throw new NotFoundException("This neighbour isn't available.");
+    if (target.deactivatedAt || target.purgedAt) throw new GoneException("This account has been deactivated.");
+    if (!staff && uid !== viewer.uid) {
+      // `viewer.hoodId` is only set for a verified neighbour, so nobody else gets past here.
+      const sameHood = Boolean(viewer.hoodId) && target.neighborhoodId === viewer.hoodId;
+      if (!sameHood) {
+        const inReach = Boolean(viewer.hoodId) && Boolean(target.neighborhoodId) && target.verificationStatus === "verified" && (await this.hoods.nearbyHoodIds(target.neighborhoodId!)).includes(viewer.hoodId!);
+        const name = target.displayName ?? "This neighbour";
+        if (!inReach) {
+          // Nothing the owner chose: they simply live outside the viewer's neighbourhoods.
+          throw new NotFoundException(`${name} is outside your neighbourhood coverage, so their profile isn't available to you.`);
+        }
+        if (target.preferences?.privacy?.profileVisibility !== "nearby") {
+          throw new ForbiddenException(`${name} has restricted who can see their profile, so you can't view it.`);
+        }
+      }
     }
     if (uid !== viewer.uid && !staff) {
       const me = await this.users.findOne({ uid: viewer.uid }).select({ blockedUids: 1 }).lean<Pick<User, "blockedUids">>().exec();
@@ -381,7 +539,7 @@ export class UsersService {
   async block(uid: string, target: string): Promise<string[]> {
     if (target === uid) throw new BadRequestException("You can't block yourself.");
     const user = await this.users
-      .findOneAndUpdate({ uid, [`blockedUids.${MAX_BLOCKS - 1}`]: { $exists: false } }, { $addToSet: { blockedUids: target } }, { new: true })
+      .findOneAndUpdate({ uid, [`blockedUids.${MAX_BLOCKS - 1}`]: { $exists: false } }, { $addToSet: { blockedUids: target } }, { returnDocument: "after" })
       .exec();
     if (!user) throw new BadRequestException(`You can block up to ${MAX_BLOCKS} people.`);
     return user.blockedUids;
@@ -391,9 +549,18 @@ export class UsersService {
     await this.users.updateOne({ uid }, { $pull: { blockedUids: target } }).exec();
   }
 
-  /** Hide the account and sign out everywhere; restored by signing in within 30 days. */
+  /**
+   * Hide the account and everything it posted, and sign out everywhere; restored by signing in
+   * within 30 days. Their posts and listings are hidden outright; what they wrote in other people's
+   * threads stays, without their name or photo (authorCards). Safe to repeat: if hiding fails the
+   * request fails with the sessions still live, so the app can simply try again.
+   */
   async deactivate(uid: string, dto: DeactivateDto): Promise<void> {
-    await this.users.updateOne({ uid }, { $set: { deactivatedAt: new Date() } }).exec();
+    const deactivation = { reason: dto.reason, ...(dto.details?.trim() && { details: dto.details.trim() }) };
+    // The first time only: deactivating again must not restart the 30 days.
+    await this.users.updateOne({ uid, deactivatedAt: null }, { $set: { deactivatedAt: new Date() } }).exec();
+    await this.users.updateOne({ uid, purgedAt: null }, { $set: { deactivation } }).exec();
+    await this.lifecycle.hide(uid);
     this.logger.log(`Account deactivated (reason: ${dto.reason})`);
     await this.auth.revokeTokens(uid).catch(() => undefined);
   }
@@ -407,10 +574,24 @@ export class UsersService {
     return [...new Set([...(me?.blockedUids ?? []), ...blockers.map((b) => b.uid)])];
   }
 
-  /** Active, verified members of a Hood (for Hood-wide notifications). */
-  async membersOfHood(hoodId: string, limit = 5000): Promise<string[]> {
+  /**
+   * Active, verified members of a Hood, a page at a time in uid order (for Hood-wide notifications).
+   * Pass the last uid of one page as `afterUid` for the next; "" starts from the beginning.
+   */
+  /**
+   * A page of the people a Hood's alerts reach: its verified neighbours, and verified neighbours who
+   * read it as a secondary Hood (contract §31).
+   */
+  async membersOfHoodPage(hoodId: string, afterUid: string, limit: number): Promise<string[]> {
     const rows = await this.users
-      .find({ neighborhoodId: hoodId, verificationStatus: "verified", deactivatedAt: null, accountStatus: { $ne: "suspended" } })
+      .find({
+        $or: [{ neighborhoodId: hoodId }, { "secondaryHoods.id": hoodId }],
+        verificationStatus: "verified",
+        deactivatedAt: null,
+        accountStatus: { $ne: "suspended" },
+        uid: { $gt: afterUid },
+      })
+      .sort({ uid: 1 })
       .select({ uid: 1 })
       .limit(limit)
       .lean<Pick<User, "uid">[]>()
@@ -418,13 +599,32 @@ export class UsersService {
     return rows.map((r) => r.uid);
   }
 
-  /** Small author cards embedded on posts/comments (contract §3, avoids N+1). */
-  async authorCards(uids: string[]): Promise<Map<string, { uid: string; displayName: string; photoURL?: string; neighborhoodId?: string }>> {
+  /**
+   * Small author cards embedded on posts/comments (contract §3, avoids N+1).
+   *
+   * Someone who has deactivated is "Former neighbour" with no photo and no Hood: what they wrote in
+   * other people's threads, groups and conversations stays readable, but not under their name.
+   * `forStaff` keeps the real name, for admin screens where moderation has to know who it is.
+   * Someone whose account has been deleted is "Deleted User" to everyone: there is no name left.
+   */
+  async authorCards(uids: string[], opts: { forStaff?: boolean } = {}): Promise<Map<string, { uid: string; displayName: string; photoURL?: string; neighborhoodId?: string }>> {
     const rows = await this.users
       .find({ uid: { $in: [...new Set(uids)] } })
-      .select({ uid: 1, displayName: 1, photoURL: 1, neighborhoodId: 1 })
-      .lean<Pick<User, "uid" | "displayName" | "photoURL" | "neighborhoodId">[]>()
+      .select({ uid: 1, displayName: 1, photoURL: 1, neighborhoodId: 1, deactivatedAt: 1, purgedAt: 1 })
+      .lean<Pick<User, "uid" | "displayName" | "photoURL" | "neighborhoodId" | "deactivatedAt" | "purgedAt">[]>()
       .exec();
-    return new Map(rows.map((r) => [r.uid, { uid: r.uid, displayName: r.displayName ?? "Neighbour", photoURL: r.photoURL, neighborhoodId: r.neighborhoodId }]));
+    const cards = new Map<string, { uid: string; displayName: string; photoURL?: string; neighborhoodId?: string }>(
+      rows.map((r) => [
+        r.uid,
+        r.purgedAt
+          ? { uid: r.uid, displayName: DELETED_USER_NAME }
+          : r.deactivatedAt && !opts.forStaff
+            ? { uid: r.uid, displayName: FORMER_NEIGHBOUR }
+            : { uid: r.uid, displayName: r.displayName ?? "Neighbour", photoURL: r.photoURL, neighborhoodId: r.neighborhoodId },
+      ]),
+    );
+    // The stand-in left in a conversation where a deleted person's uid used to be.
+    if (uids.includes(DELETED_USER_UID)) cards.set(DELETED_USER_UID, { uid: DELETED_USER_UID, displayName: DELETED_USER_NAME });
+    return cards;
   }
 }

@@ -1,75 +1,12 @@
 import type { User } from "firebase/auth";
+import { ApiError, FRIENDLY_MESSAGES, MAX_RETRY_AFTER_MS, REQUEST_TIMEOUT_MS, errorFor } from "@myhoodora/api-contract/errors";
 import { API_BASE_URL } from "./config";
 
-/** What went wrong, so each screen can say something specific and offer the right fix. */
-export type ApiErrorKind =
-  | "offline" // the device has no connection
-  | "timeout" // the request took too long (slow network)
-  | "network" // the server couldn't be reached
-  | "auth" // 401: session expired
-  | "forbidden" // 403
-  | "not_found" // 404
-  | "server" // 5xx
-  | "client"; // other 4xx (validation etc.) — message comes from the API
+// Classification and wording are shared with the mobile app (packages/api-contract); transport stays here.
+export { ApiError, FRIENDLY_MESSAGES, errorKind, errorMessage, type ApiErrorKind } from "@myhoodora/api-contract/errors";
 
-/** A non-2xx response (or network failure) from our API, with a readable message. */
-export class ApiError extends Error {
-  constructor(
-    message: string,
-    /** HTTP status; 0 means the request never got a response. */
-    readonly status: number,
-    readonly kind: ApiErrorKind,
-  ) {
-    super(message);
-    this.name = "ApiError";
-  }
-
-  get isNetworkError() {
-    return this.kind === "offline" || this.kind === "timeout" || this.kind === "network";
-  }
-
-  /** Worth retrying automatically (transient). */
-  get isRetryable() {
-    return this.isNetworkError || this.kind === "server";
-  }
-}
-
-export const FRIENDLY_MESSAGES: Record<ApiErrorKind, string> = {
-  offline: "You're offline. Check your connection and try again.",
-  timeout: "This is taking longer than usual. Your connection may be slow. Try again.",
-  network: "We can't reach myHoodora right now. Try again in a moment.",
-  auth: "Your session has expired. Please log in again.",
-  forbidden: "You don't have access to this.",
-  not_found: "We couldn't find what you were looking for.",
-  server: "Something went wrong on our side. Please try again in a moment.",
-  client: "That didn't work. Please check and try again.",
-};
-
-const REQUEST_TIMEOUT_MS = 15_000;
-
-function kindForStatus(status: number): ApiErrorKind {
-  if (status === 401) return "auth";
-  if (status === 403) return "forbidden";
-  if (status === 404) return "not_found";
-  if (status >= 500) return "server";
-  return "client";
-}
-
-async function messageFrom(response: Response, kind: ApiErrorKind): Promise<string> {
-  return messageFromText(await response.text().catch(() => ""), kind);
-}
-
-function messageFromText(text: string, kind: ApiErrorKind): string {
-  // Only validation-style errors carry a message worth showing verbatim.
-  if (kind !== "client") return FRIENDLY_MESSAGES[kind];
-  try {
-    const body = JSON.parse(text) as { message?: string | string[] };
-    if (Array.isArray(body.message)) return body.message.join(", ");
-    if (body.message) return body.message;
-  } catch {
-    // Not JSON — fall through.
-  }
-  return text || FRIENDLY_MESSAGES.client;
+async function errorFrom(response: Response): Promise<ApiError> {
+  return errorFor(response.status, await response.text().catch(() => ""), response.headers.get("Retry-After"));
 }
 
 /**
@@ -108,10 +45,7 @@ export async function apiFetch<T>(
     throw new ApiError(FRIENDLY_MESSAGES[kind], 0, kind);
   }
 
-  if (!response.ok) {
-    const kind = kindForStatus(response.status);
-    throw new ApiError(await messageFrom(response, kind), response.status, kind);
-  }
+  if (!response.ok) throw await errorFrom(response);
   if (response.status === 204) return undefined as T;
   const text = await response.text();
   try {
@@ -147,8 +81,7 @@ export async function apiUpload<T>(
     xhr.onerror = () => reject(new ApiError(FRIENDLY_MESSAGES.network, 0, "network"));
     xhr.onload = () => {
       if (xhr.status < 200 || xhr.status >= 300) {
-        const kind = kindForStatus(xhr.status);
-        return reject(new ApiError(messageFromText(xhr.responseText, kind), xhr.status, kind));
+        return reject(errorFor(xhr.status, xhr.responseText, xhr.getResponseHeader("Retry-After")));
       }
       try {
         resolve((xhr.responseText ? JSON.parse(xhr.responseText) : undefined) as T);
@@ -161,9 +94,9 @@ export async function apiUpload<T>(
 }
 
 /**
- * POST to a public (no account) endpoint. Validation (400/422) and rate
- * limit (429) messages from the API are shown as-is; anything else gets
- * the friendly wording.
+ * POST to a public (no account) endpoint. Validation (400/422) messages
+ * from the API are shown as-is; anything else, including the rate limiter's
+ * 429, gets the friendly wording.
  */
 export async function publicPost<T>(path: string, body: unknown): Promise<T> {
   let res: Response;
@@ -178,16 +111,15 @@ export async function publicPost<T>(path: string, body: unknown): Promise<T> {
     if (err instanceof DOMException && err.name === "TimeoutError") throw new ApiError(FRIENDLY_MESSAGES.timeout, 0, "timeout");
     throw new ApiError(FRIENDLY_MESSAGES.network, 0, "network");
   }
-  if (!res.ok) {
-    const kind = kindForStatus(res.status);
-    throw new ApiError(await messageFrom(res, kind), res.status, kind);
-  }
+  if (!res.ok) throw await errorFrom(res);
   return (await res.json()) as T;
 }
 
 /**
- * Retry a read once or twice on transient failures (network, timeout, 5xx),
- * with a short backoff. Never retries 4xx — those won't fix themselves.
+ * Retry a read once or twice on transient failures (network, timeout, 5xx,
+ * the rate limiter), with a short backoff. Never retries other 4xx: those
+ * won't fix themselves. When rate-limited it waits as long as the API asked,
+ * unless that is longer than someone should be left looking at a spinner.
  */
 export async function withRetry<T>(fn: () => Promise<T>, retries = 1, delayMs = 1000): Promise<T> {
   try {
@@ -195,16 +127,9 @@ export async function withRetry<T>(fn: () => Promise<T>, retries = 1, delayMs = 
   } catch (err) {
     const retryable = err instanceof ApiError ? err.isRetryable && err.kind !== "offline" : false;
     if (!retryable || retries <= 0) throw err;
-    await new Promise((r) => setTimeout(r, delayMs));
+    const asked = (err as ApiError).retryAfterMs ?? 0;
+    if (asked > MAX_RETRY_AFTER_MS) throw err;
+    await new Promise((r) => setTimeout(r, Math.max(delayMs, asked)));
     return withRetry(fn, retries - 1, delayMs * 2);
   }
-}
-
-/** User-facing message for any thrown value. */
-export function errorMessage(err: unknown, fallback = "Something went wrong."): string {
-  return err instanceof Error && err.message ? err.message : fallback;
-}
-
-export function errorKind(err: unknown): ApiErrorKind | null {
-  return err instanceof ApiError ? err.kind : null;
 }

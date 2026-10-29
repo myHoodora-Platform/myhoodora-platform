@@ -3,10 +3,10 @@
 import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import { UserAvatar } from "@/components/shared/user-avatar";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@myhoodora/ui/utils";
 import { MascotMark, MascotWordmark } from "@myhoodora/ui/logo";
-import { Avatar, AvatarFallback } from "@myhoodora/ui/avatar";
 import {
   Sidebar,
   SidebarHeader,
@@ -53,7 +53,7 @@ export function AdminSidebar({ attention }: { attention: AdminOverview["attentio
     }
   };
 
-  const userInitial = (profile?.displayName || user?.email || "?").charAt(0).toUpperCase();
+  const me = { displayName: profile?.displayName || user?.email || "?", photoURL: profile?.photoURL };
 
   const handleLogout = async () => {
     try {
@@ -126,9 +126,7 @@ export function AdminSidebar({ attention }: { attention: AdminOverview["attentio
             title="Back to myHoodora"
             className="group flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-800/60 p-2.5 transition-colors hover:border-primary/40 hover:bg-slate-800"
           >
-            <Avatar className="size-9 shrink-0">
-              <AvatarFallback className="bg-primary/20 text-sm text-primary">{userInitial}</AvatarFallback>
-            </Avatar>
+            <UserAvatar person={me} className="size-9" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-white">{profile?.displayName || user?.email}</p>
               <p className="truncate text-[11px] text-slate-400 capitalize">{session?.role ?? "staff"} · back to myHoodora</p>
@@ -137,9 +135,7 @@ export function AdminSidebar({ attention }: { attention: AdminOverview["attentio
           </Link>
         ) : (
           <Link href={DEFAULT_APP_ROUTE} title="Back to myHoodora" className="flex justify-center">
-            <Avatar className="size-9">
-              <AvatarFallback className="bg-primary/20 text-sm text-primary">{userInitial}</AvatarFallback>
-            </Avatar>
+            <UserAvatar person={me} className="size-9" />
           </Link>
         )}
 

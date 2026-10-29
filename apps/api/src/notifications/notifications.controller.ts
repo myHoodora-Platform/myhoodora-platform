@@ -1,7 +1,7 @@
 import { Body, Controller, Get, HttpCode, Param, Patch, Post } from "@nestjs/common";
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Equals, IsBoolean } from "class-validator";
-import { CurrentViewer, type Viewer } from "../shared/auth/viewer";
+import { AllowSuspended, CurrentViewer, type Viewer } from "../shared/auth/viewer";
 import { ParseObjectIdPipe } from "../shared/http/pagination";
 import { NotificationsService } from "./notifications.service";
 import { ApiNotFound, ApiStandardErrors } from "../shared/http/api-docs";
@@ -20,13 +20,16 @@ class MarkReadDto {
 export class NotificationsController {
   constructor(private readonly notifications: NotificationsService) {}
 
+  // Reading them stays open to someone suspended: the notice that says why, and how to appeal, is one of them.
   @Get()
+  @AllowSuspended()
   @ApiOperation({ summary: "Your notifications, newest first" })
   list(@CurrentViewer() viewer: Viewer) {
     return this.notifications.list(viewer.uid);
   }
 
   @Get("unread-count")
+  @AllowSuspended()
   @ApiOperation({ summary: "Unread count for the bell → { count }" })
   async unread(@CurrentViewer() viewer: Viewer) {
     return { count: await this.notifications.unreadCount(viewer.uid) };

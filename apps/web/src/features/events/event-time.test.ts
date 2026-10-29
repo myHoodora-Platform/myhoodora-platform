@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { eventIcs } from "@/lib/calendar";
 import { pickFinalReminder, startsIn } from "./event-reminder-modal";
-import { calendarFor, eventDateProblem, eventPhase } from "./event-time";
+import { calendarFor, eventDateProblem, eventPhase, isPastEvent } from "./event-time";
 import type { AppNotification } from "@/lib/api/types";
 
 const now = new Date("2026-10-01T09:00:00Z");
@@ -56,5 +56,15 @@ describe("reminder pop-up", () => {
     expect(startsIn(iso(3), now)).toBe("in 3 h");
     expect(startsIn(iso(0.5), now)).toBe("in 30 min");
     expect(startsIn(iso(-0.1), now)).toBe("now");
+  });
+});
+
+describe("isPastEvent", () => {
+  it("dated: over once it ends; undated (older posts): upcoming for two weeks after posting", () => {
+    expect(isPastEvent(iso(-4), undefined, now)).toBe(true);
+    expect(isPastEvent(iso(-1), undefined, now)).toBe(false);
+    expect(isPastEvent(undefined, iso(-24 * 3), now)).toBe(false);
+    expect(isPastEvent(undefined, iso(-24 * 15), now)).toBe(true);
+    expect(isPastEvent(undefined, undefined, now)).toBe(false);
   });
 });

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { safeNextPath } from "@/lib/safe-redirect";
 import { USE_MOCKS, isLive } from "@/lib/api/config";
-import { SESSION_COOKIE, sessionCookieOptions, verifySessionCookie } from "@/lib/auth/session-cookie";
+import { SESSION_COOKIE, VerifierUnavailableError, sessionCookieOptions, verifySessionCookie } from "@/lib/auth/session-cookie";
 import { sessionVerdict, staffVerdict } from "@/lib/auth/session-gate";
 import {
   DEFAULT_APP_ROUTE,
@@ -25,7 +25,15 @@ type SessionState = "none" | "valid" | "rejected";
 async function sessionState(request: NextRequest): Promise<SessionState> {
   const cookie = request.cookies.get(SESSION_COOKIE)?.value;
   if (!cookie) return "none";
-  if (!(await verifySessionCookie(cookie))) return "rejected";
+  try {
+    if (!(await verifySessionCookie(cookie))) return "rejected";
+  } catch (err) {
+    // Google's signing keys can't be fetched from this server, so the signature
+    // can't be checked here. That is an outage, not a bad cookie: keep it and
+    // let the API judge it below. If the API can't either, the page loads,
+    // exactly as when the API is unreachable (see sessionVerdict).
+    if (!(err instanceof VerifierUnavailableError)) throw err;
+  }
   return (await sessionVerdict(cookie)) === "revoked" ? "rejected" : "valid";
 }
 

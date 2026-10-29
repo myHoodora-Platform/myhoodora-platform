@@ -125,7 +125,7 @@ export class AdminCommunityController {
   @ApiOkResponse()
   @ApiNotFound("Conversation")
   reply(@CurrentViewer() v: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Body() body: InboxReplyDto) {
-    return this.inbound.reply(v, id, body.body, body.resolve);
+    return this.inbound.reply(v, id, body.body, body.resolve, body.attachments);
   }
 
   @Patch("inbox/:id")

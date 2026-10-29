@@ -21,6 +21,10 @@ export class Notification {
   @Prop()
   actorUid?: string;
 
+  /** Everyone behind a grouped row, most recent first (capped), so it can say "Ada and 3 others". */
+  @Prop({ type: [String], default: undefined })
+  actorUids?: string[];
+
   @Prop({ required: true, maxlength: 140 })
   title!: string;
 

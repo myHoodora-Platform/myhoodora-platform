@@ -2,19 +2,13 @@
 
 import { Skeleton } from "@myhoodora/ui/skeleton";
 import { ErrorState, PreviewNotice } from "@/components/shared/states";
+import { NOTIFICATION_CATEGORIES } from "@myhoodora/api-contract/settings";
 import type { NotificationCategory, Preferences } from "@/lib/api/settings";
 import { Segmented, SettingsSection, Switch } from "./ui";
 import { usePreferences } from "./use-preferences";
 
-const CATEGORIES: { id: NotificationCategory; label: string; description: string }[] = [
-  { id: "urgent_alerts", label: "Urgent alerts", description: "Break-ins, fires, flooding happening now" },
-  { id: "alerts", label: "Other alerts", description: "Power, water, traffic and scam warnings" },
-  { id: "comments", label: "Comments on your posts", description: "Replies from neighbours" },
-  { id: "messages", label: "Messages", description: "New private messages" },
-  { id: "events", label: "Events", description: "RSVPs to your events and new events nearby" },
-  { id: "for_sale", label: "For Sale & Free", description: "Messages about your listings and new free items" },
-  { id: "groups", label: "Groups", description: "Activity in groups you've joined" },
-];
+// Shared with the mobile app.
+const CATEGORIES = NOTIFICATION_CATEGORIES;
 
 const DIGEST = [
   { id: "daily", label: "Daily" },

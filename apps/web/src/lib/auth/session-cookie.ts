@@ -45,27 +45,63 @@ function verifier() {
 }
 
 /**
- * The claims of a genuine, unexpired session cookie for this project, else
- * null. Signature, issuer, audience and expiry only. Whether it has been
- * revoked takes credentials and a call to Firebase: that is the API's job
- * (lib/auth/session-gate.ts asks it for the proxy).
+ * Google's signing keys couldn't be downloaded, so a signature can't be
+ * checked right now. That says nothing about the token: callers must not
+ * treat it as forged or expired, and so must not sign anyone out over it.
  */
-export async function verifySessionCookie(value: string | undefined): Promise<DecodedIdToken | null> {
-  if (!value) return null;
+export class VerifierUnavailableError extends Error {
+  constructor() {
+    super("Google's signing keys could not be fetched");
+    this.name = "VerifierUnavailableError";
+  }
+}
+
+/**
+ * Did verification fail because the keys couldn't be fetched, not because of
+ * the token?
+ *
+ * firebase-admin 13 reports both with the same code (auth/argument-error);
+ * only the message tells them apart: "Error fetching public keys for Google
+ * certs: …" for an HTTP error from Google, "Error while making request: …"
+ * for a network error or timeout (its lib/utils/jwt.js and
+ * lib/auth/token-verifier.js). session-cookie-outage.test.ts runs the real
+ * SDK with its network blocked, so an upgrade that rewords these fails a test
+ * instead of quietly signing people out again. The API has the same check
+ * (apps/api/src/shared/auth/firebase-outage.ts).
+ */
+export function isKeyFetchFailure(err: unknown): boolean {
+  const { code, message } = (err ?? {}) as { code?: unknown; message?: unknown };
+  return code === "auth/argument-error" && typeof message === "string" && /^Error (fetching (public keys|Json Web Keys)|while making request)/.test(message);
+}
+
+async function claimsOrNull(verify: () => Promise<DecodedIdToken>): Promise<DecodedIdToken | null> {
   try {
-    return await verifier().verifySessionCookie(value);
-  } catch {
+    return await verify();
+  } catch (err) {
+    if (isKeyFetchFailure(err)) throw new VerifierUnavailableError();
     return null;
   }
 }
 
-/** The claims of a genuine, unexpired ID token for this project, else null. */
+/**
+ * The claims of a genuine, unexpired session cookie for this project, else
+ * null. Signature, issuer, audience and expiry only. Whether it has been
+ * revoked takes credentials and a call to Firebase: that is the API's job
+ * (lib/auth/session-gate.ts asks it for the proxy).
+ *
+ * Throws VerifierUnavailableError when it couldn't find out.
+ */
+export async function verifySessionCookie(value: string | undefined): Promise<DecodedIdToken | null> {
+  if (!value) return null;
+  return claimsOrNull(() => verifier().verifySessionCookie(value));
+}
+
+/**
+ * The claims of a genuine, unexpired ID token for this project, else null.
+ * Throws VerifierUnavailableError when it couldn't find out.
+ */
 export async function verifyIdToken(value: string): Promise<DecodedIdToken | null> {
-  try {
-    return await verifier().verifyIdToken(value);
-  } catch {
-    return null;
-  }
+  return claimsOrNull(() => verifier().verifyIdToken(value));
 }
 
 /**

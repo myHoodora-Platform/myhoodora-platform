@@ -15,6 +15,7 @@ import {
   IsString,
   IsUrl,
   Length,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -47,9 +48,15 @@ class PollDto {
   closesAt!: string;
 }
 
+/** Where an alert is happening (2026-10-28): a pin, or an area the person typed, found on the map. */
 class PointDto {
   @IsLatitude() lat!: number;
   @IsLongitude() lng!: number;
+  /**
+   * The place in words, shown with the pin.
+   * @example Allen Avenue roundabout
+   */
+  @IsOptional() @IsString() @MaxLength(120) label?: string;
 }
 
 /**
@@ -59,6 +66,14 @@ class PointDto {
  */
 export class CreatePostDto {
   @IsOptional() @IsMongoId() neighborhoodId?: string;
+
+  /**
+   * Makes a retry safe. Generate one id per submission (a UUID is ideal) and send the same one if the
+   * request has to be repeated, for example after a timeout: you get the post that was created the
+   * first time, not a second one. Scoped to you; the rest of a repeated request is ignored.
+   * @example 3f1c2a9e-5b7d-4e21-9a40-6c8f0d2b7e15
+   */
+  @IsOptional() @IsString() @Matches(/^[A-Za-z0-9_-]{8,64}$/, { message: "clientId must be 8 to 64 letters, digits, hyphens or underscores" }) clientId?: string;
 
   /** Legacy: message with optional `<!--mh:{…}-->` prefix. */
   @IsOptional() @IsString() @Length(1, 9000) content?: string;
@@ -112,4 +127,31 @@ export class RsvpDto {
 
 export class ResolveAlertDto {
   @IsBoolean() resolved!: boolean;
+}
+
+/** PATCH /posts/:id: the author changes the text (nothing else). */
+export class EditPostDto {
+  @IsString()
+  @MaxLength(8192)
+  message!: string;
+}
+
+/** PUT /posts/:id/follow: hear about new comments (true) or nothing more from this post (false). */
+export class FollowPostDto {
+  @IsBoolean()
+  on!: boolean;
+}
+
+/** GET /posts/saved: newest saved first; `before` is the last one's `savedAt`. */
+export class SavedQuery {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit = 20;
+
+  @IsOptional()
+  @IsDateString()
+  before?: string;
 }

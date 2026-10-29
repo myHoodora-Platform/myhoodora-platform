@@ -40,6 +40,7 @@ const VERB: Partial<Record<AuditAction, string>> = {
   business_claim: "claimed the Business Page",
   hood_request: "asked to join",
   hood_request_cancel: "withdrew their request to join",
+  hood_self_change: "moved themselves to",
 };
 
 const ICON: Partial<Record<AuditAction, React.ComponentType<{ className?: string }>>> = {

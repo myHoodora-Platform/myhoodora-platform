@@ -10,9 +10,11 @@ A neighbourhood network for Nigeria: verified neighbours share posts, safety ale
 apps/
   web/       Next.js 16 app: marketing site, the signed-in app, the staff admin
   api/       NestJS 10 REST API on MongoDB
-  mobile/    Expo starter. Post-MVP, not part of the workspace or CI
+  mobile/    Expo (React Native) app for iOS and Android: sign-in, onboarding, Hood feed, notifications, push
 packages/
-  ui/                  shared React components
+  ui/                  shared React components (web)
+  api-contract/        API types, error wording and form rules shared by web and mobile
+  design-tokens/       colours, type and spacing for the mobile app (checked against the web's CSS)
   eslint-config/       shared ESLint config
   typescript-config/   shared TypeScript config
 docs/        documentation of record (and an archive of older plans)
@@ -22,7 +24,7 @@ docs/        documentation of record (and an archive of older plans)
 
 ## Quick start
 
-Needs Node.js 20, pnpm 9, a Firebase project and a MongoDB replica set (Atlas works).
+Needs Node.js 24, pnpm 9, a Firebase project and a MongoDB replica set (Atlas works).
 
 ```bash
 pnpm install
@@ -49,7 +51,7 @@ Before opening a pull request: lint, types, tests and build should pass (CI chec
 
 ## Contributing
 
-- Branch from `develop`, open a pull request into it.
+- Branch from `development`, open a pull request into it.
 - Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/): `feat(feed): …`, `fix(api): …`, `docs: …`.
 - Git hooks (Husky) run lint and type-check before a commit and unit tests before a push.
 - When behaviour changes, update the matching page in `docs/` in the same pull request.

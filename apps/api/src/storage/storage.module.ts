@@ -40,6 +40,7 @@ export function createStorageProvider(config: ConfigService, logger = new Logger
 })
 export class StorageModule implements OnModuleInit, OnModuleDestroy {
   private sweeper?: NodeJS.Timeout;
+  private unusedSweeper?: NodeJS.Timeout;
 
   constructor(private readonly storage: StorageService) {}
 
@@ -53,12 +54,22 @@ export class StorageModule implements OnModuleInit, OnModuleDestroy {
         .then((n) => n && log.log(`Removed ${n} abandoned direct upload(s).`))
         .catch((err: Error) => log.warn(`Abandoned-upload sweep failed: ${err.message}`));
     };
+    // Files nothing uses any more. Not at start-up (the modules that say what is in use are still
+    // registering), and it does nothing unless DATA_DELETION_MODE allows it.
+    const sweepUnused = () =>
+      void this.storage
+        .sweepUnreferenced()
+        .then((r) => r.deleted && log.log(`Removed ${r.deleted} stored file(s) that nothing uses any more.`))
+        .catch((err: Error) => log.warn(`Unused-file sweep failed: ${err.message}`));
     sweep();
+    this.unusedSweeper = setInterval(sweepUnused, 60 * 60 * 1000);
+    this.unusedSweeper.unref();
     this.sweeper = setInterval(sweep, 60 * 60 * 1000);
     this.sweeper.unref();
   }
 
   onModuleDestroy() {
     clearInterval(this.sweeper);
+    clearInterval(this.unusedSweeper);
   }
 }

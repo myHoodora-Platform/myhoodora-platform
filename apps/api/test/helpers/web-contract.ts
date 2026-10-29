@@ -7,7 +7,8 @@ import { join } from "node:path";
  * following `extends`. Deliberately tiny: top-level `name: type;` lines only.
  */
 export function requiredKeys(...files: string[]): (name: string) => string[] {
-  const src = files.map((f) => readFileSync(join(__dirname, "../../../web/src/lib/api", f), "utf8")).join("\n");
+  // A Windows checkout has CRLF line endings; the patterns below are written for LF.
+  const src = files.map((f) => readFileSync(join(__dirname, "../../../web/src/lib/api", f), "utf8").replace(/\r\n/g, "\n")).join("\n");
   const shapes = new Map<string, { parents: string[]; keys: string[] }>();
   const re = /export interface (\w+)(?:<[^>]*>)?(?: extends ([\w\s,<>]+))? \{\n([\s\S]*?)\n\}/g;
   for (const m of src.matchAll(re)) {

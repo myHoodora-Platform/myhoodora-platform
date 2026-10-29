@@ -25,9 +25,16 @@ export class User {
   @Prop({ default: "email" })
   provider!: string; // 'password' | 'google.com' | 'apple.com'
 
-  /** Home Hood. Only address verification or staff can set it. */
+  /**
+   * Home Hood. Only address verification or staff can set it. It grants access only while
+   * `verificationStatus` is "verified" (AccountGuard); staff rejecting a verification clears it.
+   */
   @Prop({ index: true })
   neighborhoodId?: string;
+
+  /** The Hood they were in when staff rejected their verification. History for staff: it grants nothing. */
+  @Prop()
+  lastNeighborhoodId?: string;
 
   @Prop({ default: false })
   isOnboarded!: boolean;
@@ -60,6 +67,18 @@ export class User {
   deactivatedAt?: Date | null;
 
   /**
+   * Set when the account was deleted for good, 30 days after it was deactivated
+   * (AccountDeletionService). Nothing personal is left on the record by then: it remains so that
+   * the uid on moderation and audit history still points at something, and can't be signed into.
+   */
+  @Prop({ type: Date, default: null })
+  purgedAt?: Date | null;
+
+  /** What they told us when they deactivated. Cleared if they come back. */
+  @Prop({ type: { reason: String, details: String }, _id: false, default: null })
+  deactivation?: { reason: string; details?: string } | null;
+
+  /**
    * When they last chose "sign out everywhere". Any token or session cookie from a sign-in before
    * this moment is refused (AccountGuard), on every API instance, at once.
    */
@@ -83,6 +102,13 @@ export class User {
   })
   verificationAttempts!: { at: Date; lat: number; lng: number; address?: string; result: "matched" | "outside_coverage" | "low_accuracy" | "mismatch" }[];
 
+  /**
+   * Hoods besides home that staff let this person read and hear alerts from (contract §31). Never
+   * for posting, selling or messaging: those stay in `neighborhoodId`. At most two.
+   */
+  @Prop({ type: [{ id: String, name: String, city: String, since: Date, _id: false }], default: [] })
+  secondaryHoods!: { id: string; name: string; city?: string; since: Date }[];
+
   /** A pending "ask to join" a nearby Hood (contract §16). Cleared on approve, reject, cancel or an address match. */
   @Prop({ type: { id: String, name: String, requestedAt: Date }, _id: false, default: null })
   requestedHood?: { id: string; name: string; requestedAt: Date } | null;
@@ -93,3 +119,7 @@ export class User {
 
 export const UserSchema = SchemaFactory.createForClass(User);
 UserSchema.index({ createdAt: -1 });
+// "Who has blocked this person?" (UsersService.hiddenAuthorsFor) runs on nearly every read.
+UserSchema.index({ blockedUids: 1 });
+// Alert fan-out also reaches people who read the Hood as a secondary one.
+UserSchema.index({ "secondaryHoods.id": 1 });

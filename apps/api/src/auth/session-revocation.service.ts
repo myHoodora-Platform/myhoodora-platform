@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import type { DecodedIdToken } from "firebase-admin/auth";
 import { getFirebaseAdmin } from "../config/firebase.config";
@@ -9,10 +9,31 @@ interface SessionState {
   validSinceMs: number;
   /** Disabled or deleted in Firebase: nothing is valid. */
   blocked: boolean;
+  /** Trusted without asking again until this moment. */
   until: number;
+  /** When Firebase last actually answered. */
+  checkedAt: number;
 }
 
 const MAX_USERS = 20_000;
+/** While Firebase can't be reached, how old its last answer about someone may be and still be used. */
+const STALE_ANSWER_MAX_MS = 5 * 60_000;
+/** …and how long that old answer is then used before Firebase is asked again, so an outage isn't a lookup (and a timeout) per request. */
+const RETRY_LOOKUP_AFTER_MS = 10_000;
+/** One log line per this long while old answers are being reused, however many people are affected. */
+const OUTAGE_LOG_EVERY_MS = 30_000;
+
+/**
+ * Firebase couldn't be asked about a user's sessions (network, quota, outage) and nothing recent enough
+ * is known about them. This is "we don't know", not "revoked": the guard answers 503, never 401, because
+ * a 401 makes the web app sign the person out.
+ */
+export class RevocationLookupUnavailable extends Error {
+  constructor(readonly reason: string) {
+    super(`Firebase session state unavailable (${reason})`);
+    this.name = "RevocationLookupUnavailable";
+  }
+}
 
 /**
  * "Has this sign-in been revoked?" without asking Google on every request.
@@ -33,13 +54,22 @@ const MAX_USERS = 20_000;
  * - Changes made directly in Firebase (a password reset, or disabling/deleting the user in the
  *   console) reach the API within the cache window instead of at once.
  *
- * Set AUTH_REVOCATION_CACHE_SECONDS=0 to ask Google on every request again.
+ * When Firebase can't be reached, the last answer about a user is used for up to five minutes after
+ * it was given; beyond that (or for someone not seen recently) the lookup fails with
+ * RevocationLookupUnavailable. The two bullets above still hold during an outage, because they
+ * never depended on Firebase. Only a revocation made directly in Firebase can be served up to five
+ * minutes late, and only while Firebase is down.
+ *
+ * Set AUTH_REVOCATION_CACHE_SECONDS=0 to ask Google on every request again (nothing is remembered,
+ * so nothing can be reused during an outage either).
  */
 @Injectable()
 export class SessionRevocationService {
   private readonly ttlMs: number;
   private readonly states = new Map<string, SessionState>();
   private readonly loading = new Map<string, Promise<SessionState>>();
+  private readonly logger = new Logger(SessionRevocationService.name);
+  private outageLoggedAt = 0;
 
   constructor(config: ConfigService) {
     this.ttlMs = config.get<number>("auth.revocationCacheMs") ?? 30_000;
@@ -73,12 +103,24 @@ export class SessionRevocationService {
     try {
       const user = await getFirebaseAdmin().auth().getUser(uid);
       const validSince = user.tokensValidAfterTime ? new Date(user.tokensValidAfterTime).getTime() : 0;
-      state = { validSinceMs: Number.isFinite(validSince) ? validSince : 0, blocked: user.disabled === true, until: Date.now() + this.ttlMs };
+      state = { validSinceMs: Number.isFinite(validSince) ? validSince : 0, blocked: user.disabled === true, until: Date.now() + this.ttlMs, checkedAt: Date.now() };
     } catch (err) {
-      // The account no longer exists: every token for it is dead. Anything else (Google unreachable)
-      // is not an answer, so it is neither remembered nor treated as "fine": the request fails.
-      if ((err as { code?: string }).code !== "auth/user-not-found") throw err;
-      state = { validSinceMs: 0, blocked: true, until: Date.now() + this.ttlMs };
+      const code = (err as { code?: string }).code;
+      // The account no longer exists: every token for it is dead.
+      if (code === "auth/user-not-found") {
+        state = { validSinceMs: 0, blocked: true, until: Date.now() + this.ttlMs, checkedAt: Date.now() };
+      } else {
+        // Anything else (Google unreachable, quota) is not an answer: it is neither remembered nor
+        // treated as "fine". A recent answer is reused for a while; otherwise the caller is told we don't know.
+        const last = this.states.get(uid);
+        if (!last || Date.now() - last.checkedAt >= STALE_ANSWER_MAX_MS) throw new RevocationLookupUnavailable(code ?? "unknown");
+        last.until = Date.now() + RETRY_LOOKUP_AFTER_MS;
+        if (Date.now() - this.outageLoggedAt >= OUTAGE_LOG_EVERY_MS) {
+          this.outageLoggedAt = Date.now();
+          this.logger.warn(`Firebase can't be reached (${code ?? "unknown"}): using the last known session state, for up to ${STALE_ANSWER_MAX_MS / 60_000} minutes per person.`);
+        }
+        return last;
+      }
     }
     if (this.ttlMs > 0) {
       if (this.states.size >= MAX_USERS) this.states.delete(this.states.keys().next().value!);

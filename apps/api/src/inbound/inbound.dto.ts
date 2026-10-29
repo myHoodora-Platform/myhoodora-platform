@@ -1,4 +1,5 @@
-import { IsBoolean, IsEmail, IsIn, IsOptional, IsString, IsUrl, Length, MaxLength } from "class-validator";
+import { Type } from "class-transformer";
+import { ArrayMaxSize, IsArray, IsBoolean, IsEmail, IsIn, IsOptional, IsString, IsUrl, Length, MaxLength, ValidateNested } from "class-validator";
 import { INBOX_PRIORITIES, INBOX_SOURCES, INBOX_STATUSES } from "./inbound.schemas";
 import { PageQuery } from "../shared/http/pagination";
 
@@ -53,11 +54,21 @@ export class InboxQuery extends PageQuery {
 }
 
 /** A neighbour's reply in their support conversation. */
+/** A file uploaded with purpose "support" (POST /media): a photo, or a PDF. */
+export class SupportAttachmentDto {
+  @IsUrl({ protocols: ["https"], require_protocol: true }) url!: string;
+  /** The file's name, shown with a document. @example "Utility bill.pdf" */
+  @IsOptional() @IsString() @MaxLength(120) name?: string;
+}
+
 export class SupportMessageDto {
   /**
+   * May be empty when attachments are sent.
    * @example "Thanks, that fixed it!"
    */
-  @IsString() @Length(1, 2000) body!: string;
+  @IsOptional() @IsString() @MaxLength(2000) body?: string;
+  /** Up to 4 photos or PDFs (2026-10-28). */
+  @IsOptional() @IsArray() @ArrayMaxSize(4) @ValidateNested({ each: true }) @Type(() => SupportAttachmentDto) attachments?: SupportAttachmentDto[];
 }
 
 /** Staff starting a conversation with one neighbour. */
@@ -74,7 +85,10 @@ export class StartInboxConversationDto {
 }
 
 export class InboxReplyDto {
-  @IsString() @Length(2, 4000) body!: string;
+  /** May be empty when attachments are sent. */
+  @IsOptional() @IsString() @MaxLength(4000) body?: string;
+  /** Up to 4 photos or PDFs the team member uploaded for support (2026-10-28). */
+  @IsOptional() @IsArray() @ArrayMaxSize(4) @ValidateNested({ each: true }) @Type(() => SupportAttachmentDto) attachments?: SupportAttachmentDto[];
   /** Resolve the thread with this reply. */
   @IsOptional() @IsBoolean() resolve?: boolean;
 }

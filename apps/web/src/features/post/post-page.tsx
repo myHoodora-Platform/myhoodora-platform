@@ -95,7 +95,7 @@ export function PostPage({ postId }: { postId: string }) {
           {post.meta.category === "event" && (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4">
               <p className="text-sm font-bold">{eventPhase(post.meta.eventDate) === "ended" ? "This event has ended" : "Are you going?"}</p>
-              <RsvpButtons postId={post._id} eventDate={post.meta.eventDate} calendar={calendarFor(post)} />
+              <RsvpButtons postId={post._id} summary={post.rsvp} eventDate={post.meta.eventDate} calendar={calendarFor(post)} />
             </div>
           )}
           <CommentsSection postId={post._id} onCountChange={setCommentCount} />

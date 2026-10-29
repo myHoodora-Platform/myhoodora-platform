@@ -13,6 +13,7 @@ import { Field, fieldAria, fieldInputClass } from "@/components/shared/field";
 import { PhotoPicker } from "@/components/shared/image-picker";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { errorMessage } from "@/lib/api/client";
+import { submissionIds } from "@/lib/api/submission-id";
 import type { AlertCategory, Post, PostCategory } from "@/lib/api/types";
 import { ALERT_CATEGORIES, POST_CATEGORIES, categoryDef } from "../categories";
 import { checkKindness, kindnessHint, type KindnessReason } from "@/lib/api/kindness";
@@ -20,6 +21,9 @@ import { reportKindness } from "@/lib/api/telemetry";
 import { useAuth } from "@/context/AuthContext";
 import { useFeed } from "../feed-context";
 import { eventDateProblem } from "@/features/events/event-time";
+import { cleanPlaceLabel } from "@myhoodora/api-contract/geo";
+import type { AlertPlace } from "@myhoodora/api-contract/types";
+import { AlertPlaceField } from "@/features/alerts/alert-place-field";
 
 const MAX_POLL_OPTIONS = 4;
 const POLL_DURATIONS = [
@@ -97,7 +101,12 @@ export function PostComposer({ initialCategory, onDone, onCancel, onSell }: Post
   const [kindnessShown, setKindnessShown] = useState(false);
   const [kindnessReasons, setKindnessReasons] = useState<KindnessReason[]>([]);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // An alert's place (optional): a pin, or a street or area found on the map.
+  const [place, setPlace] = useState<AlertPlace | null>(null);
   const messageEl = useRef<HTMLTextAreaElement | null>(null);
+  // A failed "Post" may still have reached the server (a timeout on a slow connection). Pressing it
+  // again with the same draft sends the same id, so that is one post, and one alert to the Hood.
+  const submissions = useRef(submissionIds());
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -139,7 +148,9 @@ export function PostComposer({ initialCategory, onDone, onCancel, onSell }: Post
         .filter(Boolean)
         .map((text, i) => ({ id: `o${i + 1}`, text }));
       const post = await createPost({
+        clientId: submissions.current.for({ values, mediaUrls, place }),
         message: values.message,
+        location: values.category === "alert" && place ? { lat: place.lat, lng: place.lng, ...(place.label && cleanPlaceLabel(place.label) && { label: cleanPlaceLabel(place.label) }) } : undefined,
         mediaUrls: values.category === "poll" ? [] : mediaUrls,
         meta: {
           category: values.category,
@@ -349,6 +360,8 @@ export function PostComposer({ initialCategory, onDone, onCancel, onSell }: Post
           </span>
         </label>
       )}
+
+      {category === "alert" && <AlertPlaceField value={place} onChange={setPlace} />}
 
       {category !== "poll" && (
         <PhotoPicker value={mediaUrls} onChange={setMediaUrls} onUploadingChange={setUploading} purpose="post" allowVideo disabled={isSubmitting} />

@@ -22,7 +22,9 @@ import type { HoodStatus } from "@/lib/api/admin/types";
 import { useAdminSession } from "../session";
 import { useAdminQuery } from "../use-admin-query";
 import { reportHref } from "../moderation/queue-page";
+import { HoodBoundaryDialog } from "./hood-boundary-dialog";
 import { HoodLeadsPanel } from "./hood-leads-panel";
+import { useHoodsAround } from "./use-hoods-around";
 
 const HoodMap = dynamic(() => import("./hood-map").then((m) => m.HoodMap), { ssr: false, loading: () => <div className="h-56 animate-pulse bg-muted" /> });
 
@@ -49,8 +51,9 @@ export function HoodDetailPage({ id }: { id: string }) {
   const posts = useAdminQuery((u) => listPosts(u, { hoodId: id, pageSize: 10 }), `p-${id}`);
   const reports = useAdminQuery((u) => listReports(u, { hoodId: id, status: "active", pageSize: 10 }), `r-${id}`);
   const [tab, setTab] = useState<Tab>("members");
-  const [dialog, setDialog] = useState<null | "edit" | HoodStatus>(null);
-  const [form, setForm] = useState({ name: "", radius: 1500, description: "" });
+  const [dialog, setDialog] = useState<null | "edit" | "boundary" | HoodStatus>(null);
+  const [form, setForm] = useState({ name: "", description: "" });
+  const around = useHoodsAround(hood.data?.center, id);
 
   if (hood.loading && !hood.data) return <DetailSkeleton />;
   if (!hood.data) return <AdminProblem error={hood.error} onRetry={hood.refetch} backHref="/admin/hoods" />;
@@ -84,7 +87,7 @@ export function HoodDetailPage({ id }: { id: string }) {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  setForm({ name: h.name, radius: h.radiusMeters, description: h.description ?? "" });
+                  setForm({ name: h.name, description: h.description ?? "" });
                   setDialog("edit");
                 }}
               >
@@ -200,8 +203,18 @@ export function HoodDetailPage({ id }: { id: string }) {
         }
         aside={
           <>
-            <Panel title="Boundary" padded={false}>
-              <HoodMap lat={h.center.lat} lng={h.center.lng} radiusMeters={h.radiusMeters} className="h-56 w-full overflow-hidden" />
+            <Panel
+              title="Boundary"
+              padded={false}
+              action={
+                can("hoods.manage") && (
+                  <Button variant="outline" size="sm" onClick={() => setDialog("boundary")}>
+                    Edit boundary
+                  </Button>
+                )
+              }
+            >
+              <HoodMap lat={h.center.lat} lng={h.center.lng} radiusMeters={h.radiusMeters} others={around} className="h-56 w-full overflow-hidden" />
               <div className="p-5">
                 <KeyValues
                   items={[
@@ -224,19 +237,15 @@ export function HoodDetailPage({ id }: { id: string }) {
           open
           onOpenChange={(o) => !o && setDialog(null)}
           title={`Edit ${h.name}`}
-          consequence="Changes apply straight away. Changing the radius affects who can verify into this Hood from now on; existing members stay."
+          consequence="Changes apply straight away. To move the Hood or change its radius, use Edit boundary."
           confirmLabel="Save changes"
           requireReason={false}
           ready={form.name.trim().length >= 2}
-          onConfirm={({ note }) => save({ name: form.name.trim(), radiusMeters: form.radius, description: form.description.trim() || undefined, reason: note })}
+          onConfirm={({ note }) => save({ name: form.name.trim(), description: form.description.trim() || undefined, reason: note })}
         >
           <label className="block space-y-1.5">
             <span className="text-sm font-semibold">Name</span>
             <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={fieldInputClass} />
-          </label>
-          <label className="block space-y-1.5">
-            <span className="text-sm font-semibold">Radius: {(form.radius / 1000).toFixed(1)} km</span>
-            <input type="range" min={300} max={6000} step={100} value={form.radius} onChange={(e) => setForm({ ...form, radius: Number(e.target.value) })} className="w-full accent-[var(--primary)]" />
           </label>
           <label className="block space-y-1.5">
             <span className="text-sm font-semibold">Description</span>
@@ -244,6 +253,7 @@ export function HoodDetailPage({ id }: { id: string }) {
           </label>
         </ActionDialog>
       )}
+      {dialog === "boundary" && <HoodBoundaryDialog hood={h} onClose={() => setDialog(null)} onSave={save} />}
       {(dialog === "paused" || dialog === "active" || dialog === "archived") && (
         <ActionDialog
           open

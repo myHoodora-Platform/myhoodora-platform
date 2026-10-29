@@ -1,4 +1,5 @@
 import { signWebhook, verifyWebhookSignature } from "../src/communications/webhook-signature";
+import { RealtimeService } from "../src/realtime/realtime.service";
 import { createTestApp, WEBHOOK_SECRET, type TestApp } from "./helpers/app";
 jest.mock("../src/config/firebase.config", () => jest.requireActual("./helpers/firebase-mock").firebaseMock);
 
@@ -71,14 +72,20 @@ describe("Email verification & communications", () => {
 
   describe("confirm", () => {
     it("verifies once; reuse and garbage get the same generic 400", async () => {
+      const live = jest.spyOn(t.app.get(RealtimeService), "toUser");
       const raw = tokenFrom(t, "kemi@test.dev");
       await t.http.post("/api/auth/email-verification/confirm").send({ token: raw }).expect(204);
       const me = await t.http.get("/api/users/me").set(t.auth("kemi")).expect(200);
       expect(me.body.emailVerified).toBe(true);
+      // Her open apps are told, so the "Confirm your email" banner goes without a reload.
+      expect(live).toHaveBeenCalledWith("kemi", "session.changed");
 
+      live.mockClear();
       const reuse = await t.http.post("/api/auth/email-verification/confirm").send({ token: raw }).expect(400);
       const junk = await t.http.post("/api/auth/email-verification/confirm").send({ token: "x".repeat(43) }).expect(400);
       expect(reuse.body.message).toBe(junk.body.message);
+      expect(live).not.toHaveBeenCalled();
+      live.mockRestore();
     });
 
     it("rejects expired tokens", async () => {

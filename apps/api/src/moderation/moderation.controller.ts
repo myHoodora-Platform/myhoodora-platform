@@ -2,7 +2,7 @@ import { Body, Controller, Get, HttpCode, Param, Post } from "@nestjs/common";
 import { ApiBearerAuth, ApiConflictResponse, ApiCreatedResponse, ApiForbiddenResponse, ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { IsIn, IsString, Length } from "class-validator";
-import { CurrentViewer, type Viewer } from "../shared/auth/viewer";
+import { AllowSuspended, CurrentViewer, type Viewer } from "../shared/auth/viewer";
 import { ParseObjectIdPipe } from "../shared/http/pagination";
 import { AppealsService } from "./appeals.service";
 import { HoodLeadsService } from "./hood-leads.service";
@@ -72,13 +72,17 @@ export class ModerationController {
     return this.leads.vote(viewer, id, body.vote);
   }
 
+  // A suspension is itself a decision that can be appealed, so the person it shuts out must reach these two.
+  // Both act only on the caller's own cases.
   @Get("my-decisions")
+  @AllowSuspended()
   @ApiOperation({ summary: "Decisions about my content and outcomes of my reports (90 days), with appeal status" })
   mine(@CurrentViewer() viewer: Viewer) {
     return this.appeals.myDecisions(viewer);
   }
 
   @Post("cases/:id/appeals")
+  @AllowSuspended()
   @Throttle({ medium: { limit: 5, ttl: 60_000 } })
   @ApiOperation({ summary: "Appeal a decision (author, or a reporter when we kept the content) within 30 days → { id, status }" })
   @ApiConflictResponse({ description: "Already appealed" })

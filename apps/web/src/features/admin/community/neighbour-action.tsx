@@ -5,9 +5,11 @@ import { toast } from "sonner";
 import { ActionDialog } from "@/components/admin/action-dialog";
 import { fieldInputClass } from "@/components/shared/field";
 import { useAuth } from "@/context/AuthContext";
-import { actOnNeighbour, bulkNeighbours, listHoods } from "@/lib/api/admin/community";
-import type { AdminHood, NeighbourAction } from "@/lib/api/admin/types";
+import { bulkFailureSummary } from "@/lib/api/admin/bulk-outcome";
+import { actOnNeighbour, bulkNeighbours } from "@/lib/api/admin/community";
+import type { NeighbourAction } from "@/lib/api/admin/types";
 import { useAdminSession } from "../session";
+import { HoodPicker } from "./hood-picker";
 
 const SPEC: Record<NeighbourAction, { title: string; confirm: string; destructive?: boolean; reasons: string[]; consequence: (who: string) => string }> = {
   verify: {
@@ -57,56 +59,33 @@ const SPEC: Record<NeighbourAction, { title: string; confirm: string; destructiv
   },
 };
 
-let hoodCache: AdminHood[] | null = null;
-// The API accepts at most 100 per page (PageQuery); Hoods number in the tens.
-const HOODS_PAGE = 100;
-
 /** One dialog for every neighbour action, single or bulk. */
 export function NeighbourActionDialog({
   action,
   targets,
+  near,
   onClose,
   onDone,
 }: {
   action: NeighbourAction | null;
-  targets: { uid: string; displayName: string; hoodId?: string }[];
+  /** `hood`: their current Hood (or, from the verification queue, the one to approve them into). */
+  targets: { uid: string; displayName: string; hood?: { id: string; name: string } }[];
+  /** Their pin, to offer the nearest Hoods first. */
+  near?: { lat: number; lng: number };
   onClose: () => void;
   onDone: () => void;
 }) {
   const { user } = useAuth();
   const { role, can } = useAdminSession();
-  const [hoods, setHoods] = useState<AdminHood[]>(hoodCache ?? []);
-  const [hoodsState, setHoodsState] = useState<"loading" | "error" | "ready">(hoodCache ? "ready" : "loading");
-  const [hoodsAttempt, setHoodsAttempt] = useState(0);
   const [hoodId, setHoodId] = useState("");
   const [days, setDays] = useState("7");
   const needsHood = action === "verify" || action === "change_hood";
 
-  useEffect(() => {
-    if (!needsHood || !user || hoodCache) return;
-    let alive = true;
-    setHoodsState("loading");
-    listHoods(user, { pageSize: HOODS_PAGE, sort: "name:asc" })
-      .then((p) => {
-        if (!alive) return;
-        hoodCache = p.items;
-        setHoods(p.items);
-        setHoodsState("ready");
-      })
-      .catch((err) => {
-        console.error("Couldn't load Hoods:", err);
-        if (alive) setHoodsState("error");
-      });
-    return () => {
-      alive = false;
-    };
-  }, [needsHood, user, hoodsAttempt]);
-
   // Reset only when a new action/target set opens (targets is a fresh array each render).
   const targetKey = targets.map((t) => t.uid).join(",");
   // Their current Hood: pre-selected when verifying, but never a "move" target.
-  const currentHood = targets.length === 1 ? (targets[0]!.hoodId ?? "") : "";
-  const firstHood = action === "change_hood" ? "" : currentHood;
+  const currentHood = targets.length === 1 ? targets[0]!.hood : undefined;
+  const firstHood = action === "change_hood" ? "" : (currentHood?.id ?? "");
   useEffect(() => {
     setHoodId(firstHood);
     setDays("7");
@@ -130,41 +109,28 @@ export function NeighbourActionDialog({
         if (!user) return;
         const input = { action, reason, note, hoodId: needsHood ? hoodId : undefined, days: action === "restrict" ? Number(days) : undefined };
         if (targets.length === 1) await actOnNeighbour(user, targets[0]!.uid, input, role);
-        else await bulkNeighbours(user, targets.map((t) => t.uid), input, role);
+        else {
+          // Each neighbour is handled on their own, so some can succeed while others don't.
+          const outcome = await bulkNeighbours(user, targets.map((t) => t.uid), input, role);
+          const problem = bulkFailureSummary(outcome, (uid) => targets.find((t) => t.uid === uid)?.displayName ?? "A neighbour");
+          if (problem) {
+            toast.warning(`${spec.confirm}: ${problem}`, { duration: 12_000 });
+            onDone();
+            return;
+          }
+        }
         toast.success(`${spec.confirm}: done. It's in the moderation history.`);
         onDone();
       }}
     >
       {needsHood && (
-        <label className="block space-y-1.5">
-          <span className="text-sm font-semibold">Hood</span>
-          {hoodsState === "error" ? (
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-border px-3 py-2.5 text-sm">
-              <span className="text-muted-foreground">Couldn&apos;t load Hoods.</span>
-              <button type="button" onClick={() => setHoodsAttempt((n) => n + 1)} className="font-semibold text-primary hover:underline">
-                Try again
-              </button>
-            </div>
-          ) : (
-            <select
-              value={hoodId}
-              onChange={(e) => setHoodId(e.target.value)}
-              disabled={hoodsState === "loading"}
-              className={fieldInputClass}
-            >
-              <option value="">{hoodsState === "loading" ? "Loading Hoods…" : hoods.length === 0 ? "No Hoods yet" : "Choose a Hood…"}</option>
-              {hoods.map((h) => {
-                const isCurrent = action === "change_hood" && h.id === currentHood;
-                return (
-                  <option key={h.id} value={h.id} disabled={isCurrent}>
-                    {h.name}, {h.city}
-                    {isCurrent ? " (current)" : ""}
-                  </option>
-                );
-              })}
-            </select>
-          )}
-        </label>
+        <HoodPicker
+          value={hoodId}
+          onChange={(h) => setHoodId(h.id)}
+          preset={action === "change_hood" ? undefined : currentHood}
+          currentId={action === "change_hood" ? currentHood?.id : undefined}
+          near={near}
+        />
       )}
       {action === "restrict" && (
         <label className="block space-y-1.5">

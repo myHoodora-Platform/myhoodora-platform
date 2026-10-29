@@ -13,9 +13,9 @@ _As of 2 October 2026. Each line was checked against the code or by running it; 
 
 | Item | Status | Detail |
 | --- | --- | --- |
-| Rotate Cloudinary key | 🟡 | The real key was committed in `apps/api/.env.example` (commits `532fc3c`, `a8fa360`); the file is clean now but history is not. Generate a new key in the Cloudinary console, delete the old one, update the API host and local `.env`. Do this before pushing those commits anywhere |
-| Rotate MongoDB password | 🟡 | Atlas → Database Access → new password → update `MONGODB_URI` on the API host and locally |
-| Verify Resend sending domain | 🟡 | Add Resend's DNS records for the sending domain; create a sending-only key and the webhook. Until then mail only reaches the Resend account owner |
+| Rotate Cloudinary key | ✅ reported | **Reported rotated by the owner on 7 October 2026.** Not checkable from the repository: confirm the old key is refused by Cloudinary. Background: the real key was committed in `apps/api/.env.example` (commits `532fc3c`, `a8fa360`); the file is clean now but history is not. Generate a new key in the Cloudinary console, delete the old one, update the API host and local `.env`. Do this before pushing those commits anywhere |
+| Rotate MongoDB password | ✅ reported | **Reported changed by the owner on 7 October 2026.** Not checkable from the repository. (Atlas → Database Access → new password → update `MONGODB_URI` on the API host and locally) |
+| Verify Resend sending domain | 🟡 | Add Resend's DNS records for the sending domain; create a sending-only key and the webhook. Until then mail only reaches the Resend account owner. **Now blocks posting:** since 7 October 2026 posting and messaging need a confirmed email, and the confirmation link is sent by email. Until this is done, deploy the API with `EMAIL_CONFIRMATION_REQUIRED=false` |
 | Set production env on the API host | 🟡 | List in `environment.md`. The API now refuses to start in production if a required variable is missing, including Firebase credentials |
 | Run `pnpm migrate` in production | 🟡 | `migrate:dry` first. Idempotent (`migrations.e2e-spec`) |
 | Disable QA staff accounts at launch | 🟡 | Firebase console → disable; role → `member` |
@@ -30,7 +30,7 @@ _As of 2 October 2026. Each line was checked against the code or by running it; 
 | Item | Status | Detail |
 | --- | --- | --- |
 | Fix `security.e2e-spec` event-date test | ✅ | Already corrected in the repository (uses a date 7 days ahead); the suite passes |
-| Run unit and e2e tests in CI | ✅ written · 🟡 first run | `.github/workflows/ci.yml` now runs lint, types, unit tests, API integration tests, the build, and the signed-out browser tests. It has not run on GitHub yet: watch the first run |
+| Run unit and e2e tests in CI | ✅ written · 🟡 first run | `.github/workflows/ci.yml` now runs lint, types, unit tests, API integration tests, the build, and the signed-out browser tests. It has not run on GitHub yet: watch the first run. On 6 October 2026 its push trigger was corrected from `develop` (a branch that does not exist) to `development`, it was moved to Node 24, and a secret-scanning job (gitleaks, over the commits each push or pull request adds) was added; none of that has run on GitHub either |
 | Stop `--fix` in the API lint script | ✅ | `lint` reports only; `lint:fix` fixes |
 | e2e for `/media`, `/search`, `/realtime` | ✅ | `test/media-search-realtime.e2e-spec.ts` (14 tests) |
 | Browser e2e (Playwright) for core flows | ✅ auth, session, admin, accessibility · ❌ resident flows | 39 tests pass. Posting, commenting, uploading and searching as a **verified resident** are not browser-tested: no verified test account exists. They are covered by API integration tests |
@@ -40,7 +40,8 @@ _As of 2 October 2026. Each line was checked against the code or by running it; 
 
 | Item | Status | Detail |
 | --- | --- | --- |
-| Mobile app | ⏳ | Removed from the pnpm workspace, CI, and the README's product description. The Expo project is kept in `apps/mobile` |
+| Mobile app | 🟡 foundation | In the workspace and CI (lint, types, tests, iOS/Android bundle). Sign-in, onboarding, Hood feed (read), notifications and push are built and tested in code; not yet run on a phone (no dev build made). See `docs/mobile/` |
+| Push notifications | ✅ API · 🟡 device | `PUT/DELETE /push/devices`, every notification pushed per preference (`push.e2e-spec`). Needs FCM and APNs credentials in the EAS project before a phone receives one (`apps/mobile/README.md`) |
 | Apple sign-in | ⏳ | Removed from the UI; one flag (`APPLE_SIGN_IN_ENABLED`) restores it. Not enabled in Firebase |
 | Google sign-in: button | ✅ wired · 🟡 click-test | Enabled in Firebase (confirmed with Firebase's API). Browser test: opens Google's window; cancelling is silent. Completing a sign-in needs a real Google account |
 | Google One Tap on the landing, login and register pages | ✅ wired · 🟡 console + click-test | Uses Google Identity Services with FedCM; loads within the content policy; never shown to signed-in users. Needs `NEXT_PUBLIC_GOOGLE_CLIENT_ID` and the site's origin under the OAuth client's Authorised JavaScript origins |
@@ -67,7 +68,24 @@ _As of 2 October 2026. Each line was checked against the code or by running it; 
 | `users.service.ts` TODO | ✅ removed | Obsolete: "join the nearest Hood when none matches" is the hood-request feature (contract §16), already built |
 | Roadmap and current state | ✅ | `roadmap.md`, `current-state.md` |
 | Dead files, unused UI, `JWT_*` | ✅ | Removed after a repository-wide reference check: `lib/firebase.ts`, `confirm-overlay.tsx`, `lib/coming-soon.ts`, six unused UI components and two Radix dependencies, `JWT_SECRET` / `JWT_EXPIRES_IN` |
-| Mobile package manager / TypeScript | ⏳ | Resolved by taking mobile out of the workspace: it no longer affects installs. Align it when mobile work starts |
+| Mobile package manager / TypeScript | ✅ | Mobile is in the pnpm workspace (its `package-lock.json` removed). It keeps TypeScript 6.0 (the Expo SDK 57 template); the rest of the repository is on 5.9 |
+
+## Open from 26 October 2026 (WP-1 verification and security patch)
+
+| Item | Status | Detail |
+| --- | --- | --- |
+| Run the WP-1 crash-reporting checks | 🟡 | Preview build with Settings → Diagnostics (shown only when `EXPO_PUBLIC_QA_TOOLS=true`, never in production): test error, unhandled rejection, render crash (crash screen), native crash. Check readable stack traces and that the made-up email, phone and token arrive as `[Filtered]` in Sentry (`myhoodora-mobile`, EU region). Resolve the transport-check issue MYHOODORA-MOBILE-1 afterwards |
+| Logins fail while the API is waking up | ✅ 29 Oct | UptimeRobot (monitor `myhoodora-mvp-api-n1id.onrender.com`) calls `GET /api/health` every 5 minutes with a 30 s timeout, so Render's free tier (which sleeps after 15 idle minutes) stays awake; responses ~150 ms. Render's free hours are 750 a month per workspace: one always-on service uses about 744, so a second free service would run out. If the monitor stops, the 50 s cold start comes back |
+| Google sign-in on iOS | 🟡 | `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` is unset in EAS and locally, so the iOS button says it isn't set up. Add the iOS OAuth client (Firebase → iOS app `com.myhoodora.app`) |
+| Google Play signing fingerprint | 🟡 at store setup | The EAS keystore's SHA-1/SHA-256 are in Firebase. When the app goes on Google Play, add Play's app-signing fingerprints too (Play Console → Setup → App signing), or Google sign-in fails for store installs |
+| Back up the Android signing key | 🟡 | Created by EAS on 26 October 2026. `eas credentials -p android` → Keystore → download; keep it outside git. It becomes the Play upload key |
+| Real-iPhone builds | 🟡 | Needs one interactive Apple sign-in and device registration: `eas build -p ios --profile preview`. Until then, use the `preview-simulator` profile |
+| `expo-updates` for build channels | ⏳ suggestion | `eas.json` sets channels, but `expo-updates` isn't installed, so over-the-air updates do nothing |
+| Commit the mobile changes | 🟡 | Uncommitted on `deps-sdk57-patch-updates`: Diagnostics panel and `qaTools` flag, `@sentry/cli` as a direct devDependency, `eas.json` (simulator profile, `SHARP_IGNORE_GLOBAL_LIBVIPS`), `ITSAppUsesNonExemptEncryption`, `.env.example` |
+| Web/API security patch | ✅ merged · 🟡 deploy | Merged into `feed-redesign` (18bdedc): Next.js 16.4.3, maplibre-gl 6, multer and body-parser overrides, upload limits. Not deployed yet: deploy the API first (it closes an unauthenticated crash). maplibre 6 needs WebGL2 (iOS 15+) |
+| Remaining audit findings | ✅ 29 Oct | 46 vulnerable package versions down to 17, in three checked batches with no major upgrades. What's left needs NestJS 11, zod 4, vitest 4 or an upstream release, and none is reachable in a way that matters now: table in `security.md` → Dependency audit |
+| Deeply nested JSON returns 500 | ❌ | A body nested about 5,000 levels overflows the validation pipe's stack. Caught, so the API keeps running, but logged as a server error. Limit nesting depth before validation |
+| Connect Sentry in the Expo dashboard | ⏳ suggestion | Optional: shows Sentry errors next to builds in Expo. Not needed for reporting |
 
 ## Known issues left open
 

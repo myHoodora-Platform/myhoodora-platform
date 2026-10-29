@@ -4,6 +4,9 @@ import { HydratedDocument } from "mongoose";
 export const HOOD_STATUSES = ["active", "paused", "archived"] as const;
 export type HoodStatus = (typeof HOOD_STATUSES)[number];
 
+/** The largest Hood: also how far any geometry query must reach to see every Hood that could matter. */
+export const MAX_HOOD_RADIUS_METERS = 20_000;
+
 export type NeighborhoodDocument = HydratedDocument<Neighborhood>;
 
 /**
@@ -31,7 +34,7 @@ export class Neighborhood {
   })
   location?: { type: "Point"; coordinates: [number, number] };
 
-  @Prop({ required: true, type: Number, min: 100, max: 20_000 })
+  @Prop({ required: true, type: Number, min: 100, max: MAX_HOOD_RADIUS_METERS })
   radiusMeters!: number;
 
   /** active → can verify into; paused → closed to new members; archived → hidden (never hard-deleted). */

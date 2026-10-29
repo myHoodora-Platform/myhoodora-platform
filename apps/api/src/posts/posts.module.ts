@@ -5,7 +5,8 @@ import { EngagementService } from "./engagement.service";
 import { EventRemindersService } from "./event-reminders.service";
 import { PostsController } from "./posts.controller";
 import { PostsService } from "./posts.service";
-import { FeedPost, PollVote, PollVoteSchema, PostSchema, Reaction, ReactionSchema, Rsvp, RsvpSchema } from "./schemas/post.schema";
+import { PostActionsService } from "./post-actions.service";
+import { FeedPost, PollVote, PollVoteSchema, PostFollow, PostFollowSchema, PostSchema, PostShare, PostShareSchema, Reaction, ReactionSchema, Rsvp, RsvpSchema, SavedPost, SavedPostSchema } from "./schemas/post.schema";
 
 @Module({
   imports: [
@@ -14,11 +15,14 @@ import { FeedPost, PollVote, PollVoteSchema, PostSchema, Reaction, ReactionSchem
       { name: Reaction.name, schema: ReactionSchema },
       { name: PollVote.name, schema: PollVoteSchema },
       { name: Rsvp.name, schema: RsvpSchema },
+      { name: SavedPost.name, schema: SavedPostSchema },
+      { name: PostFollow.name, schema: PostFollowSchema },
+      { name: PostShare.name, schema: PostShareSchema },
     ]),
     HoodsModule,
   ],
   controllers: [PostsController],
-  providers: [PostsService, EngagementService, EventRemindersService],
-  exports: [PostsService, MongooseModule],
+  providers: [PostsService, EngagementService, EventRemindersService, PostActionsService],
+  exports: [PostsService, PostActionsService, MongooseModule],
 })
 export class PostsModule {}

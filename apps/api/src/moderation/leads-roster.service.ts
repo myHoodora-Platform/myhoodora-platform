@@ -1,10 +1,12 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
-import { InjectModel } from "@nestjs/mongoose";
-import { Model } from "mongoose";
+import { BadRequestException, Injectable, type OnModuleInit } from "@nestjs/common";
+import { InjectConnection, InjectModel } from "@nestjs/mongoose";
+import { Connection, Model } from "mongoose";
 import { AuditService } from "../audit/audit.service";
 import { HoodsService } from "../hoods/hoods.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import type { Viewer } from "../shared/auth/viewer";
+import { withTransaction } from "../shared/db/transaction";
+import { AccountLifecycle } from "../users/account-lifecycle";
 import { User, UserDocument } from "../users/schemas/user.schema";
 import { HoodRole } from "./moderation.schemas";
 
@@ -21,14 +23,23 @@ export interface LeadCard {
 
 /** Who leads which Hood. No dependency on the rest of moderation. */
 @Injectable()
-export class LeadsRosterService {
+export class LeadsRosterService implements OnModuleInit {
   constructor(
     @InjectModel(HoodRole.name) private readonly roles: Model<HoodRole>,
     @InjectModel(User.name) private readonly users: Model<UserDocument>,
+    @InjectConnection() private readonly connection: Connection,
     private readonly hoods: HoodsService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
+    private readonly accounts: AccountLifecycle,
   ) {}
+
+  onModuleInit() {
+    this.accounts.register({
+      name: "hood-leads",
+      purge: async (uid, dryRun) => ({ hoodLeadRoles: dryRun ? await this.roles.countDocuments({ uid }).exec() : (await this.roles.deleteMany({ uid }).exec()).deletedCount }),
+    });
+  }
 
   /** Leads who can still act (verified, active, still in that Hood). */
   private async activeLeadUids(hoodId: string): Promise<string[]> {
@@ -72,11 +83,13 @@ export class LeadsRosterService {
     const current = (await this.roles.find({ hoodId }).lean<HoodRole[]>().exec()).map((r) => r.uid);
     const added = wanted.filter((u) => !current.includes(u));
     const removed = current.filter((u) => !wanted.includes(u));
-    if (removed.length) await this.roles.deleteMany({ hoodId, uid: { $in: removed } }).exec();
-    if (added.length) await this.roles.insertMany(added.map((uid) => ({ hoodId, uid, role: "lead", appointedBy: actor.uid })));
-
-    for (const uid of added) await this.audit.record(actor, "lead_appoint", { type: "user", id: uid, label: hood.name });
-    for (const uid of removed) await this.audit.record(actor, "lead_remove", { type: "user", id: uid, label: hood.name });
+    // The roster and its audit records together: an appointment nobody is recorded as making must not exist.
+    await withTransaction(this.connection, async (session) => {
+      if (removed.length) await this.roles.deleteMany({ hoodId, uid: { $in: removed } }, { session }).exec();
+      if (added.length) await this.roles.insertMany(added.map((uid) => ({ hoodId, uid, role: "lead", appointedBy: actor.uid })), { session });
+      for (const uid of added) await this.audit.record(actor, "lead_appoint", { type: "user", id: uid, label: hood.name }, {}, session);
+      for (const uid of removed) await this.audit.record(actor, "lead_remove", { type: "user", id: uid, label: hood.name }, {}, session);
+    });
     await this.notifications.notify({
       uids: added,
       type: "moderation",

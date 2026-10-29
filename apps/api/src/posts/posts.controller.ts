@@ -4,8 +4,9 @@ import { Throttle } from "@nestjs/throttler";
 import { CurrentViewer, type Viewer } from "../shared/auth/viewer";
 import { Can } from "../shared/authz/can.decorator";
 import { ParseObjectIdPipe } from "../shared/http/pagination";
-import { CreatePostDto, FeedQuery, ReactionDto, ResolveAlertDto, RsvpDto, VoteDto } from "./dto/posts.dto";
+import { CreatePostDto, EditPostDto, FeedQuery, FollowPostDto, ReactionDto, ResolveAlertDto, RsvpDto, SavedQuery, VoteDto } from "./dto/posts.dto";
 import { EngagementService } from "./engagement.service";
+import { PostActionsService } from "./post-actions.service";
 import { PostsService } from "./posts.service";
 import { ApiNotFound, ApiStandardErrors } from "../shared/http/api-docs";
 
@@ -17,6 +18,7 @@ export class PostsController {
   constructor(
     private readonly posts: PostsService,
     private readonly engagement: EngagementService,
+    private readonly actions: PostActionsService,
   ) {}
 
   @Post()
@@ -31,6 +33,12 @@ export class PostsController {
   @ApiOperation({ summary: "Feed for the caller's Hood (?limit&before|skip&category&since)" })
   feed(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Query() q: FeedQuery) {
     return this.posts.feed(viewer, id, q);
+  }
+
+  @Get("saved")
+  @ApiOperation({ summary: "Posts you saved, newest saved first (?limit&before=savedAt)" })
+  saved(@CurrentViewer() viewer: Viewer, @Query() q: SavedQuery) {
+    return this.actions.listSaved(viewer, q);
   }
 
   @Get(":id")
@@ -48,6 +56,45 @@ export class PostsController {
   @ApiNotFound("Post")
   async delete(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string) {
     await this.posts.delete(viewer, id);
+  }
+
+  @Patch(":id")
+  @ApiOperation({ summary: "Edit your post's text (shown as edited) → post" })
+  @Can("content.create")
+  @Throttle({ medium: { limit: 20, ttl: 60_000 } })
+  @ApiOkResponse()
+  @ApiNotFound("Post")
+  edit(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Body() body: EditPostDto) {
+    return this.actions.edit(viewer, id, body);
+  }
+
+  @Put(":id/save")
+  @ApiOperation({ summary: "Save a post for later → { saved }" })
+  @ApiNotFound("Post")
+  save(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string) {
+    return this.actions.setSaved(viewer, id, true);
+  }
+
+  @Delete(":id/save")
+  @ApiOperation({ summary: "Unsave → { saved }" })
+  unsave(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string) {
+    return this.actions.setSaved(viewer, id, false);
+  }
+
+  @Put(":id/follow")
+  @ApiOperation({ summary: "Turn this post's notifications on (follow) or off (mute) → { following }" })
+  @ApiNotFound("Post")
+  follow(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string, @Body() body: FollowPostDto) {
+    return this.actions.setFollowing(viewer, id, body.on);
+  }
+
+  @Post(":id/share")
+  @ApiOperation({ summary: "Count a share (once per neighbour) → { shareCount }" })
+  @Throttle({ medium: { limit: 30, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  @ApiNotFound("Post")
+  share(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string) {
+    return this.actions.share(viewer, id);
   }
 
   @Patch(":id/like")

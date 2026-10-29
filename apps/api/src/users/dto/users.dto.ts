@@ -1,5 +1,5 @@
-import { Type } from "class-transformer";
-import { IsBoolean, IsIn, IsLatitude, IsLongitude, IsMongoId, IsOptional, IsString, IsUrl, Length, MaxLength, ValidateIf, ValidateNested } from "class-validator";
+import { Transform, Type } from "class-transformer";
+import { IsBoolean, IsEmail, IsIn, IsLatitude, IsLongitude, IsMongoId, IsOptional, IsString, IsUrl, Length, MaxLength, ValidateIf, ValidateNested } from "class-validator";
 
 /** PATCH /users/me — profile fields only. `neighborhoodId` is NOT accepted (security: Hood changes go through verification or staff). */
 export class UpdateMeDto {
@@ -72,6 +72,30 @@ export class VerifyLocationDto {
   @IsString()
   @MaxLength(200)
   address?: string;
+
+  /**
+   * The Hood the neighbour confirmed, from `POST /users/me/verify-location/preview`. When the point
+   * isn't in it (it moved, or the Hood's boundary changed), 409 and nothing changes.
+   * @example 66f1a2b3c4d5e6f7a8b9c0d1
+   */
+  @IsOptional()
+  @IsMongoId()
+  neighborhoodId?: string;
+}
+
+/** A point to check without verifying: `POST /users/me/verify-location/preview`. */
+export class LocationPointDto {
+  /**
+   * @example 6.4474
+   */
+  @IsLatitude()
+  lat!: number;
+
+  /**
+   * @example 3.472
+   */
+  @IsLongitude()
+  lng!: number;
 }
 
 /** Ask to join a Hood offered by the last address check (contract §16). */
@@ -158,4 +182,14 @@ export class UserSearchQuery {
   @IsString()
   @MaxLength(60)
   q?: string;
+}
+
+/** POST /users/me/email: a new address, while the current one is still unconfirmed. */
+export class ChangeEmailDto {
+  /** @example ada.okafor@example.com */
+  // Phones' autofill often adds a space; the address itself is what's checked.
+  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @IsEmail({}, { message: "Enter a valid email address." })
+  @MaxLength(254)
+  email!: string;
 }

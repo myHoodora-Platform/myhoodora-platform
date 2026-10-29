@@ -1,4 +1,4 @@
-import { BadRequestException, HttpException, HttpStatus, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, HttpException, HttpStatus, Injectable, NotFoundException, type OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { InjectModel } from "@nestjs/mongoose";
 import { createHash } from "node:crypto";
@@ -11,8 +11,12 @@ import { RealtimeService, TYPING_SIGNAL_MS } from "../realtime/realtime.service"
 import type { Viewer } from "../shared/auth/viewer";
 import { searchRegex, type Page } from "../shared/http/pagination";
 import { User, UserDocument } from "../users/schemas/user.schema";
-import type { AiPilotDto, ContactDto, FeedbackDto, InboxQuery, InboxUpdateDto, StartInboxConversationDto, SupportRequestDto, TalentDto } from "./inbound.dto";
-import { AiPilotRequest, InboundMessage, InboundMessageDocument, TalentProfile, type InboxPriority, type InboxSource, type InboxStatus } from "./inbound.schemas";
+import type { AiPilotDto, ContactDto, FeedbackDto, InboxQuery, InboxUpdateDto, StartInboxConversationDto, SupportAttachmentDto, SupportRequestDto, TalentDto } from "./inbound.dto";
+import { AiPilotRequest, InboundMessage, InboundMessageDocument, TalentProfile, type InboxPriority, type InboxSource, type InboxStatus, type ThreadAttachment, type ThreadMessage } from "./inbound.schemas";
+import { StorageService } from "../storage/storage.service";
+
+/** Photos or PDFs per support message. */
+const MAX_ATTACHMENTS = 4;
 
 export interface InboxThreadView {
   id: string;
@@ -23,7 +27,7 @@ export interface InboxThreadView {
   status: InboxStatus;
   priority: InboxPriority;
   assignee?: { uid: string; displayName: string };
-  messages: { from: "user" | "staff"; body: string; at: string; by?: string }[];
+  messages: { from: "user" | "staff"; body: string; at: string; by?: string; attachments?: ThreadAttachment[] }[];
   createdAt: string;
   updatedAt: string;
 }
@@ -35,7 +39,7 @@ export interface SupportThreadView {
   topic: string;
   status: InboxStatus;
   startedBy: "user" | "staff";
-  messages: { from: "user" | "staff"; body: string; at: string; by?: string }[];
+  messages: { from: "user" | "staff"; body: string; at: string; by?: string; attachments?: ThreadAttachment[] }[];
   unread: boolean;
   createdAt: string;
   updatedAt: string;
@@ -66,7 +70,7 @@ const titleCase = (s: string) => `${s[0]!.toUpperCase()}${s.slice(1).replace(/_/
  * waitlists (contract §10, §11b, §11c) and the staff inbox (§13.8).
  */
 @Injectable()
-export class InboundService {
+export class InboundService implements OnModuleInit {
   constructor(
     @InjectModel(InboundMessage.name) private readonly inbound: Model<InboundMessageDocument>,
     @InjectModel(AiPilotRequest.name) private readonly pilots: Model<AiPilotRequest>,
@@ -77,7 +81,41 @@ export class InboundService {
     private readonly audit: AuditService,
     private readonly config: ConfigService,
     private readonly realtime: RealtimeService,
+    private readonly storage: StorageService,
   ) {}
+
+  /** Attachments stay stored while a support message carries them (StorageService.sweepUnreferenced). */
+  onModuleInit() {
+    this.storage.registerReferenceSource({
+      name: "support",
+      inUse: async (urls) => {
+        const rows = await this.inbound.find({ "messages.attachments.url": { $in: urls } }).select({ "messages.attachments.url": 1 }).lean<Pick<Row, "messages">[]>().exec();
+        const wanted = new Set(urls);
+        return rows.flatMap((r) => r.messages.flatMap((m) => (m.attachments ?? []).map((a) => a.url))).filter((u) => wanted.has(u));
+      },
+    });
+  }
+
+  /**
+   * A support message's attachments: up to 4 photos or PDFs that this sender uploaded for support,
+   * never someone else's file or a link to anywhere.
+   */
+  private async attachmentsFrom(ownerUid: string, items: SupportAttachmentDto[] | undefined): Promise<ThreadAttachment[]> {
+    if (!items?.length) return [];
+    if (items.length > MAX_ATTACHMENTS) throw new BadRequestException(`Attach up to ${MAX_ATTACHMENTS} files at a time.`);
+    const urls = items.map((i) => i.url);
+    if (new Set(urls).size !== urls.length) throw new BadRequestException("The same file is attached twice.");
+    const known = await this.storage.describe(urls);
+    return items.map((i) => {
+      const a = known.get(i.url);
+      if (!a || a.ownerUid !== ownerUid || a.purpose !== "support" || (a.resourceType !== "image" && a.resourceType !== "document")) {
+        throw new BadRequestException("Those files couldn't be attached. Add them again.");
+      }
+      // Control characters (line breaks, NUL) out, spaces tidied: it's shown as one line.
+      const name = i.name?.replace(/\p{Cc}/gu, "").replace(/\s+/g, " ").trim().slice(0, 120);
+      return { url: i.url, kind: a.resourceType, ...(name && { name }), ...(a.bytes && { bytes: a.bytes }) };
+    });
+  }
 
   // ── Neighbours (signed in) ─────────────────────────────────────────────────
 
@@ -123,7 +161,7 @@ export class InboundService {
     return rows.map((r) => {
       const { messages, ...rest } = toSupportView(r);
       const last = messages[messages.length - 1];
-      return { ...rest, lastMessage: last && { from: last.from, body: last.body.slice(0, 200), at: last.at } };
+      return { ...rest, lastMessage: last && { from: last.from, body: (last.body || attachmentSummary(last.attachments ?? [])).slice(0, 200), at: last.at } };
     });
   }
 
@@ -139,12 +177,15 @@ export class InboundService {
   }
 
   /** The neighbour replies. This reopens a resolved thread and puts it back in "Needs a reply". */
-  async userReply(viewer: Viewer, id: string, body: string): Promise<SupportThreadView> {
+  async userReply(viewer: Viewer, id: string, body: string | undefined, attachments?: SupportAttachmentDto[]): Promise<SupportThreadView> {
     await this.loadMine(viewer, id);
-    const text = body.trim();
-    if (!text) throw new BadRequestException("Write a message first.");
+    const text = (body ?? "").trim();
+    const files = await this.attachmentsFrom(viewer.uid, attachments);
+    if (!text && !files.length) throw new BadRequestException("Write a message first.");
     const at = new Date();
-    await this.inbound.updateOne({ _id: id }, { $push: { messages: { from: "user", body: text, at } }, $set: { status: "open", userReadAt: at } }).exec();
+    await this.inbound
+      .updateOne({ _id: id }, { $push: { messages: { from: "user", body: text, at, ...(files.length && { attachments: files }) } }, $set: { status: "open", userReadAt: at } })
+      .exec();
     this.realtime.toStaff("inbox.updated", { threadId: id });
     this.realtime.toUser(viewer.uid, "support.message", { threadId: id }); // their other tabs
     return this.myThread(viewer, id);
@@ -291,15 +332,21 @@ export class InboundService {
     return (await this.toViews([row]))[0]!;
   }
 
-  async reply(actor: Viewer, id: string, body: string, resolve = false): Promise<InboxThreadView> {
+  async reply(actor: Viewer, id: string, body: string | undefined, resolve = false, attachments?: SupportAttachmentDto[]): Promise<InboxThreadView> {
     const thread = await this.get(id);
     if (!thread.from.email && !thread.from.uid) throw new BadRequestException("There's no way to reach this person.");
+    const text = (body ?? "").trim();
+    const files = await this.attachmentsFrom(actor.uid, attachments);
+    if (text.length < 2 && !files.length) throw new BadRequestException("Write a reply first.");
     const at = new Date();
     await this.inbound
-      .updateOne({ _id: id }, { $push: { messages: { from: "staff", body, at, by: actor.displayName ?? "myHoodora team" } }, $set: { status: resolve ? "resolved" : "waiting" } })
+      .updateOne(
+        { _id: id },
+        { $push: { messages: { from: "staff", body: text, at, by: actor.displayName ?? "myHoodora team", ...(files.length && { attachments: files }) } }, $set: { status: resolve ? "resolved" : "waiting" } },
+      )
       .exec();
     await this.audit.record(actor, "inbox_reply", { type: "inbox", id, label: thread.subject });
-    await this.tellRequester(thread, body, at, "reply");
+    await this.tellRequester(thread, text || attachmentSummary(files), at, "reply");
     return this.get(id);
   }
 
@@ -421,7 +468,7 @@ export class InboundService {
         status: r.status,
         priority: r.priority ?? "normal",
         assignee: r.assignee,
-        messages: messages.map((m) => ({ from: m.from, body: m.body, at: new Date(m.at).toISOString(), by: m.by })),
+        messages: messages.map((m) => ({ ...messageView(m), by: m.by })),
         createdAt: (r.createdAt ?? new Date()).toISOString(),
         updatedAt: (r.updatedAt ?? new Date()).toISOString(),
       };
@@ -434,6 +481,23 @@ function isUnread(r: Pick<Row, "messages" | "userReadAt">): boolean {
   return Boolean(lastStaff && (!r.userReadAt || new Date(lastStaff.at) > new Date(r.userReadAt)));
 }
 
+/** "📎 2 files" for a message that is only attachments (previews, the email to the requester). */
+function attachmentSummary(files: ThreadAttachment[]): string {
+  if (!files.length) return "";
+  if (files.length > 1) return `📎 ${files.length} files`;
+  return files[0]!.kind === "image" ? "📷 Photo" : `📎 ${files[0]!.name ?? "Document"}`;
+}
+
+function messageView(m: ThreadMessage): { from: "user" | "staff"; body: string; at: string; by?: string; attachments?: ThreadAttachment[] } {
+  return {
+    from: m.from,
+    body: m.body,
+    at: new Date(m.at).toISOString(),
+    by: m.from === "staff" ? m.by : undefined,
+    ...(m.attachments?.length && { attachments: m.attachments.map((a) => ({ url: a.url, kind: a.kind, ...(a.name && { name: a.name }), ...(a.bytes && { bytes: a.bytes }) })) }),
+  };
+}
+
 function toSupportView(r: Row): SupportThreadView {
   return {
     id: String(r._id),
@@ -441,7 +505,7 @@ function toSupportView(r: Row): SupportThreadView {
     topic: r.kind,
     status: r.status,
     startedBy: r.source === "staff" ? "staff" : "user",
-    messages: (r.messages ?? []).map((m) => ({ from: m.from, body: m.body, at: new Date(m.at).toISOString(), by: m.from === "staff" ? m.by : undefined })),
+    messages: (r.messages ?? []).map(messageView),
     unread: isUnread(r),
     createdAt: (r.createdAt ?? new Date()).toISOString(),
     updatedAt: (r.updatedAt ?? new Date()).toISOString(),

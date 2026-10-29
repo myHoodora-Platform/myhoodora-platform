@@ -23,7 +23,7 @@ import { useFeed } from "@/features/feed/feed-context";
 import { PostCard } from "@/features/feed/components/post-card";
 import { useViewer } from "@/hooks/use-neighbourhood";
 import { startConversation } from "@/lib/api/chat";
-import { errorMessage } from "@/lib/api/client";
+import { ApiError, errorMessage } from "@/lib/api/client";
 import { getPublicProfile } from "@/lib/api/users";
 import { formatMonthYear } from "@/lib/format";
 import { ROUTES } from "@/lib/routes";
@@ -35,6 +35,8 @@ export function ProfilePage({ uid }: { uid: string }) {
   const viewer = useViewer();
   const { posts, react, deletePost } = useFeed();
   const [person, setPerson] = useState<PublicProfile | null | undefined>(undefined);
+  /** Why the profile couldn't be loaded: the API's status and its message. */
+  const [unavailable, setUnavailable] = useState<{ status: number; message: string } | null>(null);
   const [messaging, setMessaging] = useState(false);
   const [confirmBlock, setConfirmBlock] = useState(false);
   const [reporting, setReporting] = useState(false);
@@ -42,7 +44,14 @@ export function ProfilePage({ uid }: { uid: string }) {
   const isMe = uid === user?.uid;
 
   useEffect(() => {
-    if (user) void getPublicProfile(user, uid, viewer).then(setPerson).catch(() => setPerson(null));
+    if (user) {
+      void getPublicProfile(user, uid, viewer)
+        .then(setPerson)
+        .catch((err: unknown) => {
+          setUnavailable(err instanceof ApiError ? { status: err.status, message: err.message } : null);
+          setPerson(null);
+        });
+    }
     // viewer changes identity only when the profile loads; name edits re-render via isMe below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, uid]);
@@ -56,13 +65,14 @@ export function ProfilePage({ uid }: { uid: string }) {
     );
   }
   if (person === null) {
-    return (
-      <EmptyState
-        icon={UserX}
-        title="Profile not available"
-        description="This neighbour's profile can't be shown yet. Public profiles are coming soon."
-      />
-    );
+    // 410: deactivated. 403: the owner restricted it. 404: not available to you (outside coverage, blocked or gone).
+    if (unavailable?.status === 410) {
+      return <EmptyState icon={UserX} title="Account deactivated" description="This neighbour has deactivated their account, so their profile isn't available." />;
+    }
+    if (unavailable?.status === 403) {
+      return <EmptyState icon={UserX} title="Profile is restricted" description={unavailable.message} />;
+    }
+    return <EmptyState icon={UserX} title="Profile not available" description={unavailable?.status === 404 ? unavailable.message : "This neighbour's profile isn't available to you."} />;
   }
 
   const shown: PublicProfile = isMe ? { ...person, displayName: viewer.profile?.displayName ?? person.displayName } : person;

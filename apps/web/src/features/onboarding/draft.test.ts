@@ -20,7 +20,13 @@ function memoryStorage(): Storage {
   };
 }
 
-const draft = { name: "Ada", address: "14 Admiralty Way, Lekki", coords: { lat: 6.44, lng: 3.47 }, step: 2 };
+const draft = {
+  name: "Ada",
+  address: { street: "14 Admiralty Way", area: "Lekki Phase 1", city: "Lagos" },
+  coords: { lat: 6.44, lng: 3.47 },
+  pinSource: "gps" as const,
+  step: 2,
+};
 
 describe("onboarding drafts", () => {
   beforeEach(() => {
@@ -52,6 +58,11 @@ describe("onboarding drafts", () => {
     expect(localStorage.getItem("myhoodora:onboarding-draft")).toBeNull();
     // "Skip for now" is a preference, not personal data — it survives.
     expect(localStorage.getItem("myhoodora:onboarding-skipped")).toBe("alice");
+  });
+
+  it("splits a one-line address saved before the fields were split, and looks it up again", () => {
+    localStorage.setItem("myhoodora:onboarding-draft:alice", JSON.stringify({ name: "Ada", address: "14 Admiralty Way, Lekki Phase 1, Lagos", coords: { lat: 6.44, lng: 3.47 }, step: 2 }));
+    expect(readOnboardingDraft("alice")).toEqual({ name: "Ada", address: draft.address, coords: null, pinSource: null, step: 1 });
   });
 
   it("survives storage being unavailable", () => {
