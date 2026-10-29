@@ -1,11 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { USE_MOCKS } from "@/lib/api/config";
-import { SESSION_COOKIE, VerifierUnavailableError, verifySessionCookie } from "@/lib/auth/session-cookie";
+import { SESSION_COOKIE, VerifierUnavailableError, verifyIdToken, verifySessionCookie } from "@/lib/auth/session-cookie";
 
 /**
  * The gate for this server's own lookup routes (/api/geocode, /api/reverse-geocode,
  * /api/ip-location). Each one spends a third-party quota on the caller's behalf, and the proxy
  * does not cover `/api/*`, so without this anyone on the internet could spend it.
+ *
+ * Browsers prove who they are with the session cookie. The mobile app has no cookie: it sends its
+ * Firebase ID token as `Authorization: Bearer …`, the same token it sends the API. Both are checked
+ * locally (signature, project, expiry), and both count against the same per-person allowance.
  *
  * Signed-in visitors only, and each of them only so often. The limit is per person, not per IP:
  * neighbours behind one mobile-carrier or estate address must not use up each other's allowance.
@@ -54,7 +58,8 @@ export async function guardLookup(request: NextRequest, route: string): Promise<
     who = `ip:${clientIp(request)}`;
   } else {
     try {
-      const claims = await verifySessionCookie(request.cookies.get(SESSION_COOKIE)?.value);
+      const bearer = request.headers.get("authorization")?.match(/^Bearer (\S+)$/i)?.[1];
+      const claims = bearer ? await verifyIdToken(bearer) : await verifySessionCookie(request.cookies.get(SESSION_COOKIE)?.value);
       if (!claims) return refuse(401, "Sign in to continue.");
       who = `uid:${claims.uid}`;
     } catch (err) {

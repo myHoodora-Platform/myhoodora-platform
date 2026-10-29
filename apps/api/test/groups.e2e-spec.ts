@@ -58,8 +58,12 @@ describe("Groups (contract §8)", () => {
     await t.http.get(`/api/groups/${ids.private}/requests`).set(t.auth("bola")).expect(403);
     const reqs = await t.http.get(`/api/groups/${ids.private}/requests`).set(t.auth("dayo")).expect(200);
     expect(reqs.body.map((r: { uid: string }) => r.uid)).toEqual(["emeka"]);
+    // Each request and member carries a name to show (the app has no other way to look it up).
+    expect(typeof reqs.body[0].displayName).toBe("string");
     await t.http.post(`/api/groups/${ids.private}/requests/emeka/approve`).set(t.auth("dayo")).expect(204);
     expect((await t.http.get(`/api/groups/${ids.private}`).set(t.auth("emeka")).expect(200)).body).toMatchObject({ membership: "member", memberCount: 2 });
+    const members = await t.http.get(`/api/groups/${ids.private}/members`).set(t.auth("emeka")).expect(200);
+    expect(members.body.every((m: { displayName?: unknown }) => typeof m.displayName === "string")).toBe(true);
   });
 
   it("invite links: admins only for private groups; a valid token skips approval, even from further away", async () => {

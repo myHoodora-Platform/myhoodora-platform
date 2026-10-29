@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-// The Admin SDK's verifier is the only stub: "sc:<uid>" is a good session cookie, anything else is refused.
+// The Admin SDK's verifier is the only stub: "sc:<uid>" is a good session cookie and "id:<uid>" a good ID token
+// (the mobile app's Bearer token); anything else is refused.
 // `google.keysDown` makes Google's signing keys unfetchable, failing the way the SDK reports it.
 const google = vi.hoisted(() => ({ keysDown: false }));
 vi.mock("firebase-admin/app", () => ({ getApps: () => [], initializeApp: () => ({ name: "session-verifier" }) }));
@@ -11,6 +12,12 @@ vi.mock("firebase-admin/auth", () => ({
       if (google.keysDown) throw Object.assign(new Error("Error while making request: connect ETIMEDOUT. Error code: ETIMEDOUT"), { code: "auth/argument-error" });
       const [kind, uid] = c.split(":");
       if (kind !== "sc" || !uid) throw Object.assign(new Error("bad"), { code: "auth/argument-error" });
+      return { uid };
+    },
+    verifyIdToken: async (t: string) => {
+      if (google.keysDown) throw Object.assign(new Error("Error while making request: connect ETIMEDOUT. Error code: ETIMEDOUT"), { code: "auth/argument-error" });
+      const [kind, uid] = t.split(":");
+      if (kind !== "id" || !uid) throw Object.assign(new Error("bad"), { code: "auth/argument-error" });
       return { uid };
     },
   }),
@@ -27,7 +34,7 @@ const get = (path: string, opts: { as?: string; headers?: Record<string, string>
   new NextRequest(`http://localhost:3000${path}`, { headers: { ...(opts.as ? { cookie: `__session=${opts.as}` } : {}), ...opts.headers } });
 
 const routes = [
-  { name: "geocode", call: (o?: Parameters<typeof get>[1]) => geocode(get("/api/geocode?address=Admiralty%20Way%2C%20Lekki", o)) },
+  { name: "geocode", call: (o?: Parameters<typeof get>[1]) => geocode(get("/api/geocode?street=Admiralty%20Way&area=Lekki%20Phase%201&city=Lagos", o)) },
   { name: "reverse-geocode", call: (o?: Parameters<typeof get>[1]) => reverseGeocode(get("/api/reverse-geocode?lat=6.4478&lng=3.4746", o)) },
   { name: "ip-location", call: (o?: Parameters<typeof get>[1]) => ipLocation(get("/api/ip-location", { ...o, headers: { "x-forwarded-for": "102.89.1.1", ...o?.headers } })) },
 ] as const;
@@ -113,10 +120,37 @@ describe.each(routes)("GET /api/$name", ({ call }) => {
   });
 });
 
+// The mobile app has no cookie: it sends its Firebase ID token, as it does to the API.
+describe.each(routes)("GET /api/$name from the mobile app (Bearer ID token)", ({ call }) => {
+  const bearer = (token: string) => ({ headers: { authorization: `Bearer ${token}` } });
+
+  it("answers a valid ID token", async () => {
+    expect((await call(bearer("id:ada"))).status).toBe(200);
+  });
+
+  it("refuses a forged token, or a session cookie passed off as one, without spending quota", async () => {
+    for (const token of ["forged", "sc:ada"]) expect((await call(bearer(token))).status).toBe(401);
+    expect(thirdParty()).not.toHaveBeenCalled();
+  });
+
+  it("shares one allowance per person across the app and the browser", async () => {
+    for (let i = 0; i < 10; i++) await call({ as: "sc:ada" });
+    for (let i = 0; i < 10; i++) expect((await call(bearer("id:ada"))).status).toBe(200);
+    expect((await call(bearer("id:ada"))).status).toBe(429);
+  });
+
+  it("is 503, not 401, when Google's keys can't be fetched", async () => {
+    google.keysDown = true;
+    expect((await call(bearer("id:ada"))).status).toBe(503);
+  });
+});
+
 describe("input the routes pass on to third parties", () => {
-  it("geocode: a missing or absurdly long address is refused before any lookup", async () => {
-    expect((await geocode(get("/api/geocode", { as: "sc:ada" }))).status).toBe(400);
-    expect((await geocode(get(`/api/geocode?address=${"a".repeat(201)}`, { as: "sc:ada" }))).status).toBe(400);
+  it("geocode: an address without its street, area or city, or absurdly long, is refused before any lookup", async () => {
+    for (const query of ["", "?street=Admiralty%20Way&city=Lagos", "?street=Admiralty%20Way&area=Lekki", "?area=Lekki&city=Lagos", "?street=%20&area=Lekki&city=Lagos"]) {
+      expect((await geocode(get(`/api/geocode${query}`, { as: "sc:ada" }))).status).toBe(400);
+    }
+    expect((await geocode(get(`/api/geocode?street=${"a".repeat(101)}&area=Lekki&city=Lagos`, { as: "sc:ada" }))).status).toBe(400);
     expect(thirdParty()).not.toHaveBeenCalled();
   });
 

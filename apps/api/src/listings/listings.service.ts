@@ -1,5 +1,7 @@
 import { BadRequestException, ForbiddenException, HttpException, HttpStatus, Injectable, NotFoundException, OnModuleInit } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
+import { Ad, type AdDocument } from "../ads/ad.schema";
+import { liveAdFilter, reaches } from "../ads/domain/targeting";
 import { Model, Types, type QueryFilter } from "mongoose";
 import { HoodsService } from "../hoods/hoods.service";
 import { ModerationRegistry } from "../moderation/moderation-registry";
@@ -10,6 +12,9 @@ import { AccountLifecycle } from "../users/account-lifecycle";
 import { UsersService } from "../users/users.service";
 import { DELETED_MEDIA_KEPT_MS, REMOVED_MEDIA_KEPT_MS, StorageService } from "../storage/storage.service";
 import type { CreateListingDto, ListingQuery } from "./listings.dto";
+
+/** A promoted seller's feed card shows at most this many items (PROMOTED_ITEMS_SHOWN in the contract). */
+export const PROMOTED_ITEMS_SHOWN = 4;
 import { Listing, ListingDocument, type ListingStatus } from "./listing.schema";
 
 /** Contract §4 shape, plus the seller card so the web never needs N+1 lookups. */
@@ -52,6 +57,7 @@ const MAX_LISTINGS_PER_DAY = 10;
 export class ListingsService implements OnModuleInit {
   constructor(
     @InjectModel(Listing.name) private readonly listings: Model<ListingDocument>,
+    @InjectModel(Ad.name) private readonly ads: Model<AdDocument>,
     private readonly users: UsersService,
     private readonly hoods: HoodsService,
     private readonly storage: StorageService,
@@ -125,11 +131,37 @@ export class ListingsService implements OnModuleInit {
     return viewer.hoodId;
   }
 
+  /**
+   * Whether an admin is promoting this seller's items to the viewer's neighbourhood right now (a live
+   * `listings` ad that reaches it). Then the viewer may see their items from another neighbourhood.
+   */
+  async promotedTo(viewer: Viewer, sellerUid: string, now = new Date()): Promise<boolean> {
+    if (!viewer.hoodId || sellerUid === viewer.uid) return false;
+    const ads = await this.ads
+      .find({ ...liveAdFilter(now), format: "listings", sellerUid })
+      .select({ hoodIds: 1, cities: 1, near: 1 })
+      .lean<Pick<Ad, "hoodIds" | "cities" | "near">[]>()
+      .exec();
+    if (!ads.length) return false;
+    const hood = (await this.hoods.findManyByIds([viewer.hoodId])).get(viewer.hoodId);
+    const [lng, lat] = hood?.location?.coordinates ?? [];
+    return ads.some((a) => reaches(a, { id: viewer.hoodId!, city: hood?.city, lat, lng }));
+  }
+
+  /** A promoted seller's items for the feed card: the newest available ones, and how many there are in all. */
+  async forPromotion(sellerUid: string, limit = PROMOTED_ITEMS_SHOWN): Promise<{ items: ListingView[]; total: number }> {
+    const filter = { sellerUid, deletedAt: null, removedAt: null, sellerDeactivated: { $ne: true }, status: "available" as const };
+    const [rows, total] = await Promise.all([this.listings.find(filter).sort({ createdAt: -1 }).limit(limit).lean<Row[]>().exec(), this.listings.countDocuments(filter).exec()]);
+    return { items: await this.toViews(rows), total };
+  }
+
   async list(viewer: Viewer, q: ListingQuery): Promise<ListingView[]> {
     const hoodId = this.requireHood(viewer, q.neighborhoodId);
+    // "See all from Ada" from her promoted items: her items wherever she lives.
+    const promoted = q.seller ? await this.promotedTo(viewer, q.seller) : false;
     const hidden = await this.users.hiddenAuthorsFor(viewer.uid);
     const filter: QueryFilter<Listing> = {
-      neighborhoodId: hoodId,
+      ...(!promoted && { neighborhoodId: hoodId }),
       deletedAt: null,
       removedAt: null,
       sellerDeactivated: { $ne: true },
@@ -153,7 +185,9 @@ export class ListingsService implements OnModuleInit {
   private async loadVisible(viewer: Viewer, id: string): Promise<Row> {
     const l = await this.findRaw(id);
     const staff = viewer.capabilities.includes("moderation.act");
-    if (!l || l.deletedAt || (l.removedAt && !staff) || (l.neighborhoodId !== viewer.hoodId && l.sellerUid !== viewer.uid && !staff)) {
+    if (!l || l.deletedAt || (l.removedAt && !staff)) throw new NotFoundException("This listing isn't available any more.");
+    // Another neighbourhood's item: only for staff, or while an ad promotes its seller here.
+    if (l.neighborhoodId !== viewer.hoodId && l.sellerUid !== viewer.uid && !staff && !(await this.promotedTo(viewer, l.sellerUid))) {
       throw new NotFoundException("This listing isn't available any more.");
     }
     // The seller has deactivated their account: gone for neighbours, still there for staff.

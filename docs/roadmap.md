@@ -20,13 +20,16 @@ Mostly not code.
 - Dark mode for the public pages, if wanted; today they are light by design.
 - Queue-backed delivery for broadcasts and email if volumes outgrow in-process batches.
 
+## Mobile app
+
+Foundation built on 20 October 2026 (`docs/mobile/`): in the workspace and CI, sign-in, onboarding, the Hood feed (read), notifications and push. Next, in order: posting and reacting; For Sale & Free; Messages; the realtime stream (`expo/fetch` streaming); EAS preview builds and push credentials; then store submission (needs Sign in with Apple if Google sign-in is added, App Store guideline 4.8).
+
 ## Post-MVP
 
 Deliberately not being built now. Nothing in the app depends on these.
 
 | Item | Notes |
 | --- | --- |
-| Mobile app | `apps/mobile` is an Expo starter, outside the workspace and CI |
 | Apple sign-in | Code path kept behind `APPLE_SIGN_IN_ENABLED`; needs an Apple Developer setup and the Firebase provider |
 | SMS: phone numbers on accounts, OTP | The API has an `SmsProvider` port with no adapter |
 | Alternative address verification (phone OTP, estate code, neighbour invite) | |

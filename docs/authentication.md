@@ -98,6 +98,15 @@ Verified automatically: the button opens Google's window and cancelling is silen
 - **Password reset:** Firebase sends the email; the link returns to `/reset-password`.
 - **Email verification:** our own single-use, 24-hour tokens (stored hashed), sent in the welcome email. `/verify-email` confirms it and syncs Firebase's `emailVerified`. Google accounts are verified from the start. It is a nudge (a banner), not a gate: posting depends on address verification.
 
+## The mobile app
+
+The app signs in with the same Firebase project (email and password today) and sends the ID token with every API call, like the browser. It has **no session cookie**: there are no pages to gate, so `/auth/session*` is never called. Firebase keeps the session (its refresh token) in the Keychain on iOS and the Keystore-backed store on Android (`expo-secure-store`), not in plain app storage.
+
+- **Log out** removes this phone's push registration, then signs out of Firebase on the phone. Other devices stay signed in.
+- **Sign out everywhere** calls `POST /auth/logout-everywhere` (which also removes every phone's push registration), then signs out.
+- **A 401** from the API signs the app out; a 503 never does (§26 of the contract).
+- The splash screen stays up until Firebase and `GET /users/me` have answered, so neither the login nor the feed flashes.
+
 ## Mock mode
 
 With `NEXT_PUBLIC_USE_MOCKS=true` there is no API, so there is **no server session and no page gate**: the proxy lets every request through, `/api/auth/session` answers "ok" without a cookie, and the pages turn signed-out visitors away in the browser. Never deploy a mock build as the real site.

@@ -21,6 +21,7 @@ export const HOOD_LEADS_ACTOR: Viewer = {
   verificationStatus: "verified",
   emailVerified: true,
   hoodId: null,
+  readableHoodIds: [],
   capabilities: ["moderation.act"],
   exists: true,
 };

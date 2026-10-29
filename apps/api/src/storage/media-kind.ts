@@ -26,6 +26,8 @@ export function sniffMediaType(head: Buffer): string | null {
   if (ascii(0, 4) === "GIF8") return "image/gif";
   if (ascii(0, 4) === "RIFF" && ascii(8, 12) === "WEBP") return "image/webp";
   if (head.length >= 4 && head.readUInt32BE(0) === 0x1a45dfa3) return "video/webm";
+  // Documents: PDF only (2026-10-28). Office files can carry macros, so they aren't taken.
+  if (ascii(0, 5) === "%PDF-") return "application/pdf";
   if (ascii(4, 8) === "ftyp") {
     const brand = ascii(8, 12).toLowerCase();
     if (["heic", "heix", "hevc", "hevx", "mif1", "msf1", "heim", "heis"].includes(brand)) return "image/heic";

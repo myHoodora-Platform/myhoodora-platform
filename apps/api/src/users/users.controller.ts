@@ -4,7 +4,7 @@ import { Throttle } from "@nestjs/throttler";
 import type { DecodedIdToken } from "firebase-admin/auth";
 import { CurrentUser } from "../shared/auth/current-user.decorator";
 import { AllowSuspended, CurrentViewer, type Viewer } from "../shared/auth/viewer";
-import { BlockDto, DeactivateDto, HoodRequestDto, OnboardingDto, PreferencesDto, UpdateMeDto, UserSearchQuery, VerifyLocationDto } from "./dto/users.dto";
+import { BlockDto, ChangeEmailDto, DeactivateDto, HoodRequestDto, LocationPointDto, OnboardingDto, PreferencesDto, UpdateMeDto, UserSearchQuery, VerifyLocationDto } from "./dto/users.dto";
 import { UsersService } from "./users.service";
 import { ApiNotFound, ApiStandardErrors, ErrorResponse } from "../shared/http/api-docs";
 
@@ -30,6 +30,19 @@ export class UsersController {
     return this.users.updateMe(viewer.uid, body);
   }
 
+  @Post("me/email")
+  @HttpCode(200)
+  @Throttle({ medium: { limit: 5, ttl: 3_600_000 } })
+  @ApiOperation({
+    summary: "Change your email while it's still unconfirmed",
+    description:
+      "Email-and-password accounts whose address isn't confirmed yet. Needs a sign-in from the last 5 minutes (403 otherwise: sign in again, e.g. re-enter the password). 409 when the address is confirmed or already used by another account. Updates sign-in and the account together, deletes links sent to the old address, and emails a new one.",
+  })
+  @ApiOkResponse({ description: "Your updated profile (same shape as GET /users/me)" })
+  changeEmail(@CurrentViewer() viewer: Viewer, @CurrentUser() token: DecodedIdToken, @Body() body: ChangeEmailDto) {
+    return this.users.changeEmail(viewer, token, body.email);
+  }
+
   @Patch("me/onboarding")
   @ApiOperation({ summary: "Finish onboarding (name, rough location)" })
   async completeOnboarding(@CurrentViewer() viewer: Viewer, @CurrentUser() token: DecodedIdToken, @Body() body: OnboardingDto) {
@@ -49,6 +62,19 @@ export class UsersController {
   async verifyLocation(@CurrentViewer() viewer: Viewer, @CurrentUser() token: DecodedIdToken, @Body() body: VerifyLocationDto) {
     await this.users.ensureAccount(viewer, token);
     return this.users.verifyLocation(viewer, body);
+  }
+
+  @Post("me/verify-location/preview")
+  @HttpCode(200)
+  // The app asks again each time the neighbour moves their pin.
+  @Throttle({ medium: { limit: 30, ttl: 60_000 } })
+  @ApiOperation({
+    summary: "Which Hood a point would join, without verifying",
+    description:
+      "Changes and records nothing. `{ hood: { id, name, city }, distanceMeters, nearbyHoods: [] }` inside a Hood (with `cannotJoin` when a verified neighbour may not move Hood yet), or `{ hood: null, nearbyHoods }` outside every Hood. Pass `hood.id` as `neighborhoodId` to verify-location so the neighbour joins only the Hood they saw.",
+  })
+  previewLocation(@CurrentViewer() viewer: Viewer, @Body() body: LocationPointDto) {
+    return this.users.previewLocation(viewer, body);
   }
 
   @Post("me/hood-request")

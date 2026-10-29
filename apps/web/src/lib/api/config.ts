@@ -67,12 +67,17 @@ export const ENDPOINTS = {
   "admin.businesses": "live",
   "admin.marketplace": "live",
   "admin.groups": "live",
+  "admin.hoodRequests": "live",
   "admin.signups": "live",
   "admin.inbox": "live",
   "admin.broadcasts": "live",
   "admin.insights": "live",
   "admin.team": "live",
   "admin.settings": "live",
+  // Sponsored items in the feed (contract §32). No preview data: the pages say the live API is needed.
+  "admin.ads": "live",
+  // Feedback prompts and store-review rules (contract §33). Live only, like ads.
+  "admin.prompts": "live",
 } as const satisfies Record<string, "live" | "planned">;
 
 export type EndpointKey = keyof typeof ENDPOINTS;

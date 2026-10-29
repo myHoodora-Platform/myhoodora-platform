@@ -4,7 +4,8 @@
  * Firebase Storage later) are adapters behind it. See README "File storage".
  */
 
-export type StorageResourceType = "image" | "video";
+/** "document": a PDF, kept exactly as uploaded (support attachments, 2026-10-28). */
+export type StorageResourceType = "image" | "video" | "document";
 
 export interface StorageUpload {
   /** A temp file on disk (uploads, links: never held in memory) or, for small files, bytes. */

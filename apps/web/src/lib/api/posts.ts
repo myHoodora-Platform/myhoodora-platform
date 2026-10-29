@@ -128,6 +128,7 @@ export async function createPost(
     type: postTypeFor(input.meta, Boolean(input.mediaUrls?.length)),
     mediaUrls: input.mediaUrls?.length ? input.mediaUrls.slice(0, 10) : undefined,
     clientId: input.clientId,
+    ...(input.meta.category === "alert" && input.location && { location: input.location }),
   };
   if (isLive("posts.create")) {
     const doc = await apiFetch<ApiPost>(user, "/posts", { method: "POST", json: payload });

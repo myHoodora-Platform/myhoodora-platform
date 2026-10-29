@@ -269,7 +269,7 @@ export async function createHood(user: User, input: CreateHoodInput, role: Admin
 export async function updateHood(
   user: User,
   id: string,
-  patch: Partial<Pick<AdminHood, "name" | "radiusMeters" | "status" | "description">> & { reason?: string },
+  patch: Partial<Pick<AdminHood, "name" | "center" | "radiusMeters" | "status" | "description">> & { reason?: string },
   role: AdminRole,
 ): Promise<HoodDetail> {
   if (isLive("admin.hoods")) return adminSend(user, `/hoods/${id}`, patch, "PATCH");
@@ -278,11 +278,11 @@ export async function updateHood(
     const h = hoodById(id);
     if (!h) notFound("Hood");
     const { reason, ...fields } = patch;
-    if (fields.radiusMeters !== undefined && fields.radiusMeters > h.radiusMeters) {
-      const others = hoods().filter((x) => x.id !== id && x.status !== "archived");
-      const problem = resizeProblem(hoodPlacement({ ...h, radiusMeters: fields.radiusMeters }, others));
-      if (problem) throw new ApiError(problem, 409, "client");
-    }
+    const next = { ...h, ...fields };
+    const others = hoods().filter((x) => x.id !== id && x.status !== "archived");
+    const moved = next.center.lat !== h.center.lat || next.center.lng !== h.center.lng;
+    const problem = moved ? createProblem(hoodPlacement(next, others)) : next.radiusMeters > h.radiusMeters ? resizeProblem(hoodPlacement(next, others)) : null;
+    if (problem) throw new ApiError(problem, 409, "client");
     saveHoods(hoods().map((x) => (x.id === id ? { ...x, ...fields } : x)));
     recordAudit(actorOf(user, role), patch.status === "archived" ? "hood_archive" : "hood_update", { type: "hood", id, label: h.name }, reason);
   }, 350);

@@ -1,3 +1,5 @@
+import { AdsModule } from "./ads/ads.module";
+import { PromptsModule } from "./prompts/prompts.module";
 import { BusinessesModule } from "./businesses/businesses.module";
 import { ChatModule } from "./chat/chat.module";
 import { GroupsModule } from "./groups/groups.module";
@@ -24,6 +26,7 @@ import { AuthModule } from "./auth/auth.module";
 import { CommentsModule } from "./comments/comments.module";
 import { CommunicationsModule } from "./communications/communications.module";
 import { HoodsModule } from "./hoods/hoods.module";
+import { HoodRequestsModule } from "./hood-requests/hood-requests.module";
 import { InboundModule } from "./inbound/inbound.module";
 import { JobsModule } from "./jobs/jobs.module";
 import { ModerationRegistryModule } from "./moderation/moderation-registry";
@@ -32,6 +35,7 @@ import { ModerationModule } from "./moderation/moderation.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { PlatformModule } from "./platform/platform.module";
 import { PostsModule } from "./posts/posts.module";
+import { PushModule } from "./push/push.module";
 import { RealtimeModule } from "./realtime/realtime.module";
 import { SearchModule } from "./search/search.module";
 import { StorageModule } from "./storage/storage.module";
@@ -67,6 +71,7 @@ import { UsersModule } from "./users/users.module";
     CommunicationsModule,
     RealtimeModule,
     StorageModule,
+    PushModule,
     NotificationsModule,
     PlatformModule,
     ModerationRegistryModule,
@@ -77,10 +82,13 @@ import { UsersModule } from "./users/users.module";
     UsersModule,
     HoodsModule,
     PostsModule,
+    AdsModule,
+    PromptsModule,
     SearchModule,
     CommentsModule,
     ModerationModule,
     InboundModule,
+    HoodRequestsModule,
     ListingsModule,
     GroupsModule,
     ChatModule,

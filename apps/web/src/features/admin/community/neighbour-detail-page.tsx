@@ -5,14 +5,27 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronDown, MapPin } from "lucide-react";
 import { Button } from "@myhoodora/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@myhoodora/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@myhoodora/ui/dropdown-menu";
 import { AdminPageHeader } from "@/components/admin/page-header";
 import { AdminProblem, DetailSkeleton } from "@/components/admin/admin-states";
 import { StatusTabs } from "@/components/admin/admin-toolbar";
 import { DetailLayout, KeyValues, Panel } from "@/components/admin/detail";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { Timeline } from "@/components/admin/timeline";
-import { CATEGORY_LABEL, REASON_LABEL, dateLabel, dateTimeLabel, initials, timeAgo } from "@/components/admin/format";
+import {
+  CATEGORY_LABEL,
+  REASON_LABEL,
+  dateLabel,
+  dateTimeLabel,
+  initials,
+  timeAgo,
+} from "@/components/admin/format";
 import { getNeighbour } from "@/lib/api/admin/community";
 import { listPosts } from "@/lib/api/admin/content";
 import { listReports } from "@/lib/api/admin/moderation";
@@ -21,6 +34,10 @@ import { useAdminSession } from "../session";
 import { useAdminQuery } from "../use-admin-query";
 import { reportHref } from "../moderation/queue-page";
 import { NeighbourActionDialog } from "./neighbour-action";
+import { ActionDialog } from "@/components/admin/action-dialog";
+import { useAuth } from "@/context/AuthContext";
+import { removeSecondaryHood } from "@/lib/api/admin/hood-requests";
+import { toast } from "sonner";
 
 type Tab = "activity" | "reports" | "verification" | "history";
 
@@ -35,13 +52,30 @@ export function NeighbourDetailPage({ uid }: { uid: string }) {
   const { can } = useAdminSession();
   const router = useRouter();
   const person = useAdminQuery((u) => getNeighbour(u, uid), uid);
-  const posts = useAdminQuery((u) => listPosts(u, { authorUid: uid, pageSize: 20 }), `posts-${uid}`);
-  const reports = useAdminQuery((u) => listReports(u, { authorUid: uid, status: "all", pageSize: 20 }), `reports-${uid}`);
+  const posts = useAdminQuery(
+    (u) => listPosts(u, { authorUid: uid, pageSize: 20 }),
+    `posts-${uid}`,
+  );
+  const reports = useAdminQuery(
+    (u) => listReports(u, { authorUid: uid, status: "all", pageSize: 20 }),
+    `reports-${uid}`,
+  );
   const [tab, setTab] = useState<Tab>("activity");
   const [action, setAction] = useState<NeighbourAction | null>(null);
+  const [removing, setRemoving] = useState<{ id: string; name: string } | null>(
+    null,
+  );
+  const { user } = useAuth();
 
   if (person.loading && !person.data) return <DetailSkeleton />;
-  if (!person.data) return <AdminProblem error={person.error} onRetry={person.refetch} backHref="/admin/neighbours" />;
+  if (!person.data)
+    return (
+      <AdminProblem
+        error={person.error}
+        onRetry={person.refetch}
+        backHref="/admin/neighbours"
+      />
+    );
   const n = person.data;
 
   const primaryAction: { action: NeighbourAction; label: string } | null =
@@ -54,20 +88,36 @@ export function NeighbourDetailPage({ uid }: { uid: string }) {
   return (
     <div className="space-y-6">
       <AdminPageHeader
-        crumbs={[{ label: "Community" }, { label: "Neighbours", href: "/admin/neighbours" }, { label: n.displayName }]}
+        crumbs={[
+          { label: "Community" },
+          { label: "Neighbours", href: "/admin/neighbours" },
+          { label: n.displayName },
+        ]}
         title={
           <span className="flex items-center gap-3">
-            <span className="flex size-11 items-center justify-center rounded-full bg-primary/10 text-base font-bold text-primary">{initials(n.displayName)}</span>
+            <span className="flex size-11 items-center justify-center rounded-full bg-primary/10 text-base font-bold text-primary">
+              {initials(n.displayName)}
+            </span>
             {n.displayName}
           </span>
         }
         meta={
           <>
             <StatusBadge status={n.verificationStatus} />
-            <StatusBadge status={n.accountStatus} label={n.accountStatus === "restricted" && n.restrictedUntil ? `Restricted until ${dateLabel(n.restrictedUntil)}` : undefined} />
+            <StatusBadge
+              status={n.accountStatus}
+              label={
+                n.accountStatus === "restricted" && n.restrictedUntil
+                  ? `Restricted until ${dateLabel(n.restrictedUntil)}`
+                  : undefined
+              }
+            />
             {n.role !== "member" && <StatusBadge status={n.role} />}
             {n.hood && (
-              <Link href={`/admin/hoods/${n.hood.id}`} className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-primary">
+              <Link
+                href={`/admin/hoods/${n.hood.id}`}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-primary"
+              >
                 <MapPin className="size-3.5" aria-hidden /> {n.hood.name}
               </Link>
             )}
@@ -85,26 +135,59 @@ export function NeighbourDetailPage({ uid }: { uid: string }) {
                 More actions <ChevronDown className="size-4" aria-hidden />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-52">
-                {n.verificationStatus === "verified" && <DropdownMenuItem onSelect={() => setAction("change_hood")}>Move to another Hood</DropdownMenuItem>}
-                {n.verificationStatus !== "verified" && n.verificationStatus !== "rejected" && can("verification.review") && (
-                  <DropdownMenuItem onSelect={() => setAction("reject_verification")}>Reject verification</DropdownMenuItem>
+                {n.verificationStatus === "verified" && (
+                  <DropdownMenuItem onSelect={() => setAction("change_hood")}>
+                    Move to another Hood
+                  </DropdownMenuItem>
                 )}
-                <DropdownMenuItem onSelect={() => router.push(`/admin/inbox?new=${encodeURIComponent(n.uid)}`)}>Message</DropdownMenuItem>
+                {n.verificationStatus !== "verified" &&
+                  n.verificationStatus !== "rejected" &&
+                  can("verification.review") && (
+                    <DropdownMenuItem
+                      onSelect={() => setAction("reject_verification")}
+                    >
+                      Reject verification
+                    </DropdownMenuItem>
+                  )}
+                <DropdownMenuItem
+                  onSelect={() =>
+                    router.push(`/admin/inbox?new=${encodeURIComponent(n.uid)}`)
+                  }
+                >
+                  Message
+                </DropdownMenuItem>
                 {can("broadcasts.send") && (
-                  <DropdownMenuItem onSelect={() => router.push(`/admin/broadcasts?to=${encodeURIComponent(n.uid)}`)}>Send a notice</DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() =>
+                      router.push(
+                        `/admin/broadcasts?to=${encodeURIComponent(n.uid)}`,
+                      )
+                    }
+                  >
+                    Send a notice
+                  </DropdownMenuItem>
                 )}
-                <DropdownMenuItem onSelect={() => setAction("warn")}>Send a warning</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setAction("warn")}>
+                  Send a warning
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 {n.accountStatus === "active" && (
-                  <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setAction("restrict")}>
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onSelect={() => setAction("restrict")}
+                  >
                     Restrict
                   </DropdownMenuItem>
                 )}
-                {n.accountStatus !== "suspended" && can("moderation.suspend") && (
-                  <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setAction("suspend")}>
-                    Suspend
-                  </DropdownMenuItem>
-                )}
+                {n.accountStatus !== "suspended" &&
+                  can("moderation.suspend") && (
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onSelect={() => setAction("suspend")}
+                    >
+                      Suspend
+                    </DropdownMenuItem>
+                  )}
               </DropdownMenuContent>
             </DropdownMenu>
           </>
@@ -119,25 +202,51 @@ export function NeighbourDetailPage({ uid }: { uid: string }) {
               onChange={setTab}
               tabs={[
                 { value: "activity", label: "Posts", count: posts.data?.total },
-                { value: "reports", label: "Reports against", count: reports.data?.total },
-                { value: "verification", label: "Verification", count: n.verificationAttempts.length },
-                { value: "history", label: "Staff history", count: n.timeline.length },
+                {
+                  value: "reports",
+                  label: "Reports against",
+                  count: reports.data?.total,
+                },
+                {
+                  value: "verification",
+                  label: "Verification",
+                  count: n.verificationAttempts.length,
+                },
+                {
+                  value: "history",
+                  label: "Staff history",
+                  count: n.timeline.length,
+                },
               ]}
             />
             {tab === "activity" && (
               <Panel padded={false}>
                 {!posts.data?.items.length ? (
-                  <p className="p-5 text-sm text-muted-foreground">No posts yet.</p>
+                  <p className="p-5 text-sm text-muted-foreground">
+                    No posts yet.
+                  </p>
                 ) : (
                   <ul className="divide-y divide-border">
                     {posts.data.items.map((p) => (
                       <li key={p.id}>
-                        <Link href={`/admin/posts/${p.id}`} className="block px-5 py-3.5 hover:bg-muted/40">
+                        <Link
+                          href={`/admin/posts/${p.id}`}
+                          className="block px-5 py-3.5 hover:bg-muted/40"
+                        >
                           <p className="line-clamp-2 text-sm">{p.message}</p>
                           <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                            {CATEGORY_LABEL[p.category] ?? p.category} · {timeAgo(p.createdAt)} · {p.reactions} reactions · {p.comments} comments
-                            {p.status === "removed" && <StatusBadge status="removed" />}
-                            {p.openReports > 0 && <StatusBadge status="escalated" label={`${p.openReports} open report`} />}
+                            {CATEGORY_LABEL[p.category] ?? p.category} ·{" "}
+                            {timeAgo(p.createdAt)} · {p.reactions} reactions ·{" "}
+                            {p.comments} comments
+                            {p.status === "removed" && (
+                              <StatusBadge status="removed" />
+                            )}
+                            {p.openReports > 0 && (
+                              <StatusBadge
+                                status="escalated"
+                                label={`${p.openReports} open report`}
+                              />
+                            )}
                           </p>
                         </Link>
                       </li>
@@ -149,17 +258,27 @@ export function NeighbourDetailPage({ uid }: { uid: string }) {
             {tab === "reports" && (
               <Panel padded={false}>
                 {!reports.data?.items.length ? (
-                  <p className="p-5 text-sm text-muted-foreground">No one has reported {n.displayName.split(" ")[0]}&apos;s content.</p>
+                  <p className="p-5 text-sm text-muted-foreground">
+                    No one has reported {n.displayName.split(" ")[0]}&apos;s
+                    content.
+                  </p>
                 ) : (
                   <ul className="divide-y divide-border">
                     {reports.data.items.map((r) => (
                       <li key={r.id}>
-                        <Link href={reportHref(r)} className="flex items-start gap-3 px-5 py-3.5 hover:bg-muted/40">
+                        <Link
+                          href={reportHref(r)}
+                          className="flex items-start gap-3 px-5 py-3.5 hover:bg-muted/40"
+                        >
                           <StatusBadge status={r.severity} />
                           <span className="min-w-0 flex-1">
-                            <span className="line-clamp-1 text-sm">{r.target.preview}</span>
+                            <span className="line-clamp-1 text-sm">
+                              {r.target.preview}
+                            </span>
                             <span className="text-xs text-muted-foreground">
-                              {REASON_LABEL[r.reasons[0]!.reason]} · {r.reporterCount} reports · {timeAgo(r.firstReportedAt)}
+                              {REASON_LABEL[r.reasons[0]!.reason]} ·{" "}
+                              {r.reporterCount} reports ·{" "}
+                              {timeAgo(r.firstReportedAt)}
                             </span>
                           </span>
                           <StatusBadge status={r.status} />
@@ -173,18 +292,29 @@ export function NeighbourDetailPage({ uid }: { uid: string }) {
             {tab === "verification" && (
               <Panel>
                 {n.verificationAttempts.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Hasn&apos;t tried to verify an address yet.</p>
+                  <p className="text-sm text-muted-foreground">
+                    Hasn&apos;t tried to verify an address yet.
+                  </p>
                 ) : (
                   <ol className="space-y-3">
                     {n.verificationAttempts.map((a, i) => (
-                      <li key={i} className="flex items-start justify-between gap-3 rounded-xl border border-border p-3 text-sm">
+                      <li
+                        key={i}
+                        className="flex items-start justify-between gap-3 rounded-xl border border-border p-3 text-sm"
+                      >
                         <span>
                           <span className="block font-medium">{a.address}</span>
                           <span className="text-xs text-muted-foreground">
-                            {a.point.lat.toFixed(4)}, {a.point.lng.toFixed(4)} · {dateTimeLabel(a.at)}
+                            {a.point.lat.toFixed(4)}, {a.point.lng.toFixed(4)} ·{" "}
+                            {dateTimeLabel(a.at)}
                           </span>
                         </span>
-                        <StatusBadge status={a.result === "matched" ? "verified" : "failed"} label={RESULT[a.result]} />
+                        <StatusBadge
+                          status={
+                            a.result === "matched" ? "verified" : "failed"
+                          }
+                          label={RESULT[a.result]}
+                        />
                       </li>
                     ))}
                   </ol>
@@ -193,32 +323,120 @@ export function NeighbourDetailPage({ uid }: { uid: string }) {
             )}
             {tab === "history" && (
               <Panel>
-                <Timeline events={n.timeline} empty="No staff actions on this account." />
+                <Timeline
+                  events={n.timeline}
+                  empty="No staff actions on this account."
+                />
               </Panel>
             )}
           </>
         }
         aside={
-          <Panel title="Account">
-            <KeyValues
-              items={[
-                { label: "Email", value: <span className="break-all">{n.email}</span> },
-                { label: "Hood", value: n.hood?.name ?? "None yet" },
-                { label: "Address", value: n.location?.address ?? "Not shared" },
-                { label: "Joined", value: dateLabel(n.joinedAt) },
-                { label: "Last active", value: n.lastActiveAt ? timeAgo(n.lastActiveAt) : "—" },
-                { label: "Posts", value: n.counts.posts },
-                { label: "Reports filed", value: n.counts.reportsFiled },
-              ]}
-            />
-            <p className="mt-4 text-xs text-muted-foreground">Addresses are visible to staff only. Neighbours only ever see the Hood name.</p>
-          </Panel>
+          <>
+            <Panel title="Account">
+              <KeyValues
+                items={[
+                  {
+                    label: "Email",
+                    value: <span className="break-all">{n.email}</span>,
+                  },
+                  { label: "Hood", value: n.hood?.name ?? "None yet" },
+                  {
+                    label: "Address",
+                    value: n.location?.address ?? "Not shared",
+                  },
+                  { label: "Joined", value: dateLabel(n.joinedAt) },
+                  {
+                    label: "Last active",
+                    value: n.lastActiveAt ? timeAgo(n.lastActiveAt) : "—",
+                  },
+                  { label: "Posts", value: n.counts.posts },
+                  { label: "Reports filed", value: n.counts.reportsFiled },
+                ]}
+              />
+              <p className="mt-4 text-xs text-muted-foreground">
+                Addresses are visible to staff only. Neighbours only ever see
+                the Hood name.
+              </p>
+            </Panel>
+            <Panel title="Also following">
+              {!n.secondaryHoods?.length ? (
+                <p className="text-sm text-muted-foreground">
+                  No other neighbourhoods. Requests to follow one appear in
+                  Neighbourhood requests.
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {n.secondaryHoods.map((h) => (
+                    <li key={h.id} className="flex items-center gap-2 text-sm">
+                      <Link
+                        href={`/admin/hoods/${h.id}`}
+                        className="min-w-0 flex-1 font-semibold hover:text-primary hover:underline"
+                      >
+                        {h.name}
+                        {h.city ? (
+                          <span className="font-normal text-muted-foreground">
+                            {" "}
+                            · {h.city}
+                          </span>
+                        ) : null}
+                      </Link>
+                      {can("verification.review") && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setRemoving(h)}
+                        >
+                          Remove
+                        </Button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="mt-3 text-xs text-muted-foreground">
+                Read and alerts only: they post, sell and message in their home
+                Hood.
+              </p>
+            </Panel>
+          </>
         }
       />
 
+      {removing && (
+        <ActionDialog
+          open
+          onOpenChange={(o) => !o && setRemoving(null)}
+          title={`Remove ${removing.name}`}
+          consequence={`${n.displayName} stops seeing ${removing.name}'s posts and hearing its alerts. They're told why, and can ask again.`}
+          reasons={[
+            "No longer works or lives nearby",
+            "Requested by the neighbour",
+            "Misused the neighbourhood",
+            "Added by mistake",
+          ]}
+          destructive
+          confirmLabel="Remove"
+          onConfirm={async ({ reason, note }) => {
+            if (!user) return;
+            await removeSecondaryHood(user, n.uid, removing.id, {
+              reason,
+              note,
+            });
+            toast.success(`Removed ${removing.name}.`);
+            void person.refetch();
+          }}
+        />
+      )}
+
       <NeighbourActionDialog
         action={action}
-        targets={[{ uid: n.uid, displayName: n.displayName, hoodId: n.hood?.id }]}
+        targets={[{ uid: n.uid, displayName: n.displayName, hood: n.hood }]}
+        near={
+          n.location?.lat && n.location.lng
+            ? { lat: n.location.lat, lng: n.location.lng }
+            : undefined
+        }
         onClose={() => setAction(null)}
         onDone={() => void person.refetch()}
       />

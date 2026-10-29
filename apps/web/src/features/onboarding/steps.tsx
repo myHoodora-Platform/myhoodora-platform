@@ -7,7 +7,8 @@ import { cn } from "@myhoodora/ui/utils";
 import { Field, fieldAria, fieldInputClass } from "@/components/shared/field";
 import { COVERAGE } from "@/lib/coverage";
 import { formatDistance } from "@/lib/format";
-import type { NearbyHood } from "@/lib/api/types";
+import type { LocationPreview, NearbyHood } from "@/lib/api/types";
+import { joinAddress, type AddressParts, type PinSource } from "./address";
 import { LocationMap } from "./location-map";
 import { PrivacyNote } from "./onboarding-shell";
 
@@ -31,20 +32,46 @@ function StepHeading({ title, description }: { title: string; description: strin
 
 // ── Step 1: name + address ──────────────────────────────────────────────────
 
+/** Finding the device's location: automatic on arrival, or from the button. */
+export interface LocateState {
+  status: "idle" | "detecting" | "found" | "failed";
+  /** "failed": why, in words for the neighbour. */
+  message?: string;
+  /** "found": how far off the device says it may be, in metres. */
+  accuracyM?: number;
+}
+
 interface DetailsStepProps {
   name: string;
-  address: string;
-  hasCoords: boolean;
-  detecting: boolean;
+  address: AddressParts;
+  locate: LocateState;
+  /** The pin is from GPS or the map, and stays put while the address is edited. */
+  pinKept: boolean;
   geocoding: boolean;
   error: string | null;
   onName: (v: string) => void;
-  onAddress: (v: string) => void;
+  onAddress: (v: AddressParts) => void;
   onDetect: () => void;
+  /** Look up the typed address instead of keeping the pin (they aren't at home). */
+  onUseTypedAddress: () => void;
   onNext: () => void;
 }
 
-export function DetailsStep({ name, address, hasCoords, detecting, geocoding, error, onName, onAddress, onDetect, onNext }: DetailsStepProps) {
+function locateLabel(locate: LocateState) {
+  if (locate.status === "detecting") return { title: "Finding your location…", detail: "Allow location access if your browser asks." };
+  if (locate.status === "found") {
+    const within = locate.accuracyM ? ` (within about ${formatDistance(Math.round(locate.accuracyM))})` : "";
+    return { title: "Location found", detail: `We found you${within}. Check your address below.` };
+  }
+  if (locate.status === "failed") return { title: "Use my current location", detail: locate.message ?? "We couldn't find your location. Type your address below." };
+  return { title: "Use my current location", detail: "Fastest and most accurate, best done at home" };
+}
+
+export function DetailsStep({ name, address, locate, pinKept, geocoding, error, onName, onAddress, onDetect, onUseTypedAddress, onNext }: DetailsStepProps) {
+  const detecting = locate.status === "detecting";
+  const found = locate.status === "found";
+  const label = locateLabel(locate);
+  const set = (part: keyof AddressParts) => (e: React.ChangeEvent<HTMLInputElement>) => onAddress({ ...address, [part]: e.target.value });
   return (
     <form
       className="space-y-6"
@@ -80,80 +107,202 @@ export function DetailsStep({ name, address, hasCoords, detecting, geocoding, er
             disabled={detecting}
             className={cn(
               "flex w-full items-center gap-3 rounded-xl border-2 p-4 text-left transition-colors disabled:opacity-70",
-              hasCoords ? "border-primary bg-primary/5" : "border-primary/30 hover:border-primary hover:bg-primary/5",
+              found ? "border-primary bg-primary/5" : "border-primary/30 hover:border-primary hover:bg-primary/5",
             )}
           >
             <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
               {detecting ? <Loader2 className="size-5 animate-spin" aria-hidden /> : <LocateFixed className="size-5" aria-hidden />}
             </span>
-            <span className="min-w-0 flex-1">
-              <span className="block font-bold">{detecting ? "Finding your location…" : "Use my current location"}</span>
-              <span className="block text-sm text-muted-foreground">
-                {hasCoords ? "Location found. Check the address below." : "Fastest and most accurate, best done at home"}
-              </span>
+            <span className="min-w-0 flex-1" aria-live="polite">
+              <span className="block font-bold">{label.title}</span>
+              <span className={cn("block text-sm", locate.status === "failed" ? "text-foreground" : "text-muted-foreground")}>{label.detail}</span>
             </span>
-            {hasCoords && <Check className="size-5 shrink-0 text-primary" aria-hidden />}
+            {found && <Check className="size-5 shrink-0 text-primary" aria-hidden />}
           </button>
 
           <div className="flex items-center gap-3 text-xs font-semibold text-muted-foreground uppercase">
-            <span className="h-px flex-1 bg-border" /> or type it <span className="h-px flex-1 bg-border" />
+            <span className="h-px flex-1 bg-border" /> {found ? "check it" : "or type it"} <span className="h-px flex-1 bg-border" />
           </div>
 
-          <Field label="Home address" htmlFor="onb-address" hint="Street, area and city is enough.">
+          <Field label="House number and street" htmlFor="onb-street">
             <input
-              {...fieldAria("onb-address", undefined, true)}
-              value={address}
-              onChange={(e) => onAddress(e.target.value)}
-              autoComplete="street-address"
-              placeholder="e.g. 12 Admiralty Way, Lekki Phase 1, Lagos"
+              {...fieldAria("onb-street", undefined, true)}
+              value={address.street}
+              onChange={set("street")}
+              autoComplete="address-line1"
+              placeholder="e.g. 12 Admiralty Way"
               className={fieldInputClass}
             />
           </Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Area or estate" htmlFor="onb-area" hint="Many streets share a name. This tells us which is yours.">
+              <input
+                {...fieldAria("onb-area", undefined, true)}
+                value={address.area}
+                onChange={set("area")}
+                autoComplete="address-line2"
+                placeholder="e.g. Lekki Phase 1"
+                className={fieldInputClass}
+              />
+            </Field>
+            <Field label="City" htmlFor="onb-city">
+              <input
+                {...fieldAria("onb-city", undefined, true)}
+                value={address.city}
+                onChange={set("city")}
+                autoComplete="address-level2"
+                list="onb-cities"
+                placeholder="e.g. Lagos"
+                className={fieldInputClass}
+              />
+              <datalist id="onb-cities">
+                {COVERAGE.map((c) => (
+                  <option key={c.city} value={c.city} />
+                ))}
+              </datalist>
+            </Field>
+          </div>
+          {pinKept && (
+            <p className="text-xs text-muted-foreground">
+              We&apos;ll match you using the location we found, and you&apos;ll check it on a map next. Not at home right now?{" "}
+              <button type="button" onClick={onUseTypedAddress} className="font-semibold text-primary hover:underline">
+                Find the address above instead
+              </button>
+            </p>
+          )}
         </div>
       </div>
 
       <PrivacyNote />
 
-      <Button type="submit" size="lg" className="w-full" loading={geocoding}>
+      <Button type="submit" size="lg" className="w-full" loading={geocoding} disabled={detecting}>
         Continue <ArrowRight className="size-4" aria-hidden />
       </Button>
     </form>
   );
 }
 
-// ── Step 2: confirm on the map ──────────────────────────────────────────────
+// ── Step 2: confirm the pin, and see the Hood ───────────────────────────────
 
 interface ConfirmStepProps {
-  address: string;
+  address: AddressParts;
   coords: { lat: number; lng: number } | null;
+  pinSource: PinSource | null;
+  accuracyM: number | null;
+  preview: LocationPreview | null;
+  previewing: boolean;
+  previewError: string | null;
+  /** The last confirm was refused (e.g. the pin wasn't in the Hood any more). */
+  error: string | null;
+  onPick: (point: { lat: number; lng: number }) => void;
+  onRetryPreview: () => void;
   onBack: () => void;
-  onNext: () => void;
+  onConfirm: () => void;
 }
 
-export function ConfirmStep({ address, coords, onBack, onNext }: ConfirmStepProps) {
+/** GPS this far off may be on a neighbour's roof, or the next street: worth saying so. */
+const LOOSE_GPS_M = 100;
+
+function HoodVerdict({ preview, previewing, previewError, onRetry }: { preview: LocationPreview | null; previewing: boolean; previewError: string | null; onRetry: () => void }) {
+  if (previewError) {
+    return (
+      <div role="alert" className="flex items-start gap-3 p-4 text-sm">
+        <AlertCircle className="mt-0.5 size-5 shrink-0 text-destructive" aria-hidden />
+        <p className="flex-1">
+          {previewError}{" "}
+          <button type="button" onClick={onRetry} className="font-semibold text-primary hover:underline">
+            Try again
+          </button>
+        </p>
+      </div>
+    );
+  }
+  if (previewing || !preview) {
+    return (
+      <p className="flex items-center gap-3 p-4 text-sm text-muted-foreground">
+        <Loader2 className="size-5 shrink-0 animate-spin" aria-hidden /> Checking which neighbourhood this is…
+      </p>
+    );
+  }
+  if (preview.hood) {
+    return (
+      <div className={cn("flex items-start gap-3 p-4", preview.cannotJoin ? "bg-warning-soft/60" : "bg-primary/5")}>
+        <ShieldCheck className={cn("mt-0.5 size-5 shrink-0", preview.cannotJoin ? "text-warning" : "text-primary")} aria-hidden />
+        <div className="min-w-0 flex-1 text-sm">
+          <p className="text-muted-foreground">This pin is in</p>
+          <p className="text-lg font-bold text-foreground">
+            {preview.hood.name} <span className="text-sm font-normal text-muted-foreground">· {preview.hood.city}</span>
+          </p>
+          <p className="mt-1 text-muted-foreground">{preview.cannotJoin ?? "Not your neighbourhood? Move the pin onto your home first."}</p>
+        </div>
+      </div>
+    );
+  }
+  const [closest] = preview.nearbyHoods;
+  return (
+    <div className="flex items-start gap-3 p-4 text-sm">
+      <MapPinned className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden />
+      <p className="flex-1 text-muted-foreground">
+        {closest ? (
+          <>
+            This pin is just outside our neighbourhoods. The closest is <strong className="text-foreground">{closest.name}</strong> (
+            {formatDistance(closest.distanceMeters)}), and you can ask to join it next.
+          </>
+        ) : (
+          "This pin isn't in one of our neighbourhoods yet. You can still join with limited access."
+        )}
+      </p>
+    </div>
+  );
+}
+
+export function ConfirmStep({ address, coords, pinSource, accuracyM, preview, previewing, previewError, error, onPick, onRetryPreview, onBack, onConfirm }: ConfirmStepProps) {
+  const needsPin = pinSource === "area";
+  const settled = !previewing && !previewError && preview !== null;
+  const hood = settled ? preview.hood : null;
+  const blocked = Boolean(hood && preview?.cannotJoin);
+  const label = needsPin ? "Move the pin to your home first" : !settled ? "Checking…" : blocked ? `You can't join ${hood!.name} yet` : hood ? `Yes, join ${hood.name}` : "Continue";
+
   return (
     <div className="space-y-6">
-      <StepHeading title="Is this your home?" description="Check the pin is in the right place. This is how we match you to your neighbourhood." />
+      <StepHeading title="Is this your home?" description="Check the pin is on your home: it decides your neighbourhood. Drag it, or tap the map, to move it." />
+      {error && <ErrorBanner message={error} />}
+      {needsPin && (
+        <div role="status" className="flex items-start gap-3 rounded-xl bg-warning-soft p-4 text-sm">
+          <MapPin className="mt-0.5 size-5 shrink-0 text-warning" aria-hidden />
+          <p>
+            We couldn&apos;t find {address.street.trim() || "your street"} in {address.area.trim() || "your area"}, so the pin is in the middle of the area. Drag it,
+            or tap the map, to put it on your home.
+          </p>
+        </div>
+      )}
+      {pinSource === "gps" && accuracyM !== null && accuracyM > LOOSE_GPS_M && (
+        <div className="flex items-start gap-3 rounded-xl bg-muted/60 p-4 text-sm text-muted-foreground">
+          <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
+          <p>Your device placed you within about {formatDistance(Math.round(accuracyM))}. If the pin isn&apos;t on your home, move it there.</p>
+        </div>
+      )}
       <div className="overflow-hidden rounded-2xl border border-border bg-card">
-        <div className="relative h-64 w-full bg-muted sm:h-72">{coords && <LocationMap lat={coords.lat} lng={coords.lng} />}</div>
-        <div className="flex items-start gap-3 p-4">
+        <div className="relative h-64 w-full bg-muted sm:h-72">{coords && <LocationMap lat={coords.lat} lng={coords.lng} onPick={onPick} />}</div>
+        <div className="flex items-start gap-3 border-b border-border p-4">
           <MapPin className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-bold">Your address</p>
-            <p className="text-sm text-muted-foreground">{address}</p>
+            <p className="text-sm text-muted-foreground">{joinAddress(address)}</p>
           </div>
           <button type="button" onClick={onBack} className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline">
             <Pencil className="size-3.5" aria-hidden /> Edit
           </button>
         </div>
+        <div aria-live="polite">{!needsPin && <HoodVerdict preview={preview} previewing={previewing} previewError={previewError} onRetry={onRetryPreview} />}</div>
       </div>
       <PrivacyNote />
       <div className="flex flex-col-reverse gap-3 sm:flex-row">
         <Button variant="outline" size="lg" className="w-full sm:w-auto" onClick={onBack}>
           <ArrowLeft className="size-4" aria-hidden /> Back
         </Button>
-        <Button size="lg" className="w-full sm:flex-1" onClick={onNext}>
-          Yes, verify my neighbourhood <ArrowRight className="size-4" aria-hidden />
+        <Button size="lg" className="w-full sm:flex-1" onClick={onConfirm} disabled={needsPin || !settled || blocked}>
+          {label} {!needsPin && settled && !blocked && <ArrowRight className="size-4" aria-hidden />}
         </Button>
       </div>
     </div>

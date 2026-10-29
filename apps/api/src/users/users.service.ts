@@ -5,6 +5,7 @@ import { InjectConnection, InjectModel } from "@nestjs/mongoose";
 import type { DecodedIdToken } from "firebase-admin/auth";
 import { Connection, Model } from "mongoose";
 import { AuthService } from "../auth/auth.service";
+import { getFirebaseAdmin } from "../config/firebase.config";
 import { AuditService } from "../audit/audit.service";
 import { HoodsService, isOpenHood, type NearbyHood } from "../hoods/hoods.service";
 import { NotificationsService } from "../notifications/notifications.service";
@@ -22,7 +23,10 @@ const MAX_BLOCKS = 500;
 /** The name shown in place of someone who has deactivated their account. */
 export const FORMER_NEIGHBOUR = "Former neighbour";
 const MAX_ATTEMPTS_KEPT = 10;
-const DAY_MS = 86_400_000;
+/** How recent a sign-in must be to change the email (the app asks for the password again first). */
+const RECENT_SIGN_IN_S = 5 * 60;
+export const REAUTH_MESSAGE = "For your security, enter your password again to change your email.";
+const EMAIL_TAKEN = "That email address is already used by another account.";
 
 export interface MeResponse {
   uid: string;
@@ -40,7 +44,20 @@ export interface MeResponse {
   location?: User["location"];
   /** Set while waiting for staff to approve a join request (contract §16). */
   requestedHood: { id: string; name: string; requestedAt: string } | null;
+  /** Hoods they may read and hear alerts from besides home (contract §31). */
+  secondaryHoods: { id: string; name: string; city?: string; since: string }[];
   createdAt?: string;
+}
+
+/** POST /users/me/verify-location/preview: what verifying at a point would do (contract §29). */
+export interface LocationPreview {
+  /** The Hood the point would join, or null when it's outside every Hood. */
+  hood: { id: string; name: string; city: string } | null;
+  distanceMeters?: number;
+  /** Outside every Hood: the close ones, to ask to join (§16). */
+  nearbyHoods: NearbyHood[];
+  /** Why joining `hood` would be refused: a verified neighbour moving Hood too soon (§26). */
+  cannotJoin?: string;
 }
 
 export interface PublicProfile {
@@ -70,6 +87,7 @@ export function toMe(u: User): MeResponse {
     restrictedUntil: u.restrictedUntil?.toISOString() ?? null,
     location: u.location,
     requestedHood: u.requestedHood ? { id: u.requestedHood.id, name: u.requestedHood.name, requestedAt: u.requestedHood.requestedAt.toISOString() } : null,
+    secondaryHoods: (u.secondaryHoods ?? []).map((h) => ({ id: h.id, name: h.name, city: h.city, since: new Date(h.since).toISOString() })),
     createdAt: u.createdAt?.toISOString(),
   };
 }
@@ -204,6 +222,48 @@ export class UsersService implements OnModuleInit {
   }
 
   /**
+   * POST /users/me/email: change an address that was never confirmed (a typo at sign-up, or one they
+   * can't reach). A confirmed address is the account's proven identity and can't be changed here.
+   *
+   * - Email-and-password sign-ins only (Google proves its own address, and it's confirmed already).
+   * - A recent sign-in (the app asks for the password again first), so a phone left unlocked can't
+   *   be used to take the account over.
+   * - Firebase (where people sign in) and our record change together: if ours fails, Firebase is put
+   *   back. Links sent to the old address are deleted and the new address gets its own.
+   */
+  async changeEmail(viewer: Viewer, token: DecodedIdToken, rawEmail: string): Promise<MeResponse> {
+    const email = rawEmail.trim().toLowerCase();
+    const user = await this.findByUid(viewer.uid);
+    if (!user) throw new NotFoundException("Profile not found.");
+    if (user.emailVerifiedAt || token.email_verified) throw new ConflictException("Your email address is confirmed, so it can't be changed.");
+    if (token.firebase?.sign_in_provider !== "password") throw new BadRequestException("Your email comes from the account you sign in with, so it can't be changed here.");
+    if (Date.now() / 1000 - token.auth_time > RECENT_SIGN_IN_S) throw new ForbiddenException(REAUTH_MESSAGE);
+    if (email === user.email) throw new BadRequestException("That's already your email address.");
+    if (await this.users.exists({ email, uid: { $ne: viewer.uid } })) throw new ConflictException(EMAIL_TAKEN);
+
+    const firebase = getFirebaseAdmin().auth();
+    try {
+      await firebase.updateUser(viewer.uid, { email, emailVerified: false });
+    } catch (err) {
+      if ((err as { code?: string }).code === "auth/email-already-exists") throw new ConflictException(EMAIL_TAKEN);
+      throw err;
+    }
+    try {
+      await withTransaction(this.connection, async (s) => {
+        await this.users.updateOne({ uid: viewer.uid }, { $set: { email, emailVerifiedAt: null } }, { session: s }).exec();
+        await this.audit.record(viewer, "email_change", { type: "user", id: viewer.uid, label: user.displayName ?? viewer.uid }, { reason: "Changed before it was confirmed" }, s);
+      });
+    } catch (err) {
+      // Never leave the two disagreeing: sign-in would use one address and our emails the other.
+      await firebase.updateUser(viewer.uid, { email: user.email }).catch(() => this.logger.error(`Email change for ${viewer.uid} failed half-way; Firebase still has the new address.`));
+      throw err;
+    }
+    const updated = (await this.findByUid(viewer.uid))!;
+    await this.emailVerification.restartFor(updated).catch(() => this.logger.warn("Confirmation email for a changed address could not be queued."));
+    return toMe(updated);
+  }
+
+  /**
    * Account writes before the first GET /users/me can find no document (it
    * failed or never ran). Create it from the token, exactly as sign-in would.
    */
@@ -226,9 +286,8 @@ export class UsersService implements OnModuleInit {
    * Outside every Hood, offers the close ones to ask to join (contract §16).
    *
    * The coordinates come from the caller, so this is only as strong as their honesty. It must at least
-   * not let a verified neighbour walk from Hood to Hood: a point in a *different* Hood moves them only
-   * once `verifiedAt` is older than the cooldown (90 days by default), and every such move is audited.
-   * Sooner than that it is 409 and they stay where they are; staff can still move them (change_hood).
+   * not let a verified neighbour walk from Hood to Hood: a point in a *different* Hood is 409 and they
+   * stay where they are. Moving is a request staff review (contract §31), done with change_hood.
    */
   async verifyLocation(viewer: Viewer, dto: VerifyLocationDto) {
     const user = await this.findByUid(viewer.uid);
@@ -237,13 +296,14 @@ export class UsersService implements OnModuleInit {
       throw new ForbiddenException("Your address couldn't be verified. Contact support if you think that's wrong.");
     }
     const match = await this.hoods.findVerifiedMatch(dto.lng, dto.lat);
-    // Already a verified neighbour somewhere else: this check would move them.
-    const movingFrom = match && user.verificationStatus === "verified" && user.neighborhoodId && user.neighborhoodId !== match.neighborhoodId ? user.neighborhoodId : undefined;
-    const cooldownDays = this.config.get<number>("verification.hoodChangeCooldownDays") ?? 90;
-    const tooSoon =
-      Boolean(movingFrom) &&
-      this.config.get<boolean>("verification.strictHoodAccess") !== false &&
-      Date.now() - (user.verifiedAt?.getTime() ?? 0) < cooldownDays * DAY_MS;
+    // The neighbour confirmed a Hood (from the preview): never put them anywhere else.
+    if (dto.neighborhoodId !== undefined && match?.neighborhoodId !== dto.neighborhoodId) {
+      const hoods = await this.hoods.findManyByIds(match ? [dto.neighborhoodId, match.neighborhoodId] : [dto.neighborhoodId]);
+      const chosen = hoods.get(dto.neighborhoodId)?.name ?? "the neighbourhood you chose";
+      const actual = match && hoods.get(match.neighborhoodId)?.name;
+      throw new ConflictException(actual ? `That pin is in ${actual}, not ${chosen}. Check it and confirm again.` : `That pin isn't in ${chosen} any more. Check it and confirm again.`);
+    }
+    const { movingFrom, tooSoon } = this.hoodMove(user, match?.neighborhoodId);
 
     const result = !match ? ("outside_coverage" as const) : tooSoon ? ("mismatch" as const) : ("matched" as const);
     const attempt = { at: new Date(), lat: dto.lat, lng: dto.lng, address: dto.address, result };
@@ -251,12 +311,7 @@ export class UsersService implements OnModuleInit {
 
     if (!match || tooSoon) {
       await this.users.updateOne({ uid: viewer.uid }, { $set: { lastKnownLocation: { lat: dto.lat, lng: dto.lng }, verificationAttempts: attempts } }).exec();
-      if (tooSoon) {
-        const current = (await this.hoods.findManyByIds([movingFrom!])).get(movingFrom!);
-        throw new ConflictException(
-          `You're a verified neighbour in ${current?.name ?? "another neighbourhood"}, and you can change neighbourhood once every ${cooldownDays} days. If you've moved, contact support and we'll help.`,
-        );
-      }
+      if (tooSoon) throw new ConflictException(await this.tooSoonMessage(movingFrom!));
       return {
         verificationStatus: user.verificationStatus === "verified" ? "verified" : "unverified",
         reason: "outside_coverage" as const,
@@ -296,6 +351,37 @@ export class UsersService implements OnModuleInit {
       await this.notifications.notify({ uids: [viewer.uid], type: "verification", title: "You're a verified neighbour", body: "Welcome to your Hood.", href: "/news-feed" });
     }
     return { verificationStatus: "verified" as const, neighborhoodId: match.neighborhoodId, distanceMeters: Math.round(match.distanceMeters) };
+  }
+
+  /**
+   * What verifyLocation would do with a point, without doing it or recording anything: the Hood it
+   * would join, or the Hoods near it to ask to join. The app shows this so the neighbour sees (and can
+   * correct) their Hood before committing, then passes `hood.id` to verifyLocation (contract §29).
+   */
+  async previewLocation(viewer: Viewer, point: { lat: number; lng: number }): Promise<LocationPreview> {
+    const match = await this.hoods.findVerifiedMatch(point.lng, point.lat);
+    if (!match) return { hood: null, nearbyHoods: await this.nearbyHoods(point.lng, point.lat) };
+    const [user, hood] = await Promise.all([this.findByUid(viewer.uid), this.hoods.findById(match.neighborhoodId)]);
+    const move = user ? this.hoodMove(user, match.neighborhoodId) : null;
+    return {
+      hood: { id: match.neighborhoodId, name: hood.name, city: hood.city },
+      distanceMeters: Math.round(match.distanceMeters),
+      nearbyHoods: [],
+      ...(move?.tooSoon && { cannotJoin: await this.tooSoonMessage(move.movingFrom!) }),
+    };
+  }
+
+  /** Whether joining `matchId` would move a verified neighbour out of their Hood, and whether that is too soon (§26). */
+  private hoodMove(user: Pick<User, "verificationStatus" | "neighborhoodId" | "verifiedAt">, matchId: string | undefined) {
+    const movingFrom = matchId && user.verificationStatus === "verified" && user.neighborhoodId && user.neighborhoodId !== matchId ? user.neighborhoodId : undefined;
+    // Since §31 a verified neighbour never moves themselves: they ask, and staff move them.
+    const tooSoon = Boolean(movingFrom) && this.config.get<boolean>("verification.strictHoodAccess") !== false;
+    return { movingFrom, tooSoon };
+  }
+
+  private async tooSoonMessage(movingFrom: string) {
+    const current = (await this.hoods.findManyByIds([movingFrom])).get(movingFrom);
+    return `You're a verified neighbour in ${current?.name ?? "another neighbourhood"}. If you've moved, ask us to move you: in the myHoodora app go to Your neighbourhoods, or contact us from Help, and our team will take care of it.`;
   }
 
   private nearbyHoods(lng: number, lat: number): Promise<NearbyHood[]> {
@@ -492,9 +578,19 @@ export class UsersService implements OnModuleInit {
    * Active, verified members of a Hood, a page at a time in uid order (for Hood-wide notifications).
    * Pass the last uid of one page as `afterUid` for the next; "" starts from the beginning.
    */
+  /**
+   * A page of the people a Hood's alerts reach: its verified neighbours, and verified neighbours who
+   * read it as a secondary Hood (contract §31).
+   */
   async membersOfHoodPage(hoodId: string, afterUid: string, limit: number): Promise<string[]> {
     const rows = await this.users
-      .find({ neighborhoodId: hoodId, verificationStatus: "verified", deactivatedAt: null, accountStatus: { $ne: "suspended" }, uid: { $gt: afterUid } })
+      .find({
+        $or: [{ neighborhoodId: hoodId }, { "secondaryHoods.id": hoodId }],
+        verificationStatus: "verified",
+        deactivatedAt: null,
+        accountStatus: { $ne: "suspended" },
+        uid: { $gt: afterUid },
+      })
       .sort({ uid: 1 })
       .select({ uid: 1 })
       .limit(limit)

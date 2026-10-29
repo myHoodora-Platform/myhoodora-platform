@@ -5,46 +5,9 @@ import { latency, load, save } from "./mock/store";
 
 // ── Preferences (notifications + privacy) ───────────────────────────────────
 
-export type NotificationCategory =
-  | "urgent_alerts"
-  | "alerts"
-  | "comments"
-  | "messages"
-  | "events"
-  | "for_sale"
-  | "groups";
-
-export interface ChannelPrefs {
-  push: boolean;
-  email: boolean;
-}
-
-export interface Preferences {
-  notifications: Record<NotificationCategory, ChannelPrefs>;
-  /** Email summary of neighbourhood activity. */
-  digest: "daily" | "weekly" | "off";
-  privacy: {
-    /** Who can see your full profile (bio, neighbour since, posts). */
-    profileVisibility: "neighbourhood" | "nearby";
-    /** Who can start a private conversation with you. */
-    messaging: "neighbourhood" | "contacts" | "nobody";
-    showNeighbourSince: boolean;
-  };
-}
-
-export const DEFAULT_PREFERENCES: Preferences = {
-  notifications: {
-    urgent_alerts: { push: true, email: true },
-    alerts: { push: true, email: false },
-    comments: { push: true, email: false },
-    messages: { push: true, email: true },
-    events: { push: false, email: false },
-    for_sale: { push: false, email: false },
-    groups: { push: true, email: false },
-  },
-  digest: "daily",
-  privacy: { profileVisibility: "neighbourhood", messaging: "neighbourhood", showNeighbourSince: true },
-};
+// Shared with the mobile app (packages/api-contract).
+export { DEFAULT_PREFERENCES, type ChannelPrefs, type NotificationCategory, type Preferences } from "@myhoodora/api-contract/settings";
+import { DEFAULT_PREFERENCES, type Preferences } from "@myhoodora/api-contract/settings";
 
 const prefsKey = (uid: string) => `prefs:${uid}`;
 
@@ -147,18 +110,9 @@ export async function submitFeedback(user: User, input: FeedbackInput): Promise<
   save("feedback", [...all, { ...input, uid: user.uid, at: new Date().toISOString() }]);
 }
 
-export const DEACTIVATION_REASONS = [
-  { id: "moved", label: "I moved or am moving" },
-  { id: "not_useful", label: "I didn't find it useful" },
-  { id: "privacy", label: "Privacy concerns" },
-  { id: "too_many_notifications", label: "Too many notifications" },
-  { id: "negative", label: "Too many negative posts" },
-  { id: "few_neighbours", label: "Not enough neighbours on myHoodora" },
-  { id: "duplicate", label: "I have another account" },
-  { id: "other", label: "Something else" },
-] as const;
+export { DEACTIVATION_REASONS, type DeactivationReason } from "@myhoodora/api-contract/settings";
+import type { DeactivationReason } from "@myhoodora/api-contract/settings";
 
-export type DeactivationReason = (typeof DEACTIVATION_REASONS)[number]["id"];
 
 /**
  * live: POST /users/me/deactivate { reason, details } — hides the profile

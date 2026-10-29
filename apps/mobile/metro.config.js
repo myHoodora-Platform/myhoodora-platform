@@ -1,16 +1,7 @@
-const { getDefaultConfig } = require('expo/metro-config');
-const path = require('path');
+// Expo configures Metro for pnpm workspaces itself (watch folders, symlinked packages):
+// https://docs.expo.dev/guides/monorepos/
+// Sentry's wrapper calls Expo's getDefaultConfig, then adds the debug IDs that tie each bundle to
+// its uploaded source map (readable stack traces in crash reports).
+const { getSentryExpoConfig } = require("@sentry/react-native/metro");
 
-const projectRoot = __dirname;
-const workspaceRoot = path.resolve(projectRoot, '../../');
-
-const config = getDefaultConfig(projectRoot);
-
-config.watchFolders = [workspaceRoot];
-
-config.resolver.nodeModulesPaths = [
-  path.resolve(projectRoot, 'node_modules'),
-  path.resolve(workspaceRoot, 'node_modules'),
-];
-
-module.exports = config;
+module.exports = getSentryExpoConfig(__dirname);

@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model, Types, type QueryFilter } from "mongoose";
+import { HoodRequest, HoodRequestDocument } from "../hood-requests/hood-request.schema";
 import { AuditService } from "../audit/audit.service";
 import { CommentsService } from "../comments/comments.service";
 import { Neighborhood, NeighborhoodDocument, type HoodStatus } from "../hoods/schemas/hood.schema";
@@ -67,6 +68,7 @@ export class AdminReadService {
     private readonly businesses: BusinessesService,
     private readonly appeals: AppealsService,
     private readonly telemetry: TelemetryService,
+    @InjectModel(HoodRequest.name) private readonly hoodRequests: Model<HoodRequestDocument>,
   ) {}
 
   // ── Hoods ───────────────────────────────────────────────────────────────
@@ -300,7 +302,11 @@ export class AdminReadService {
     const now = Date.now();
     const w1 = new Date(now - 7 * DAY);
     const w2 = new Date(now - 14 * DAY);
-    const [businessApplications, openAppeals] = await Promise.all([this.businesses.pendingCount(), this.appeals.openCount()]);
+    const [businessApplications, openAppeals, pendingHoodRequests] = await Promise.all([
+      this.businesses.pendingCount(),
+      this.appeals.openCount(),
+      this.hoodRequests.countDocuments({ status: "pending" }).exec(),
+    ]);
     const [open, pending, urgent, inbox, newNow, newPrev, postsNow, postsPrev, activeHoods, hoodsTotal, mNow, mPrev, recent] = await Promise.all([
       this.moderation.openCount(),
       this.users.countDocuments({ $or: [{ verificationStatus: "pending_review" }, { verificationStatus: "unverified", "verificationAttempts.0": { $exists: true } }] }).exec(),
@@ -325,6 +331,7 @@ export class AdminReadService {
         businessApplications,
         unansweredInbox: inbox,
         openAppeals,
+        pendingHoodRequests,
         liveUrgentAlerts: urgent,
       },
       pulse: {
