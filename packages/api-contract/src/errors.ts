@@ -77,8 +77,20 @@ function kindForStatus(status: number, rateLimited = false): ApiErrorKind {
   return "client";
 }
 
+/**
+ * A web page where our API's JSON should be: something in front of the API answered (Render while it
+ * restarts, Cloudflare's "Just a moment…" check), not the API. Whatever its status, it says nothing
+ * about the request or the session.
+ */
+function isHtmlPage(text: string): boolean {
+  return /^\s*<(!doctype|html|head|body)\b/i.test(text);
+}
+
 /** The typed error for a non-2xx response, given its body text and Retry-After header. */
 export function errorFor(status: number, text: string, retryAfterHeader: string | null): ApiError {
+  // Never show the page (it was shown word for word once), and never sign anyone out over it: we
+  // couldn't reach myHoodora, which is worth trying again.
+  if (isHtmlPage(text)) return new ApiError(FRIENDLY_MESSAGES.network, status, "network");
   const wait = retryAfterMs(status, retryAfterHeader);
   const kind = kindForStatus(status, wait !== undefined);
   return new ApiError(messageFromText(text, kind), status, kind, wait);
@@ -116,7 +128,8 @@ function messageFromText(text: string, kind: ApiErrorKind): string {
   } catch {
     // Not JSON — fall through.
   }
-  return text || FRIENDLY_MESSAGES.client;
+  // Plain words only, and short: anything else isn't a message written for people.
+  return text && text.length <= 200 && !text.includes("<") ? text : FRIENDLY_MESSAGES.client;
 }
 
 /** User-facing message for any thrown value. */
