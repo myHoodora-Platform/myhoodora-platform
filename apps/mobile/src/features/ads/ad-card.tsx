@@ -1,12 +1,13 @@
-import type { AdMedia, FeedAd } from "@myhoodora/api-contract/ads";
+import type { AdMedia, FeedAd, PromotedListing } from "@myhoodora/api-contract/ads";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEvent } from "expo";
 import { Image } from "expo-image";
 import { useVideoPlayer, VideoView, type VideoPlayer } from "expo-video";
-import { Ellipsis, EyeOff, Flag, Info, Volume2, VolumeX } from "lucide-react-native";
+import { Ellipsis, EyeOff, Flag, Info, Package, Volume2, VolumeX } from "lucide-react-native";
 import { memo, useEffect, useState } from "react";
 import {FlatList, Linking, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import { useSignedInUser } from "@/core/auth/auth-provider";
+import { useRouter } from "@/core/navigation/use-router";
 import { hideAd, isAd, reportAd, updateFeedEntries, type AdEntry } from "@/features/feed/feed-api";
 import { ReportSheet } from "@/features/feed/report-sheet";
 import { SeeMoreText } from "@/features/feed/see-more-text";
@@ -16,6 +17,7 @@ import { ActionSheet } from "@/shared/ui/action-sheet";
 import { Avatar } from "@/shared/ui/avatar";
 import { Text } from "@/shared/ui/text";
 import { useToast } from "@/shared/ui/toast";
+import { formatNaira } from "@/shared/utils/format";
 import { sizedImage } from "@/shared/utils/media";
 import { adTracker } from "./ad-tracking";
 import { showDialog } from "@/shared/ui/dialog";
@@ -43,13 +45,24 @@ export const AdCard = memo(function AdCard({ entry, session, active }: { entry: 
   const [menu, setMenu] = useState(false);
   const [reporting, setReporting] = useState(false);
   const ad = entry.ad;
+  const router = useRouter();
 
   // Every interaction is counted (once per feed session and kind): the admin sees it in the ad's results.
   const track = (type: "video_play" | "unmute" | "swipe" | "why") => adTracker.track(user, { adId: ad._id, type, sessionId: session });
   const open = (url?: string) => {
     adTracker.track(user, { adId: ad._id, type: "click", sessionId: session });
+    // A seller's ad stays in the app: all of their items.
+    if (ad.seller) {
+      router.push({ pathname: "/for-sale/seller/[uid]", params: { uid: ad.seller.uid, name: ad.seller.name } });
+      return;
+    }
     const target = ad.cta?.type === "call" && ad.cta.phone && !url ? `tel:${ad.cta.phone}` : (url ?? ad.cta?.url);
     if (target) void Linking.openURL(target).catch(() => toast("That link couldn't be opened.", "error"));
+  };
+  /** One of a promoted seller's items: its listing, in the app. */
+  const openItem = (id: string) => {
+    adTracker.track(user, { adId: ad._id, type: "click", sessionId: session });
+    router.push({ pathname: "/for-sale/[id]", params: { id } });
   };
   // Gone from every feed at once; the API makes it permanent.
   const removeHere = () => updateFeedEntries(client, (entries) => entries.filter((e) => !(isAd(e) && e.ad._id === ad._id)));
@@ -63,8 +76,10 @@ export const AdCard = memo(function AdCard({ entry, session, active }: { entry: 
   return (
     <View style={[styles.card, { backgroundColor: t.colors.card }]} accessibilityLabel={`Sponsored by ${ad.advertiser.name}`}>
       <View style={styles.header}>
-        <Pressable onPress={() => open()} accessibilityRole="link" accessibilityHint="Opens the advertiser's link" style={({ pressed }) => [styles.who, { opacity: pressed ? 0.7 : 1 }]}>
-          {ad.advertiser.logoUrl ? (
+        <Pressable onPress={() => open()} accessibilityRole="link" accessibilityHint={ad.seller ? "Shows everything they're selling" : "Opens the advertiser's link"} style={({ pressed }) => [styles.who, { opacity: pressed ? 0.7 : 1 }]}>
+          {ad.seller ? (
+            <Avatar name={ad.seller.name} photoURL={ad.seller.photoURL} size={40} />
+          ) : ad.advertiser.logoUrl ? (
             <Image source={{ uri: sizedImage(ad.advertiser.logoUrl, 40) }} style={[styles.logo, { backgroundColor: t.colors.muted }]} contentFit="cover" accessibilityIgnoresInvertColors />
           ) : (
             <Avatar name={ad.advertiser.name} size={40} />
@@ -91,6 +106,7 @@ export const AdCard = memo(function AdCard({ entry, session, active }: { entry: 
         </View>
       ) : null}
 
+      {ad.format === "listings" && ad.listings?.length ? <SellerItems items={ad.listings} onOpen={openItem} onSwipe={() => track("swipe")} /> : null}
       {ad.format === "carousel" ? <Carousel ad={ad} onOpen={open} onSwipe={() => track("swipe")} /> : null}
       {(ad.format === "image" || ad.format === "business") && ad.media[0] ? <AdImage media={ad.media[0]} onPress={() => open()} /> : null}
       {ad.format === "video" && ad.media[0] ? <AdVideo media={ad.media[0]} active={active} onPress={() => open()} onPlay={() => track("video_play")} onUnmute={() => track("unmute")} /> : null}
@@ -103,7 +119,11 @@ export const AdCard = memo(function AdCard({ entry, session, active }: { entry: 
                 {ad.headline}
               </Text>
             ) : null}
-            {ad.cta.type === "call" ? (
+            {ad.seller ? (
+              <Text variant="caption" tone="muted" numberOfLines={1}>
+                {ad.listings?.length === 1 ? "1 item for sale" : `${ad.listings?.length ?? 0} items for sale`}
+              </Text>
+            ) : ad.cta.type === "call" ? (
               <Text variant="caption" tone="muted" numberOfLines={1}>
                 {ad.cta.phone}
               </Text>
@@ -224,6 +244,53 @@ function toggleSound(player: VideoPlayer) {
   player.muted = !player.muted;
 }
 
+/**
+ * A promoted seller's items to swipe through: photo, price, title, as in For Sale. Each opens its
+ * listing in the app.
+ */
+function SellerItems({ items, onOpen, onSwipe }: { items: PromotedListing[]; onOpen: (id: string) => void; onSwipe: () => void }) {
+  const t = useTheme();
+  const { width } = useWindowDimensions();
+  // About two and a half tiles in view, so it's clear there are more to swipe to.
+  const tile = Math.round((width - 32) / 2.4);
+  return (
+    <FlatList
+      horizontal
+      data={items}
+      keyExtractor={(l) => l._id}
+      showsHorizontalScrollIndicator={false}
+      snapToInterval={tile + 8}
+      decelerationRate="fast"
+      onMomentumScrollEnd={(e) => e.nativeEvent.contentOffset.x > 0 && onSwipe()}
+      contentContainerStyle={styles.carousel}
+      renderItem={({ item }) => (
+        <Pressable
+          onPress={() => onOpen(item._id)}
+          accessibilityRole="link"
+          accessibilityLabel={`${item.title}, ${formatNaira(item.priceNaira)}`}
+          style={({ pressed }) => [styles.carouselCard, { width: tile, borderColor: t.colors.border, backgroundColor: t.colors.card, opacity: pressed ? 0.85 : 1 }]}
+        >
+          <View style={[styles.itemPhoto, { width: tile, height: tile, backgroundColor: t.colors.muted }]}>
+            {item.photoUrl ? (
+              <Image source={{ uri: sizedImage(item.photoUrl, tile) }} style={StyleSheet.absoluteFill} contentFit="cover" recyclingKey={item._id} accessibilityIgnoresInvertColors />
+            ) : (
+              <Package size={28} color={t.colors.mutedForeground} />
+            )}
+          </View>
+          <View style={styles.itemFoot}>
+            <Text variant="label" style={item.priceNaira === null ? { color: t.colors.primary } : undefined}>
+              {formatNaira(item.priceNaira)}
+            </Text>
+            <Text variant="caption" numberOfLines={1}>
+              {item.title}
+            </Text>
+          </View>
+        </Pressable>
+      )}
+    />
+  );
+}
+
 /** 2–10 square cards to swipe through, each with its own headline and link. */
 function Carousel({ ad, onOpen, onSwipe }: { ad: FeedAd; onOpen: (url: string) => void; onSwipe: () => void }) {
   const t = useTheme();
@@ -275,5 +342,7 @@ const styles = StyleSheet.create({
   mute: { position: "absolute", right: 12, bottom: 12, width: 34, height: 34, borderRadius: 17, backgroundColor: "rgba(0,0,0,0.55)", alignItems: "center", justifyContent: "center" },
   carousel: { paddingHorizontal: 16, gap: 8 },
   carouselCard: { borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, overflow: "hidden" },
+  itemPhoto: { alignItems: "center", justifyContent: "center" },
+  itemFoot: { paddingHorizontal: 10, paddingVertical: 8, gap: 1 },
   carouselFoot: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, padding: 10 },
 });

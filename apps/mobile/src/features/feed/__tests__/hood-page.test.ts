@@ -16,7 +16,7 @@ describe("listHoodPage", () => {
   it("keeps the API's order, marks ads, and passes the session and cursor", async () => {
     mockFetch.mockResolvedValue({ items: [{ type: "post", data: post("1") }, { type: "ad", slotId: "s:0", data: ad }, { type: "post", data: post("2") }], nextCursor: "abc" });
     const page = await listHoodPage(user, "h1", { cursor: "prev", session: "session01" });
-    expect(mockFetch.mock.calls[0][1]).toBe("/feed/hood/h1?limit=10&session=session01&cursor=prev");
+    expect(mockFetch.mock.calls[0][1]).toBe("/feed/hood/h1?limit=10&session=session01&supports=listings&cursor=prev");
     expect(page.entries.map((e) => (isAd(e) ? `ad:${e.slotId}` : e._id))).toEqual(["1", "ad:s:0", "2"]);
     expect(page.next).toBe("abc");
     expect(pagePosts(page).map((p) => p._id)).toEqual(["1", "2"]);

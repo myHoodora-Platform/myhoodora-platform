@@ -1,7 +1,8 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import { HydratedDocument } from "mongoose";
 
-export const AD_FORMATS = ["image", "video", "carousel", "announcement", "business"] as const;
+/** `listings`: a seller's own For Sale items, shown live from their listings (the admin picks the seller). */
+export const AD_FORMATS = ["image", "video", "carousel", "announcement", "business", "listings"] as const;
 export type AdFormat = (typeof AD_FORMATS)[number];
 
 export const AD_STATUSES = ["draft", "active", "paused", "ended"] as const;
@@ -46,6 +47,8 @@ export class Ad {
   @Prop({ type: [{ imageUrl: String, headline: String, url: String, _id: false }], default: [] })
   cards!: { imageUrl: string; headline: string; url: string }[];
   @Prop({ enum: AD_BACKGROUNDS }) background?: AdBackground;
+  /** `listings` ads: whose items. While the ad is live, neighbours it reaches may open them. */
+  @Prop() sellerUid?: string;
 
   @Prop({ required: true, enum: AD_STATUSES, default: "draft" }) status!: AdStatus;
   @Prop({ type: Date, default: null }) startsAt?: Date | null;
@@ -75,6 +78,8 @@ AdSchema.index({ status: 1, deletedAt: 1, startsAt: 1, endsAt: 1 });
 // "Is this stored file used by an ad?" (StorageService.sweepUnreferenced).
 AdSchema.index({ "media.url": 1 });
 AdSchema.index({ "cards.imageUrl": 1 });
+// "Is this seller promoted where this neighbour lives?" (ListingsService).
+AdSchema.index({ sellerUid: 1, format: 1 }, { sparse: true });
 
 /**
  * One thing a neighbour did with an ad. `key` (neighbour + ad + feed session + type) is unique, so a

@@ -25,5 +25,5 @@ Also improved on the way: forms keep the field you're typing in above the keyboa
 ## Also missing, not scheduled
 
 - Business claim and the business sign-up form inside the app (they open on the web).
-- Alert pins on the map (needs a location on alert posts: API work first, on the web too).
-- "Add to calendar" for events (a native calendar module).
+- ~~Alert pins on the map~~: done 28 Oct (88dac39), in the app and on the web.
+- ~~"Add to calendar" for events~~: done 29 Oct. Shown once you're going or interested; opens the phone's own new-event screen (expo-calendar, needs a new build), or Google Calendar's page in an older build.

@@ -4,7 +4,8 @@
  */
 import type { ApiPost, PostCategory } from "./types";
 
-export const AD_FORMATS = ["image", "video", "carousel", "announcement", "business"] as const;
+/** `listings`: a seller's own For Sale items, live from their listings (an admin picks the seller). */
+export const AD_FORMATS = ["image", "video", "carousel", "announcement", "business", "listings"] as const;
 export type AdFormat = (typeof AD_FORMATS)[number];
 
 export const AD_STATUSES = ["draft", "active", "paused", "ended"] as const;
@@ -56,6 +57,19 @@ export interface FeedAd {
   background?: AdBackground;
   /** "Why am I seeing this?" */
   why: string;
+  /** `listings` ads: the seller (also the advertiser) and their items for sale now, newest first. */
+  seller?: { uid: string; name: string; photoURL?: string };
+  listings?: PromotedListing[];
+}
+
+/** One of a promoted seller's items. Tapping it opens the listing; the button opens all their items. */
+export interface PromotedListing {
+  _id: string;
+  title: string;
+  /** Naira; null = free. */
+  priceNaira: number | null;
+  negotiable: boolean;
+  photoUrl?: string;
 }
 
 export type FeedItem = { type: "post"; data: ApiPost } | { type: "ad"; slotId: string; data: FeedAd };
@@ -72,6 +86,8 @@ export interface FeedPageQuery {
   category?: PostCategory;
   /** Made up by the app each time the feed opens or is refreshed (8–64 of A–Z a–z 0–9 - _). */
   session: string;
+  /** Newer formats this app shows, comma-separated: `listings`. Without it, those aren't sent. */
+  supports?: string;
 }
 
 /** POST /ads/events: each counts once per neighbour, ad, feed session and kind. */
@@ -115,6 +131,10 @@ export interface AdminAd {
   media: AdMedia[];
   cards: AdCard[];
   background?: AdBackground;
+  /** `listings` ads: whose items it shows. */
+  sellerUid?: string;
+  /** Staff see the seller's real name. */
+  seller?: { uid: string; displayName: string; photoURL?: string };
   status: AdStatus;
   /** "ended" once its end date has passed, whatever `status` says. */
   effectiveStatus: AdStatus;
@@ -135,7 +155,7 @@ export interface AdminAd {
 }
 
 /** POST /admin/ads, PATCH /admin/ads/:id. */
-export type AdminAdInput = Partial<Omit<AdminAd, "_id" | "status" | "effectiveStatus" | "createdBy" | "createdAt" | "updatedAt" | "stats">>;
+export type AdminAdInput = Partial<Omit<AdminAd, "_id" | "status" | "effectiveStatus" | "createdBy" | "createdAt" | "updatedAt" | "stats" | "seller">>;
 
 export interface AdStatsRange extends AdStats {
   from: string;

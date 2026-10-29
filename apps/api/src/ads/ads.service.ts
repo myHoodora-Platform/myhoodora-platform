@@ -7,10 +7,12 @@ import type { Viewer } from "../shared/auth/viewer";
 import { withTransaction } from "../shared/db/transaction";
 import { searchRegex } from "../shared/http/pagination";
 import { StorageService } from "../storage/storage.service";
+import { DELETED_USER_NAME } from "../users/account-lifecycle";
+import { UsersService } from "../users/users.service";
 import { Ad, AdEvent, AdHide, AdSettings, type AdTrackedType, type AdCta, type AdDocument, type AdEventType, type AdFormat, type AdStatus } from "./ad.schema";
 import type { AdInputDto, AdSettingsDto } from "./ads.dto";
 import { DEFAULT_RULES, type Candidate, type PlacementRules } from "./domain/placement";
-import { distanceKm } from "../shared/geo/distance";
+import { liveAdFilter, reaches } from "./domain/targeting";
 
 const DAY = 86_400_000;
 /** Images narrower than this look soft in the feed (§5.1). */
@@ -42,6 +44,18 @@ export interface AdView {
   background?: string;
   /** For "Why am I seeing this?". */
   why: string;
+  /** `listings` ads: the seller, and their items for sale now (filled in by the feed). */
+  seller?: { uid: string; name: string; photoURL?: string };
+  listings?: PromotedListing[];
+}
+
+/** One of a promoted seller's items, as the feed card shows it. */
+export interface PromotedListing {
+  _id: string;
+  title: string;
+  priceNaira: number | null;
+  negotiable: boolean;
+  photoUrl?: string;
 }
 
 export interface AdStats {
@@ -67,6 +81,8 @@ export interface AdAdminView extends Omit<Ad, "startsAt" | "endsAt" | "deletedAt
   createdAt?: string;
   updatedAt?: string;
   stats?: AdStats;
+  /** `listings` ads: who the seller is (staff see the real name). */
+  seller?: { uid: string; displayName: string; photoURL?: string };
 }
 
 /** Midnight in Lagos (WAT, UTC+1, no daylight saving): when daily caps start again. */
@@ -91,6 +107,7 @@ export class AdsService implements OnModuleInit {
     private readonly storage: StorageService,
     private readonly audit: AuditService,
     private readonly hoods: HoodsService,
+    private readonly users: UsersService,
   ) {}
 
   onModuleInit() {
@@ -117,14 +134,14 @@ export class AdsService implements OnModuleInit {
     const re = searchRegex(q.q);
     if (re) filter.$and = [{ $or: [{ title: re }, { advertiserName: re }] }];
     const rows = await this.ads.find(filter).sort({ updatedAt: -1 }).limit(200).lean<AdRow[]>().exec();
-    const stats = await this.statsFor(rows.map((r) => String(r._id)));
-    return rows.map((r) => ({ ...this.toAdmin(r), stats: stats.get(String(r._id)) ?? emptyStats() }));
+    const [stats, sellers] = await Promise.all([this.statsFor(rows.map((r) => String(r._id))), this.sellersOf(rows)]);
+    return rows.map((r) => ({ ...this.toAdmin(r, sellers), stats: stats.get(String(r._id)) ?? emptyStats() }));
   }
 
   async get(id: string): Promise<AdAdminView> {
     const row = await this.find(id);
-    const stats = await this.statsFor([id]);
-    return { ...this.toAdmin(row), stats: stats.get(id) ?? emptyStats() };
+    const [stats, sellers] = await Promise.all([this.statsFor([id]), this.sellersOf([row])]);
+    return { ...this.toAdmin(row, sellers), stats: stats.get(id) ?? emptyStats() };
   }
 
   async create(viewer: Viewer, input: AdInputDto): Promise<AdAdminView> {
@@ -226,18 +243,13 @@ export class AdsService implements OnModuleInit {
   async candidatesFor(viewer: Viewer, hood: { id: string; city?: string; lat?: number; lng?: number }, now = new Date()): Promise<{ candidates: Candidate[]; ads: Map<string, AdRow> }> {
     const rows = await this.ads
       .find({
-        status: "active",
-        deletedAt: null,
-        $and: [
-          { $or: [{ startsAt: null }, { startsAt: { $lte: now } }] },
-          { $or: [{ endsAt: null }, { endsAt: { $gt: now } }] },
-          { $or: [{ hoodIds: { $size: 0 }, cities: { $size: 0 }, near: null }, { hoodIds: hood.id }, ...(hood.city ? [{ cities: hood.city }] : []), { near: { $ne: null } }] },
-        ],
+        ...liveAdFilter(now),
+        $or: [{ hoodIds: { $size: 0 }, cities: { $size: 0 }, near: null }, { hoodIds: hood.id }, ...(hood.city ? [{ cities: hood.city }] : []), { near: { $ne: null } }],
       })
       .lean<AdRow[]>()
       .exec()
       // Aimed near a place: only if this neighbourhood is within the radius (or listed or in a listed city).
-      .then((found) => found.filter((r) => !r.near || r.hoodIds.includes(hood.id) || (!!hood.city && r.cities.includes(hood.city)) || (hood.lat !== undefined && hood.lng !== undefined && distanceKm(r.near, { lat: hood.lat, lng: hood.lng }) <= r.near.radiusKm)));
+      .then((found) => found.filter((r) => reaches(r, hood)));
     if (!rows.length) return { candidates: [], ads: new Map() };
     const ids = rows.map((r) => String(r._id));
     const [hidden, seen] = await Promise.all([
@@ -256,19 +268,30 @@ export class AdsService implements OnModuleInit {
     };
   }
 
-  toView(r: AdRow, hoodName?: string, aspects?: Map<string, number>): AdView {
+  /**
+   * `promoted`: for a `listings` ad, the seller and their items now. They stand in for the advertiser,
+   * and the button opens all of that seller's items in the app.
+   */
+  toView(r: AdRow, hoodName?: string, aspects?: Map<string, number>, promoted?: { seller: { uid: string; name: string; photoURL?: string }; listings: PromotedListing[] }): AdView {
     const aimed = r.hoodIds.length || r.cities.length || r.near;
+    const seller = promoted?.seller;
+    const advertiserName = seller?.name ?? r.advertiserName;
     return {
       _id: String(r._id),
       format: r.format,
-      advertiser: { name: r.advertiserName, logoUrl: r.advertiserLogoUrl },
+      advertiser: seller ? { name: seller.name, logoUrl: seller.photoURL } : { name: r.advertiserName, logoUrl: r.advertiserLogoUrl },
       primaryText: r.primaryText,
       headline: r.headline,
-      cta: r.ctaType ? { type: r.ctaType, label: CTA_LABELS[r.ctaType], url: r.ctaUrl, phone: r.ctaPhone } : null,
+      cta: seller
+        ? { type: "shop", label: `See all from ${seller.name.split(" ")[0]}` }
+        : r.ctaType
+          ? { type: r.ctaType, label: CTA_LABELS[r.ctaType], url: r.ctaUrl, phone: r.ctaPhone }
+          : null,
       media: r.media.map((m) => ({ url: m.url, kind: m.kind, posterUrl: m.posterUrl, aspect: aspects?.get(m.url) })),
       cards: r.cards.map((c) => ({ imageUrl: c.imageUrl, headline: c.headline, url: c.url })),
       background: r.background,
-      why: r.near?.label && !r.hoodIds.length && !r.cities.length ? `You're seeing this because ${r.advertiserName} chose to reach neighbourhoods within ${r.near.radiusKm} km of ${r.near.label}. Ads never use your posts, messages or exact location.` : aimed && hoodName ? `You're seeing this because ${r.advertiserName} chose to reach neighbours in ${hoodName}. Ads never use your posts, messages or exact location.` : `You're seeing this because ${r.advertiserName} is shown to neighbours across myHoodora. Ads never use your posts, messages or exact location.`,
+      ...(promoted && { seller: promoted.seller, listings: promoted.listings }),
+      why: r.near?.label && !r.hoodIds.length && !r.cities.length ? `You're seeing this because ${advertiserName} chose to reach neighbourhoods within ${r.near.radiusKm} km of ${r.near.label}. Ads never use your posts, messages or exact location.` : aimed && hoodName ? `You're seeing this because ${advertiserName} chose to reach neighbours in ${hoodName}. Ads never use your posts, messages or exact location.` : `You're seeing this because ${advertiserName} is shown to neighbours across myHoodora. Ads never use your posts, messages or exact location.`,
     };
   }
 
@@ -335,8 +358,8 @@ export class AdsService implements OnModuleInit {
   }
 
   private editable(a: Partial<Ad>): Partial<Ad> {
-    const { title, advertiserName, advertiserLogoUrl, format, primaryText, headline, ctaType, ctaUrl, ctaPhone, media, cards, background, startsAt, endsAt, priority, dailyCapPerUser, hoodIds, cities, near } = a;
-    return { title, advertiserName, advertiserLogoUrl, format, primaryText, headline, ctaType, ctaUrl, ctaPhone, media, cards, background, startsAt, endsAt, priority, dailyCapPerUser, hoodIds, cities, near: near ?? null };
+    const { title, advertiserName, advertiserLogoUrl, format, primaryText, headline, ctaType, ctaUrl, ctaPhone, media, cards, background, sellerUid, startsAt, endsAt, priority, dailyCapPerUser, hoodIds, cities, near } = a;
+    return { title, advertiserName, advertiserLogoUrl, format, primaryText, headline, ctaType, ctaUrl, ctaPhone, media, cards, background, sellerUid, startsAt, endsAt, priority, dailyCapPerUser, hoodIds, cities, near: near ?? null };
   }
 
   /**
@@ -359,6 +382,10 @@ export class AdsService implements OnModuleInit {
       const s = stored.get(c.imageUrl);
       if (s && (s.resourceType !== "image" || (s.width ?? 0) < MIN_IMAGE_WIDTH)) problems.push(`Carousel cards need images at least ${MIN_IMAGE_WIDTH}px wide.`);
     }
+    if (a.format === "listings" && a.sellerUid) {
+      const seller = (await this.users.authorCards([a.sellerUid], { forStaff: true })).get(a.sellerUid);
+      if (!seller || seller.displayName === DELETED_USER_NAME) problems.push("That seller doesn't have an account.");
+    }
     if (a.hoodIds?.length) {
       const found = await this.hoods.findManyByIds(a.hoodIds);
       if (found.size !== a.hoodIds.length) problems.push("One of those neighbourhoods doesn't exist.");
@@ -367,7 +394,9 @@ export class AdsService implements OnModuleInit {
     if (complete) {
       const f = a.format;
       const media = a.media ?? [];
-      if (f !== "announcement" && f !== "carousel" && !a.primaryText) problems.push("Write the ad's text.");
+      if (f !== "announcement" && f !== "carousel" && f !== "listings" && !a.primaryText) problems.push("Write the ad's text.");
+      if (f === "listings" && !a.sellerUid) problems.push("Choose the seller whose items it shows.");
+      if (f === "listings" && (media.length || a.cards?.length)) problems.push("A seller's listings ad shows their own photos: remove the uploaded ones.");
       if (f === "announcement" && !a.primaryText) problems.push("Write the announcement.");
       if ((f === "image" || f === "business") && (media.length !== 1 || media[0]!.kind !== "image")) problems.push("Add one image.");
       if (f === "video" && (media.length !== 1 || media[0]!.kind !== "video" || !media[0]!.posterUrl)) problems.push("Add one video and its poster image.");
@@ -381,10 +410,17 @@ export class AdsService implements OnModuleInit {
     if (problems.length) throw new BadRequestException([...new Set(problems)].join(" "));
   }
 
-  private toAdmin(r: AdRow): AdAdminView {
+  /** The sellers of `listings` ads, with their real names (staff screens only). */
+  private sellersOf(rows: AdRow[]) {
+    return this.users.authorCards(rows.flatMap((r) => (r.sellerUid ? [r.sellerUid] : [])), { forStaff: true });
+  }
+
+  private toAdmin(r: AdRow, sellers?: Map<string, { uid: string; displayName: string; photoURL?: string }>): AdAdminView {
     const ended = r.status === "ended" || (r.endsAt ? r.endsAt <= new Date() : false);
+    const seller = r.sellerUid ? sellers?.get(r.sellerUid) : undefined;
     return {
       ...r,
+      ...(seller && { seller: { uid: seller.uid, displayName: seller.displayName, photoURL: seller.photoURL } }),
       _id: String(r._id),
       effectiveStatus: ended ? "ended" : r.status,
       startsAt: r.startsAt?.toISOString() ?? null,

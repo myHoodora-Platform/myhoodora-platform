@@ -20,10 +20,12 @@ const domainOf = (url?: string) => (url ? /^https?:\/\/(?:www\.)?([^/?#]+)/i.exe
  * How the ad will look in a neighbour's feed (the app's AdCard): advertiser and "Sponsored", the
  * text cut at three lines, the media, then the button bar. A guide, not pixel-perfect.
  */
-export function AdPreview({ ad }: { ad: AdminAdInput }) {
-  const name = ad.advertiserName || "Advertiser";
+export function AdPreview({ ad, sellerName }: { ad: AdminAdInput; sellerName?: string }) {
+  const listings = ad.format === "listings";
+  // A seller's listings show under the seller's own name, whatever the advertiser field says.
+  const name = (listings && sellerName) || ad.advertiserName || "Advertiser";
   const media = ad.media?.[0];
-  const cta = ad.ctaType ? { label: AD_CTA_LABELS[ad.ctaType], sub: ad.ctaType === "call" ? ad.ctaPhone : domainOf(ad.ctaUrl) } : null;
+  const cta = listings ? { label: `See all from ${name.split(" ")[0]}`, sub: "Items for sale" } : ad.ctaType ? { label: AD_CTA_LABELS[ad.ctaType], sub: ad.ctaType === "call" ? ad.ctaPhone : domainOf(ad.ctaUrl) } : null;
   return (
     <div className="mx-auto w-full max-w-[360px] overflow-hidden rounded-[2rem] border-[6px] border-slate-900 bg-slate-100 shadow-xl">
       <div className="h-6 bg-white" />
@@ -48,7 +50,19 @@ export function AdPreview({ ad }: { ad: AdminAdInput }) {
           <p className="line-clamp-3 px-4 text-[15px] leading-snug text-slate-900">{ad.primaryText}</p>
         ) : null}
 
-        {ad.format === "carousel" ? (
+        {listings ? (
+          <div className="flex gap-2 overflow-hidden px-4 pb-1" aria-label="Their items for sale appear here">
+            {["₦25,000", "₦8,500", "Free"].map((price) => (
+              <div key={price} className="w-[38%] shrink-0 overflow-hidden rounded-xl border border-slate-200">
+                <div className="aspect-square w-full bg-slate-200" />
+                <div className="p-2 text-xs">
+                  <p className="font-semibold text-slate-900">{price}</p>
+                  <p className="truncate text-slate-500">Their item</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : ad.format === "carousel" ? (
           <div className="flex gap-2 overflow-x-auto px-4 pb-1">
             {(ad.cards?.length ? ad.cards : [{ imageUrl: "", headline: "Card", url: "" }]).map((c, i) => (
               <div key={i} className="w-[72%] shrink-0 overflow-hidden rounded-xl border border-slate-200">

@@ -1491,13 +1491,13 @@ The mobile app (`apps/mobile`) registers each phone for push. Every notification
 Ads admins run in neighbourhood feeds (spec: `docs/feed-redesign-spec.md` §5). Types: `@myhoodora/api-contract/ads`.
 
 ### The feed with ads: `GET /feed/hood/:id`
-Query: `session` (required: an id the app makes up whenever the feed opens or is refreshed, 8–64 of `A–Z a–z 0–9 - _`), `limit` (1–30, default 10), `cursor` (the previous page's `nextCursor`, as given), `category`.
+Query: `session` (required: an id the app makes up whenever the feed opens or is refreshed, 8–64 of `A–Z a–z 0–9 - _`), `limit` (1–30, default 10), `cursor` (the previous page's `nextCursor`, as given), `category`, `supports` (newer formats the app can show, comma-separated: `listings`; without it, those ads are never sent, so older app builds don't get a card they can't show).
 
 Returns `{ items, nextCursor }`. Each item is `{ type: "post", data: Post }` or `{ type: "ad", slotId, data: FeedAd }`; `nextCursor` is null at the end. The posts, their order and the access rules are exactly those of `GET /posts/neighborhood/:id`, **which is unchanged**, so older app builds keep working.
 
 - **Placement** (defaults, admin-tunable): no ad before the 4th item; then one every 6–8 posts; never two in a row; never the last item of the feed; none on a page with fewer than 3 posts; none in a filtered feed (`category`). The cursor carries the placement, so pages continue as one feed: slots never move or repeat, and the same page asked for again has the same ads. A cursor that doesn't decode answers `400` ("refresh").
 - **Which ad:** live now (`active`, between `startsAt` and `endsAt`, not deleted), aimed at this neighbourhood (everyone, these neighbourhoods, or every neighbourhood in these cities), not hidden by this neighbour, and seen fewer times today (Lagos time) than its daily cap, counting this session's placements. Chosen by priority (1–10), avoiding the previous ad's format when another is eligible.
-- **`FeedAd`** has only what's shown: `advertiser { name, logoUrl }`, `primaryText`, `headline`, `cta { type, label, url | phone } | null`, `media[]` (`url`, `kind`, `posterUrl` for videos), `cards[]` (carousel: `imageUrl`, `headline`, `url`), `background` (announcements: a colour name), `why` (for "Why am I seeing this?"). Never its targeting, stats or internal title. Label it **Sponsored**.
+- **`FeedAd`** has only what's shown: `advertiser { name, logoUrl }`, `primaryText`, `headline`, `cta { type, label, url | phone } | null`, `media[]` (`url`, `kind`, `posterUrl` for videos), `cards[]` (carousel: `imageUrl`, `headline`, `url`), `background` (announcements: a colour name), `why` (for "Why am I seeing this?"); for `listings` ads also `seller { uid, name, photoURL }` (the advertiser is the seller) and `listings[]` (`_id`, `title`, `priceNaira` (null = free), `negotiable`, `photoUrl`: their available items, newest first, up to 10), with `cta { type: "shop", label: "See all from Ada" }` and no url. Never its targeting, stats or internal title. Label it **Sponsored**.
 
 ### What neighbours do
 - `POST /ads/events` body `{ events: [{ adId, type, sessionId }] }` (1–50) → `{ recorded }`. `type`: `impression`, `click`, `video_play` (a video started playing), `unmute` (sound turned on), `swipe` (a carousel swiped), `why` ("Why am I seeing this?" opened). Send an impression once an ad has been at least half on screen for a second, once per feed session; a click when the button, media or advertiser is tapped. Each counts **once per neighbour, ad, feed session and kind** (a unique key), so resending is safe. Unknown ads are ignored. Fire and forget: never hold up the screen.
@@ -1524,8 +1524,11 @@ Every change below is in the audit log (`ad_create`, `ad_update`, `ad_activate`,
 | `carousel` | 2–10 cards (image, headline, link) |
 | `announcement` | text; no media; optional `background` and button |
 | `business` | text, the business's logo, one image, a button |
+| `listings` | `sellerUid` (a neighbour with an account); text optional; no media, cards or button (the seller's own photos and "See all from …") |
 
 A `call` button needs `ctaPhone`; any other needs `ctaUrl` (https). The end date must be after the start date.
+
+**A seller's listings (`listings`, 2026-10-29).** An admin promotes a neighbour's For Sale items by making a `listings` ad with their `sellerUid` (`AdminAd.seller` gives staff their name). The feed fills the card from the seller's available listings at that moment; with none available, or for a neighbour who has blocked the seller, the ad isn't placed. While the ad is live, neighbours in the places it reaches may open the seller's listings (`GET /listings/:id`) and see all of them (`GET /listings?seller=<uid>`), even from another neighbourhood, and so message the seller about one; when it ends or is paused, that access ends with it. Nothing else of the seller's is opened up. Taps on an item or the button count as clicks.
 
 ## 33. Feedback prompts and store reviews (2026-10-27)
 Questions admins ask neighbours in the app, and when the app asks for an App Store / Play Store review. Types: `@myhoodora/api-contract/prompts`.

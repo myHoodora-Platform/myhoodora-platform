@@ -82,7 +82,8 @@ export function cachedFeedPosts(client: QueryClient): ApiPost[] {
  * is this feed session's id. Against an API that doesn't have the route yet, the plain feed (no ads).
  */
 export async function listHoodPage(user: User, hoodId: string, opts: { cursor?: string; category?: PostCategory; session: string }): Promise<HoodPage> {
-  const params = new URLSearchParams({ limit: String(FEED_PAGE), session: opts.session });
+  // `supports`: ad formats this build can show (a seller's items); older builds never get them.
+  const params = new URLSearchParams({ limit: String(FEED_PAGE), session: opts.session, supports: "listings" });
   if (opts.cursor) params.set("cursor", opts.cursor);
   if (opts.category) params.set("category", opts.category);
   try {

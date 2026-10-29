@@ -19,6 +19,7 @@ import { createAd, deleteAd, getAd, getAdStats, setAdStatus, updateAd } from "@/
 import { listHoods } from "@/lib/api/admin/community";
 import type { AdminHood } from "@/lib/api/admin/types";
 import { PHOTO_ACCEPT, uploadMedia } from "@/lib/api/media";
+import { PeoplePicker, type Person } from "../people-picker";
 import { useAdminSession } from "../session";
 import { useAdminQuery } from "../use-admin-query";
 import { AdPreview } from "./ad-preview";
@@ -29,6 +30,7 @@ const FORMATS: { id: AdFormat; label: string; hint: string }[] = [
   { id: "carousel", label: "Carousel", hint: "2–10 cards to swipe" },
   { id: "announcement", label: "Announcement", hint: "Text on a colour" },
   { id: "business", label: "Local business", hint: "Logo, photo and Call / Visit" },
+  { id: "listings", label: "Seller's listings", hint: "A neighbour's For Sale items" },
 ];
 const VIDEO_ACCEPT = "video/mp4,video/quicktime,video/webm";
 const EMPTY: AdminAdInput = { title: "", advertiserName: "", format: "image", primaryText: "", headline: "", media: [], cards: [], priority: 5, dailyCapPerUser: 3, hoodIds: [], cities: [], near: null, startsAt: null, endsAt: null };
@@ -47,18 +49,21 @@ const fromLocalInput = (v: string) => (v ? new Date(v).toISOString() : null);
 
 /** What the API takes from a loaded ad (it refuses fields it doesn't know). */
 function inputOf(ad: AdminAd): AdminAdInput {
-  const { title, advertiserName, advertiserLogoUrl, format, primaryText, headline, ctaType, ctaUrl, ctaPhone, media, cards, background, startsAt, endsAt, priority, dailyCapPerUser, hoodIds, cities, near } = ad;
-  return { title, advertiserName, advertiserLogoUrl, format, primaryText, headline, ctaType, ctaUrl, ctaPhone, media, cards, background, startsAt, endsAt, priority, dailyCapPerUser, hoodIds, cities, near };
+  const { title, advertiserName, advertiserLogoUrl, format, primaryText, headline, ctaType, ctaUrl, ctaPhone, media, cards, background, sellerUid, startsAt, endsAt, priority, dailyCapPerUser, hoodIds, cities, near } = ad;
+  return { title, advertiserName, advertiserLogoUrl, format, primaryText, headline, ctaType, ctaUrl, ctaPhone, media, cards, background, sellerUid, startsAt, endsAt, priority, dailyCapPerUser, hoodIds, cities, near };
 }
 
 /** Only what the chosen format uses, so switching formats doesn't send leftovers. */
 function forFormat(a: AdminAdInput): AdminAdInput {
   const f = a.format;
+  // A seller's listings: their own photos, and the button is always "See all from …".
+  if (f === "listings") return { ...a, media: [], cards: [], background: undefined, ctaType: undefined, ctaUrl: undefined, ctaPhone: undefined, headline: undefined, advertiserLogoUrl: undefined };
   return {
     ...a,
     media: f === "announcement" || f === "carousel" ? [] : (a.media ?? []).slice(0, 1).map((m) => (f === "video" ? m : { url: m.url, kind: m.kind })),
     cards: f === "carousel" ? a.cards : [],
     background: f === "announcement" ? (a.background ?? "green") : undefined,
+    sellerUid: undefined,
     ctaUrl: a.ctaType && a.ctaType !== "call" ? a.ctaUrl || undefined : undefined,
     ctaPhone: a.ctaType === "call" ? a.ctaPhone || undefined : undefined,
     headline: a.headline || undefined,
@@ -87,6 +92,8 @@ function Editor({ ad, onSaved }: { ad?: AdminAd; onSaved: (ad: AdminAd) => void 
   const [aim, setAim] = useState<"everywhere" | "near" | "hoods" | "cities">(() => (ad?.near ? "near" : ad?.hoodIds.length ? "hoods" : ad?.cities.length ? "cities" : "everywhere"));
   const hoods = useAdminQuery((u) => listHoods(u, { pageSize: 100, sort: "name:asc" }), "ad-hoods");
   const set = (patch: AdminAdInput) => setForm((f) => ({ ...f, ...patch }));
+  const [seller, setSeller] = useState<Person[]>(() => (ad?.seller ? [{ uid: ad.seller.uid, displayName: ad.seller.displayName }] : []));
+  const listings = form.format === "listings";
   const status = ad?.effectiveStatus;
 
   const payload = (): AdminAdInput => {
@@ -173,7 +180,7 @@ function Editor({ ad, onSaved }: { ad?: AdminAd; onSaved: (ad: AdminAd) => void 
 
               <fieldset className="space-y-2">
                 <legend className="text-sm font-semibold">Format</legend>
-                <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-5">
+                <div className="grid gap-2 sm:grid-cols-3">
                   {FORMATS.map((f) => (
                     <button
                       key={f.id}
@@ -189,11 +196,23 @@ function Editor({ ad, onSaved }: { ad?: AdminAd; onSaved: (ad: AdminAd) => void 
                 </div>
               </fieldset>
 
-              <Field label={form.format === "announcement" ? "Announcement" : "Text"} htmlFor="ad-text" hint={`${textLen}/500 · about 125 characters show before “See more”`}>
+              {listings && (
+                <Field label="Seller" htmlFor="ad-seller" hint="Their items for sale (available ones, newest first) fill the card. While it's live, neighbours it reaches can open them and message the seller.">
+                  <PeoplePicker
+                    people={seller}
+                    onChange={(p) => {
+                      setSeller(p);
+                      set({ sellerUid: p[0]?.uid, ...(p[0] && !form.advertiserName && { advertiserName: p[0].displayName.slice(0, 60) }) });
+                    }}
+                  />
+                </Field>
+              )}
+
+              <Field label={form.format === "announcement" ? "Announcement" : "Text"} htmlFor="ad-text" optional={listings} hint={`${textLen}/500 · about 125 characters show before “See more”`}>
                 <textarea id="ad-text" value={form.primaryText ?? ""} onChange={(e) => set({ primaryText: e.target.value })} maxLength={500} rows={3} className={fieldInputClass} />
               </Field>
 
-              <MediaFields form={form} set={set} />
+              {!listings && <MediaFields form={form} set={set} />}
 
               {form.format === "announcement" && (
                 <fieldset className="space-y-2">
@@ -208,6 +227,7 @@ function Editor({ ad, onSaved }: { ad?: AdminAd; onSaved: (ad: AdminAd) => void 
             </div>
           </Panel>
 
+          {!listings && (
           <Panel title="Button">
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="What it does" htmlFor="ad-cta" optional={form.format === "announcement" || form.format === "carousel"}>
@@ -236,6 +256,7 @@ function Editor({ ad, onSaved }: { ad?: AdminAd; onSaved: (ad: AdminAd) => void 
               )}
             </div>
           </Panel>
+          )}
 
           <Panel title="Who sees it, and when">
             <div className="space-y-4">
@@ -321,7 +342,7 @@ function Editor({ ad, onSaved }: { ad?: AdminAd; onSaved: (ad: AdminAd) => void 
 
         <div className="space-y-2 lg:sticky lg:top-6">
           <p className="text-sm font-semibold text-muted-foreground">How it looks in the feed</p>
-          <AdPreview ad={forFormat(form)} />
+          <AdPreview ad={forFormat(form)} sellerName={seller[0]?.displayName} />
         </div>
       </div>
 

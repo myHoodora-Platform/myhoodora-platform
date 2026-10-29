@@ -27,7 +27,7 @@ const TABS: { id: AdStatus | "all"; label: string }[] = [
   { id: "ended", label: "Ended" },
 ];
 
-const FORMAT_LABEL: Record<AdminAd["format"], string> = { image: "Image", video: "Video", carousel: "Carousel", announcement: "Announcement", business: "Local business" };
+const FORMAT_LABEL: Record<AdminAd["format"], string> = { image: "Image", video: "Video", carousel: "Carousel", announcement: "Announcement", business: "Local business", listings: "Seller's listings" };
 
 /** "Everywhere", "Ikeja, Yaba", "Lagos". */
 export function targetingLabel(ad: Pick<AdminAd, "hoodIds" | "cities" | "near">, hoodNames?: Map<string, string>): string {
@@ -133,7 +133,7 @@ export function AdsPage() {
                         {ad.title}
                       </Link>
                       <p className="text-xs text-muted-foreground">
-                        {ad.advertiserName} · {FORMAT_LABEL[ad.format]} · {scheduleLabel(ad)}
+                        {ad.seller?.displayName ?? ad.advertiserName} · {FORMAT_LABEL[ad.format]} · {scheduleLabel(ad)}
                       </p>
                     </td>
                     <td className="px-3 py-3">

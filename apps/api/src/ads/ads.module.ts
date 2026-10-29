@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { MongooseModule } from "@nestjs/mongoose";
 import { HoodsModule } from "../hoods/hoods.module";
+import { ListingsModule } from "../listings/listings.module";
 import { PostsModule } from "../posts/posts.module";
 import { StorageModule } from "../storage/storage.module";
 import { AdFeedService } from "./ad-feed.service";
@@ -17,6 +18,7 @@ import { AdsService } from "./ads.service";
       { name: AdSettings.name, schema: AdSettingsSchema },
     ]),
     HoodsModule,
+    ListingsModule,
     PostsModule,
     StorageModule,
   ],

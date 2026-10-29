@@ -65,6 +65,8 @@ export class AdInputDto {
   @IsOptional() @IsArray() @ArrayMaxSize(1) @ValidateNested({ each: true }) @Type(() => AdMediaDto) media?: AdMediaDto[];
   @IsOptional() @IsArray() @ArrayMaxSize(10) @ValidateNested({ each: true }) @Type(() => AdCardDto) cards?: AdCardDto[];
   @IsOptional() @IsIn(AD_BACKGROUNDS) background?: AdBackground;
+  /** `listings` ads: the seller whose For Sale items it shows. */
+  @IsOptional() @IsString() @Length(1, 128) sellerUid?: string;
   @IsOptional() @IsDateString() startsAt?: string | null;
   @IsOptional() @IsDateString() endsAt?: string | null;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(10) priority?: number;
@@ -107,6 +109,11 @@ export class AdFeedQuery {
   @IsOptional() @IsIn(POST_CATEGORIES) category?: PostCategory;
   /** Made up by the app each time the feed opens or is refreshed. */
   @Matches(SESSION, { message: "session must be 8–64 letters, digits, - or _." }) session!: string;
+  /**
+   * Newer ad formats the app can show, comma-separated (`listings`). Older builds don't send it and
+   * never get those formats.
+   */
+  @IsOptional() @IsString() @MaxLength(100) supports?: string;
 }
 
 class AdEventDto {
