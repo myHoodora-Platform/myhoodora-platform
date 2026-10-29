@@ -30,6 +30,8 @@ In production the API refuses to start if a **Required** variable is missing (`v
 | `STORAGE_DIRECT_UPLOADS` | no (default off) | `true` lets browsers upload videos straight to storage |
 | `PUSH_PROVIDER` | no (default `expo`) | Push to the mobile app (contract §30). `expo` sends through Expo's push service; `log` only records (tests) |
 | `EXPO_ACCESS_TOKEN` | only with Expo's "enhanced push security" | Lets the API send pushes for the Expo project. Secret |
+| `SUPPORT_WELCOME` | no (default on) | `off` stops the team's welcome message to new neighbours (contract §18) |
+| `SUPPORT_WELCOME_DELAY_MINUTES` | no (default `3`) | Minutes after someone first finishes onboarding before the welcome is sent, so it can also arrive as a push (0 to 1440) |
 | `REDIS_URL` | recommended with more than one instance | Live updates across instances. Without it: MongoDB change streams, then in-memory |
 | `REALTIME_BUS` | no (default `auto`) | `auto` \| `redis` \| `mongo` \| `memory` |
 | `REALTIME_ENV` | no (defaults to `NODE_ENV`) | Keeps environments that share Redis or MongoDB apart |

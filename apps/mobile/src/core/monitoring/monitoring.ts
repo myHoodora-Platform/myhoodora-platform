@@ -57,6 +57,30 @@ export function reportError(error: unknown, where: string): void {
   if (enabled) Sentry.captureException(error, { tags: { where } });
 }
 
+/** What answered with a web page instead of the API (see reportEdgePage). Headers are null when absent. */
+export type EdgePage = { status: number; host: string; route: string; server: string | null; mitigated: string | null; ray: string | null };
+
+/** At most one edge-page report this often, so an outage doesn't use up the month's Sentry quota. */
+export const EDGE_PAGE_REPORT_EVERY_MS = 10 * 60_000;
+let lastEdgePageReport = -Infinity;
+
+/**
+ * A web page came back where the API's JSON should be: Cloudflare's "Just a moment…" check, or Render
+ * while it restarts. The person is told we couldn't reach myHoodora; the team needs to know how often,
+ * on which route, and what sent it (`cf-mitigated: challenge` means Cloudflare's bot check).
+ */
+export function reportEdgePage(page: EdgePage, now = Date.now()): void {
+  if (__DEV__) console.warn("[api-edge-page]", page.status, page.host, page.route);
+  if (!enabled || now - lastEdgePageReport < EDGE_PAGE_REPORT_EVERY_MS) return;
+  lastEdgePageReport = now;
+  Sentry.captureMessage(`A web page instead of the API (${page.status})`, {
+    level: "warning",
+    tags: { where: "api-edge-page", status: String(page.status), host: page.host, route: page.route, server: page.server ?? "none", cf_mitigated: page.mitigated ?? "none" },
+    // The ray id finds the request in Cloudflare's logs.
+    extra: { cf_ray: page.ray },
+  });
+}
+
 /**
  * Test reports for checking crash reporting in a preview build (Settings → Diagnostics). Each one
  * carries made-up personal details, so Sentry should show them as [Filtered], never in the clear.
