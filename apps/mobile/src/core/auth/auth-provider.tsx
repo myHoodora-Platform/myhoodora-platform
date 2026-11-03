@@ -13,6 +13,8 @@ import { noteFirstRunEligibility } from "@/core/onboarding/first-run";
 import { clearDraft, hasSkippedOnboarding, markOnboardingSkipped } from "@/core/onboarding/onboarding-store";
 import { runLogoutCleanups } from "./logout-cleanup";
 import { unregisterPush } from "@/core/push/push";
+import { lockAgeCheck } from "@/core/age/age-lock";
+import type { AgeCheckResponse } from "@myhoodora/api-contract/age";
 import { foregroundRefreshDue, sessionPhase, type ProfileStatus, type SessionPhase } from "./session-phase";
 
 interface AuthContextValue {
@@ -32,6 +34,15 @@ interface AuthContextValue {
   replayIntro: () => Promise<void>;
   /** "Skip for now" on onboarding: into the app with limited access, remembered for this account. */
   skipOnboarding: () => Promise<void>;
+  /**
+   * The age check (POST /users/me/age). True: old enough, onboarding next. False: under 18; the
+   * account is closed on the server, this phone is locked out of signing up for a while, and signed out.
+   */
+  confirmAge: (birthDate: string) => Promise<boolean>;
+  /** Agree to the current Terms and Privacy Policy (POST /users/me/legal). */
+  acceptLegal: (versions: { terms: string; privacy: string }, via: "signup" | "prompt") => Promise<void>;
+  /** Reopen a closed account, or cancel its scheduled deletion (POST /users/me/reactivate). */
+  reactivate: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -146,6 +157,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshProfile = useCallback(async () => (user ? loadProfile(user) : false), [user, loadProfile]);
 
+  const acceptLegal = useCallback(
+    async (versions: { terms: string; privacy: string }, via: "signup" | "prompt") => {
+      if (!user) throw new ApiError(FRIENDLY_MESSAGES.auth, 401, "auth");
+      setProfile(asProfile(await apiFetch<unknown>(user, "/users/me/legal", { method: "POST", json: { ...versions, via } })));
+    },
+    [user],
+  );
+
+  const reactivate = useCallback(async () => {
+    if (!user) throw new ApiError(FRIENDLY_MESSAGES.auth, 401, "auth");
+    setProfile(asProfile(await apiFetch<unknown>(user, "/users/me/reactivate", { method: "POST" })));
+  }, [user]);
+
+  const confirmAge = useCallback(
+    async (birthDate: string) => {
+      if (!user) throw new ApiError(FRIENDLY_MESSAGES.auth, 401, "auth");
+      const result = await apiFetch<AgeCheckResponse>(user, "/users/me/age", { method: "POST", json: { birthDate } });
+      if (result.adult) {
+        setProfile(asProfile(result.profile));
+        return true;
+      }
+      // Locked first: the sign-up screens they land on read it to say why they can't join.
+      await lockAgeCheck();
+      await logout();
+      return false;
+    },
+    [user, logout],
+  );
+
   // Back in the foreground: reload the profile quietly (the one on screen stays while it loads).
   const lastForegroundRefresh = useRef(0);
   useEffect(() => {
@@ -169,8 +209,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       finishIntro,
       replayIntro,
       skipOnboarding,
+      confirmAge,
+      reactivate,
+      acceptLegal,
     }),
-    [authReady, introSeen, user, profileStatus, profile, profileError, onboardingSkipped, refreshProfile, logout, logoutEverywhere, finishIntro, replayIntro, skipOnboarding],
+    [authReady, introSeen, user, profileStatus, profile, profileError, onboardingSkipped, refreshProfile, logout, logoutEverywhere, finishIntro, replayIntro, skipOnboarding, confirmAge, reactivate, acceptLegal],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -5,6 +5,17 @@ import type { Metadata } from "next";
  * robots.txt. Set NEXT_PUBLIC_APP_URL in each deployment (e.g.
  * https://www.myhoodora.com); without it, links fall back to localhost.
  */
+/**
+ * Where to write (docs/compliance/ndpa.md §6). Privacy and data requests have their own address, and
+ * the Data Protection Officer theirs (NDPA s.27, s.32), as Nextdoor does with privacy@ and dpo@.
+ * Both mailboxes must exist before a release that shows them.
+ */
+export const CONTACT_EMAIL = "hello@myhoodora.com";
+export const PRIVACY_EMAIL = "privacy@myhoodora.com";
+export const DPO_EMAIL = "dpo@myhoodora.com";
+/** Must match the DPO named on the NDPC registration (Form 2, step 4). */
+export const DPO_NAME = "Peace Arakunle";
+
 export const SITE_URL = (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/+$/, "");
 
 /**

@@ -2,6 +2,7 @@ import { Image } from "expo-image";
 import { useRouter } from "@/core/navigation/use-router";
 import { StatusBar } from "expo-status-bar";
 import { Play } from "lucide-react-native";
+import { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
@@ -12,6 +13,7 @@ import { Button } from "@/shared/ui/button";
 import { Headline } from "@/shared/ui/headline";
 import { Text } from "@/shared/ui/text";
 import { openWeb } from "@/shared/utils/open-web";
+import { takeTurnedAway } from "@/core/age/age-lock";
 
 /** The web hero's accent on its dark photo (apps/web/src/components/marketing/landing.tsx). */
 const HERO_ACCENT = "#7fd6cb";
@@ -23,6 +25,8 @@ export function WelcomeScreen() {
   const { replayIntro } = useAuth();
   const insets = useSafeAreaInsets();
   const open = (path: string) => void openWeb(path);
+  // Just turned away by the age check (and signed out): say so here, once.
+  const [turnedAway] = useState(takeTurnedAway);
 
   return (
     <View style={styles.flex}>
@@ -47,11 +51,21 @@ export function WelcomeScreen() {
           </Headline>
           <Text style={styles.body}>Security alerts, trusted artisans, things for sale and events, from verified neighbours.</Text>
         </View>
+        {turnedAway ? (
+          <View style={styles.notice} accessibilityLiveRegion="polite">
+            <Text variant="label" style={styles.noticeTitle}>
+              Sorry, you can&apos;t join myHoodora yet
+            </Text>
+            <Text variant="caption" style={styles.noticeBody}>
+              myHoodora is for adults. We&apos;ve closed that account and are deleting everything in it, and we haven&apos;t kept the date of birth.
+            </Text>
+          </View>
+        ) : null}
         <View style={styles.actions}>
           <Button label="Get started" onPress={() => router.push("/register")} />
           <Button label="I already have an account" variant="secondary" onPress={() => router.push("/login")} />
           <Text variant="caption" style={styles.terms}>
-            By continuing you agree to our{" "}
+            How myHoodora works and uses your data:{" "}
             <Text variant="caption" style={styles.link} onPress={() => open("/terms")} accessibilityRole="link">
               Terms of Use
             </Text>{" "}
@@ -86,4 +100,7 @@ const styles = StyleSheet.create({
   actions: { gap: 12, paddingBottom: 8 },
   terms: { color: "rgba(255,255,255,0.75)", textAlign: "center" },
   link: { color: HERO_ACCENT },
+  notice: { gap: 4, padding: 14, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.14)", borderWidth: 1, borderColor: "rgba(255,255,255,0.3)" },
+  noticeTitle: { color: "#ffffff" },
+  noticeBody: { color: "rgba(255,255,255,0.85)" },
 });

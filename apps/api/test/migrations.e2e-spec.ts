@@ -16,6 +16,9 @@ describe("data migrations (legacy → pass-1 schema)", () => {
       { uid: "banned-with-hood", verificationStatus: "banned", neighborhoodId: "h1" },
       { uid: "banned-no-hood", verificationStatus: "banned" },
       { uid: "normal", verificationStatus: "verified", neighborhoodId: "h1" },
+      // Closed with the old single "Delete account" (30 days), and one closed since with a choice.
+      { uid: "left-old", verificationStatus: "verified", deactivatedAt: new Date("2026-10-20T09:00:00Z"), deletionDueAt: null, purgedAt: null, deactivation: { reason: "moved" } },
+      { uid: "left-new", verificationStatus: "verified", deactivatedAt: new Date("2026-11-03T09:00:00Z"), deletionDueAt: null, purgedAt: null, deactivation: { reason: "other", kind: "deactivate" } },
     ]);
     await db.collection("neighborhoods").insertMany([{ name: "A", isActive: true }, { name: "B", isActive: false }]);
     const createdAt = new Date("2026-01-01T00:00:00Z");
@@ -38,12 +41,16 @@ describe("data migrations (legacy → pass-1 schema)", () => {
 
   it("applies everything once", async () => {
     const ran = await runMigrations(db);
-    expect(ran).toHaveLength(4);
+    expect(ran).toHaveLength(5);
     const users = await db.collection("users").find().toArray();
     const by = Object.fromEntries(users.map((u) => [u.uid, u]));
     expect(by["banned-with-hood"]).toMatchObject({ verificationStatus: "verified", accountStatus: "suspended" });
     expect(by["banned-no-hood"]).toMatchObject({ verificationStatus: "unverified", accountStatus: "suspended" });
     expect(by["normal"]).toMatchObject({ accountStatus: "active" });
+    expect(by["left-old"]!.deletionDueAt.toISOString()).toBe("2026-11-19T09:00:00.000Z");
+    expect(by["left-old"]!.deactivation).toEqual({ reason: "moved", kind: "delete" });
+    expect(by["left-new"]!.deletionDueAt).toBeNull();
+    expect(by["normal"]!.deletionDueAt).toBeUndefined();
 
     expect((await db.collection("neighborhoods").find().sort({ name: 1 }).toArray()).map((h) => h.status)).toEqual(["active", "paused"]);
 

@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   Handshake,
   HelpCircle,
+  LockKeyhole,
   Newspaper,
   ShieldAlert,
   Sparkles,
@@ -27,6 +28,7 @@ import { sendContactMessage, type ContactTopic } from "@/lib/api/company";
 const TOPICS: { id: ContactTopic; label: string; hint: string; icon: LucideIcon }[] = [
   { id: "general", label: "General question", hint: "Anything about myHoodora", icon: HelpCircle },
   { id: "account", label: "Account & verification", hint: "Signing in, verifying your address", icon: UserCheck },
+  { id: "privacy", label: "Privacy & data request", hint: "See, correct, export or delete your data", icon: LockKeyhole },
   { id: "safety", label: "Safety concern", hint: "Something on myHoodora worries you", icon: ShieldAlert },
   { id: "business", label: "Business & estates", hint: "Business Pages, estate pages", icon: Building2 },
   { id: "press", label: "Press & media", hint: "Interviews, stories, assets", icon: Newspaper },
@@ -130,6 +132,16 @@ export function ContactForm({ initialTopic }: { initialTopic?: ContactTopic }) {
               If anyone is in danger, call <strong>112</strong> now. To report a post or person, use Report in the app, it
               reaches our team fastest.
             </span>
+          </p>
+        )}
+        {topic === "privacy" && (
+          <p className="text-sm text-muted-foreground">
+            This goes to our Data Protection Officer. Write from the email on your account so we can find it. You can
+            delete your account yourself in Settings → Account, and read what we keep in the{" "}
+            <Link href="/privacy" className="font-semibold text-primary hover:underline">
+              Privacy Policy
+            </Link>
+            .
           </p>
         )}
         {topic === "account" && (

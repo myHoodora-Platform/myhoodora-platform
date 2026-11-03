@@ -1,3 +1,4 @@
+import { versionedApiUrl } from "@myhoodora/api-contract/api-version";
 import { z } from "zod";
 
 /**
@@ -9,7 +10,8 @@ import { z } from "zod";
 const schema = z.object({
   appEnv: z.enum(["development", "preview", "production"]),
   /** The API, including /api. */
-  apiUrl: z.string().url().transform((u) => u.replace(/\/$/, "")),
+  // `EXPO_PUBLIC_API_URL` includes `/api`; requests go to the version this build speaks (".../api/v1").
+  apiUrl: z.string().url().transform((u) => versionedApiUrl(u)),
   /** The web app's origin: its address lookups and its public pages (Terms, Privacy). */
   webUrl: z.string().url().transform((u) => u.replace(/\/$/, "")),
   /** Google sign-in: optional, the button explains when it isn't set up. Public OAuth client IDs. */

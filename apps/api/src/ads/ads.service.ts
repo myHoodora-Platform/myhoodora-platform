@@ -7,7 +7,7 @@ import type { Viewer } from "../shared/auth/viewer";
 import { withTransaction } from "../shared/db/transaction";
 import { searchRegex } from "../shared/http/pagination";
 import { StorageService } from "../storage/storage.service";
-import { DELETED_USER_NAME } from "../users/account-lifecycle";
+import { AccountLifecycle, DELETED_USER_NAME } from "../users/account-lifecycle";
 import { UsersService } from "../users/users.service";
 import { Ad, AdEvent, AdHide, AdSettings, type AdTrackedType, type AdCta, type AdDocument, type AdEventType, type AdFormat, type AdStatus } from "./ad.schema";
 import type { AdInputDto, AdSettingsDto } from "./ads.dto";
@@ -109,9 +109,18 @@ export class AdsService implements OnModuleInit {
     private readonly audit: AuditService,
     private readonly hoods: HoodsService,
     private readonly users: UsersService,
+    private readonly accounts: AccountLifecycle,
   ) {}
 
   onModuleInit() {
+    // Account deletion: what they saw, tapped and hid. Ads keep their totals; nothing points at the person.
+    this.accounts.register({
+      name: "ads",
+      purge: async (uid, dryRun) =>
+        dryRun
+          ? { adEvents: await this.events.countDocuments({ uid }).exec(), adHides: await this.hides.countDocuments({ uid }).exec() }
+          : { adEvents: (await this.events.deleteMany({ uid }).exec()).deletedCount, adHides: (await this.hides.deleteMany({ uid }).exec()).deletedCount },
+    });
     // An ad's files stay while the ad exists; once deleted, the sweep may take them (its stats stay).
     this.storage.registerReferenceSource({
       name: "ads",

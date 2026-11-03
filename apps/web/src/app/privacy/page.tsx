@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import { publicPageMetadata } from "@/lib/site";
 import { LegalPage } from "@/components/legal/legal-page";
 import { PrivacyPolicyContent } from "@/components/legal/privacy-policy";
+import { VersionHistory } from "@/components/legal/version-history";
+import { currentLegalVersion, legalVersionLabel } from "@myhoodora/api-contract/legal";
+
+const { version } = currentLegalVersion("privacy");
 
 export const metadata: Metadata = publicPageMetadata("/privacy", {
   title: "Privacy Policy | myHoodora",
@@ -13,9 +17,10 @@ export default function Page() {
   return (
     <LegalPage explore={["safety", "guidelines", "about"]}
       title="Privacy Policy"
-      updatedAt="28 September 2026"
-      intro="This policy explains what personal data myHoodora collects, why, who it's shared with and the rights you have under the Nigeria Data Protection Act 2023. The short version: we only use your address to place you in your neighbourhood, we never show it to anyone, and we never sell your data."
+      updatedAt={legalVersionLabel(version)}
+      intro="This policy explains what personal data myHoodora collects on the website and in the app, why, who it's shared with and the rights you have under the Nigeria Data Protection Act 2023."
     >
+      <VersionHistory doc="privacy" version={version} />
       <PrivacyPolicyContent />
     </LegalPage>
   );

@@ -1,12 +1,17 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from "@nestjs/common";
+import { Body, Controller, Delete, ForbiddenException, Get, HttpCode, Param, Patch, Post, Query } from "@nestjs/common";
 import { ApiBearerAuth, ApiConflictResponse, ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import type { DecodedIdToken } from "firebase-admin/auth";
 import { CurrentUser } from "../shared/auth/current-user.decorator";
 import { AllowSuspended, CurrentViewer, type Viewer } from "../shared/auth/viewer";
-import { BlockDto, ChangeEmailDto, DeactivateDto, HoodRequestDto, LocationPointDto, OnboardingDto, PreferencesDto, UpdateMeDto, UserSearchQuery, VerifyLocationDto } from "./dto/users.dto";
+import { AgeCheckDto, BlockDto, LegalAcceptDto, ChangeEmailDto, DeactivateDto, HoodRequestDto, LocationPointDto, OnboardingDto, PreferencesDto, UpdateMeDto, UserSearchQuery, VerifyLocationDto } from "./dto/users.dto";
 import { UsersService } from "./users.service";
 import { ApiNotFound, ApiStandardErrors, ErrorResponse } from "../shared/http/api-docs";
+
+/** No name or address before the age check: we don't take a child's data (docs/compliance/ndpa.md §1). */
+function requireAgeCheck(viewer: Viewer): void {
+  if (viewer.ageConfirmed === false) throw new ForbiddenException("Confirm your date of birth first.");
+}
 
 @ApiTags("users")
 @ApiBearerAuth("firebase-jwt")
@@ -43,9 +48,23 @@ export class UsersController {
     return this.users.changeEmail(viewer, token, body.email);
   }
 
+  @Post("me/age")
+  @HttpCode(200)
+  @Throttle({ medium: { limit: 10, ttl: 3_600_000 } })
+  @ApiOperation({
+    summary: "The age check: the year of birth (the full date only when the year can't settle it), once, before onboarding",
+    description:
+      "18 or over: `{ adult: true, profile }`, and the account may take part. Under 18: `{ adult: false }`; the account is closed at once (sign-in turned off, content hidden) and deleted without the usual 30 days. The date of birth is never stored. Asked again after passing, it changes nothing. 410 when the account is closed.",
+  })
+  async confirmAge(@CurrentViewer() viewer: Viewer, @CurrentUser() token: DecodedIdToken, @Body() body: AgeCheckDto) {
+    await this.users.ensureAccount(viewer, token);
+    return this.users.confirmAge(viewer, body.birthDate);
+  }
+
   @Patch("me/onboarding")
   @ApiOperation({ summary: "Finish onboarding (name, rough location)" })
   async completeOnboarding(@CurrentViewer() viewer: Viewer, @CurrentUser() token: DecodedIdToken, @Body() body: OnboardingDto) {
+    requireAgeCheck(viewer);
     // Self-heal: onboarding must never 404 because the first GET /users/me didn't create the account.
     await this.users.ensureAccount(viewer, token);
     return this.users.completeOnboarding(viewer.uid, body);
@@ -60,6 +79,7 @@ export class UsersController {
       "Verified: `{ verificationStatus: 'verified', neighborhoodId, distanceMeters }`. Outside every Hood: `{ verificationStatus, reason: 'outside_coverage', nearbyHoods }` where `nearbyHoods` (nearest first, max 3, may be empty) can be passed to `POST /users/me/hood-request`.",
   })
   async verifyLocation(@CurrentViewer() viewer: Viewer, @CurrentUser() token: DecodedIdToken, @Body() body: VerifyLocationDto) {
+    requireAgeCheck(viewer);
     await this.users.ensureAccount(viewer, token);
     return this.users.verifyLocation(viewer, body);
   }
@@ -74,6 +94,7 @@ export class UsersController {
       "Changes and records nothing. `{ hood: { id, name, city }, distanceMeters, nearbyHoods: [] }` inside a Hood (with `cannotJoin` when a verified neighbour may not move Hood yet), or `{ hood: null, nearbyHoods }` outside every Hood. Pass `hood.id` as `neighborhoodId` to verify-location so the neighbour joins only the Hood they saw.",
   })
   previewLocation(@CurrentViewer() viewer: Viewer, @Body() body: LocationPointDto) {
+    requireAgeCheck(viewer);
     return this.users.previewLocation(viewer, body);
   }
 
@@ -88,6 +109,7 @@ export class UsersController {
   @ApiOkResponse({ description: "Your updated profile (same shape as GET /users/me)" })
   @ApiConflictResponse({ description: "You're already a verified neighbour", type: ErrorResponse })
   requestHood(@CurrentViewer() viewer: Viewer, @Body() body: HoodRequestDto) {
+    requireAgeCheck(viewer);
     return this.users.requestHood(viewer, body.hoodId);
   }
 
@@ -132,11 +154,32 @@ export class UsersController {
   }
 
   @Post("me/deactivate")
-  @ApiOperation({ summary: "Deactivate your account (sign in within 30 days to restore)" })
+  @ApiOperation({
+    summary: "Close your account: mode 'deactivate' (until you reactivate) or 'delete' (deleted for good in 7 days unless you cancel)",
+  })
   @AllowSuspended()
   @HttpCode(204)
   async deactivate(@CurrentViewer() viewer: Viewer, @Body() body: DeactivateDto) {
     await this.users.deactivate(viewer.uid, body);
+  }
+
+  @Post("me/legal")
+  @ApiOperation({ summary: "Agree to the current Terms of Use and Privacy Policy (body: the versions read) → Me" })
+  @Throttle({ medium: { limit: 20, ttl: 3_600_000 } })
+  @HttpCode(200)
+  async acceptLegal(@CurrentViewer() viewer: Viewer, @CurrentUser() token: DecodedIdToken, @Body() body: LegalAcceptDto) {
+    // Straight after sign-up the account may not exist yet.
+    await this.users.ensureAccount(viewer, token);
+    return this.users.acceptLegal(viewer.uid, body);
+  }
+
+  @Post("me/reactivate")
+  @ApiOperation({ summary: "Come back: reopen a deactivated account, or cancel a scheduled deletion → Me" })
+  @AllowSuspended()
+  @Throttle({ medium: { limit: 10, ttl: 3_600_000 } })
+  @HttpCode(200)
+  reactivate(@CurrentViewer() viewer: Viewer) {
+    return this.users.reactivate(viewer.uid);
   }
 
   @Get("search")

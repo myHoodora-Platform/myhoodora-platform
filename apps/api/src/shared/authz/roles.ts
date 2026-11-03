@@ -84,6 +84,8 @@ export interface CapabilitySubject {
   restrictedUntil?: Date | null;
   /** False when a confirmed email is required and they don't have one. Left out, it isn't a consideration. */
   emailConfirmed?: boolean;
+  /** False when they haven't passed the age check yet (and it's required). Left out, it isn't a consideration. */
+  ageConfirmed?: boolean;
 }
 
 /** Restriction ends automatically once `restrictedUntil` has passed. */
@@ -97,6 +99,8 @@ export function capabilitiesOf(s: CapabilitySubject, now = new Date()): Capabili
   const status = effectiveAccountStatus(s, now);
   if (status === "suspended") return [];
   const caps: Capability[] = ["profile.manage"];
+  // Nobody takes part until they've said they're old enough: they can still manage (or delete) their account.
+  if (s.ageConfirmed === false) return s.role === "member" ? caps : [...caps, ...STAFF[s.role]];
   const neighbour = s.verificationStatus === "verified" && Boolean(s.hoodId);
   // An address check says where someone claims to live, not who they are: writing to neighbours needs a reachable person too.
   const mayWrite = neighbour && s.emailConfirmed !== false;
