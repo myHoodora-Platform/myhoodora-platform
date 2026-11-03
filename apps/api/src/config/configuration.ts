@@ -116,6 +116,11 @@ export default () => ({
      * verification emails can't be delivered yet, or nobody who signed up with a password could post.
      */
     requireConfirmedEmail: process.env.EMAIL_CONFIRMATION_REQUIRED !== "false",
+    /**
+     * Taking part needs a passed age check (date of birth, 18 or over: docs/compliance/ndpa.md §1).
+     * On by default. AGE_CHECK_REQUIRED=false turns it off: only for a client release that can't ask yet.
+     */
+    requireAgeCheck: process.env.AGE_CHECK_REQUIRED !== "false",
   },
 
   /** Event reminders and follow-ups (docs/api-contract.md §23). On unless EVENT_REMINDERS_ENABLED=false. */

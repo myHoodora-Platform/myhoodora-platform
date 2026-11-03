@@ -1,3 +1,6 @@
+import { PHASE_PRODUCTION_BUILD } from "next/constants.js";
+import { appUrlProblem, isIndexable } from "./src/lib/site-env.js";
+
 const isDev = process.env.NODE_ENV !== "production";
 
 /** scheme + host of a URL from the environment, or nothing if it isn't set (or isn't a URL). */
@@ -45,6 +48,24 @@ const contentSecurityPolicy = [
   ...(isDev ? [] : ["upgrade-insecure-requests"]),
 ].join("; ");
 
+const noindex = { key: "X-Robots-Tag", value: "noindex" };
+const vercelHost = { type: "host", value: ".*\\.vercel\\.app" };
+
+/**
+ * Keeps every deployment but the real site out of search results
+ * (src/lib/site-env.js says which one this is).
+ * - Production: its *.vercel.app address serves the same pages as the real
+ *   domain, so it is noindexed there to avoid a duplicate site.
+ * - Anything else: noindexed on every host. Vercel already does this for
+ *   previews on *.vercel.app, but not for a preview on a custom domain
+ *   (e.g. staging.myhoodora.com), so ours covers the rest.
+ */
+function searchEngineHeaders() {
+  return isIndexable()
+    ? [{ source: "/:path*", has: [vercelHost], headers: [noindex] }]
+    : [{ source: "/:path*", missing: [vercelHost], headers: [noindex] }];
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
@@ -79,8 +100,22 @@ const nextConfig = {
           { key: "Permissions-Policy", value: "geolocation=(self), camera=(), microphone=(), payment=(), usb=()" },
         ],
       },
+      ...searchEngineHeaders(),
     ];
   },
 };
 
-export default nextConfig;
+/**
+ * A production build with a missing or non-https NEXT_PUBLIC_APP_URL would bake
+ * localhost (or the wrong site) into every canonical URL and the sitemap, since
+ * NEXT_PUBLIC_* values are inlined at build time. Previews and local builds may
+ * use anything.
+ * @param {string} phase
+ */
+export default function config(phase) {
+  if (phase === PHASE_PRODUCTION_BUILD && isIndexable()) {
+    const problem = appUrlProblem(process.env.NEXT_PUBLIC_APP_URL);
+    if (problem) throw new Error(`${problem}. Set it to the public origin (e.g. https://www.myhoodora.com) for production builds.`);
+  }
+  return nextConfig;
+}

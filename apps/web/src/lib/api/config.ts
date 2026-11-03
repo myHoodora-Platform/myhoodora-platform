@@ -1,5 +1,7 @@
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
+import { versionedApiUrl } from "@myhoodora/api-contract/api-version";
+
+/** `NEXT_PUBLIC_API_URL` (the API, including `/api`), plus the version this build speaks: ".../api/v1". */
+export const API_BASE_URL = versionedApiUrl(process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api");
 
 /**
  * `NEXT_PUBLIC_USE_MOCKS=true` runs the whole app — including endpoints that

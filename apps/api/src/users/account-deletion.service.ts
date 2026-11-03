@@ -5,7 +5,7 @@ import { Model } from "mongoose";
 import { SessionRevocationService } from "../auth/session-revocation.service";
 import { getFirebaseAdmin } from "../config/firebase.config";
 import { JobsService } from "../jobs/jobs.service";
-import { AccountLifecycle, RESTORE_WINDOW_MS } from "./account-lifecycle";
+import { AccountLifecycle } from "./account-lifecycle";
 import { DEFAULT_PREFERENCES } from "./domain/preferences";
 import { User, type UserDocument } from "./schemas/user.schema";
 
@@ -70,9 +70,18 @@ export class AccountDeletionService implements OnModuleInit, OnModuleDestroy {
     if (this.timer) clearInterval(this.timer);
   }
 
-  /** Deactivated more than 30 days before `now`, and not yet deleted. */
+  /**
+   * Past its deletion date and not yet deleted: chose "Delete account" 7 days ago (30 on older app
+   * builds) without cancelling, or closed as under 18. A merely deactivated account has no date.
+   */
   private due(now: Date) {
-    return { deactivatedAt: { $ne: null, $lte: new Date(now.getTime() - RESTORE_WINDOW_MS) }, purgedAt: null };
+    return { deletionDueAt: { $ne: null, $lte: now }, purgedAt: null };
+  }
+
+  /** Queue one account now, rather than waiting for the hourly check (an under-18 account closed just now). */
+  async enqueue(uid: string): Promise<void> {
+    if (this.mode === "off") return;
+    await this.jobs.enqueue(ACCOUNT_PURGE, { uid }, { dedupeKey: `${ACCOUNT_PURGE}:${this.mode}:${uid}` });
   }
 
   /**
@@ -140,15 +149,18 @@ export class AccountDeletionService implements OnModuleInit, OnModuleDestroy {
             preferences: structuredClone(DEFAULT_PREFERENCES),
             requestedHood: null,
             deactivation: null,
+            deletionDueAt: null,
+            ageConfirmedAt: null,
+            legalAcceptances: [],
             emailVerifiedAt: null,
             restrictedUntil: null,
             purgedAt: new Date(),
           },
-          $unset: { displayName: 1, photoURL: 1, bio: 1, location: 1, lastKnownLocation: 1, neighborhoodId: 1, lastNeighborhoodId: 1, verifiedAt: 1 },
+          $unset: { displayName: 1, photoURL: 1, bio: 1, location: 1, lastKnownLocation: 1, neighborhoodId: 1, lastNeighborhoodId: 1, verifiedAt: 1, ageAssurance: 1 },
         },
       )
       .exec();
-    this.logger.log(`Account ${uid} deleted, 30 days after it was deactivated. Removed: ${JSON.stringify(counts)}.`);
+    this.logger.log(`Account ${uid} deleted${user.deactivation?.reason === "under_age" ? " (closed: under 18)" : ", as they asked"}. Removed: ${JSON.stringify(counts)}.`);
     return { uid, dryRun, counts };
   }
 }

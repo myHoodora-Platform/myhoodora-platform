@@ -111,4 +111,18 @@ export const MIGRATIONS: Migration[] = [
       log(`likes migrated: ${rows}`);
     },
   },
+  {
+    id: "005-users-deletion-dates",
+    description: "users: accounts closed with the old single 'Delete account' get the deletion date it promised (closed + 30 days)",
+    async up({ db, dryRun, log }) {
+      const users = db.collection("users");
+      // Before the deactivate/delete choice, every closure meant deletion 30 days on (account-lifecycle.ts).
+      const legacy = { deactivatedAt: { $ne: null }, deletionDueAt: null, purgedAt: null, "deactivation.kind": { $exists: false } };
+      log(`closed accounts to date: ${await users.countDocuments(legacy)}`);
+      if (dryRun) return;
+      await users.updateMany(legacy, [
+        { $set: { deletionDueAt: { $dateAdd: { startDate: "$deactivatedAt", unit: "day", amount: 30 } }, "deactivation.kind": "delete" } },
+      ]);
+    },
+  },
 ];

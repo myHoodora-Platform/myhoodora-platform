@@ -33,6 +33,20 @@ describe("live events", () => {
     expect(stale(client, ["notifications"])).toBe(false);
   });
 
+  // Regression (2026-10-29): reading a support conversation left "1" on its Messages row.
+  it("something read refreshes the unread counts (notifications, support, chats) and the support list", () => {
+    const client = seeded();
+    for (const key of [["support", "unread"], ["support", "threads"], ["support", "thread", "t1"], ["conversations", "unread"]]) client.setQueryData(key, []);
+    applyLiveEvent(client, { type: "unread.changed" });
+    expect(stale(client, ["notifications"])).toBe(true);
+    expect(stale(client, ["support", "unread"])).toBe(true);
+    expect(stale(client, ["support", "threads"])).toBe(true);
+    expect(stale(client, ["conversations", "unread"])).toBe(true);
+    // Not the conversations themselves: reading one doesn't change what's in it.
+    expect(stale(client, ["support", "thread", "t1"])).toBe(false);
+    expect(stale(client, ["conversations", "c1", "messages"])).toBe(false);
+  });
+
   it("a new post never moves the feed: it's counted for the 'new posts' pill", () => {
     const client = seeded();
     jest.useFakeTimers();

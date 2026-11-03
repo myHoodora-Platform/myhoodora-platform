@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { publicPageMetadata } from "@/lib/site";
+import { DPO_EMAIL, DPO_NAME, PRIVACY_EMAIL, publicPageMetadata } from "@/lib/site";
 import Link from "next/link";
 import { SmartImage } from "@myhoodora/ui/image";
-import { ArrowUpRight, BookOpen, Mail, MessageCircle, Newspaper, Phone, Store, type LucideIcon } from "lucide-react";
+import { ArrowUpRight, BookOpen, LockKeyhole, Mail, MessageCircle, Newspaper, Phone, Store, type LucideIcon } from "lucide-react";
 import { ExploreMore } from "@/components/marketing/explore-more";
 import { MarketingPage } from "@/components/marketing/marketing-page";
 import { ContactForm } from "@/features/company/contact-form";
@@ -113,6 +113,23 @@ export default async function ContactPage({ searchParams }: { searchParams: Prom
               <a href="mailto:hello@myhoodora.com" className="mt-3 inline-block font-bold text-primary hover:underline">
                 hello@myhoodora.com
               </a>
+            </div>
+
+            <div className="rounded-3xl border border-border bg-card p-6">
+              <LockKeyhole className="size-6 text-primary" aria-hidden />
+              <h2 className="mt-3 text-lg font-bold">Privacy and your data</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                To see, correct, export or delete your data, or ask how we use it.
+              </p>
+              <a href={`mailto:${PRIVACY_EMAIL}`} className="mt-3 inline-block font-bold text-primary hover:underline">
+                {PRIVACY_EMAIL}
+              </a>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Data Protection Officer: {DPO_NAME},{" "}
+                <a href={`mailto:${DPO_EMAIL}`} className="font-semibold text-primary hover:underline">
+                  {DPO_EMAIL}
+                </a>
+              </p>
             </div>
 
             <div className="rounded-3xl border border-destructive/25 bg-danger-soft/50 p-6">

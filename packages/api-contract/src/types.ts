@@ -513,6 +513,11 @@ export interface UserProfile {
   /** False until the neighbour clicks the link in their welcome email (Google/Apple: true at once). */
   emailVerified?: boolean;
   isOnboarded: boolean;
+  /**
+   * Passed the age check (18 or over). False: ask for the date of birth before anything else
+   * (packages/api-contract/src/age.ts). Missing (an older API): treat as passed.
+   */
+  ageConfirmed?: boolean;
   displayName?: string;
   photoURL?: string;
   bio?: string;
@@ -531,7 +536,16 @@ export interface UserProfile {
   requestedHood?: { id: string; name: string; requestedAt: string } | null;
   /** Hoods they may read and hear alerts from besides home (contract §31). Never for posting. */
   secondaryHoods?: { id: string; name: string; city?: string; since: string }[];
+  /**
+   * Set while they've closed their account: deactivated (until they reactivate) or deleting on
+   * `deleteAt` unless they cancel. Clients show "Welcome back" instead of the app. Missing: an older API.
+   */
+  closure?: AccountClosure | null;
+  /** The Terms and Privacy Policy versions they've agreed to (packages/api-contract/src/legal.ts). Missing: an older API. */
+  legal?: { terms: string | null; privacy: string | null };
 }
+
+export type AccountClosure = { kind: "deactivated"; since: string } | { kind: "deleting"; since: string; deleteAt: string };
 
 // ── Neighbourhood requests (contract §31) ───────────────────────────────────
 

@@ -1,7 +1,16 @@
 import { Global, Injectable, Module } from "@nestjs/common";
 
-/** How long after deactivating someone can still come back by signing in. After it, the account is deleted for good. */
-export const RESTORE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+/**
+ * Two ways to leave, as on Nextdoor (docs/api-contract.md, Deactivate): deactivating closes the account
+ * until they reactivate it, with no end date; deleting closes it and deletes it for good once this
+ * long has passed, unless they cancel. The window is a safety net for a mistake or a stolen login.
+ */
+export const DELETION_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** App builds from before the two choices sent no `mode`: their "Delete account" promised 30 days. */
+export const LEGACY_DELETION_GRACE_MS = 30 * 24 * 60 * 60 * 1000;
+
+export type DeactivationKind = "deactivate" | "delete";
 
 /**
  * Stands in for a deleted person wherever their uid would otherwise remain as a pointer to them: in

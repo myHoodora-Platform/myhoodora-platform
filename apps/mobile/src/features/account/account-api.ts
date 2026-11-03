@@ -1,5 +1,5 @@
 import type { User } from "@firebase/auth";
-import type { DeactivationReason, Preferences } from "@myhoodora/api-contract/settings";
+import type { CloseMode, DeactivationReason, Preferences } from "@myhoodora/api-contract/settings";
 import type { HoodRequestView, MyHoods, PublicProfile, UserProfile } from "@myhoodora/api-contract/types";
 import { apiFetch } from "@/core/api/client";
 
@@ -43,8 +43,12 @@ export function updatePreferences(user: User, patch: Partial<Preferences> | Reco
 }
 
 /** Hides the profile, posts and listings and signs out everywhere; logging in within 30 days restores it. */
-export function deactivate(user: User, reason: DeactivationReason): Promise<void> {
-  return apiFetch<void>(user, "/users/me/deactivate", { method: "POST", json: { reason } });
+/**
+ * `POST /users/me/deactivate`. "deactivate": closed until they reactivate, nothing deleted. "delete":
+ * deleted for good in 7 days unless they reactivate first. Either way they're signed out everywhere.
+ */
+export function deactivate(user: User, reason: DeactivationReason, mode: CloseMode): Promise<void> {
+  return apiFetch<void>(user, "/users/me/deactivate", { method: "POST", json: { reason, mode } });
 }
 
 /**

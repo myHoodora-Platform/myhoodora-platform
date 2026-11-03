@@ -47,13 +47,15 @@ export function LegalPage({ title, updatedAt, intro, children, explore = ["safet
 
 interface LegalSectionProps {
   title: string;
+  /** Anchor, so other pages can link straight to this section (e.g. /privacy#children). */
+  id?: string;
   children: React.ReactNode;
 }
 
 /** A titled block of prose within a legal page. */
-export function LegalSection({ title, children }: LegalSectionProps) {
+export function LegalSection({ title, id, children }: LegalSectionProps) {
   return (
-    <section>
+    <section id={id} className="scroll-mt-24">
       <h2 className="text-xl font-bold text-foreground">{title}</h2>
       <div className="mt-3 space-y-4 text-[15px] leading-relaxed text-muted-foreground">
         {children}
