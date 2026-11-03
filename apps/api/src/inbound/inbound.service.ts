@@ -14,6 +14,8 @@ import { User, UserDocument } from "../users/schemas/user.schema";
 import type { AiPilotDto, ContactDto, FeedbackDto, InboxQuery, InboxUpdateDto, StartInboxConversationDto, SupportAttachmentDto, SupportRequestDto, TalentDto } from "./inbound.dto";
 import { AiPilotRequest, InboundMessage, InboundMessageDocument, TalentProfile, type InboxPriority, type InboxSource, type InboxStatus, type ThreadAttachment, type ThreadMessage } from "./inbound.schemas";
 import { StorageService } from "../storage/storage.service";
+import { JobsService } from "../jobs/jobs.service";
+import { SUPPORT_WELCOME_JOB, WELCOME_KIND, WELCOME_SUBJECT, welcomeMessage, welcomePreview } from "./support-welcome";
 
 /** Photos or PDFs per support message. */
 const MAX_ATTACHMENTS = 4;
@@ -82,10 +84,12 @@ export class InboundService implements OnModuleInit {
     private readonly config: ConfigService,
     private readonly realtime: RealtimeService,
     private readonly storage: StorageService,
+    private readonly jobs: JobsService,
   ) {}
 
   /** Attachments stay stored while a support message carries them (StorageService.sweepUnreferenced). */
   onModuleInit() {
+    this.jobs.register(SUPPORT_WELCOME_JOB, (payload) => this.sendWelcome(String(payload.uid)));
     this.storage.registerReferenceSource({
       name: "support",
       inUse: async (urls) => {
@@ -348,6 +352,38 @@ export class InboundService implements OnModuleInit {
     await this.audit.record(actor, "inbox_reply", { type: "inbox", id, label: thread.subject });
     await this.tellRequester(thread, text || attachmentSummary(files), at, "reply");
     return this.get(id);
+  }
+
+  /**
+   * The team's welcome to a new neighbour (contract §18), run by SUPPORT_WELCOME_JOB a few minutes
+   * after they first finish onboarding. Once per person, ever, and safe to run again (a job can
+   * repeat). It starts resolved, so it doesn't wait in the team's inbox; a reply reopens it like any
+   * conversation. In the app and as a push only: the welcome email already went out at sign-up.
+   */
+  async sendWelcome(uid: string): Promise<void> {
+    const person = await this.users
+      .findOne({ uid })
+      .select({ uid: 1, email: 1, displayName: 1, verificationStatus: 1, deactivatedAt: 1, purgedAt: 1 })
+      .lean<Pick<User, "uid" | "email" | "displayName" | "verificationStatus" | "deactivatedAt" | "purgedAt">>()
+      .exec();
+    // Gone, or leaving, since onboarding: say nothing.
+    if (!person || person.deactivatedAt || person.purgedAt) return;
+    if (await this.inbound.exists({ uid, source: "staff", kind: WELCOME_KIND }).exec()) return;
+    const at = new Date();
+    const doc = await this.inbound.create({
+      source: "staff",
+      kind: WELCOME_KIND,
+      subject: WELCOME_SUBJECT,
+      uid,
+      name: person.displayName,
+      email: person.email,
+      status: "resolved",
+      messages: [{ from: "staff", body: welcomeMessage({ displayName: person.displayName, verified: person.verificationStatus === "verified" }), at, by: "myHoodora team" }],
+    });
+    const id = String(doc._id);
+    this.realtime.toUser(uid, "support.message", { threadId: id });
+    // No category, so it's always pushed, like the team's other messages.
+    await this.notifications.notify({ uids: [uid], type: "system", title: WELCOME_SUBJECT, body: welcomePreview(person.displayName), href: `/inbox/support/${id}` });
   }
 
   /** Staff start a conversation with one neighbour (contract §18). */
