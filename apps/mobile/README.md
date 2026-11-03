@@ -1,56 +1,68 @@
-# Welcome to your Expo app 👋
+# myHoodora mobile
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+The iOS and Android app: Expo SDK 57, React Native 0.86, Expo Router. It talks to the same API and Firebase project as the web. Decisions, inventories and versions are in [`docs/mobile/`](../../docs/mobile/).
 
-## Get started
+**What it does today:** a first-launch intro and a welcome screen; log in, create an account, reset a password; onboarding (find your Hood from your location or a typed address, confirm it, or ask to join a nearby one); the Hood feed and post detail with comments (read-only); notifications, with push to the phone; account (log out, sign out everywhere, links to the web for everything else).
 
-1. Install dependencies
+## Run it
 
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+Push notifications and secure session storage need native code, so the app runs as a **development build**, not in Expo Go.
 
 ```bash
-npm run reset-project
+pnpm install                                   # from the repository root
+cp apps/mobile/.env.example apps/mobile/.env.local   # then fill it in (docs/environment.md → Mobile)
+pnpm --filter @myhoodora/mobile android        # or: ios (needs Xcode); builds and installs a dev build
+pnpm --filter @myhoodora/mobile dev            # later runs: start Metro for the installed dev build
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Without Xcode or Android Studio, build the dev client on EAS instead: `npx eas-cli build --profile development --platform android` (or `ios`), install it, then `pnpm --filter @myhoodora/mobile dev`.
 
-### Other setup steps
+The phone must reach the API and the web app: set `EXPO_PUBLIC_API_URL` and `EXPO_PUBLIC_WEB_URL` to your computer's LAN address (not `localhost`), or to staging.
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+## Checks
 
-## Learn more
+| Command (`pnpm --filter @myhoodora/mobile …`) | What it does |
+| --- | --- |
+| `lint` · `check-types` · `test` | Also run by the root `pnpm lint`, `pnpm check-types`, `pnpm test` |
+| `doctor` | Dependencies match Expo SDK 57, and `expo-doctor` |
+| `export:check` | Bundles for iOS and Android (what CI runs) |
 
-To learn more about developing your project with Expo, look at the following resources:
+Brand images, photos and app-screen images come from the web: `node apps/mobile/scripts/capture-web-screens.mjs "$PWD"` (web running on :3000), then `node apps/mobile/scripts/make-assets.cjs "$PWD"`.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Add native packages with `npx expo install <name>` from this folder, never `pnpm add` with a guessed version.
 
-## Join the community
+## Layout
 
-Join our community of developers creating universal apps.
+```text
+src/app/          routes only (Expo Router); paths match the web's (/news-feed, /p/[id], /notifications)
+src/core/         config, Firebase, API client, session, push, location
+src/features/     auth, onboarding, feed, notifications, account
+src/shared/       theme (from @myhoodora/design-tokens), UI components, utilities
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+`core/` and `shared/` never import `features/` or `app/`, and nothing imports `apps/web` (ESLint enforces both). Code both apps need goes in `packages/api-contract` or `packages/design-tokens`.
+
+## Push notifications
+
+The API pushes every notification the person would see in the app, following their per-category settings (contract §30). The app registers the phone after sign-in once notifications are allowed (the feed asks, in context, before the system prompt), removes it on logout, and opens the matching screen when a push is tapped.
+
+**Firebase native config files.** `google-services.json` (Android: FCM) and `GoogleService-Info.plist` (iOS: Google sign-in) come from Firebase console → Project settings → Your apps (project `myhoodora-e9ba5`, `com.myhoodora.app`). They are git-ignored everywhere and must never be committed. Locally, keep them in `apps/mobile/` (not in `ios/` or `android/`, which `expo prebuild --clean` regenerates); `app.config.ts` picks them up. For EAS builds, store each as an EAS **file** variable per environment: `eas env:set --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --visibility secret --environment development --environment preview --environment production` (and `GOOGLE_SERVICE_INFO_PLIST` likewise). Without them a build still works, minus Android push.
+
+Before pushes reach real phones, once per Expo project:
+
+1. **Android:** upload an FCM V1 service-account key: `npx eas-cli credentials` → Android → Google Service Account → FCM V1.
+2. **iOS:** let EAS create an APNs key for `com.myhoodora.app` (`npx eas-cli credentials` → iOS → Push Notifications). Needs the Apple Developer account.
+3. If "enhanced push security" is turned on for the Expo project, create an access token and set it as `EXPO_ACCESS_TOKEN` on the API.
+
+## Crash reporting (Sentry)
+
+`src/core/monitoring/`: on in **preview** and **production** builds that have `EXPO_PUBLIC_SENTRY_DSN`; off in development, where `reportError()` logs to the console instead. Use `reportError(error, "<feature>")` for failures the team should hear about; don't add `console.warn`.
+
+- **Privacy:** every event and breadcrumb goes through `scrub.ts`: no request bodies, headers or query strings; emails, phone numbers, tokens (Bearer, JWT, Expo push) redacted; values under keys like `message`, `content`, `address`, `email` filtered; tapped components keep their name but not their label; the device's name is removed. The user is the Firebase uid only. No screenshots, view hierarchy or session replay. Tests: `src/core/monitoring/__tests__/scrub.test.ts`.
+- **Crash screen:** a render error anywhere shows "Something went wrong / Restart" (`shared/ui/crash-screen.tsx`, via `Sentry.ErrorBoundary` in `app/_layout.tsx`) instead of a white screen.
+- **Tags:** `environment` (development/preview/production), `app_version`, `build_number`; Sentry's release is `com.myhoodora.app@<version>+<build>`. Once `expo-updates` is installed, Sentry adds the update ID by itself (`ota_updates` context).
+- **Readable stack traces:** EAS builds upload source maps and debug symbols through the config plugin when the EAS environment has `SENTRY_ORG`, `SENTRY_PROJECT` (plain) and `SENTRY_AUTH_TOKEN` (**secret**). After `eas update`, upload that update's maps: `npx sentry-expo-upload-sourcemaps dist` (same three variables). Local `pnpm … ios|android` builds skip uploads.
+
+## Builds and releases
+
+`eas.json` has three profiles, each with its own channel and EAS environment: `development` (dev client, internal), `preview` (internal testing), `production` (store). Set the `EXPO_PUBLIC_*` values per environment with `eas env:create`. `runtimeVersion` follows the app version, so an over-the-air update never reaches a binary with different native code; anything that changes native code (a new native package, `app.config.ts` plugins, permissions) needs a new build. Store submission and production updates are a release decision, not something CI does.

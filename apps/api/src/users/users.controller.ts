@@ -1,0 +1,198 @@
+import { Body, Controller, Delete, ForbiddenException, Get, HttpCode, Param, Patch, Post, Query } from "@nestjs/common";
+import { ApiBearerAuth, ApiConflictResponse, ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { Throttle } from "@nestjs/throttler";
+import type { DecodedIdToken } from "firebase-admin/auth";
+import { CurrentUser } from "../shared/auth/current-user.decorator";
+import { AllowSuspended, CurrentViewer, type Viewer } from "../shared/auth/viewer";
+import { AgeCheckDto, BlockDto, LegalAcceptDto, ChangeEmailDto, DeactivateDto, HoodRequestDto, LocationPointDto, OnboardingDto, PreferencesDto, UpdateMeDto, UserSearchQuery, VerifyLocationDto } from "./dto/users.dto";
+import { UsersService } from "./users.service";
+import { ApiNotFound, ApiStandardErrors, ErrorResponse } from "../shared/http/api-docs";
+
+/** No name or address before the age check: we don't take a child's data (docs/compliance/ndpa.md §1). */
+function requireAgeCheck(viewer: Viewer): void {
+  if (viewer.ageConfirmed === false) throw new ForbiddenException("Confirm your date of birth first.");
+}
+
+@ApiTags("users")
+@ApiBearerAuth("firebase-jwt")
+@ApiStandardErrors()
+@Controller("users")
+export class UsersController {
+  constructor(private readonly users: UsersService) {}
+
+  /** Creates the account on first call (welcome email once), returns it on every sign-in. */
+  @Get("me")
+  @AllowSuspended()
+  @ApiOperation({ summary: "Get (or create on first sign-in) the current user" })
+  getMe(@CurrentUser() token: DecodedIdToken) {
+    return this.users.getOrCreateMe(token);
+  }
+
+  @Patch("me")
+  @ApiOperation({ summary: "Update display name, bio or photo (Hood changes go through verification)" })
+  async updateMe(@CurrentViewer() viewer: Viewer, @CurrentUser() token: DecodedIdToken, @Body() body: UpdateMeDto) {
+    await this.users.ensureAccount(viewer, token);
+    return this.users.updateMe(viewer.uid, body);
+  }
+
+  @Post("me/email")
+  @HttpCode(200)
+  @Throttle({ medium: { limit: 5, ttl: 3_600_000 } })
+  @ApiOperation({
+    summary: "Change your email while it's still unconfirmed",
+    description:
+      "Email-and-password accounts whose address isn't confirmed yet. Needs a sign-in from the last 5 minutes (403 otherwise: sign in again, e.g. re-enter the password). 409 when the address is confirmed or already used by another account. Updates sign-in and the account together, deletes links sent to the old address, and emails a new one.",
+  })
+  @ApiOkResponse({ description: "Your updated profile (same shape as GET /users/me)" })
+  changeEmail(@CurrentViewer() viewer: Viewer, @CurrentUser() token: DecodedIdToken, @Body() body: ChangeEmailDto) {
+    return this.users.changeEmail(viewer, token, body.email);
+  }
+
+  @Post("me/age")
+  @HttpCode(200)
+  @Throttle({ medium: { limit: 10, ttl: 3_600_000 } })
+  @ApiOperation({
+    summary: "The age check: the year of birth (the full date only when the year can't settle it), once, before onboarding",
+    description:
+      "18 or over: `{ adult: true, profile }`, and the account may take part. Under 18: `{ adult: false }`; the account is closed at once (sign-in turned off, content hidden) and deleted without the usual 30 days. The date of birth is never stored. Asked again after passing, it changes nothing. 410 when the account is closed.",
+  })
+  async confirmAge(@CurrentViewer() viewer: Viewer, @CurrentUser() token: DecodedIdToken, @Body() body: AgeCheckDto) {
+    await this.users.ensureAccount(viewer, token);
+    return this.users.confirmAge(viewer, body.birthDate);
+  }
+
+  @Patch("me/onboarding")
+  @ApiOperation({ summary: "Finish onboarding (name, rough location)" })
+  async completeOnboarding(@CurrentViewer() viewer: Viewer, @CurrentUser() token: DecodedIdToken, @Body() body: OnboardingDto) {
+    requireAgeCheck(viewer);
+    // Self-heal: onboarding must never 404 because the first GET /users/me didn't create the account.
+    await this.users.ensureAccount(viewer, token);
+    return this.users.completeOnboarding(viewer.uid, body);
+  }
+
+  @Post("me/verify-location")
+  @HttpCode(200)
+  @Throttle({ medium: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({
+    summary: "Match the caller's coordinates to a Hood",
+    description:
+      "Verified: `{ verificationStatus: 'verified', neighborhoodId, distanceMeters }`. Outside every Hood: `{ verificationStatus, reason: 'outside_coverage', nearbyHoods }` where `nearbyHoods` (nearest first, max 3, may be empty) can be passed to `POST /users/me/hood-request`.",
+  })
+  async verifyLocation(@CurrentViewer() viewer: Viewer, @CurrentUser() token: DecodedIdToken, @Body() body: VerifyLocationDto) {
+    requireAgeCheck(viewer);
+    await this.users.ensureAccount(viewer, token);
+    return this.users.verifyLocation(viewer, body);
+  }
+
+  @Post("me/verify-location/preview")
+  @HttpCode(200)
+  // The app asks again each time the neighbour moves their pin.
+  @Throttle({ medium: { limit: 30, ttl: 60_000 } })
+  @ApiOperation({
+    summary: "Which Hood a point would join, without verifying",
+    description:
+      "Changes and records nothing. `{ hood: { id, name, city }, distanceMeters, nearbyHoods: [] }` inside a Hood (with `cannotJoin` when a verified neighbour may not move Hood yet), or `{ hood: null, nearbyHoods }` outside every Hood. Pass `hood.id` as `neighborhoodId` to verify-location so the neighbour joins only the Hood they saw.",
+  })
+  previewLocation(@CurrentViewer() viewer: Viewer, @Body() body: LocationPointDto) {
+    requireAgeCheck(viewer);
+    return this.users.previewLocation(viewer, body);
+  }
+
+  @Post("me/hood-request")
+  @HttpCode(200)
+  @Throttle({ medium: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({
+    summary: "Ask to join a nearby Hood (staff approve)",
+    description:
+      "For an address just outside every Hood. `hoodId` must be one of the `nearbyHoods` from your last verify-location. Sets you to `pending_review` with `requestedHood` until staff approve or reject. Re-requesting replaces the request. 400 if the Hood isn't near that address or isn't open; 403 if your verification was rejected.",
+  })
+  @ApiOkResponse({ description: "Your updated profile (same shape as GET /users/me)" })
+  @ApiConflictResponse({ description: "You're already a verified neighbour", type: ErrorResponse })
+  requestHood(@CurrentViewer() viewer: Viewer, @Body() body: HoodRequestDto) {
+    requireAgeCheck(viewer);
+    return this.users.requestHood(viewer, body.hoodId);
+  }
+
+  @Delete("me/hood-request")
+  @ApiOperation({ summary: "Withdraw your pending request to join a Hood" })
+  @ApiOkResponse({ description: "Your updated profile, back to `unverified`" })
+  @ApiConflictResponse({ description: "No pending request", type: ErrorResponse })
+  cancelHoodRequest(@CurrentViewer() viewer: Viewer) {
+    return this.users.cancelHoodRequest(viewer);
+  }
+
+  @Get("me/preferences")
+  @ApiOperation({ summary: "Your notification, digest and privacy preferences" })
+  getPreferences(@CurrentViewer() viewer: Viewer) {
+    return this.users.getPreferences(viewer.uid);
+  }
+
+  @Patch("me/preferences")
+  @ApiOperation({ summary: "Update notification, digest and privacy preferences" })
+  updatePreferences(@CurrentViewer() viewer: Viewer, @Body() body: PreferencesDto) {
+    return this.users.updatePreferences(viewer.uid, body);
+  }
+
+  @Get("me/blocks")
+  @ApiOperation({ summary: "People you've blocked (uids)" })
+  listBlocks(@CurrentViewer() viewer: Viewer) {
+    return this.users.listBlocks(viewer.uid);
+  }
+
+  @Post("me/blocks")
+  @ApiOperation({ summary: "Block a neighbour (hides them both ways)" })
+  @HttpCode(204)
+  async block(@CurrentViewer() viewer: Viewer, @Body() body: BlockDto) {
+    await this.users.block(viewer.uid, body.uid);
+  }
+
+  @Delete("me/blocks/:uid")
+  @ApiOperation({ summary: "Unblock" })
+  @HttpCode(204)
+  async unblock(@CurrentViewer() viewer: Viewer, @Param("uid") uid: string) {
+    await this.users.unblock(viewer.uid, uid);
+  }
+
+  @Post("me/deactivate")
+  @ApiOperation({
+    summary: "Close your account: mode 'deactivate' (until you reactivate) or 'delete' (deleted for good in 7 days unless you cancel)",
+  })
+  @AllowSuspended()
+  @HttpCode(204)
+  async deactivate(@CurrentViewer() viewer: Viewer, @Body() body: DeactivateDto) {
+    await this.users.deactivate(viewer.uid, body);
+  }
+
+  @Post("me/legal")
+  @ApiOperation({ summary: "Agree to the current Terms of Use and Privacy Policy (body: the versions read) → Me" })
+  @Throttle({ medium: { limit: 20, ttl: 3_600_000 } })
+  @HttpCode(200)
+  async acceptLegal(@CurrentViewer() viewer: Viewer, @CurrentUser() token: DecodedIdToken, @Body() body: LegalAcceptDto) {
+    // Straight after sign-up the account may not exist yet.
+    await this.users.ensureAccount(viewer, token);
+    return this.users.acceptLegal(viewer.uid, body);
+  }
+
+  @Post("me/reactivate")
+  @ApiOperation({ summary: "Come back: reopen a deactivated account, or cancel a scheduled deletion → Me" })
+  @AllowSuspended()
+  @Throttle({ medium: { limit: 10, ttl: 3_600_000 } })
+  @HttpCode(200)
+  reactivate(@CurrentViewer() viewer: Viewer) {
+    return this.users.reactivate(viewer.uid);
+  }
+
+  @Get("search")
+  @ApiOperation({ summary: "Find neighbours in your Hood by name (for group invites)" })
+  search(@CurrentViewer() viewer: Viewer, @Query() q: UserSearchQuery) {
+    return this.users.search(viewer, q.q ?? "");
+  }
+
+  @Get(":uid/public")
+  @ApiOperation({ summary: "A neighbour's public profile (your Hood only; never an address)" })
+  @ApiOkResponse()
+  @ApiNotFound("Neighbour")
+  publicProfile(@CurrentViewer() viewer: Viewer, @Param("uid") uid: string) {
+    return this.users.publicProfile(viewer, uid);
+  }
+}

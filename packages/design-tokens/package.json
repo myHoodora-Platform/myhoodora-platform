@@ -1,0 +1,19 @@
+{
+  "name": "@myhoodora/design-tokens",
+  "version": "0.0.0",
+  "private": true,
+  "description": "myHoodora design tokens as TypeScript values, for the mobile app. The web's CSS variables (apps/web/src/app/globals.css) are checked against these by a web test.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "check-types": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@myhoodora/eslint-config": "workspace:*",
+    "@myhoodora/typescript-config": "workspace:*",
+    "eslint": "^9.39.1",
+    "typescript": "5.9.2"
+  }
+}

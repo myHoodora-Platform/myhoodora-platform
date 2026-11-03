@@ -1,0 +1,42 @@
+import { createParamDecorator, ExecutionContext, SetMetadata } from "@nestjs/common";
+import type { AccountStatus, Capability, Role, VerificationStatus } from "../authz/roles";
+
+/**
+ * The signed-in person, loaded once per request by AccountGuard from the
+ * Firebase token + our user record. The only identity controllers use.
+ */
+export interface Viewer {
+  uid: string;
+  email?: string;
+  emailVerified: boolean;
+  displayName?: string;
+  role: Role;
+  accountStatus: AccountStatus;
+  verificationStatus: VerificationStatus;
+  /**
+   * The caller's own Hood — every Hood-scoped query uses this, never a client param.
+   * Null unless they are a verified neighbour (see AccountGuard).
+   */
+  hoodId: string | null;
+  /**
+   * Hoods they may *read*: home, plus secondary Hoods staff approved (contract §31). Feeds, posts and
+   * comments use this; everything that writes (posting, reacting, selling, messaging) uses `hoodId`.
+   * Empty unless they are a verified neighbour.
+   */
+  readableHoodIds: string[];
+  capabilities: Capability[];
+  /** false until GET /users/me has created the record. */
+  exists: boolean;
+  /** False until they pass the age check (where it's required). Set by AccountGuard. */
+  ageConfirmed?: boolean;
+}
+
+export const CurrentViewer = createParamDecorator((_data: unknown, ctx: ExecutionContext): Viewer => {
+  const req = ctx.switchToHttp().getRequest<{ viewer: Viewer }>();
+  return req.viewer;
+});
+
+export const ALLOW_SUSPENDED_KEY = "allowSuspended";
+
+/** Routes a suspended person may still call (see their own status, log out). */
+export const AllowSuspended = () => SetMetadata(ALLOW_SUSPENDED_KEY, true);

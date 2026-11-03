@@ -1,0 +1,65 @@
+import { Header } from "@/components/layout/Header";
+import { Footer } from "@/components/layout/Footer";
+import { Section } from "@myhoodora/ui/section";
+import { ExploreMore, type ExploreKey } from "@/components/marketing/explore-more";
+
+interface LegalPageProps {
+  title: string;
+  updatedAt: string;
+  intro?: string;
+  children: React.ReactNode;
+  /** Cross-links shown above the footer. */
+  explore?: ExploreKey[];
+}
+
+/**
+ * Shared shell for legal / policy pages (Privacy Policy, Community
+ * Guidelines, Terms, …): a centered prose column under the standard
+ * header and footer.
+ */
+export function LegalPage({ title, updatedAt, intro, children, explore = ["safety", "how-it-works", "about"] }: LegalPageProps) {
+  return (
+    <div className="min-h-screen flex flex-col font-sans text-foreground bg-background">
+      <Header />
+      <main className="flex-1">
+        <Section className="py-16 lg:py-20">
+          <div className="mx-auto max-w-3xl">
+            <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+              {title}
+            </h1>
+            <p className="mt-3 text-sm text-muted-foreground">
+              Last updated: {updatedAt}
+            </p>
+            {intro && (
+              <p className="mt-6 text-lg leading-relaxed text-muted-foreground">
+                {intro}
+              </p>
+            )}
+            <div className="mt-10 space-y-10">{children}</div>
+          </div>
+        </Section>
+        <ExploreMore items={explore} className="border-t border-border bg-canvas" />
+      </main>
+      <Footer />
+    </div>
+  );
+}
+
+interface LegalSectionProps {
+  title: string;
+  /** Anchor, so other pages can link straight to this section (e.g. /privacy#children). */
+  id?: string;
+  children: React.ReactNode;
+}
+
+/** A titled block of prose within a legal page. */
+export function LegalSection({ title, id, children }: LegalSectionProps) {
+  return (
+    <section id={id} className="scroll-mt-24">
+      <h2 className="text-xl font-bold text-foreground">{title}</h2>
+      <div className="mt-3 space-y-4 text-[15px] leading-relaxed text-muted-foreground">
+        {children}
+      </div>
+    </section>
+  );
+}

@@ -24,6 +24,10 @@ dist/
 android/
 ios/
 
+# Firebase native config files (mobile): never committed, anywhere in the repo
+google-services*.json
+GoogleService-Info*.plist
+
 # Testing
 coverage/
 .nyc_output/
@@ -64,3 +68,13 @@ Thumbs.db
 .husky/_
 expo-env.d.ts
 .tsbuildinfo
+
+# Firebase credentials
+apps/api/serviceAccountKey.json
+*.firebase-adminsdk*.json
+
+
+# Playwright
+test-results/
+playwright-report/
+playwright-report-seo/

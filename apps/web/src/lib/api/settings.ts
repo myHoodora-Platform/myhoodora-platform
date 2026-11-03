@@ -1,0 +1,134 @@
+import type { User } from "firebase/auth";
+import { apiFetch } from "./client";
+import { isLive } from "./config";
+import { latency, load, save } from "./mock/store";
+
+// ── Preferences (notifications + privacy) ───────────────────────────────────
+
+// Shared with the mobile app (packages/api-contract).
+export { DEFAULT_PREFERENCES, type ChannelPrefs, type NotificationCategory, type Preferences } from "@myhoodora/api-contract/settings";
+import { DEFAULT_PREFERENCES, type Preferences } from "@myhoodora/api-contract/settings";
+
+const prefsKey = (uid: string) => `prefs:${uid}`;
+
+/** live: GET /users/me/preferences */
+export async function getPreferences(user: User): Promise<Preferences> {
+  if (isLive("settings")) return apiFetch<Preferences>(user, "/users/me/preferences");
+  await latency(150);
+  return load(prefsKey(user.uid), () => DEFAULT_PREFERENCES);
+}
+
+/** live: PATCH /users/me/preferences (deep-merged) → Preferences */
+export async function updatePreferences(user: User, next: Preferences): Promise<Preferences> {
+  if (isLive("settings")) {
+    return apiFetch<Preferences>(user, "/users/me/preferences", { method: "PATCH", json: next });
+  }
+  await latency(150);
+  save(prefsKey(user.uid), next);
+  return next;
+}
+
+// ── Profile extras (bio, photo) ─────────────────────────────────────────────
+
+export interface ProfileExtras {
+  bio?: string;
+  /** null removes the photo. */
+  photoURL?: string | null;
+}
+
+const extrasKey = (uid: string) => `profile-extra:${uid}`;
+
+/** Sync read for rendering the viewer's own avatar/bio (preview only). */
+export function myProfileExtras(uid: string): ProfileExtras {
+  if (typeof window === "undefined" || isLive("settings")) return {};
+  return load<ProfileExtras>(extrasKey(uid), () => ({}));
+}
+
+/** live: PATCH /users/me { bio, photoURL (https) } */
+export async function updateProfileExtras(user: User, extras: ProfileExtras): Promise<ProfileExtras> {
+  if (isLive("settings")) return apiFetch<ProfileExtras>(user, "/users/me", { method: "PATCH", json: extras });
+  await latency(200);
+  const next = { ...myProfileExtras(user.uid), ...extras };
+  save(extrasKey(user.uid), next);
+  return next;
+}
+
+// ── Blocking ────────────────────────────────────────────────────────────────
+
+const blocksKey = (uid: string) => `blocks:${uid}`;
+
+/** Sync read so feeds can hide blocked neighbours without a round trip (preview). */
+export function blockedUids(uid: string): string[] {
+  if (typeof window === "undefined") return [];
+  return load<string[]>(blocksKey(uid), () => []);
+}
+
+/** live: GET /users/me/blocks → string[] (uids) */
+export async function listBlocked(user: User): Promise<string[]> {
+  if (isLive("settings")) return apiFetch<string[]>(user, "/users/me/blocks");
+  await latency(120);
+  return blockedUids(user.uid);
+}
+
+/** live: POST /users/me/blocks { uid } — they can't message you or see your posts; you won't see theirs. */
+export async function blockUser(user: User, uid: string): Promise<void> {
+  if (isLive("settings")) {
+    await apiFetch<void>(user, "/users/me/blocks", { method: "POST", json: { uid } });
+    return;
+  }
+  await latency(150);
+  save(blocksKey(user.uid), Array.from(new Set([...blockedUids(user.uid), uid])));
+}
+
+/** live: DELETE /users/me/blocks/:uid */
+export async function unblockUser(user: User, uid: string): Promise<void> {
+  if (isLive("settings")) {
+    await apiFetch<void>(user, `/users/me/blocks/${uid}`, { method: "DELETE" });
+    return;
+  }
+  await latency(150);
+  save(blocksKey(user.uid), blockedUids(user.uid).filter((u) => u !== uid));
+}
+
+// ── Feedback & account ──────────────────────────────────────────────────────
+
+export interface FeedbackInput {
+  kind: "idea" | "problem" | "praise" | "other";
+  message: string;
+  /** Page the neighbour was on, for context. */
+  path?: string;
+}
+
+/** live: POST /feedback */
+export async function submitFeedback(user: User, input: FeedbackInput): Promise<void> {
+  if (isLive("feedback")) {
+    await apiFetch<void>(user, "/feedback", { method: "POST", json: input });
+    return;
+  }
+  await latency(300);
+  const all = load<(FeedbackInput & { uid: string; at: string })[]>("feedback", () => []);
+  save("feedback", [...all, { ...input, uid: user.uid, at: new Date().toISOString() }]);
+}
+
+export { DEACTIVATION_REASONS, type DeactivationReason } from "@myhoodora/api-contract/settings";
+import type { CloseMode, DeactivationReason } from "@myhoodora/api-contract/settings";
+export { DELETION_GRACE_DAYS, type CloseMode } from "@myhoodora/api-contract/settings";
+
+/**
+ * live: POST /users/me/deactivate { reason, details, mode }. Either way the account closes now (profile
+ * and posts hidden, every session ended). "deactivate": until they reactivate. "delete": deleted for
+ * good in 7 days unless they reactivate first. Returns whether it really happened (false in preview).
+ */
+export async function deactivateAccount(
+  user: User,
+  reason: DeactivationReason,
+  details: string | undefined,
+  mode: CloseMode,
+): Promise<boolean> {
+  if (isLive("settings")) {
+    await apiFetch<void>(user, "/users/me/deactivate", { method: "POST", json: { reason, details, mode } });
+    return true;
+  }
+  await latency(400);
+  return false;
+}
