@@ -89,12 +89,13 @@ async function request<T>(url: string, user: User | null, init: RequestInitWithJ
 
 /** Something in front of the API answered with a web page: tell the team (see reportEdgePage). */
 function reportPage(response: Response, url: string): void {
-  // The host and the route's first two parts ("/api/feed"): enough to group by, with no ids or query.
-  const match = /^https?:\/\/([^/?#]+)((?:\/[^/?#]*){0,2})/.exec(url);
+  // The host and the route's first two parts ("/api/feed", skipping the "/v1"): enough to group by, with no ids or query.
+  const match = /^https?:\/\/([^/?#]+)([^?#]*)/.exec(url);
+  const parts = (match?.[2] ?? "").split("/").filter((part) => part && !/^v\d+$/.test(part));
   reportEdgePage({
     status: response.status,
     host: match?.[1] ?? "unknown",
-    route: match?.[2] || "/",
+    route: parts.slice(0, 2).map((part) => `/${part}`).join("") || "/",
     server: response.headers.get("server"),
     mitigated: response.headers.get("cf-mitigated"),
     ray: response.headers.get("cf-ray"),
