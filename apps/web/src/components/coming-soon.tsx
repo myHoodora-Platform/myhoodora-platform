@@ -5,6 +5,7 @@ import type { ComponentType, FormEvent } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
+import type { ComingSoonFeature } from "@/lib/coming-soon";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { Section } from "@myhoodora/ui/section";
@@ -22,7 +23,6 @@ import {
   Newspaper,
   ShieldCheck,
   ShoppingBag,
-  Sparkles,
   Store,
 } from "lucide-react";
 
@@ -34,7 +34,7 @@ interface FeatureMeta {
   icon: IconComponent;
 }
 
-const FEATURES: Record<string, FeatureMeta> = {
+const FEATURES: Record<ComingSoonFeature, FeatureMeta> = {
   careers: {
     title: "Careers",
     description:
@@ -91,13 +91,6 @@ const FEATURES: Record<string, FeatureMeta> = {
   },
 };
 
-const FALLBACK: FeatureMeta = {
-  title: "Something new",
-  description:
-    "We're working on this part of myHoodora. Drop your email and we'll let you know the moment it's ready.",
-  icon: Sparkles,
-};
-
 /** Placeholder launch date — update before going live. */
 const LAUNCH_TARGET = "2026-12-01T00:00:00";
 
@@ -131,8 +124,8 @@ function pad(n: number) {
   return n.toString().padStart(2, "0");
 }
 
-export function ComingSoonPage({ feature }: { feature: string }) {
-  const meta = FEATURES[feature] ?? FALLBACK;
+export function ComingSoonPage({ feature }: { feature: ComingSoonFeature }) {
+  const meta = FEATURES[feature];
   const Icon = meta.icon;
   const countdown = useCountdown(LAUNCH_TARGET);
   const [email, setEmail] = useState("");

@@ -1,25 +1,34 @@
 import type { MetadataRoute } from "next";
+import { currentLegalVersion } from "@myhoodora/api-contract/legal";
+import { GUIDELINES_UPDATED } from "@/components/legal/community-guidelines";
+import { PROVIDERS_UPDATED } from "@/components/legal/providers";
 import { SITE_URL } from "@/lib/site";
 
-/** The public pages, and only those: nothing behind sign-in belongs in a sitemap. */
-const PAGES: { path: string; priority: number; changeFrequency: "weekly" | "monthly" | "yearly" }[] = [
-  { path: "/", priority: 1, changeFrequency: "weekly" },
-  { path: "/how-it-works", priority: 0.8, changeFrequency: "monthly" },
-  { path: "/about", priority: 0.7, changeFrequency: "monthly" },
-  { path: "/safety", priority: 0.7, changeFrequency: "monthly" },
-  { path: "/business", priority: 0.7, changeFrequency: "monthly" },
-  { path: "/business/get-started", priority: 0.5, changeFrequency: "monthly" },
-  { path: "/ai", priority: 0.4, changeFrequency: "monthly" },
-  { path: "/careers", priority: 0.4, changeFrequency: "monthly" },
-  { path: "/press", priority: 0.4, changeFrequency: "monthly" },
-  { path: "/contact", priority: 0.5, changeFrequency: "yearly" },
-  { path: "/guidelines", priority: 0.5, changeFrequency: "yearly" },
-  { path: "/privacy", priority: 0.3, changeFrequency: "yearly" },
-  { path: "/terms", priority: 0.3, changeFrequency: "yearly" },
-  { path: "/register", priority: 0.6, changeFrequency: "yearly" },
-  { path: "/login", priority: 0.3, changeFrequency: "yearly" },
+/**
+ * The public pages, and only those: nothing behind sign-in, no auth or utility
+ * pages, nothing a neighbour wrote. Each page sets itself as its canonical URL.
+ *
+ * `lastModified` only where the page's content carries a real date. The
+ * marketing pages have none, so they have no lastmod rather than a made-up one
+ * (search engines stop trusting a lastmod that changes on every build).
+ */
+const PAGES: { path: string; lastModified?: string }[] = [
+  { path: "/" },
+  { path: "/how-it-works" },
+  { path: "/about" },
+  { path: "/safety" },
+  { path: "/business" },
+  { path: "/business/get-started" },
+  { path: "/ai" },
+  { path: "/careers" },
+  { path: "/press" },
+  { path: "/contact" },
+  { path: "/guidelines", lastModified: GUIDELINES_UPDATED },
+  { path: "/privacy", lastModified: currentLegalVersion("privacy").version },
+  { path: "/privacy/providers", lastModified: PROVIDERS_UPDATED },
+  { path: "/terms", lastModified: currentLegalVersion("terms").version },
 ];
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  return PAGES.map(({ path, priority, changeFrequency }) => ({ url: `${SITE_URL}${path}`, changeFrequency, priority }));
+  return PAGES.map(({ path, lastModified }) => ({ url: `${SITE_URL}${path}`, ...(lastModified && { lastModified }) }));
 }

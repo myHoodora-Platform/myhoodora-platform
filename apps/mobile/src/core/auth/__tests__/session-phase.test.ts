@@ -29,6 +29,32 @@ describe("sessionPhase", () => {
     expect(sessionPhase({ introSeen: true, authReady: true, signedIn: true, profileStatus: "error", profile: onboarded })).toBe("ready");
   });
 
+  it("asks for the date of birth before anything else, and 'Skip for now' doesn't get round it", () => {
+    const base = { introSeen: true, authReady: true, signedIn: true, profileStatus: "ready" as const };
+    expect(sessionPhase({ ...base, profile: { isOnboarded: false, ageConfirmed: false } })).toBe("needsAgeCheck");
+    expect(sessionPhase({ ...base, profile: { ...onboarded, ageConfirmed: false }, onboardingSkipped: true })).toBe("needsAgeCheck");
+    expect(sessionPhase({ ...base, profile: { isOnboarded: false, ageConfirmed: true } })).toBe("needsOnboarding");
+  });
+
+  it("a closed account shows Welcome back before anything else: signing in doesn't reopen it", () => {
+    const base = { introSeen: true, authReady: true, signedIn: true, profileStatus: "ready" as const };
+    expect(sessionPhase({ ...base, profile: { ...onboarded, closure: { kind: "deactivated", since: "2026-11-01T10:00:00.000Z" } } })).toBe("closed");
+    const deleting = { kind: "deleting" as const, since: "2026-11-01T10:00:00.000Z", deleteAt: "2026-11-08T10:00:00.000Z" };
+    expect(sessionPhase({ ...base, profile: { isOnboarded: false, ageConfirmed: false, closure: deleting } })).toBe("closed");
+    expect(sessionPhase({ ...base, profile: { ...onboarded, closure: null } })).toBe("ready");
+  });
+
+  it("asks for the current terms after the age check, and 'Skip for now' doesn't get round it", () => {
+    const base = { introSeen: true, authReady: true, signedIn: true, profileStatus: "ready" as const };
+    const never = { terms: null, privacy: null };
+    expect(sessionPhase({ ...base, profile: { isOnboarded: false, legal: never } })).toBe("needsTerms");
+    expect(sessionPhase({ ...base, profile: { ...onboarded, legal: { terms: "2026-09-28", privacy: "2026-11-03" } }, onboardingSkipped: true })).toBe("needsTerms");
+    expect(sessionPhase({ ...base, profile: { isOnboarded: false, ageConfirmed: false, legal: never } })).toBe("needsAgeCheck");
+    expect(sessionPhase({ ...base, profile: { ...onboarded, legal: { terms: "2026-11-03", privacy: "2026-11-03" } } })).toBe("ready");
+    // An older API that doesn't report it: not asked.
+    expect(sessionPhase({ ...base, profile: onboarded })).toBe("ready");
+  });
+
   it("'Skip for now' lets someone in with limited access, as on the web", () => {
     expect(sessionPhase({ introSeen: true, authReady: true, signedIn: true, profileStatus: "ready", profile: { isOnboarded: false }, onboardingSkipped: true })).toBe("ready");
   });

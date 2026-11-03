@@ -14,7 +14,7 @@ import { FirstRunTour } from "@/features/tour/first-run-tour";
 import { prefetchUnreadMessages } from "@/features/chat/use-unread-messages";
 import { prefetchNotifications } from "@/features/notifications/use-notifications";
 import { ROUTES } from "@/lib/routes";
-import { isStaff } from "@/lib/auth/profile";
+import { isClosed, isStaff, needsAgeCheck, needsTermsAcceptance } from "@/lib/auth/profile";
 import { AppHeader } from "./app-header";
 import { AppSkeleton } from "./app-skeleton";
 import { AppSidebar } from "./app-sidebar";
@@ -68,7 +68,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Only a *loaded* profile can say they aren't onboarded — a failed load
   // is shown as an error below, never treated as a new account. Staff who
   // aren't residents browse with limited access instead, like "Skip for now".
+  // The age check comes first, for everyone (staff too): it has no "Skip for now".
+  // A closed account comes before even that: they choose to reactivate first (as on Nextdoor).
+  const mustReopen = !!user && profileStatus === "ready" && isClosed(profile);
+  useEffect(() => {
+    if (!loading && mustReopen) router.replace(ROUTES.welcomeBack);
+  }, [loading, mustReopen, router]);
+  const mustCheckAge = !mustReopen && !!user && profileStatus === "ready" && needsAgeCheck(profile);
+  useEffect(() => {
+    if (!loading && mustCheckAge) router.replace(ROUTES.confirmAge);
+  }, [loading, mustCheckAge, router]);
+
+  // Then the current Terms and Privacy Policy, for staff too (docs/compliance/legal-versions.md).
+  const mustAccept = !mustReopen && !mustCheckAge && !!user && profileStatus === "ready" && needsTermsAcceptance(profile);
+  useEffect(() => {
+    if (!loading && mustAccept) router.replace(ROUTES.acceptTerms);
+  }, [loading, mustAccept, router]);
+
   const needsOnboarding =
+    !mustReopen &&
+    !mustCheckAge &&
+    !mustAccept &&
     !!user &&
     profileStatus === "ready" &&
     !!profile &&
@@ -114,8 +134,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (waiting || !user || needsOnboarding) {
-    if (loadingTooLong && !needsOnboarding) {
+  if (waiting || !user || needsOnboarding || mustReopen || mustAccept) {
+    if (loadingTooLong && !needsOnboarding && !mustReopen && !mustAccept) {
       return (
         <div className="flex min-h-screen w-full items-center justify-center bg-canvas p-6">
           <div className="w-full max-w-sm space-y-3 rounded-2xl border border-border bg-card p-6 text-center">

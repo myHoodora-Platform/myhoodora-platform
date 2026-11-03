@@ -5,6 +5,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
+import { API_VERSION, applyApiVersioning } from './shared/http/versioning';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { initializeFirebase } from './config/firebase.config';
 import { API_DESCRIPTION, API_TAGS, ErrorResponse } from './shared/http/api-docs';
@@ -58,11 +59,12 @@ async function bootstrap() {
     origin: config.get<string>('cors.origin'),
     credentials: true,
     // Lets the web app read how long to wait after a 429 (shared/throttle/throttle.guards.ts).
-    exposedHeaders: ['Retry-After'],
+    exposedHeaders: ['Retry-After', 'API-Version', 'Deprecation', 'Sunset', 'Link'],
   });
 
-  // ── Global prefix ─────────────────────────────────────────────────────────
+  // ── Global prefix and versions (docs/api-versioning.md) ───────────────────
   app.setGlobalPrefix('api');
+  applyApiVersioning(app);
 
   // ── Swagger ───────────────────────────────────────────────────────────────
   if (swaggerOn) {
@@ -78,6 +80,10 @@ async function bootstrap() {
       );
     for (const [name, description] of API_TAGS) builder.addTag(name, description);
     const document = SwaggerModule.createDocument(app, builder.build(), { extraModels: [ErrorResponse] });
+    // Each route is served at /api/… and /api/v1/… (docs/api-versioning.md): document the versioned one only.
+    for (const path of Object.keys(document.paths)) {
+      if (!/^\/api\/v\d+\//.test(path) && document.paths[path.replace(/^\/api\//, `/api/v${API_VERSION}/`)]) delete document.paths[path];
+    }
     SwaggerModule.setup('api/docs', app, document, {
       customSiteTitle: 'myHoodora API',
       jsonDocumentUrl: 'api/docs-json',

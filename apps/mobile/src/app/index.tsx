@@ -13,6 +13,9 @@ const START: Record<SessionPhase, Href | null> = {
   intro: "/intro",
   signedOut: "/welcome",
   profileError: "/session-error",
+  closed: "/welcome-back",
+  needsAgeCheck: "/confirm-age",
+  needsTerms: "/accept-terms",
   needsOnboarding: "/onboarding",
   ready: "/news-feed",
 };

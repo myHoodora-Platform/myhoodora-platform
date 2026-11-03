@@ -5,7 +5,7 @@ import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { EmojiKeyboard } from "rn-emoji-keyboard";
-import { ActivityIndicator, BackHandler, Linking, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { ActivityIndicator, BackHandler, Keyboard, Linking, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { KeyboardController, KeyboardEvents } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useKeyboardHeight } from "@/shared/hooks/use-keyboard-height";
@@ -380,6 +380,18 @@ export function ChatComposer({
     });
     return () => sub.remove();
   }, [reserved, roomHeight]);
+  useEffect(() => {
+    // keyboard-controller can miss a keyboard that comes back by itself (back from the photo picker
+    // with the box still focused), and the panel then sat over it (seen 2026-10-29). React Native's
+    // own event still says it's up: the panel gives way. Only then: when we called the keyboard back
+    // ("toKeyboard"), keyboard-controller's event ends the slide smoothly.
+    if (mode !== "emoji") return;
+    const sub = Keyboard.addListener("keyboardDidShow", () => {
+      reserved.set(false);
+      setMode("keyboard");
+    });
+    return () => sub.remove();
+  }, [mode, reserved]);
   // Keyboard and panel together always fill one keyboard's height: as one slides away the other
   // shows, both ways, so the box stays put.
   const room = useAnimatedStyle(() => ({ height: reserved.get() ? Math.max(0, roomHeight.get() - keyboard.get()) : 0 }));
@@ -424,7 +436,17 @@ export function ChatComposer({
     input.current?.blur();
     setTimeout(() => input.current?.focus(), 0);
   };
+  // Attaching closes the panel and the keyboard, as on WhatsApp: the picker opens over the app, and
+  // nothing should come back up on its own when it closes.
+  const attach = () => {
+    reserved.set(false);
+    setMode("keyboard");
+    void KeyboardController.dismiss();
+    onAttach?.();
+  };
   const failed = uploads?.items.find((p) => p.status === "failed");
+  // Its first sentence ("We can't reach myHoodora right now."): the rest would say "try again" twice.
+  const failedWhy = failed?.error?.match(/^[^.!?]*[.!?]?/)?.[0].trim();
   const ready = !!uploads && uploads.urls.length > 0 && !uploads.failed;
   const canSend = (text.trim().length > 0 || ready) && !uploads?.uploading && !sending;
   return (
@@ -447,9 +469,9 @@ export function ChatComposer({
           </Pressable>
         </View>
       ) : null}
-      {failed ? <InlineAlert>{`${failed.kind === "document" ? (failed.name ?? "A file") : "A photo"} didn't upload: ${failed.error ?? "try again"}. Tap it to try again, or ✕ to leave it out.`}</InlineAlert> : null}
+      {failed ? <InlineAlert>{`${failed.kind === "document" ? (failed.name ?? "A file") : "A photo"} didn't upload.${failedWhy ? ` ${failedWhy}` : ""} Tap it to try again, or ✕ to leave it out.`}</InlineAlert> : null}
       <View style={styles.composerRow}>
-        {onAttach && (uploads?.room ?? 0) > 0 ? <IconButton Icon={Paperclip} label="Attach a photo or file" onPress={onAttach} /> : null}
+        {onAttach && (uploads?.room ?? 0) > 0 ? <IconButton Icon={Paperclip} label="Attach a photo or file" onPress={attach} /> : null}
         <View style={[styles.input, { backgroundColor: t.colors.muted }]}>
           <Pressable
             onPress={emoji ? showKeyboard : showEmoji}

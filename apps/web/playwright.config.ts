@@ -37,6 +37,8 @@ const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:3000";
 
 export default defineConfig({
   testDir: "./e2e",
+  // Needs a production build: run with playwright.seo.config.ts (pnpm test:e2e:seo).
+  testIgnore: "seo.spec.ts",
   timeout: 60_000,
   expect: { timeout: 10_000 },
   // One real account is shared by the signed-in tests: run them in order, never in parallel.

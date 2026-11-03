@@ -11,9 +11,9 @@ const good = {
 };
 
 describe("parseConfig", () => {
-  it("accepts a complete configuration and trims trailing slashes", () => {
+  it("accepts a complete configuration, trims trailing slashes and adds the API version", () => {
     const result = parseConfig(good);
-    expect(result.ok && result.config.apiUrl).toBe("https://api.myhoodora.test/api");
+    expect(result.ok && result.config.apiUrl).toBe("https://api.myhoodora.test/api/v1");
     expect(result.ok && result.config.appEnv).toBe("preview");
   });
 

@@ -8,6 +8,9 @@ export const ROUTES = {
   login: "/login",
   register: "/register",
   onboarding: "/onboarding",
+  confirmAge: "/confirm-age",
+  welcomeBack: "/welcome-back",
+  acceptTerms: "/accept-terms",
 
   newsFeed: "/news-feed",
   post: (id: string) => `/p/${id}`,
@@ -59,12 +62,13 @@ export const PUBLIC_PATHS = [
   "/contact",
   "/guidelines",
   "/privacy",
+  "/privacy/providers",
   "/terms",
   "/reset-password",
   "/verify-email",
 ] as const;
 // "/business/claim" is under /business but needs a signed-in user; the page itself handles that.
-export const PUBLIC_PREFIXES = ["/coming-soon", "/business"] as const;
+export const PUBLIC_PREFIXES = ["/coming-soon", "/business", "/privacy/versions", "/terms/versions"] as const;
 
 /** Auth pages a signed-in user is bounced away from. */
 export const GUEST_ONLY_PATHS = ["/login", "/register", "/forgot-password"] as const;

@@ -22,6 +22,7 @@ import { ALLOW_SUSPENDED_KEY, type Viewer } from "./viewer";
 export class AccountGuard implements CanActivate {
   private readonly strictHoodAccess: boolean;
   private readonly requireConfirmedEmail: boolean;
+  private readonly requireAgeCheck: boolean;
 
   constructor(
     private readonly reflector: Reflector,
@@ -30,6 +31,7 @@ export class AccountGuard implements CanActivate {
   ) {
     this.strictHoodAccess = config.get<boolean>("verification.strictHoodAccess") !== false;
     this.requireConfirmedEmail = config.get<boolean>("verification.requireConfirmedEmail") !== false;
+    this.requireAgeCheck = config.get<boolean>("verification.requireAgeCheck") !== false;
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -53,6 +55,7 @@ export class AccountGuard implements CanActivate {
       hoodId: (verificationStatus === "verified" || !this.strictHoodAccess ? doc?.neighborhoodId : null) || null,
       restrictedUntil: doc?.restrictedUntil ?? null,
       emailConfirmed: emailVerified || !this.requireConfirmedEmail,
+      ageConfirmed: Boolean(doc?.ageConfirmedAt) || !this.requireAgeCheck,
     } as const;
 
     const viewer: Viewer = {
@@ -67,12 +70,17 @@ export class AccountGuard implements CanActivate {
       readableHoodIds: subject.hoodId ? [subject.hoodId, ...(doc?.secondaryHoods ?? []).map((h) => h.id).filter((id) => id !== subject.hoodId)] : [],
       capabilities: doc?.deactivatedAt ? [] : capabilitiesOf(subject),
       exists: Boolean(doc),
+      ageConfirmed: subject.ageConfirmed,
     };
     req.viewer = viewer;
 
     const allowSuspended = this.reflector.getAllAndOverride<boolean>(ALLOW_SUSPENDED_KEY, [context.getHandler(), context.getClass()]);
     if (viewer.accountStatus === "suspended" && !allowSuspended) {
       throw new ForbiddenException("This account is suspended.");
+    }
+    // Closed by its owner: only the routes that let them see that and reactivate (or sign out) work.
+    if (doc?.deactivatedAt && !allowSuspended) {
+      throw new ForbiddenException("This account is deactivated. Reactivate it to use myHoodora again.");
     }
     return true;
   }
