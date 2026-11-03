@@ -1,11 +1,27 @@
 import { ApiError, FRIENDLY_MESSAGES } from "@/lib/api/client";
 
 import type { UserProfile } from "@myhoodora/api-contract/types";
+import { needsLegalAcceptance } from "@myhoodora/api-contract/legal";
 
 export type { UserProfile };
 
 // Shared with the mobile app (packages/api-contract).
 export { STAFF_ROLES, isStaff } from "@myhoodora/api-contract/roles";
+
+/** Still has to give a date of birth: nothing else in the app until they do (docs/compliance/ndpa.md §1). */
+export function needsAgeCheck(profile: Pick<UserProfile, "ageConfirmed"> | null | undefined): boolean {
+  return profile?.ageConfirmed === false;
+}
+
+/** A material change to the Terms or Privacy Policy they haven't agreed to (or a new account that never has). */
+export function needsTermsAcceptance(profile: Pick<UserProfile, "legal"> | null | undefined): boolean {
+  return needsLegalAcceptance(profile?.legal);
+}
+
+/** Closed by its owner (deactivated, or deletion scheduled): "Welcome back" before anything else. */
+export function isClosed(profile: Pick<UserProfile, "closure"> | null | undefined): boolean {
+  return !!profile?.closure;
+}
 
 /**
  * Where the signed-in user's profile stands. Kept separate from the profile

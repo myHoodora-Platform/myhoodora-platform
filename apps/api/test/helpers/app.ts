@@ -1,4 +1,5 @@
-import { INestApplication, ValidationPipe } from "@nestjs/common";
+import { applyApiVersioning } from "../../src/shared/http/versioning";
+import { INestApplication, ValidationPipe, type Type } from "@nestjs/common";
 import { getConnectionToken, getModelToken } from "@nestjs/mongoose";
 import { Test, type TestingModuleBuilder } from "@nestjs/testing";
 import { ThrottlerStorage } from "@nestjs/throttler";
@@ -19,7 +20,8 @@ export const WEBHOOK_SECRET = "whsec_" + Buffer.from("test-webhook-secret-32-byt
  * Firebase is the only stub (see firebase-mock.ts). Guards, pipes, services,
  * Mongo transactions and unique indexes all run for real.
  */
-export async function createTestApp(customise?: (builder: TestingModuleBuilder) => TestingModuleBuilder): Promise<TestApp> {
+/** `controllers`: extra ones only a test needs (a made-up v2 route, say). */
+export async function createTestApp(customise?: (builder: TestingModuleBuilder) => TestingModuleBuilder, controllers: Type[] = []): Promise<TestApp> {
   const base = process.env.TEST_MONGO_URI!;
   const dbName = `t_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const url = new URL(base);
@@ -33,10 +35,11 @@ export async function createTestApp(customise?: (builder: TestingModuleBuilder) 
   process.env.CLOUDINARY_URL = "";
   process.env.PUSH_PROVIDER = "log";
 
-  const builder = Test.createTestingModule({ imports: [AppModule] });
+  const builder = Test.createTestingModule({ imports: [AppModule], controllers });
   const moduleRef = await (customise ? customise(builder) : builder).compile();
   const app = moduleRef.createNestApplication({ rawBody: true, logger: ["error"] });
   app.setGlobalPrefix("api");
+  applyApiVersioning(app);
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
   await app.init();
   const conn = app.get<Connection>(getConnectionToken());
@@ -86,7 +89,8 @@ export class TestApp {
   }
 
   async user(uid: string, patch: Partial<User> = {}): Promise<string> {
-    await this.users.create({ uid, email: `${uid}@test.dev`, displayName: uid, ...patch });
+    // Past the age check, like everyone already using the app: pass `ageConfirmedAt: null` for someone who isn't.
+    await this.users.create({ uid, email: `${uid}@test.dev`, displayName: uid, ageConfirmedAt: new Date(), ageAssurance: "self_declared_dob", ...patch });
     return uid;
   }
 

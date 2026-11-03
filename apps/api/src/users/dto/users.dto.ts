@@ -1,5 +1,5 @@
 import { Transform, Type } from "class-transformer";
-import { IsBoolean, IsEmail, IsIn, IsLatitude, IsLongitude, IsMongoId, IsOptional, IsString, IsUrl, Length, MaxLength, ValidateIf, ValidateNested } from "class-validator";
+import { IsBoolean, IsEmail, IsIn, IsLatitude, IsLongitude, IsMongoId, IsOptional, IsString, IsUrl, Length, Matches, MaxLength, ValidateIf, ValidateNested } from "class-validator";
 
 /** PATCH /users/me — profile fields only. `neighborhoodId` is NOT accepted (security: Hood changes go through verification or staff). */
 export class UpdateMeDto {
@@ -164,11 +164,46 @@ export class BlockDto {
   uid!: string;
 }
 
+/** POST /users/me/age. Used to work out the age, then dropped: never stored. */
+export class AgeCheckDto {
+  @IsString()
+  /** "YYYY", or "YYYY-MM-DD" when the year alone can't settle it (docs/api-contract.md). */
+  @Matches(/^\d{4}(-\d{2}-\d{2})?$/, { message: "birthDate must be YYYY or YYYY-MM-DD" })
+  birthDate!: string;
+}
+
 export const DEACTIVATE_REASONS = ["moved", "not_useful", "privacy", "too_many_notifications", "negative", "few_neighbours", "duplicate", "other"] as const;
+
+/** POST /users/me/legal: agreeing to the current Terms and Privacy Policy (docs/compliance/legal-versions.md). */
+export class LegalAcceptDto {
+  /** The version they read, "YYYY-MM-DD". Must be the current one. */
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  terms!: string;
+
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  privacy!: string;
+
+  /** Where: the box on the sign-up form, or the "updated terms" screen. */
+  @IsOptional()
+  @IsIn(["signup", "prompt"])
+  via?: "signup" | "prompt";
+}
+
+export const DEACTIVATE_MODES = ["deactivate", "delete"] as const;
 
 export class DeactivateDto {
   @IsIn(DEACTIVATE_REASONS)
   reason!: (typeof DEACTIVATE_REASONS)[number];
+
+  /**
+   * "deactivate": closed until they reactivate, nothing deleted. "delete": deleted for good in 7 days
+   * unless they cancel. Left out (app builds from before the choice): delete, in 30 days, as those promised.
+   */
+  @IsOptional()
+  @IsIn(DEACTIVATE_MODES)
+  mode?: (typeof DEACTIVATE_MODES)[number];
 
   @IsOptional()
   @IsString()

@@ -17,7 +17,8 @@ import { distanceMeters } from "@/lib/geo";
 import { load, save } from "@/lib/api/mock/store";
 import { MOCK_HOOD_RADIUS_M, MOCK_NEARBY_HOODS, MOCK_NEARBY_LIMIT_M, MOCK_NEIGHBORHOOD } from "@/lib/api/mock/seed";
 import { hasSkippedOnboarding } from "@/features/onboarding/draft";
-import { isStaff } from "@/lib/auth/profile";
+import { isClosed, isStaff, needsAgeCheck, needsTermsAcceptance, parseProfile, type UserProfile } from "@/lib/auth/profile";
+import { readBirthInput, type AgeCheckResponse } from "@myhoodora/api-contract/age";
 import { DEFAULT_APP_ROUTE, ROUTES } from "@/lib/routes";
 import { requireServerSession } from "@/lib/auth/session-sync";
 
@@ -33,6 +34,7 @@ function mockProfile(user: User) {
     email: user.email,
     displayName: user.displayName ?? user.email?.split("@")[0] ?? "Neighbour",
     isOnboarded: false,
+    ageConfirmed: false,
     verificationStatus: "unverified",
     accountStatus: "active",
     emailVerified: true,
@@ -67,11 +69,17 @@ function updateMockProfile(user: User, patch: Record<string, unknown>) {
 export async function routeAfterSignIn(user: User, fallback: string): Promise<string> {
   const [, profile] = await Promise.all([
     requireServerSession(user),
-    (fetchUserProfile(user) as Promise<{ isOnboarded?: boolean; role?: string } | null>).catch((err) => {
+    (fetchUserProfile(user) as Promise<Pick<UserProfile, "isOnboarded" | "ageConfirmed" | "role" | "closure" | "legal"> | null>).catch((err) => {
       console.error("Couldn't load profile after sign-in:", err);
       return null;
     }),
   ]);
+  // A closed account first: they choose to reactivate (as on Nextdoor) before anything opens.
+  if (isClosed(profile)) return ROUTES.welcomeBack;
+  // Then, staff included: the age check can't be skipped.
+  if (needsAgeCheck(profile)) return ROUTES.confirmAge;
+  // Then the current Terms and Privacy Policy, if they haven't agreed to them (docs/compliance/legal-versions.md).
+  if (needsTermsAcceptance(profile)) return ROUTES.acceptTerms;
   if (profile && profile.isOnboarded === false) {
     if (isStaff(profile.role)) return fallback === DEFAULT_APP_ROUTE ? ROUTES.admin : fallback;
     if (!hasSkippedOnboarding(user.uid)) return ROUTES.onboarding;
@@ -293,6 +301,30 @@ export async function fetchNeighborhood(
     if (err instanceof ApiError && err.kind === "not_found") return null;
     throw err;
   }
+}
+
+/** POST /users/me/legal: agree to the current Terms and Privacy Policy (the versions on screen). */
+export async function acceptLegalApi(user: User, versions: { terms: string; privacy: string }, via: "signup" | "prompt"): Promise<UserProfile> {
+  if (USE_MOCKS) return parseProfile(updateMockProfile(user, { legal: versions }));
+  return parseProfile(await apiFetch<unknown>(user, "/users/me/legal", { method: "POST", json: { ...versions, via } }));
+}
+
+/** POST /users/me/reactivate: reopen a deactivated account, or cancel a scheduled deletion. */
+export async function reactivateApi(user: User): Promise<UserProfile> {
+  if (USE_MOCKS) return parseProfile(updateMockProfile(user, { closure: null }));
+  return parseProfile(await apiFetch<unknown>(user, "/users/me/reactivate", { method: "POST" }));
+}
+
+/** POST /users/me/age (docs/compliance/ndpa.md §1). Under 18, the account is closed by the time this returns. */
+export async function confirmAgeApi(user: User, birthDate: string): Promise<AgeCheckResponse> {
+  if (USE_MOCKS) {
+    const [year = "", month, day] = birthDate.split("-");
+    const check = readBirthInput({ year, month, day });
+    if (!check.ok) throw new ApiError(check.problem, 400, "client");
+    if (!check.adult) return { adult: false };
+    return { adult: true, profile: parseProfile(updateMockProfile(user, { ageConfirmed: true })) };
+  }
+  return apiFetch<AgeCheckResponse>(user, "/users/me/age", { method: "POST", json: { birthDate } });
 }
 
 export async function completeOnboardingApi(

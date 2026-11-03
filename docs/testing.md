@@ -71,6 +71,7 @@ Be clear about these when deciding whether a release is safe:
 - **Email delivery and password-reset emails** beyond the API's own tests.
 - **Load.** Batched broadcasts are tested with a few thousand recipients, not hundreds of thousands.
 - The **marketing long tail** (`/ai`, `/press`) still has decorative elements under AA contrast (product mock-ups and brand-colour swatches).
+- **The mobile app end to end.** It has unit and component tests but no automated device tests. Before a beta, run the two QA prompts on the iOS Simulator and the Android Emulator: [pre-beta regression](./qa/pre-beta-regression-prompt.md) and [UI/UX critique](./qa/ui-ux-critique-prompt.md).
 
 ## Writing tests
 

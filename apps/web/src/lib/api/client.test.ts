@@ -102,6 +102,29 @@ describe("apiFetch", () => {
     await expect(apiFetch(user, "/users/me")).rejects.toMatchObject({ kind: "server" });
   });
 
+  // Regression (2026-10-29): Cloudflare's "Just a moment…" page, in front of Render, was shown word for
+  // word in the app. A web page instead of our JSON is never the API's answer.
+  const cloudflarePage = '<!DOCTYPE html><html lang="en-US"><head><title>Just a moment...</title></head><body>…</body></html>';
+
+  it.each([403, 409, 429, 503])("treats a %i web page from in front of the API as not reaching myHoodora, worth retrying", async (status) => {
+    respond(cloudflarePage, status);
+    const err = (await apiFetch(user, "/support/threads/abc").catch((e: unknown) => e)) as ApiError;
+    expect(err).toMatchObject({ kind: "network", status, message: "We can't reach myHoodora right now. Try again in a moment." });
+    expect(err.isRetryable).toBe(true);
+  });
+
+  it("doesn't treat a 401 web page as an expired session (signing out would be wrong)", async () => {
+    respond("<html><body>401 Unauthorized</body></html>", 401);
+    await expect(apiFetch(user, "/users/me")).rejects.toMatchObject({ kind: "network", status: 401 });
+  });
+
+  it("shows a short plain-text reason, but not a long one", async () => {
+    respond("Bad parameter", 400);
+    await expect(apiFetch(user, "/posts")).rejects.toMatchObject({ kind: "client", message: "Bad parameter" });
+    respond("x".repeat(500), 400);
+    await expect(apiFetch(user, "/posts")).rejects.toMatchObject({ kind: "client", message: "That didn't work. Please check and try again." });
+  });
+
   it("reports an unreachable server as a network error", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
     await expect(apiFetch(user, "/users/me")).rejects.toMatchObject({ kind: "network", status: 0 });

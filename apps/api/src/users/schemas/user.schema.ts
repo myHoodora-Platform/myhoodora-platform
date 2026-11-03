@@ -67,6 +67,25 @@ export class User {
   deactivatedAt?: Date | null;
 
   /**
+   * When they passed the age check (18 or over, from the date of birth they gave). The date of
+   * birth itself is never stored: this, and how it was checked, is all we keep (data minimisation).
+   */
+  @Prop({ type: Date, default: null })
+  ageConfirmedAt?: Date | null;
+
+  /** How the age was checked. Only "self_declared_dob" today; stronger methods would add values. */
+  @Prop({ type: String, enum: ["self_declared_dob"] })
+  ageAssurance?: "self_declared_dob";
+
+  /**
+   * When the account is deleted for good (AccountDeletionService picks it up from then). Set when they
+   * choose "Delete account" (7 days on, so they can cancel), and to now when someone turns out to be
+   * under 18 (we must delete a child's data on discovery). Null while merely deactivated.
+   */
+  @Prop({ type: Date, default: null })
+  deletionDueAt?: Date | null;
+
+  /**
    * Set when the account was deleted for good, 30 days after it was deactivated
    * (AccountDeletionService). Nothing personal is left on the record by then: it remains so that
    * the uid on moderation and audit history still points at something, and can't be signed into.
@@ -74,9 +93,17 @@ export class User {
   @Prop({ type: Date, default: null })
   purgedAt?: Date | null;
 
-  /** What they told us when they deactivated. Cleared if they come back. */
-  @Prop({ type: { reason: String, details: String }, _id: false, default: null })
-  deactivation?: { reason: string; details?: string } | null;
+  /**
+   * Each time they agreed to the Terms of Use or the Privacy Policy: which version, when, and how
+   * (ticking the box at sign-up, or the "updated terms" screen). The newest of each is what counts;
+   * the rest are the record of consent (docs/compliance/legal-versions.md). Capped at LEGAL_RECORDS_KEPT.
+   */
+  @Prop({ type: [{ doc: String, version: String, at: Date, via: String }], _id: false, default: [] })
+  legalAcceptances?: { doc: "terms" | "privacy"; version: string; at: Date; via: "signup" | "prompt" }[];
+
+  /** What they told us when they left, and which way (deactivate or delete). Cleared if they come back. */
+  @Prop({ type: { reason: String, details: String, kind: String }, _id: false, default: null })
+  deactivation?: { reason: string; details?: string; kind?: "deactivate" | "delete" } | null;
 
   /**
    * When they last chose "sign out everywhere". Any token or session cookie from a sign-in before

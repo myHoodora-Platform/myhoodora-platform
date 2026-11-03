@@ -17,6 +17,9 @@ import { returnRefreshDue } from "@/lib/auth/refresh-on-return";
 import {
   fetchUserProfile,
   completeOnboardingApi,
+  confirmAgeApi,
+  reactivateApi,
+  acceptLegalApi,
   verifyLocationApi,
   previewLocationApi,
   updateProfileApi,
@@ -76,6 +79,15 @@ interface AuthContextType {
   isGatingModalOpen: boolean;
   setIsGatingModalOpen: (open: boolean) => void;
   refreshProfile: () => Promise<void>;
+  /**
+   * The age check (POST /users/me/age). True: old enough, and the profile now says so. False: under
+   * 18, and the account is closed on the server: the caller shows why, then signs this browser out.
+   */
+  confirmAge: (birthDate: string) => Promise<boolean>;
+  /** Agree to the current Terms and Privacy Policy: the "updated terms" screen's button. */
+  acceptLegal: (versions: { terms: string; privacy: string }) => Promise<void>;
+  /** Reopen a closed account (or cancel its scheduled deletion): the "Welcome back" screen's button. */
+  reactivate: () => Promise<void>;
   completeOnboarding: (payload: {
     displayName?: string;
     location?: { lat?: number; lng?: number; address?: string };
@@ -286,6 +298,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const acceptLegal = async (versions: { terms: string; privacy: string }) => {
+    if (!user) throw new ApiError(FRIENDLY_MESSAGES.auth, 401, "auth");
+    acceptProfile(user.uid, await withSessionCheck(() => acceptLegalApi(user, versions, "prompt")));
+  };
+
+  const reactivate = async () => {
+    if (!user) throw new ApiError(FRIENDLY_MESSAGES.auth, 401, "auth");
+    acceptProfile(user.uid, await withSessionCheck(() => reactivateApi(user)));
+  };
+
+  const confirmAge = async (birthDate: string) => {
+    if (!user) throw new ApiError(FRIENDLY_MESSAGES.auth, 401, "auth");
+    const result = await withSessionCheck(() => confirmAgeApi(user, birthDate));
+    if (!result.adult) return false;
+    acceptProfile(user.uid, result.profile);
+    return true;
+  };
+
   const completeOnboarding = async (payload: {
     displayName?: string;
     location?: { lat?: number; lng?: number; address?: string };
@@ -392,6 +422,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isGatingModalOpen,
         setIsGatingModalOpen,
         refreshProfile,
+        confirmAge,
+        reactivate,
+        acceptLegal,
         completeOnboarding,
         verifyLocation,
         previewLocation,

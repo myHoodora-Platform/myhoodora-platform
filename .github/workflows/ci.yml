@@ -97,12 +97,20 @@ jobs:
       - name: Playwright
         run: pnpm --filter web test:e2e:public
 
+      # robots.txt, the sitemap and noindex headers of a production build (xmllint checks the sitemap schema).
+      - name: Search engine checks
+        run: |
+          command -v xmllint || (sudo apt-get update && sudo apt-get install -y libxml2-utils)
+          pnpm --filter web test:e2e:seo
+
       - name: Upload report
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
-          path: apps/web/playwright-report
+          path: |
+            apps/web/playwright-report
+            apps/web/playwright-report-seo
           retention-days: 7
 
   secrets:

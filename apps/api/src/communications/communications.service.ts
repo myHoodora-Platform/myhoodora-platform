@@ -1,7 +1,8 @@
-import { Inject, Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable, Logger, type OnModuleInit, Optional } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import { maskEmail } from "../shared/logging/redact";
+import { AccountLifecycle } from "../users/account-lifecycle";
 import { EMAIL_PROVIDER, type EmailProvider } from "./providers/providers";
 import { Communication, CommunicationDocument, type CommunicationStatus } from "./schemas/communication.schema";
 import type { RenderedEmail } from "./templates/email-templates";
@@ -46,13 +47,22 @@ const EVENT_STATUS: Record<string, CommunicationStatus | undefined> = {
  * the calling use case — a failed email must not roll back a registration.
  */
 @Injectable()
-export class CommunicationsService {
+export class CommunicationsService implements OnModuleInit {
   private readonly logger = new Logger(CommunicationsService.name);
 
   constructor(
     @Inject(EMAIL_PROVIDER) private readonly email: EmailProvider,
     @InjectModel(Communication.name) private readonly comms: Model<CommunicationDocument>,
+    @Optional() private readonly accounts?: AccountLifecycle,
   ) {}
+
+  /** Account deletion: the record of every email sent to them goes too (it holds no address, but it is theirs). */
+  onModuleInit() {
+    this.accounts?.register({
+      name: "communications",
+      purge: async (uid, dryRun) => ({ communications: dryRun ? await this.comms.countDocuments({ uid }).exec() : (await this.comms.deleteMany({ uid }).exec()).deletedCount }),
+    });
+  }
 
   async sendEmail(input: SendEmailInput): Promise<CommunicationDocument | null> {
     let row: CommunicationDocument;

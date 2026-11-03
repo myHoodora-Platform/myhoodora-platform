@@ -57,7 +57,8 @@ export function GetStartedFlow() {
   const { register, handleSubmit, trigger, watch, setValue, formState } = useForm<Values>({
     resolver: zodResolver(schema),
     mode: "onTouched",
-    defaultValues: { areasServed: [], wantsAdsUpdates: wantsAds, agree: false, category: "" },
+    // Never ticked for them, even arriving from "Local Ads": marketing needs its own yes (docs/compliance/ndpa.md §5).
+    defaultValues: { areasServed: [], wantsAdsUpdates: false, agree: false, category: "" },
   });
   const { errors, isSubmitting } = formState;
   const areas = watch("areasServed");
@@ -218,7 +219,10 @@ export function GetStartedFlow() {
             </Field>
             <label className="flex items-start gap-3 text-sm">
               <input type="checkbox" {...register("wantsAdsUpdates")} className="mt-0.5 size-4 accent-[var(--primary)]" />
-              Tell me when Local Ads launch
+              <span>
+                Email me when Local Ads launch <span className="text-muted-foreground">(optional, unsubscribe any time)</span>
+                {wantsAds && <span className="block text-xs text-muted-foreground">You came here about Local Ads: tick this to hear first.</span>}
+              </span>
             </label>
             <label className="flex items-start gap-3 text-sm">
               <input type="checkbox" {...register("agree")} className="mt-0.5 size-4 accent-[var(--primary)]" />

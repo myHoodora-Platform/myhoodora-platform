@@ -111,21 +111,22 @@ export async function submitFeedback(user: User, input: FeedbackInput): Promise<
 }
 
 export { DEACTIVATION_REASONS, type DeactivationReason } from "@myhoodora/api-contract/settings";
-import type { DeactivationReason } from "@myhoodora/api-contract/settings";
-
+import type { CloseMode, DeactivationReason } from "@myhoodora/api-contract/settings";
+export { DELETION_GRACE_DAYS, type CloseMode } from "@myhoodora/api-contract/settings";
 
 /**
- * live: POST /users/me/deactivate { reason, details } — hides the profile
- * and posts; the account can be restored by logging in again within 30 days.
- * Returns whether the account was really deactivated (false in preview).
+ * live: POST /users/me/deactivate { reason, details, mode }. Either way the account closes now (profile
+ * and posts hidden, every session ended). "deactivate": until they reactivate. "delete": deleted for
+ * good in 7 days unless they reactivate first. Returns whether it really happened (false in preview).
  */
 export async function deactivateAccount(
   user: User,
   reason: DeactivationReason,
-  details?: string,
+  details: string | undefined,
+  mode: CloseMode,
 ): Promise<boolean> {
   if (isLive("settings")) {
-    await apiFetch<void>(user, "/users/me/deactivate", { method: "POST", json: { reason, details } });
+    await apiFetch<void>(user, "/users/me/deactivate", { method: "POST", json: { reason, details, mode } });
     return true;
   }
   await latency(400);

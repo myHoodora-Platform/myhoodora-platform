@@ -3,7 +3,7 @@ import { ArrayMaxSize, IsArray, IsBoolean, IsEmail, IsIn, IsOptional, IsString, 
 import { INBOX_PRIORITIES, INBOX_SOURCES, INBOX_STATUSES } from "./inbound.schemas";
 import { PageQuery } from "../shared/http/pagination";
 
-export const CONTACT_TOPICS = ["general", "account", "safety", "business", "press", "partnerships", "ai"] as const;
+export const CONTACT_TOPICS = ["general", "account", "privacy", "safety", "business", "press", "partnerships", "ai"] as const;
 export const TALENT_TEAMS = ["engineering", "design", "community", "growth", "operations"] as const;
 export const INSTITUTION_TYPES = ["primary", "secondary", "university", "online", "corporate", "other"] as const;
 export const SUPPORT_TOPICS = ["account", "verification", "safety", "bug", "other"] as const;

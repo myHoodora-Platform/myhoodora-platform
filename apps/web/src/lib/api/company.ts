@@ -7,6 +7,7 @@ import { latency, load, mockId, save } from "./mock/store";
 export const CONTACT_TOPICS = [
   { id: "general", label: "General question" },
   { id: "account", label: "Account & verification" },
+  { id: "privacy", label: "Privacy & data request" },
   { id: "safety", label: "Safety concern" },
   { id: "business", label: "Business Pages & estates" },
   { id: "press", label: "Press & media" },

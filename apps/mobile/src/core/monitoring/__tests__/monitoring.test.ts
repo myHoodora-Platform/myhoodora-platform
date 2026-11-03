@@ -1,8 +1,8 @@
 import * as Sentry from "@sentry/react-native";
-import { crashNatively, initMonitoring, monitoringEnabled, reportError, sendTestError, setMonitoringUser, TEST_PII } from "../monitoring";
+import { EDGE_PAGE_REPORT_EVERY_MS, crashNatively, initMonitoring, monitoringEnabled, reportEdgePage, reportError, sendTestError, setMonitoringUser, TEST_PII } from "../monitoring";
 import { scrubBreadcrumb, scrubEvent } from "../scrub";
 
-jest.mock("@sentry/react-native", () => ({ init: jest.fn(), setTags: jest.fn(), setUser: jest.fn(), captureException: jest.fn(), addBreadcrumb: jest.fn(), nativeCrash: jest.fn() }));
+jest.mock("@sentry/react-native", () => ({ init: jest.fn(), setTags: jest.fn(), setUser: jest.fn(), captureException: jest.fn(), captureMessage: jest.fn(), addBreadcrumb: jest.fn(), nativeCrash: jest.fn() }));
 jest.mock("expo-application", () => ({ nativeApplicationVersion: "1.0.0", nativeBuildVersion: "42" }));
 
 const DSN = "https://public@o1.ingest.sentry.io/1";
@@ -57,6 +57,31 @@ describe("initMonitoring", () => {
     initMonitoring({ appEnv: "production", sentryDsn: DSN });
     const { beforeSend } = (Sentry.init as jest.Mock).mock.calls[0][0];
     expect(beforeSend({ type: undefined, user: { id: "u", email: "a@b.co" } }).user).toEqual({ id: "u" });
+  });
+});
+
+describe("reportEdgePage", () => {
+  const page = { status: 403, host: "api.myhoodora.com", route: "/api/feed", server: "cloudflare", mitigated: "challenge", ray: "8f1a2b3c4d5e6f70-LOS" };
+
+  it("reports a web page in place of the API as a warning, at most once every 10 minutes", () => {
+    initMonitoring({ appEnv: "production", sentryDsn: DSN });
+    reportEdgePage(page, 1_000_000);
+    expect(Sentry.captureMessage).toHaveBeenCalledWith("A web page instead of the API (403)", {
+      level: "warning",
+      tags: { where: "api-edge-page", status: "403", host: "api.myhoodora.com", route: "/api/feed", server: "cloudflare", cf_mitigated: "challenge" },
+      extra: { cf_ray: "8f1a2b3c4d5e6f70-LOS" },
+    });
+    reportEdgePage({ ...page, status: 503 }, 1_000_000 + EDGE_PAGE_REPORT_EVERY_MS - 1);
+    expect(Sentry.captureMessage).toHaveBeenCalledTimes(1);
+    reportEdgePage({ ...page, mitigated: null, server: null }, 1_000_000 + EDGE_PAGE_REPORT_EVERY_MS);
+    expect(Sentry.captureMessage).toHaveBeenCalledTimes(2);
+    expect((Sentry.captureMessage as jest.Mock).mock.calls[1][1].tags).toMatchObject({ server: "none", cf_mitigated: "none" });
+  });
+
+  it("sends nothing in development", () => {
+    initMonitoring({ appEnv: "development", sentryDsn: DSN });
+    reportEdgePage(page, 9_000_000_000);
+    expect(Sentry.captureMessage).not.toHaveBeenCalled();
   });
 });
 

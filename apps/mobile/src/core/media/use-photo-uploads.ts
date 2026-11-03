@@ -1,7 +1,7 @@
 import { errorMessage } from "@myhoodora/api-contract/errors";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSignedInUser } from "@/core/auth/auth-provider";
-import { deleteMedia, preparePhoto, uploadDocument, uploadPhoto, type MediaPurpose, type PickedDocument, type PickedPhoto } from "./media";
+import { deleteMedia, preparePhoto, uploadDocument, uploadPhoto, uploadWithRetry, type MediaPurpose, type PickedDocument, type PickedPhoto } from "./media";
 
 export interface PhotoItem {
   key: string;
@@ -47,7 +47,9 @@ export function usePhotoUploads(purpose: MediaPurpose, max: number) {
       if (!source) return;
       patch(key, { status: "uploading", error: undefined });
       try {
-        const media = "photo" in source ? await uploadPhoto(user, await preparePhoto(source.photo), purpose) : await uploadDocument(user, source.document, purpose);
+        // Shrunk once; a quiet second try (after a blip) sends the same file.
+        const prepared = "photo" in source ? await preparePhoto(source.photo) : null;
+        const media = await uploadWithRetry(() => ("photo" in source ? uploadPhoto(user, prepared!, purpose) : uploadDocument(user, source.document, purpose)));
         // Removed while it was uploading: don't leave it in storage.
         if (!sources.current.has(key)) return void deleteMedia(user, media.id);
         patch(key, { status: "done", url: media.url, id: media.id });

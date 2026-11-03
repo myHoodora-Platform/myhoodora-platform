@@ -78,7 +78,8 @@ export function TermsContent() {
 
       <LegalSection title="8. Leaving or being removed">
         <p>
-          You can deactivate your account at any time in Settings → Account. We may suspend or close accounts that
+          You can leave at any time in Settings → Account: deactivate your account (log in and reactivate it whenever
+          you like), or delete it (deleted for good after 7 days, unless you log in and cancel before then). We may suspend or close accounts that
           break these terms, put others at risk, or that we&apos;re legally required to remove. Where we can, we&apos;ll
           tell you why.
         </p>
