@@ -1055,6 +1055,16 @@ Support messages carry photos and PDFs both ways, so the team can ask for a docu
 - Messages return `attachments?: { url, kind: "image" | "document", name?, bytes? }[]`. A message that is only files previews as "📷 Photo", "📎 <name>" or "📎 N files".
 - The unused-file sweep keeps any file a support message carries (reference source `support`).
 
+### The team's welcome (2026-10-29)
+
+Every new neighbour gets a welcome from the team in **myHoodora Support**, with an in-app notification and a push.
+
+- **When:** the first time `PATCH /users/me/onboarding` finishes someone's onboarding, the API queues the job `support.welcome`, due `SUPPORT_WELCOME_DELAY_MINUTES` later (default 3). That leaves time for the app to register the phone (§30), so the welcome also arrives as a push. Onboarding again queues nothing.
+- **What:** a thread with `source: "staff"`, `kind`/`topic: "welcome"`, subject "Welcome to myHoodora", one message `by: "myHoodora team"`. The message greets them by first name, says the conversation reaches the team, and lists first steps. "Confirm your address" is only included when they aren't verified yet.
+- **Reaching them:** the `support.message` live event and a `system` notification ("Welcome to myHoodora", linking to `/inbox/support/<id>`). That notification has no category, so it's always pushed. There's no email, because sign-up already sent one.
+- **The team's inbox:** the thread starts `resolved`, so welcomes don't pile up there. A reply from the neighbour sets it `open`, like any conversation.
+- **Once per person, ever:** the job's dedupe key and a check for an existing `welcome` thread make it safe to run again. Nothing is sent to someone who deactivated or was deleted before it was due. `SUPPORT_WELCOME=off` turns it off.
+
 ---
 
 ## 19. Real-time (2026-09-30)
