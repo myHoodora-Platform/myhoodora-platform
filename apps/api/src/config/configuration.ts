@@ -22,6 +22,12 @@ function positiveInt(value: string | undefined, fallback: number): number {
   return Number.isInteger(requested) && requested >= 1 ? requested : fallback;
 }
 
+/** Minutes → ms: 0 to a day; anything else falls back to the default. */
+function minutesMs(value: string | undefined, fallback: number): number {
+  const requested = value === undefined || value.trim() === "" ? fallback : Number(value);
+  return (Number.isFinite(requested) && requested >= 0 && requested <= 1440 ? requested : fallback) * 60_000;
+}
+
 /** Seconds → ms, 30 s by default, never negative and never more than 5 minutes. */
 function revocationCacheMs(seconds: string | undefined): number {
   const requested = seconds === undefined || seconds.trim() === "" ? 30 : Number(seconds);
@@ -79,6 +85,17 @@ export default () => ({
     provider: (process.env.PUSH_PROVIDER?.trim() || "expo").toLowerCase(),
     /** Only needed when "enhanced push security" is on in the Expo project. Server-side only. */
     expoAccessToken: process.env.EXPO_ACCESS_TOKEN?.trim() || undefined,
+  },
+
+  /** The team's welcome to every new neighbour, in their support conversations (docs/api-contract.md §18). */
+  supportWelcome: {
+    /** SUPPORT_WELCOME=off stops it. */
+    enabled: process.env.SUPPORT_WELCOME?.trim().toLowerCase() !== "off",
+    /**
+     * How long after someone finishes onboarding (SUPPORT_WELCOME_DELAY_MINUTES, default 3): long
+     * enough for the app to have registered the phone, so the welcome also arrives as a push.
+     */
+    delayMs: minutesMs(process.env.SUPPORT_WELCOME_DELAY_MINUTES, 3),
   },
 
   /** Address verification (docs/api-contract.md §16). */
