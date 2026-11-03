@@ -1,4 +1,5 @@
 import { BadRequestException, HttpException, HttpStatus, Injectable, NotFoundException, type OnModuleInit } from "@nestjs/common";
+import { AccountLifecycle } from "../users/account-lifecycle";
 import { ConfigService } from "@nestjs/config";
 import { InjectModel } from "@nestjs/mongoose";
 import { createHash } from "node:crypto";
@@ -84,11 +85,18 @@ export class InboundService implements OnModuleInit {
     private readonly config: ConfigService,
     private readonly realtime: RealtimeService,
     private readonly storage: StorageService,
+    private readonly accounts: AccountLifecycle,
     private readonly jobs: JobsService,
   ) {}
 
   /** Attachments stay stored while a support message carries them (StorageService.sweepUnreferenced). */
   onModuleInit() {
+    // Account deletion: support conversations they started while signed in (their name, email and words).
+    // A message sent signed out has no uid to find it by: staff delete those on request.
+    this.accounts.register({
+      name: "support",
+      purge: async (uid, dryRun) => ({ supportMessages: dryRun ? await this.inbound.countDocuments({ uid }).exec() : (await this.inbound.deleteMany({ uid }).exec()).deletedCount }),
+    });
     this.jobs.register(SUPPORT_WELCOME_JOB, (payload) => this.sendWelcome(String(payload.uid)));
     this.storage.registerReferenceSource({
       name: "support",
@@ -238,7 +246,8 @@ export class InboundService implements OnModuleInit {
       name: dto.name.trim(),
       email: dto.email,
       organisation: dto.organisation,
-      priority: dto.topic === "safety" ? "high" : "normal",
+      // Privacy requests have a legal deadline (docs/compliance/ndpa.md §6), so they go to the top too.
+      priority: dto.topic === "safety" || dto.topic === "privacy" ? "high" : "normal",
       messages: [{ from: "user", body: dto.message.trim(), at: new Date() }],
     });
     await this.comms.sendEmail({
@@ -250,7 +259,9 @@ export class InboundService implements OnModuleInit {
         paragraphs: [
           dto.topic === "safety"
             ? "Thanks for telling us. Our trust and safety team reads these first and will get back to you as soon as possible. If anyone is in immediate danger, call 112 or 767 (Lagos emergency) now."
-            : "Thanks for getting in touch. A member of the team will reply to this address, usually within two working days.",
+            : dto.topic === "privacy"
+              ? "Thanks for your privacy request. Our Data Protection Officer will reply to this address, within the time the law allows. We may ask you to confirm it's you before we share or change anything."
+              : "Thanks for getting in touch. A member of the team will reply to this address, usually within two working days.",
         ],
         footer: PUBLIC_FOOTER,
       }),

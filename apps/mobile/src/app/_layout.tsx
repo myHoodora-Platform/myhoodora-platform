@@ -56,6 +56,15 @@ function RootNavigator() {
         <Stack.Protected guard={phase === "profileError"}>
           <Stack.Screen name="session-error" />
         </Stack.Protected>
+        <Stack.Protected guard={phase === "closed"}>
+          <Stack.Screen name="welcome-back" options={{ gestureEnabled: false }} />
+        </Stack.Protected>
+        <Stack.Protected guard={phase === "needsAgeCheck"}>
+          <Stack.Screen name="confirm-age" options={{ gestureEnabled: false }} />
+        </Stack.Protected>
+        <Stack.Protected guard={phase === "needsTerms"}>
+          <Stack.Screen name="accept-terms" options={{ gestureEnabled: false }} />
+        </Stack.Protected>
         {/* Also open to onboarded people who haven't verified yet (the feed's "Finish joining"). */}
         <Stack.Protected guard={phase === "needsOnboarding" || phase === "ready"}>
           <Stack.Screen name="onboarding" options={{ gestureEnabled: phase === "ready" }} />

@@ -1,4 +1,5 @@
 import type { User } from "@firebase/auth";
+import { ApiError } from "@myhoodora/api-contract/errors";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
@@ -56,6 +57,24 @@ export async function preparePhoto(photo: PickedPhoto): Promise<string> {
   const image = await context.renderAsync();
   const saved = await image.saveAsync({ compress: 0.82, format: SaveFormat.JPEG });
   return saved.uri;
+}
+
+/** How long before an upload's one quiet second try. */
+export const UPLOAD_RETRY_DELAY_MS = 2000;
+
+/**
+ * Sends, and after a quick failure (the connection dropped, Cloudflare's check in front of the API,
+ * the API restarting) tries once more before the person has to. Not after a timeout (they've already
+ * waited) or offline (it would fail again), and never after the API said no.
+ */
+export async function uploadWithRetry<T>(send: () => Promise<T>, wait: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms))): Promise<T> {
+  try {
+    return await send();
+  } catch (err) {
+    if (!(err instanceof ApiError) || (err.kind !== "network" && err.kind !== "server")) throw err;
+    await wait(UPLOAD_RETRY_DELAY_MS);
+    return send();
+  }
 }
 
 /** `POST /media` (multipart): the API checks the real type, resizes and strips metadata again. */

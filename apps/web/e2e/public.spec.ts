@@ -179,17 +179,19 @@ test.describe("Google sign-in", () => {
 });
 
 test.describe("search engines and link previews", () => {
-  test("robots.txt keeps crawlers out of the signed-in app and points at the sitemap", async ({ request }) => {
+  // The dev server isn't the production site: it is kept out of search entirely. The production
+  // robots.txt and sitemap are checked against a production build in seo.spec.ts.
+  test("robots.txt keeps crawlers off a site that isn't production", async ({ request }) => {
     const robots = await (await request.get("/robots.txt")).text();
-    expect(robots).toContain("Disallow: /news-feed");
-    expect(robots).toContain("Disallow: /admin");
-    expect(robots).toMatch(/Sitemap: https?:\/\/.+\/sitemap\.xml/);
+    expect(robots).toMatch(/^Disallow: \/$/m);
+    expect(robots).not.toContain("Sitemap:");
+    expect((await request.get("/about")).headers()["x-robots-tag"]).toBe("noindex");
   });
 
   test("the sitemap lists public pages only", async ({ request }) => {
     const sitemap = await (await request.get("/sitemap.xml")).text();
     for (const path of ["/about", "/privacy", "/terms", "/business"]) expect(sitemap).toContain(`${path}</loc>`);
-    for (const path of ["/news-feed", "/admin", "/settings", "/onboarding"]) expect(sitemap).not.toContain(path);
+    for (const path of ["/news-feed", "/admin", "/settings", "/onboarding", "/login", "/register"]) expect(sitemap).not.toContain(path);
   });
 
   test("a public page has its own title, canonical URL and preview card", async ({ page }) => {

@@ -1,3 +1,4 @@
+import { needsLegalAcceptance } from "@myhoodora/api-contract/legal";
 import type { UserProfile } from "@myhoodora/api-contract/types";
 
 /**
@@ -10,6 +11,9 @@ export type SessionPhase =
   | "signedOut"
   | "profileLoading" // signed in; GET /users/me in flight
   | "profileError" // signed in, but the profile couldn't be loaded (offline, 5xx): retry, stay signed in
+  | "closed" // signed in to an account they closed (deactivated, or deletion scheduled): reactivate or sign out
+  | "needsAgeCheck" // signed in, hasn't given a date of birth yet: before onboarding, and it can't be skipped
+  | "needsTerms" // signed in, hasn't agreed to the current Terms and Privacy Policy (docs/compliance/legal-versions.md)
   | "needsOnboarding" // signed in, profile says not onboarded (and they haven't chosen "Skip for now")
   | "ready";
 
@@ -30,7 +34,15 @@ export function sessionPhase({ authReady, introSeen, signedIn, profileStatus, pr
   if (!authReady || introSeen === null) return "bootstrapping";
   if (!signedIn) return introSeen ? "signedOut" : "intro";
   // A profile already on screen stays usable while a refresh is in flight or has failed.
-  if (profile) return profile.isOnboarded || onboardingSkipped ? "ready" : "needsOnboarding";
+  if (profile) {
+    // Signing in doesn't reopen a closed account (as on Nextdoor): they choose to, first.
+    if (profile.closure) return "closed";
+    // Missing (an older API): not asked. False: nothing else until they answer (docs/compliance/ndpa.md §1).
+    if (profile.ageConfirmed === false) return "needsAgeCheck";
+    // A material change they haven't agreed to, or a new account (a Google sign-up) that never has.
+    if (needsLegalAcceptance(profile.legal)) return "needsTerms";
+    return profile.isOnboarded || onboardingSkipped ? "ready" : "needsOnboarding";
+  }
   if (profileStatus === "error") return "profileError";
   return "profileLoading";
 }

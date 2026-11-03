@@ -1,4 +1,5 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, type OnModuleInit } from "@nestjs/common";
+import { AccountLifecycle } from "../users/account-lifecycle";
 import { InjectConnection, InjectModel } from "@nestjs/mongoose";
 import { Connection, Model, Types, type QueryFilter } from "mongoose";
 import { AuditService } from "../audit/audit.service";
@@ -60,7 +61,7 @@ type Row = HoodRequest & { _id: Types.ObjectId };
  * conversation, and can later remove a secondary Hood. Neighbours never change Hoods themselves.
  */
 @Injectable()
-export class HoodRequestsService {
+export class HoodRequestsService implements OnModuleInit {
   constructor(
     @InjectModel(HoodRequest.name) private readonly requests: Model<HoodRequestDocument>,
     @InjectModel(User.name) private readonly users: Model<UserDocument>,
@@ -71,7 +72,16 @@ export class HoodRequestsService {
     private readonly notifications: NotificationsService,
     private readonly realtime: RealtimeService,
     private readonly audit: AuditService,
+    private readonly accounts: AccountLifecycle,
   ) {}
+
+  /** Account deletion: their requests carry where they live and what they wrote to staff. */
+  onModuleInit() {
+    this.accounts.register({
+      name: "hood requests",
+      purge: async (uid, dryRun) => ({ hoodRequests: dryRun ? await this.requests.countDocuments({ uid }).exec() : (await this.requests.deleteMany({ uid }).exec()).deletedCount }),
+    });
+  }
 
   // ── The neighbour ─────────────────────────────────────────────────────────
 

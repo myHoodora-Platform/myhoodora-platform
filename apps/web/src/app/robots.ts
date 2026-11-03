@@ -1,44 +1,20 @@
 import type { MetadataRoute } from "next";
 import { SITE_URL } from "@/lib/site";
+import { isIndexable } from "@/lib/site-env";
 
 /**
- * Only the marketing and legal pages are for search engines. Everything a
- * neighbour sees after signing in is private to their Hood (and behind the
- * proxy anyway), so crawlers are told not to try.
+ * Production: crawl everything but the API. Nothing else is blocked here on
+ * purpose. The signed-in app, admin and auth utility pages are kept out of
+ * results by sign-in and noindex instead, and a crawler can only see a noindex
+ * on a page it may fetch. Listing them would also map the app for anyone
+ * reading this file.
+ *
+ * Previews, staging and local builds: nothing (see site-env.js).
  */
 export default function robots(): MetadataRoute.Robots {
+  if (!isIndexable()) return { rules: [{ userAgent: "*", disallow: "/" }] };
   return {
-    rules: [
-      {
-        userAgent: "*",
-        allow: "/",
-        disallow: [
-          "/api/",
-          "/admin",
-          "/onboarding",
-          "/news-feed",
-          "/alerts",
-          "/events",
-          "/for-sale",
-          "/groups",
-          "/g/",
-          "/p/",
-          "/inbox",
-          "/notifications",
-          "/profile/",
-          "/search",
-          "/settings",
-          "/leads",
-          "/help",
-          "/dashboard",
-          "/forgot-password",
-          "/reset-password",
-          "/verify-email",
-          "/business/claim",
-        ],
-      },
-    ],
+    rules: [{ userAgent: "*", allow: "/", disallow: "/api/" }],
     sitemap: `${SITE_URL}/sitemap.xml`,
-    host: SITE_URL,
   };
 }

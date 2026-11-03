@@ -1,8 +1,8 @@
-import { DEACTIVATION_REASONS, type DeactivationReason } from "@myhoodora/api-contract/settings";
+import { DEACTIVATION_REASONS, DELETION_GRACE_DAYS, type CloseMode, type DeactivationReason } from "@myhoodora/api-contract/settings";
 import { errorMessage } from "@myhoodora/api-contract/errors";
 import Constants from "expo-constants";
 import { useRouter } from "@/core/navigation/use-router";
-import { BellRing, BookOpen, FileText, HelpCircle, LayoutList, LifeBuoy, LogOut, Lock, MapPinned, MonitorSmartphone, ShieldCheck, SlidersHorizontal, UserX, Scale, Compass } from "lucide-react-native";
+import { BellRing, BookOpen, FileText, HelpCircle, LayoutList, LifeBuoy, LogOut, Lock, MapPinned, MonitorSmartphone, PauseCircle, ShieldCheck, SlidersHorizontal, UserX, Scale, Compass } from "lucide-react-native";
 import { useState } from "react";
 import {ScrollView, StyleSheet, View } from "react-native";
 import { useAuth, useSignedInUser } from "@/core/auth/auth-provider";
@@ -40,7 +40,7 @@ function SettingsContent() {
   const { profile, logout, logoutEverywhere } = useAuth();
   const push = usePushSetting();
   const { surface, setSurface, theme, setTheme } = useAppearance();
-  const [leaving, setLeaving] = useState(false);
+  const [leaving, setLeaving] = useState<CloseMode | null>(null);
   const web = (path: string) => void openWeb(path);
 
   const confirmLogout = () =>
@@ -55,19 +55,23 @@ function SettingsContent() {
       { text: "Sign out everywhere", style: "destructive", onPress: () => void logoutEverywhere().catch((err: unknown) => toast(errorMessage(err), "error")) },
     ]);
 
-  const confirmDeactivate = (reason: DeactivationReason) => {
-    setLeaving(false);
+  // As on Nextdoor, and as on the web: deactivating is undone by reactivating; deleting is for good.
+  const confirmClose = (mode: CloseMode, reason: DeactivationReason) => {
+    setLeaving(null);
+    const deleting = mode === "delete";
     showDialog(
-      "Deactivate your account?",
-      "Your profile, posts and listings will be hidden and you'll be signed out everywhere. Log in again within 30 days to bring it all back; after that it's deleted.",
+      deleting ? "Delete your account for good?" : "Deactivate your account?",
+      deleting
+        ? `Neighbours stop seeing your profile, posts, listings and comments now, and you're signed out everywhere. After ${DELETION_GRACE_DAYS} days we delete them for good, with your photos, address, groups and settings. This can't be undone. Messages you sent stay in the other person's chat, from "Deleted User". Changed your mind? Log in before then and cancel.`
+        : "Neighbours stop seeing your profile, posts, listings and comments, you stop getting emails and notifications, and you're signed out everywhere. Nothing is deleted: log in any time and choose Reactivate.",
       [
         { text: "Keep my account", style: "cancel" },
         {
-          text: "Deactivate",
+          text: deleting ? "Delete my account" : "Deactivate",
           style: "destructive",
           onPress: async () => {
             try {
-              await deactivate(user, reason);
+              await deactivate(user, reason, mode);
               await logout();
             } catch (err) {
               toast(errorMessage(err), "error");
@@ -159,7 +163,8 @@ function SettingsContent() {
       <SettingsGroup title="Account">
         <SettingsRow Icon={LogOut} label="Log out" onPress={confirmLogout} />
         <SettingsRow Icon={MonitorSmartphone} label="Sign out everywhere" description="Every phone and browser, this one included" onPress={confirmEverywhere} />
-        <SettingsRow Icon={UserX} label="Deactivate account" destructive onPress={() => setLeaving(true)} />
+        <SettingsRow Icon={PauseCircle} label="Deactivate account" description="Take a break. Nothing is deleted" onPress={() => setLeaving("deactivate")} />
+        <SettingsRow Icon={UserX} label="Delete account" description={`Deleted for good after ${DELETION_GRACE_DAYS} days`} destructive onPress={() => setLeaving("delete")} />
       </SettingsGroup>
 
       {__DEV__ || config().qaTools ? (
@@ -173,9 +178,9 @@ function SettingsContent() {
         myHoodora {Constants.expoConfig?.version} · {config().appEnv}
       </Text>
 
-      <Sheet visible={leaving} title="Why are you leaving?" onClose={() => setLeaving(false)}>
+      <Sheet visible={leaving !== null} title="Why are you leaving?" onClose={() => setLeaving(null)}>
         {DEACTIVATION_REASONS.map((r) => (
-          <SheetItem key={r.id} label={r.label} onPress={() => confirmDeactivate(r.id)} />
+          <SheetItem key={r.id} label={r.label} onPress={() => leaving && confirmClose(leaving, r.id)} />
         ))}
       </Sheet>
     </ScrollView>

@@ -11,7 +11,7 @@ import { ResponsiveModal } from "@/components/shared/responsive-modal";
 import { useAuth } from "@/context/AuthContext";
 import { errorMessage } from "@/lib/api/client";
 import { resetUserPassword } from "@/lib/firebase/auth";
-import { DEACTIVATION_REASONS, deactivateAccount, type DeactivationReason } from "@/lib/api/settings";
+import { DEACTIVATION_REASONS, DELETION_GRACE_DAYS, deactivateAccount, type CloseMode, type DeactivationReason } from "@/lib/api/settings";
 import { ROUTES } from "@/lib/routes";
 import { THEME_OPTIONS, readThemePreference, saveThemePreference, type ThemePreference } from "@/lib/theme";
 import { Segmented, SettingsRow, SettingsSection } from "./ui";
@@ -22,39 +22,66 @@ const PROVIDER_LABELS: Record<string, string> = {
   "apple.com": "Apple",
 };
 
-function DeactivateDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+/** What each way of leaving says, as on Nextdoor: deactivating is undone by reactivating; deleting is for good. */
+const CLOSE_COPY: Record<CloseMode, { title: string; description: string; points: string[]; confirm: string; done: string }> = {
+  deactivate: {
+    title: "Deactivate your account?",
+    description: "Take a break. Nothing is deleted: log in any time and choose Reactivate to pick up where you left off.",
+    points: [
+      "Neighbours stop seeing your profile, posts, listings and comments straight away.",
+      "You stop getting emails and notifications from myHoodora.",
+      "Everything stays as it was until you come back.",
+    ],
+    confirm: "Deactivate my account",
+    done: "Your account is deactivated. Log in any time to reactivate it.",
+  },
+  delete: {
+    title: "Delete your account for good?",
+    description: `Your account closes now and is deleted for good in ${DELETION_GRACE_DAYS} days. Changed your mind? Log in before then and cancel.`,
+    points: [
+      "Neighbours stop seeing your profile, posts, listings and comments straight away.",
+      `After ${DELETION_GRACE_DAYS} days we delete them, with your photos, address, groups, notifications and settings. This can't be undone.`,
+      "Messages you sent stay in the other person's chat, from “Deleted User”.",
+    ],
+    confirm: "Delete my account",
+    done: `Your account is closed and will be deleted in ${DELETION_GRACE_DAYS} days.`,
+  },
+};
+
+function CloseAccountDialog({ mode, onClose }: { mode: CloseMode | null; onClose: () => void }) {
   const { user } = useAuth();
   const [reason, setReason] = useState<DeactivationReason | null>(null);
   const [details, setDetails] = useState("");
   const [busy, setBusy] = useState(false);
+  const copy = CLOSE_COPY[mode ?? "deactivate"];
 
   const confirm = async () => {
-    if (!user || !reason) return;
+    if (!user || !reason || !mode) return;
     setBusy(true);
     try {
-      const done = await deactivateAccount(user, reason, details.trim() || undefined);
+      const done = await deactivateAccount(user, reason, details.trim() || undefined, mode);
       if (done) {
-        toast.success("Your account has been deactivated.");
+        toast.success(copy.done);
         window.location.href = "/";
       } else {
-        toast.info("Preview mode: accounts aren't really deactivated here, so nothing was changed.");
-        onOpenChange(false);
+        toast.info("Preview mode: accounts aren't really closed here, so nothing was changed.");
+        onClose();
       }
     } catch (err) {
-      toast.error(errorMessage(err, "Couldn't deactivate your account."));
+      toast.error(errorMessage(err, mode === "delete" ? "Couldn't delete your account." : "Couldn't deactivate your account."));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <ResponsiveModal
-      open={open}
-      onOpenChange={onOpenChange}
-      title="Deactivate your account?"
-      description="Your profile and posts will be hidden from neighbours. Log back in within 30 days to restore everything."
-    >
+    <ResponsiveModal open={mode !== null} onOpenChange={(o) => !o && onClose()} title={copy.title} description={copy.description}>
       <div className="space-y-4">
+        <ul className="list-disc space-y-1 rounded-xl bg-muted/50 py-3 pl-8 pr-3 text-sm text-muted-foreground">
+          {copy.points.map((p) => (
+            <li key={p}>{p}</li>
+          ))}
+        </ul>
         <fieldset className="space-y-2">
           <legend className="text-sm font-semibold">Why are you leaving?</legend>
           {DEACTIVATION_REASONS.map((r) => (
@@ -65,20 +92,25 @@ function DeactivateDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
                 reason === r.id && "border-primary bg-primary/5",
               )}
             >
-              <input type="radio" name="deactivate-reason" checked={reason === r.id} onChange={() => setReason(r.id)} className="size-4 accent-[var(--primary)]" />
+              <input type="radio" name="close-reason" checked={reason === r.id} onChange={() => setReason(r.id)} className="size-4 accent-[var(--primary)]" />
               {r.label}
             </label>
           ))}
         </fieldset>
-        <Field label="Anything we could do better?" htmlFor="deactivate-details" optional>
-          <textarea id="deactivate-details" value={details} onChange={(e) => setDetails(e.target.value)} rows={3} maxLength={1000} className={fieldInputClass} />
+        <Field label="Anything we could do better?" htmlFor="close-details" optional>
+          <textarea id="close-details" value={details} onChange={(e) => setDetails(e.target.value)} rows={3} maxLength={1000} className={fieldInputClass} />
         </Field>
         <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>
+          <Button variant="ghost" onClick={onClose} disabled={busy}>
             Keep my account
           </Button>
-          <Button onClick={confirm} loading={busy} disabled={!reason} className="bg-destructive shadow-none hover:bg-destructive/90">
-            Deactivate
+          <Button
+            onClick={confirm}
+            loading={busy}
+            disabled={!reason}
+            className={mode === "delete" ? "bg-destructive shadow-none hover:bg-destructive/90" : undefined}
+          >
+            {copy.confirm}
           </Button>
         </div>
       </div>
@@ -147,7 +179,7 @@ function AppearanceSetting() {
 export function AccountSettings() {
   const { user } = useAuth();
   const [sending, setSending] = useState(false);
-  const [deactivating, setDeactivating] = useState(false);
+  const [closing, setClosing] = useState<CloseMode | null>(null);
   const [signingOutEverywhere, setSigningOutEverywhere] = useState(false);
   if (!user) return null;
 
@@ -196,15 +228,20 @@ export function AccountSettings() {
         </SettingsRow>
       </SettingsSection>
 
-      <SettingsSection title="Deactivate account" tone="danger">
-        <SettingsRow label="Leave myHoodora" description="Hide your profile and posts. You can come back within 30 days.">
-          <Button variant="outline" size="sm" className="border-destructive/40 text-destructive hover:bg-destructive/5" onClick={() => setDeactivating(true)}>
+      <SettingsSection title="Leave myHoodora" tone="danger">
+        <SettingsRow label="Deactivate account" description="Take a break. Your profile and posts are hidden until you log in and reactivate. Nothing is deleted.">
+          <Button variant="outline" size="sm" onClick={() => setClosing("deactivate")}>
             Deactivate
+          </Button>
+        </SettingsRow>
+        <SettingsRow label="Delete account" description={`Deletes your account and data for good after ${DELETION_GRACE_DAYS} days. Log in before then to cancel.`}>
+          <Button variant="outline" size="sm" className="border-destructive/40 text-destructive hover:bg-destructive/5" onClick={() => setClosing("delete")}>
+            Delete account
           </Button>
         </SettingsRow>
       </SettingsSection>
       <SignOutEverywhereDialog open={signingOutEverywhere} onOpenChange={setSigningOutEverywhere} />
-      <DeactivateDialog open={deactivating} onOpenChange={setDeactivating} />
+      <CloseAccountDialog mode={closing} onClose={() => setClosing(null)} />
     </div>
   );
 }

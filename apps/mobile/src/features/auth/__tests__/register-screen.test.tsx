@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { RegisterScreen } from "../register-screen";
 
 const mockSignUp = jest.fn();
@@ -8,13 +9,18 @@ jest.mock("expo-router", () => ({
   useRouter: () => ({ canGoBack: () => true, back: jest.fn(), replace: jest.fn() }),
 }));
 
-beforeEach(() => mockSignUp.mockReset());
+beforeEach(async () => {
+  mockSignUp.mockReset();
+  // The under-18 test locks this "phone" for 30 days.
+  await AsyncStorage.clear();
+});
 
-async function fill() {
+async function fill(year = "1990") {
   await render(<RegisterScreen />);
   await fireEvent.changeText(screen.getByLabelText("Email address"), "ada@example.com");
   await fireEvent.changeText(screen.getByLabelText("Create a password"), "neighbour-123");
   await fireEvent.changeText(screen.getByLabelText("Confirm password"), "neighbour-123");
+  await fireEvent.changeText(screen.getByLabelText("Year you were born"), year);
   await fireEvent(screen.getByLabelText("I agree to the Terms of Use and Privacy Policy"), "valueChange", true);
 }
 
@@ -24,7 +30,7 @@ describe("RegisterScreen", () => {
     mockSignUp.mockReturnValue(new Promise<void>((resolve) => (finish = resolve)));
     await fill();
     // Two submits (the keyboard's "done" twice) land before React re-renders the button as busy.
-    const { onSubmitEditing } = screen.getByLabelText("Confirm password").props as { onSubmitEditing: () => Promise<void> };
+    const { onSubmitEditing } = screen.getByLabelText("Year you were born").props as { onSubmitEditing: () => Promise<void> };
     await act(async () => {
       const first = onSubmitEditing();
       const second = onSubmitEditing();
@@ -39,6 +45,22 @@ describe("RegisterScreen", () => {
     await fireEvent.changeText(screen.getByLabelText("Confirm password"), "neighbour-124");
     await fireEvent.press(screen.getByRole("button", { name: "Create account" }));
     expect(await screen.findByText("Passwords don't match.")).toBeTruthy();
+    expect(mockSignUp).not.toHaveBeenCalled();
+  });
+
+  it("asks the year, and makes no account at all for an answer under 18", async () => {
+    await fill(String(new Date().getFullYear() - 12));
+    await fireEvent.press(screen.getByRole("button", { name: "Create account" }));
+    expect(await screen.findByText("Sorry, you can't join myHoodora yet")).toBeTruthy();
+    expect(mockSignUp).not.toHaveBeenCalled();
+  });
+
+  it("asks the day and month only for the year that turns 18 now", async () => {
+    mockSignUp.mockResolvedValue(undefined);
+    await fill(String(new Date().getFullYear() - 18));
+    expect(screen.getByLabelText("Day")).toBeTruthy();
+    await fireEvent.press(screen.getByRole("button", { name: "Create account" }));
+    expect(await screen.findByText("Add the day and month you were born too.")).toBeTruthy();
     expect(mockSignUp).not.toHaveBeenCalled();
   });
 

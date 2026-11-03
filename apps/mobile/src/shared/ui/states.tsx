@@ -26,7 +26,16 @@ export function ErrorState({ error, onRetry, title }: { error: unknown; onRetry?
   const connection = kind === "offline" || kind === "network";
   const Icon = connection ? CloudOff : kind === "timeout" ? Hourglass : TriangleAlert;
   // A screen's own title ("This post isn't available") would mislead when the network is the cause.
-  const heading = kind === "offline" ? "You're offline" : kind === "timeout" ? "Slow connection" : (title ?? "That didn't load");
+  const heading =
+    kind === "offline"
+      ? "You're offline"
+      : kind === "timeout"
+        ? "Slow connection"
+        : kind === "network"
+          ? "Can't reach myHoodora"
+          : kind === "server"
+            ? "Something went wrong"
+            : (title ?? "That didn't load");
   return (
     <View style={styles.center}>
       <View style={[styles.icon, { backgroundColor: tint(t.colors.mutedForeground, 0.12) }]}>
