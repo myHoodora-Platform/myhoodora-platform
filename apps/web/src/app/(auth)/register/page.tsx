@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -9,7 +9,9 @@ import { PasswordInput } from "@myhoodora/ui/password-input";
 import { Button } from "@myhoodora/ui/button";
 import { Divider } from "@myhoodora/ui/divider";
 import { registerSchema, type RegisterInput } from "@/lib/validation/auth";
-import { signUpUser } from "@/lib/firebase/auth";
+import { acceptLegalApi, confirmAgeApi, logoutUser, signUpUser } from "@/lib/firebase/auth";
+import { currentLegalVersion, needsLegalAcceptance } from "@myhoodora/api-contract/legal";
+import { readBirthInput } from "@myhoodora/api-contract/age";
 import { ROUTES } from "@/lib/routes";
 import { requireServerSession } from "@/lib/auth/session-sync";
 import { enterApp } from "@/lib/safe-redirect";
@@ -18,11 +20,19 @@ import { GoogleOneTap } from "@/components/shared/google-one-tap";
 import { SocialAuthButtons } from "@/components/shared/social-auth-buttons";
 import { useRedirectIfSignedIn } from "@/hooks/use-redirect-if-signed-in";
 import { toast } from "sonner";
+import { BirthField, CantJoinYet, EMPTY_BIRTH, type BirthInput } from "@/features/age/age-check-form";
+import { ageCheckLocked, lockAgeCheck } from "@/features/age/age-lock";
 
 export default function RegisterPage() {
   // Blocks a second sign-up from a fast double submit (see login page).
   const submittingRef = useRef(false);
   useRedirectIfSignedIn();
+  // Turned away by the age check on this browser recently: no new account from here for a while.
+  const [locked, setLocked] = useState(false);
+  useEffect(() => setLocked(ageCheckLocked()), []);
+  // The age check, in the form (docs/compliance/ndpa.md §1): Google and Apple sign-ups get it on its own screen.
+  const [birth, setBirth] = useState<BirthInput>(EMPTY_BIRTH);
+  const [birthProblem, setBirthProblem] = useState<string | null>(null);
 
   const {
     register,
@@ -37,15 +47,43 @@ export default function RegisterPage() {
 
   const onSubmit = async (data: RegisterInput) => {
     if (submittingRef.current) return;
+    const age = readBirthInput(birth);
+    if (!age.ok) {
+      setBirthProblem(age.problem);
+      return;
+    }
+    // Under 18: no account is made at all, so there's nothing of a child's to delete.
+    if (!age.adult) {
+      lockAgeCheck();
+      setLocked(true);
+      return;
+    }
     submittingRef.current = true;
     try {
       const user = await signUpUser(data.email, data.password);
       // Onboarding is behind the proxy: the server session has to exist first.
       await requireServerSession(user);
-      // A brand-new account always starts onboarding. The onboarding page
-      // waits for the profile (created by GET /users/me) and shows an error
-      // with Retry if that fails.
-      enterApp(ROUTES.onboarding);
+      let next: string = ROUTES.onboarding;
+      // They ticked "I agree" above: that's the record, with the versions they could read.
+      await acceptLegalApi(user, { terms: currentLegalVersion("terms").version, privacy: currentLegalVersion("privacy").version }, "signup").catch(() => {
+        // Not recorded (a network blip): the "updated terms" screen asks before onboarding.
+        next = ROUTES.acceptTerms;
+      });
+      try {
+        // The server decides (and on its own clock); it agrees with the form except across midnight.
+        const result = await confirmAgeApi(user, age.value);
+        if (result.adult && result.profile.legal && needsLegalAcceptance(result.profile.legal)) next = ROUTES.acceptTerms;
+        if (!result.adult) {
+          lockAgeCheck();
+          await logoutUser();
+          setLocked(true);
+          return;
+        }
+      } catch {
+        // Not recorded (a network blip): the age check screen asks again before onboarding.
+        next = ROUTES.confirmAge;
+      }
+      enterApp(next);
     } catch (err: unknown) {
       const { code, message, silent } = getAuthErrorMessage(err);
       if (process.env.NODE_ENV === "development" && code) {
@@ -58,6 +96,8 @@ export default function RegisterPage() {
       submittingRef.current = false;
     }
   };
+
+  if (locked) return <CantJoinYet />;
 
   return (
     <div className="space-y-6">
@@ -75,7 +115,15 @@ export default function RegisterPage() {
 
       <Divider label="or" className="py-1" />
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <form
+        onSubmit={(e) => {
+          // Shown with the other fields' errors, not only once they pass.
+          const age = readBirthInput(birth);
+          if (!age.ok) setBirthProblem(age.problem);
+          void handleSubmit(onSubmit)(e);
+        }}
+        className="space-y-4"
+      >
         <div>
           <label htmlFor="register-email" className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-1">
             Email Address
@@ -102,6 +150,16 @@ export default function RegisterPage() {
             {...register("password")}
           />
         </div>
+
+        <BirthField
+          idPrefix="register-dob"
+          value={birth}
+          onChange={(next) => {
+            setBirth(next);
+            setBirthProblem(null);
+          }}
+          problem={birthProblem}
+        />
 
         <div className="flex flex-col gap-1 px-1 pt-1">
           <label className="flex items-start gap-2.5 cursor-pointer select-none">

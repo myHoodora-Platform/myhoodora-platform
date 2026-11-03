@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { LegalSection } from "./legal-page";
 
+/** When these guidelines last changed, "YYYY-MM-DD": shown on the page and used as its sitemap lastmod. */
+export const GUIDELINES_UPDATED = "2026-09-28";
+
 const li = "list-disc space-y-2 pl-5";
 
 export function CommunityGuidelinesContent() {

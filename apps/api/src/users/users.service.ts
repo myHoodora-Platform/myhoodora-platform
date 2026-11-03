@@ -15,8 +15,11 @@ import type { Viewer } from "../shared/auth/viewer";
 import { withTransaction } from "../shared/db/transaction";
 import { EmailVerificationService } from "../verification/email-verification.service";
 import { mergePreferences, type Preferences } from "./domain/preferences";
-import { AccountLifecycle, DELETED_USER_NAME, DELETED_USER_UID, RESTORE_WINDOW_MS } from "./account-lifecycle";
-import type { DeactivateDto, OnboardingDto, PreferencesDto, UpdateMeDto, VerifyLocationDto } from "./dto/users.dto";
+import { AccountDeletionService } from "./account-deletion.service";
+import { ageVerdict } from "./domain/age";
+import { CURRENT_LEGAL, LEGAL_RECORDS_KEPT } from "./domain/legal";
+import { AccountLifecycle, DELETED_USER_NAME, DELETED_USER_UID, DELETION_GRACE_MS, LEGACY_DELETION_GRACE_MS } from "./account-lifecycle";
+import type { DeactivateDto, LegalAcceptDto, OnboardingDto, PreferencesDto, UpdateMeDto, VerifyLocationDto } from "./dto/users.dto";
 import { User, UserDocument } from "./schemas/user.schema";
 
 const MAX_BLOCKS = 500;
@@ -37,6 +40,8 @@ export interface MeResponse {
   bio?: string;
   neighborhoodId?: string;
   isOnboarded: boolean;
+  /** Passed the age check (18 or over). Until then clients ask before anything else, and the API allows nothing but account management. */
+  ageConfirmed: boolean;
   role: User["role"];
   verificationStatus: User["verificationStatus"];
   accountStatus: User["accountStatus"];
@@ -47,6 +52,29 @@ export interface MeResponse {
   /** Hoods they may read and hear alerts from besides home (contract §31). */
   secondaryHoods: { id: string; name: string; city?: string; since: string }[];
   createdAt?: string;
+  /**
+   * Set while the account is closed: deactivated (until they reactivate), or deleting on `deleteAt`
+   * unless they cancel. Clients show the "welcome back" screen instead of the app.
+   */
+  closure: AccountClosure | null;
+  /** The newest Terms and Privacy Policy versions they agreed to; null: never. Clients compare with the current ones. */
+  legal: { terms: string | null; privacy: string | null };
+}
+
+export type AccountClosure = { kind: "deactivated"; since: string } | { kind: "deleting"; since: string; deleteAt: string };
+
+const isUnderAgeClosure = (u: Pick<User, "deactivation">) => u.deactivation?.reason === "under_age";
+
+function legalOf(u: User): MeResponse["legal"] {
+  const newest = (doc: "terms" | "privacy") =>
+    (u.legalAcceptances ?? []).filter((a) => a.doc === doc).reduce<string | null>((best, a) => (!best || a.version > best ? a.version : best), null);
+  return { terms: newest("terms"), privacy: newest("privacy") };
+}
+
+function closureOf(u: User): AccountClosure | null {
+  if (!u.deactivatedAt) return null;
+  const since = u.deactivatedAt.toISOString();
+  return u.deletionDueAt ? { kind: "deleting", since, deleteAt: u.deletionDueAt.toISOString() } : { kind: "deactivated", since };
 }
 
 /** POST /users/me/verify-location/preview: what verifying at a point would do (contract §29). */
@@ -81,6 +109,7 @@ export function toMe(u: User): MeResponse {
     bio: u.bio,
     neighborhoodId: u.neighborhoodId,
     isOnboarded: u.isOnboarded,
+    ageConfirmed: Boolean(u.ageConfirmedAt),
     role: u.role,
     verificationStatus: u.verificationStatus,
     accountStatus: u.accountStatus,
@@ -89,6 +118,8 @@ export function toMe(u: User): MeResponse {
     requestedHood: u.requestedHood ? { id: u.requestedHood.id, name: u.requestedHood.name, requestedAt: u.requestedHood.requestedAt.toISOString() } : null,
     secondaryHoods: (u.secondaryHoods ?? []).map((h) => ({ id: h.id, name: h.name, city: h.city, since: new Date(h.since).toISOString() })),
     createdAt: u.createdAt?.toISOString(),
+    closure: closureOf(u),
+    legal: legalOf(u),
   };
 }
 
@@ -109,6 +140,7 @@ export class UsersService implements OnModuleInit {
     private readonly config: ConfigService,
     private readonly storage: StorageService,
     private readonly lifecycle: AccountLifecycle,
+    private readonly deletion: AccountDeletionService,
   ) {}
 
   onModuleInit() {
@@ -138,19 +170,14 @@ export class UsersService implements OnModuleInit {
       let changed = false;
       // Deleted for good. (Their Firebase sign-in went with it; this covers a token issued just before.)
       if (existing.purgedAt) throw new GoneException("This account has been deleted.");
-      if (existing.deactivatedAt) {
-        // Past the 30 days, with deletion running: it is about to be deleted, and must not be half-restored meanwhile.
-        const pastWindow = Date.now() - existing.deactivatedAt.getTime() > RESTORE_WINDOW_MS;
-        if (pastWindow && this.config.get<string>("deletion.mode") === "live") {
-          throw new GoneException("This account was deactivated more than 30 days ago and can no longer be restored.");
-        }
-        // Logging back in within 30 days restores the account (contract §10). Their content comes back
-        // first: if that fails they are still deactivated, and the next sign-in tries again.
-        await this.lifecycle.unhide(existing.uid);
-        existing.deactivatedAt = null;
-        existing.deactivation = null;
-        changed = true;
+      // Closed because they're under 18: never restored, whatever the deletion mode (docs/compliance/ndpa.md §1).
+      if (isUnderAgeClosure(existing) && existing.deletionDueAt) throw new GoneException("This account has been closed and is being deleted.");
+      // Past its deletion date, with deletion running: it is about to go, and must not be half-restored meanwhile.
+      if (existing.deletionDueAt && existing.deletionDueAt.getTime() <= Date.now() && this.config.get<string>("deletion.mode") === "live") {
+        throw new GoneException("This account has been deleted.");
       }
+      // A closed account stays closed when they sign in: `closure` tells the client to offer
+      // "Reactivate" (POST /users/me/reactivate), as Nextdoor does, rather than restoring it silently.
       if (!existing.emailVerifiedAt && providerVerified) {
         // They signed up with a password and now use Google with the same address: no need to ask them to confirm it.
         existing.emailVerifiedAt = new Date();
@@ -555,14 +582,133 @@ export class UsersService implements OnModuleInit {
    * threads stays, without their name or photo (authorCards). Safe to repeat: if hiding fails the
    * request fails with the sessions still live, so the app can simply try again.
    */
+  /**
+   * POST /users/me/deactivate. Either way the account closes now: content hidden, emails and pushes
+   * stop, every session ends. "deactivate" keeps it until they reactivate; "delete" schedules deletion
+   * for good in 7 days (an earlier date already set stands). An under-18 closure can't be changed here.
+   */
   async deactivate(uid: string, dto: DeactivateDto): Promise<void> {
-    const deactivation = { reason: dto.reason, ...(dto.details?.trim() && { details: dto.details.trim() }) };
-    // The first time only: deactivating again must not restart the 30 days.
-    await this.users.updateOne({ uid, deactivatedAt: null }, { $set: { deactivatedAt: new Date() } }).exec();
-    await this.users.updateOne({ uid, purgedAt: null }, { $set: { deactivation } }).exec();
+    const user = await this.users.findOne({ uid, purgedAt: null }).lean<User>().exec();
+    if (!user) throw new GoneException("This account has been deleted.");
+    if (isUnderAgeClosure(user)) throw new GoneException("This account has been closed and is being deleted.");
+    const kind = dto.mode ?? "delete";
+    const now = new Date();
+    const deactivation = { reason: dto.reason, kind, ...(dto.details?.trim() && { details: dto.details.trim() }) };
+    // The first time only: closing again doesn't change when it was closed.
+    await this.users.updateOne({ uid, deactivatedAt: null }, { $set: { deactivatedAt: now } }).exec();
+    if (kind === "deactivate") {
+      // From "deleting" to just deactivated: that cancels the deletion.
+      await this.users.updateOne({ uid }, { $set: { deactivation, deletionDueAt: null } }).exec();
+    } else {
+      const due = new Date(now.getTime() + (dto.mode ? DELETION_GRACE_MS : LEGACY_DELETION_GRACE_MS));
+      await this.users.updateOne({ uid }, { $set: { deactivation } }).exec();
+      // Never later than a date already set: asking again mustn't put the deletion off.
+      await this.users.updateOne({ uid, $or: [{ deletionDueAt: null }, { deletionDueAt: { $gt: due } }] }, { $set: { deletionDueAt: due } }).exec();
+    }
     await this.lifecycle.hide(uid);
-    this.logger.log(`Account deactivated (reason: ${dto.reason})`);
+    this.logger.log(`Account ${kind === "delete" ? "scheduled for deletion" : "deactivated"} (reason: ${dto.reason})`);
     await this.auth.revokeTokens(uid).catch(() => undefined);
+  }
+
+  /**
+   * POST /users/me/legal: they agreed to the Terms of Use and Privacy Policy. Only the current versions
+   * can be agreed to (409 if either changed while they were reading). Each agreement is kept as a record.
+   */
+  async acceptLegal(uid: string, dto: LegalAcceptDto): Promise<MeResponse> {
+    if (dto.terms !== CURRENT_LEGAL.terms || dto.privacy !== CURRENT_LEGAL.privacy) {
+      throw new ConflictException("Our Terms or Privacy Policy changed while you were reading. Please read the latest version.");
+    }
+    const at = new Date();
+    const via = dto.via ?? "prompt";
+    const user = await this.users
+      .findOneAndUpdate(
+        { uid, purgedAt: null },
+        {
+          $push: {
+            legalAcceptances: {
+              $each: [
+                { doc: "terms", version: dto.terms, at, via },
+                { doc: "privacy", version: dto.privacy, at, via },
+              ],
+              $slice: -LEGAL_RECORDS_KEPT,
+            },
+          },
+        },
+        { new: true },
+      )
+      .exec();
+    if (!user) throw new GoneException("This account has been deleted.");
+    return toMe(user);
+  }
+
+  /**
+   * POST /users/me/reactivate: they chose to come back. Content returns, emails resume, and a scheduled
+   * deletion is cancelled. Refused (410) once deleted, past the deletion date, or closed as under 18.
+   */
+  async reactivate(uid: string): Promise<MeResponse> {
+    const user = await this.users.findOne({ uid, purgedAt: null }).exec();
+    if (!user) throw new GoneException("This account has been deleted.");
+    if (isUnderAgeClosure(user)) throw new GoneException("This account has been closed and is being deleted.");
+    if (user.deletionDueAt && user.deletionDueAt.getTime() <= Date.now() && this.config.get<string>("deletion.mode") === "live") {
+      throw new GoneException("This account has been deleted.");
+    }
+    if (!user.deactivatedAt) return toMe(user);
+    // Content first: if that fails they are still closed, and trying again finishes it.
+    await this.lifecycle.unhide(uid);
+    user.deactivatedAt = null;
+    user.deactivation = null;
+    user.deletionDueAt = null;
+    await user.save();
+    this.logger.log("Account reactivated");
+    return toMe(user);
+  }
+
+  /**
+   * POST /users/me/age: the age check, once, before onboarding. The date of birth is used here and
+   * dropped: what's kept is when they passed and how. Under 18, the account is closed on the spot and
+   * deleted without the usual 30 days (closeAsUnderAge). Asked again after passing, it changes nothing.
+   */
+  async confirmAge(viewer: Viewer, birthDate: string): Promise<{ adult: true; profile: MeResponse } | { adult: false }> {
+    const user = await this.users.findOne({ uid: viewer.uid, purgedAt: null }).exec();
+    if (!user || user.deletionDueAt) throw new GoneException("This account has been closed.");
+    if (user.ageConfirmedAt) return { adult: true, profile: toMe(user) };
+    const verdict = ageVerdict(birthDate);
+    if (verdict === null) throw new BadRequestException("Enter a real date of birth.");
+    if (verdict === "needs_date") throw new BadRequestException("Enter your full date of birth: day, month and year.");
+    if (verdict === "child") {
+      await this.closeAsUnderAge(viewer.uid, viewer, "Said they were under 18 at the age check");
+      return { adult: false };
+    }
+    user.ageConfirmedAt = new Date();
+    user.ageAssurance = "self_declared_dob";
+    await user.save();
+    return { adult: true, profile: toMe(user) };
+  }
+
+  /**
+   * Someone turned out to be under 18 (they said so, or staff found out): the NDPA lets us keep none
+   * of a child's data without a parent's consent, which we don't collect. Their content is hidden and
+   * sign-in turned off at once, and the account is queued for deletion now rather than in 30 days.
+   * With DATA_DELETION_MODE other than "live" it stays closed and hidden until deletion is turned on.
+   */
+  async closeAsUnderAge(uid: string, actor: Pick<Viewer, "uid" | "displayName" | "role">, reason: string): Promise<void> {
+    const now = new Date();
+    const user = await this.users.findOneAndUpdate({ uid, purgedAt: null }, { $set: { deletionDueAt: now, deactivation: { reason: "under_age", kind: "delete" } } }).lean<User>().exec();
+    if (!user) return;
+    // Out of neighbours' sight like any deactivated account (an earlier deactivation keeps its date).
+    await this.users.updateOne({ uid, deactivatedAt: null }, { $set: { deactivatedAt: now } }).exec();
+    await this.lifecycle.hide(uid);
+    await getFirebaseAdmin()
+      .auth()
+      .updateUser(uid, { disabled: true })
+      .catch((err: { code?: string }) => {
+        if (err?.code !== "auth/user-not-found") throw err;
+      });
+    await this.auth.revokeTokens(uid).catch(() => undefined);
+    // The uid and why, never the date of birth: enough to show the account was closed for this.
+    await this.audit.record(actor, "account_closed_under_age", { type: "user", id: uid, label: user.displayName ?? uid }, { reason });
+    await this.deletion.enqueue(uid);
+    this.logger.log(`Account ${uid} closed: under 18. Queued for deletion.`);
   }
 
   /** uids the viewer shouldn't see (blocked either way). */

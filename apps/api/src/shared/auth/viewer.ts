@@ -27,6 +27,8 @@ export interface Viewer {
   capabilities: Capability[];
   /** false until GET /users/me has created the record. */
   exists: boolean;
+  /** False until they pass the age check (where it's required). Set by AccountGuard. */
+  ageConfirmed?: boolean;
 }
 
 export const CurrentViewer = createParamDecorator((_data: unknown, ctx: ExecutionContext): Viewer => {

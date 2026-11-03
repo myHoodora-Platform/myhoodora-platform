@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useNeighbourhood } from "@/hooks/use-neighbourhood";
 import { ProblemState } from "@/components/shared/connection-states";
 import { ApiError } from "@/lib/api/client";
+import { isClosed, needsAgeCheck, needsTermsAcceptance } from "@/lib/auth/profile";
 import { DEFAULT_APP_ROUTE, ROUTES } from "@/lib/routes";
 import {
   clearOnboardingDraft,
@@ -99,6 +100,14 @@ export default function OnboardingPage() {
       router.replace(`${ROUTES.login}?next=${encodeURIComponent(ROUTES.onboarding)}`);
     }
   }, [loading, user, router]);
+
+  // No name or address before the age check (the API refuses them too): docs/compliance/ndpa.md §1.
+  // A closed account reopens first; then the age check (both hold the page as a skeleton below).
+  // A closed account reopens first, then the age check, then the current terms (each holds the page as a skeleton below).
+  const mustCheckAge = profileStatus === "ready" && (isClosed(profile) || needsAgeCheck(profile) || needsTermsAcceptance(profile));
+  useEffect(() => {
+    if (mustCheckAge) router.replace(isClosed(profile) ? ROUTES.welcomeBack : needsAgeCheck(profile) ? ROUTES.confirmAge : ROUTES.acceptTerms);
+  }, [mustCheckAge, profile, router]);
 
   // Restore this account's saved draft (typed earlier, then refreshed,
   // skipped or closed), then fall back to whatever's already on the account
@@ -473,7 +482,7 @@ export default function OnboardingPage() {
     );
   }
 
-  if (loading || !user || profileStatus !== "ready") {
+  if (loading || !user || profileStatus !== "ready" || mustCheckAge) {
     return (
       <OnboardingShell step={1}>
         <div className="space-y-4" aria-busy aria-label="Loading">

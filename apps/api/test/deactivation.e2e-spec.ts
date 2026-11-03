@@ -47,7 +47,7 @@ describe("Deactivating an account hides the person from their neighbours", () =>
 
   describe("once she deactivates", () => {
     beforeAll(async () => {
-      await deactivate("ada", { reason: "privacy", details: "Too many strangers can see my street." }).expect(204);
+      await deactivate("ada", { reason: "privacy", details: "Too many strangers can see my street.", mode: "deactivate" }).expect(204);
     });
 
     it("her posts are gone from the feed, from search and by link", async () => {
@@ -98,10 +98,11 @@ describe("Deactivating an account hides the person from their neighbours", () =>
       expect(neighbour.displayName).toBe("Ada Okafor");
     });
 
-    it("what she told us about leaving is kept, not thrown away", async () => {
+    it("what she told us about leaving is kept, and deactivating sets no deletion date", async () => {
       const record = await t.users.findOne({ uid: "ada" }).lean();
       expect(record?.deactivatedAt).toBeInstanceOf(Date);
-      expect(record?.deactivation).toEqual({ reason: "privacy", details: "Too many strangers can see my street." });
+      expect(record?.deactivation).toEqual({ reason: "privacy", details: "Too many strangers can see my street.", kind: "deactivate" });
+      expect(record?.deletionDueAt ?? null).toBeNull();
     });
 
     it("every session she had is ended", async () => {
@@ -110,8 +111,16 @@ describe("Deactivating an account hides the person from their neighbours", () =>
   });
 
   describe("when she signs in again", () => {
-    beforeAll(async () => {
-      await t.http.get("/api/users/me").set(fresh("ada")).expect(200);
+    it("signing in doesn't reopen it (as on Nextdoor): she's asked, and nothing else works until she says yes", async () => {
+      const me = (await t.http.get("/api/users/me").set(fresh("ada")).expect(200)).body;
+      expect(me.closure).toMatchObject({ kind: "deactivated" });
+      expect((await feed("bola")).map((p) => p._id)).not.toContain(postId);
+      const refused = await t.http.get(`/api/posts/neighborhood/${lekki}`).set(fresh("ada")).expect(403);
+      expect(refused.body.message).toMatch(/Reactivate/);
+    });
+
+    it("reactivating reopens it", async () => {
+      expect((await t.http.post("/api/users/me/reactivate").set(fresh("ada")).expect(200)).body.closure).toBeNull();
     });
 
     it("everything is back as it was, under her name", async () => {
@@ -132,6 +141,40 @@ describe("Deactivating an account hides the person from their neighbours", () =>
     it("she can post again, and that post is visible", async () => {
       const again = await t.http.post("/api/posts").set(fresh("ada")).send({ message: "Back in the neighbourhood" }).expect(201);
       expect((await feed("bola")).map((p) => p._id)).toContain(again.body._id);
+    });
+  });
+
+  describe("deleting instead (mode delete)", () => {
+    const DAY = 86_400_000;
+
+    it("closes it the same way, and schedules deletion for good in 7 days", async () => {
+      await t.member("leaver", lekki);
+      const before = Date.now();
+      await deactivate("leaver", { reason: "not_useful", mode: "delete" }).expect(204);
+      const record = await t.users.findOne({ uid: "leaver" }).lean();
+      expect(record?.deactivation).toMatchObject({ kind: "delete" });
+      const due = record!.deletionDueAt!.getTime();
+      expect(due).toBeGreaterThanOrEqual(before + 7 * DAY);
+      expect(due).toBeLessThan(before + 7 * DAY + 60_000);
+      const me = (await t.http.get("/api/users/me").set(fresh("leaver")).expect(200)).body;
+      expect(me.closure).toMatchObject({ kind: "deleting", deleteAt: record!.deletionDueAt!.toISOString() });
+    });
+
+    it("asking again doesn't put it off, and reactivating cancels it", async () => {
+      const first = (await t.users.findOne({ uid: "leaver" }).lean())!.deletionDueAt!.getTime();
+      await t.http.post("/api/users/me/deactivate").set(fresh("leaver")).send({ reason: "other", mode: "delete" }).expect(204);
+      expect((await t.users.findOne({ uid: "leaver" }).lean())!.deletionDueAt!.getTime()).toBe(first);
+      await t.http.post("/api/users/me/reactivate").set(fresh("leaver")).expect(200);
+      expect((await t.users.findOne({ uid: "leaver" }).lean())?.deletionDueAt).toBeNull();
+    });
+
+    it("an app build from before the choice (no mode) still gets the 30 days it promised", async () => {
+      await t.member("oldapp", lekki);
+      const before = Date.now();
+      await deactivate("oldapp", { reason: "other" }).expect(204);
+      const due = (await t.users.findOne({ uid: "oldapp" }).lean())!.deletionDueAt!.getTime();
+      expect(due).toBeGreaterThanOrEqual(before + 30 * DAY);
+      expect(due).toBeLessThan(before + 30 * DAY + 60_000);
     });
   });
 

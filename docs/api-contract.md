@@ -538,13 +538,27 @@ interface Preferences {
 
 The frontend already hides blocked authors client-side as a fallback.
 
-### Deactivate: `POST /users/me/deactivate`
-Body `{ reason, details? }`, where `reason` is one of `moved | not_useful | privacy | too_many_notifications | negative | few_neighbours | duplicate | other` (Nextdoor's list).
+### Age check: `POST /users/me/age` ✅
+Body `{ birthDate: "YYYY" }`, or `"YYYY-MM-DD"` when the year alone can't settle it: born exactly 18 years ago (Lagos calendar), when it depends on whether the birthday has passed. A bare year then answers `400` "Enter your full date of birth". A full date is always accepted. Once per account, before onboarding, however they signed up (docs/compliance/ndpa.md §1). `Me` carries `ageConfirmed: boolean`; while it is `false` clients show the age check before anything else (web `/confirm-age`, app `needsAgeCheck` phase), and the API refuses onboarding, location checks and hood requests (`403`) and grants no member capabilities beyond `profile.manage` (staff keep theirs). `AGE_CHECK_REQUIRED=false` lifts the server side.
 
-- Hide the profile, posts and listings. ✅ Posts and listings disappear for neighbours (staff still see them); what the person wrote in other people's threads, groups and conversations stays, under "Former neighbour" with no photo.
-- Revoke sessions. ✅
-- Restore everything if the user logs in. ✅ `reason` and `details` are kept on the account until then.
-- Purge after 30 days. ✅ Built (§27). It runs only with `DATA_DELETION_MODE=live`; the default, `dry-run`, deletes nothing. Once live, signing in after 30 days answers `410` and no longer restores the account.
+- 18 or over (counted on the Lagos calendar): `200 { adult: true, profile: Me }`. Stores `ageConfirmedAt` and `ageAssurance: "self_declared_dob"`, **never the year or the date**. Asked again afterwards: same answer, nothing changes.
+- Under 18: `200 { adult: false }`. The account is closed at once: content hidden, Firebase sign-in disabled, sessions revoked, `deletionDueAt` set and a purge queued now (no 30 days; still needs `DATA_DELETION_MODE=live`). `GET /users/me` then answers `410` and never restores it. Audited as `account_closed_under_age`.
+- Not a real date, in the future, or over 120 years: `400`. Closed account: `410`. Throttled to 10 an hour.
+
+### Deactivate or delete: `POST /users/me/deactivate`, `POST /users/me/reactivate`
+Two ways to leave, as on Nextdoor (decided 3 November 2026). Body `{ reason, details?, mode? }`, where `reason` is one of `moved | not_useful | privacy | too_many_notifications | negative | few_neighbours | duplicate | other` (Nextdoor's list) and `mode` is:
+
+- `deactivate`: **take a break.** Closed until they reactivate, with no end date and nothing deleted.
+- `delete`: **delete for good.** Closed now, `deletionDueAt` set 7 days on (`DELETION_GRACE_MS`), then purged (§27). Asking again never puts the date off. Deactivating instead cancels the deletion.
+- Left out (app builds from before the choice): `delete`, in **30** days, as that copy promised. Migration `005-users-deletion-dates` gave accounts closed before 3 November their 30-day date.
+
+Either way, at once: ✅ profile, posts and listings hidden from neighbours (staff still see them; what they wrote in other people's threads, groups and conversations stays, under "Former neighbour" with no photo); ✅ emails and pushes stop; ✅ every session revoked.
+
+**Signing in doesn't reopen it** (as on Nextdoor). `GET /users/me` answers `200` with `closure: { kind: "deactivated", since } | { kind: "deleting", since, deleteAt }`; clients show "Welcome back" (web `/welcome-back`, app `closed` phase), and every other route answers `403` "This account is deactivated…" until they choose. `POST /users/me/reactivate` → `Me` reopens it, or cancels the deletion. `410` once deleted, past `deleteAt` with deletion live, or closed as under 18. Throttled to 10 an hour.
+
+Purge (§27) also removes hood requests, support conversations started signed in, ad views/clicks/hides and email delivery records, and unlinks business pages they managed (November 2026). It runs only with `DATA_DELETION_MODE=live`; the default, `dry-run`, deletes nothing.
+
+**The same email address** belongs to the closed account until it's purged: signing up with it again (on any device) answers "an account with this email already exists", and logging in with it offers "Welcome back". After the purge the Firebase sign-in is gone, so the address is free for a new account. An under-18 closure disables the sign-in at once, and frees the address after its purge.
 
 ### Feedback: `POST /feedback`
 Body `{ kind: "idea" | "problem" | "praise" | "other", message (5–2000), path? }`. Goes to the team's inbox or admin queue.

@@ -18,7 +18,12 @@ This directory is the project's documentation of record. If a README or a commen
 | [implementation-summary.md](./implementation-summary.md) | What was implemented from that audit, what was not and why, and what to do next. Start here for the audit work |
 | [implementation-progress.md](./implementation-progress.md) | The audit, item by item: status, what was built, how it was tested |
 | [IMPLEMENTATION_NOTES.md](./IMPLEMENTATION_NOTES.md) | Decisions still needed, where the audit's plan was changed, and problems found along the way |
+| [compliance/ndpa.md](./compliance/ndpa.md) | Nigeria Data Protection Act: what the product does for each obligation (age check, deletion, transfers, cookies, email), the decisions behind it, and the launch tasks only a person can do |
+| [compliance/legal-versions.md](./compliance/legal-versions.md) | How the Terms and Privacy Policy are versioned, archived and agreed to, and how to publish a new version |
+| [compliance/training-log.md](./compliance/training-log.md) | The DPO's certification and yearly CPD points (NDPC rules), and the 6-monthly staff privacy briefings |
+| [compliance/ndpc-declaration-checklist.md](./compliance/ndpc-declaration-checklist.md) | Every measure declared on the NDPC registration, with its evidence, status and the steps to make it true |
 | [api-contract.md](./api-contract.md) | Every API route and shape the web app relies on |
+| [api-versioning.md](./api-versioning.md) | `/api/v1`, what counts as a breaking change, how to ship v2 and retire v1; app release versions (planned) |
 | [mobile/](./mobile/) | The Expo app: Phase 0 audit, architecture decisions (several still proposed), UI and API inventories, dependency baseline |
 | [product/](./product/) | Product research that shaped the design (Nextdoor study) |
 | [archive/](./archive/) | Old plans, audits and worklogs, kept for history. **Not current.** |

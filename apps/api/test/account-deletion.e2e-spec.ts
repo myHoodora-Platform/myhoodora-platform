@@ -49,8 +49,12 @@ async function boot(mode: "live" | "dry-run" | "off") {
 }
 
 const upload = async (t: TestApp, uid: string, purpose: string) => (await t.http.post("/api/media").set(t.auth(uid)).field("purpose", purpose).attach("file", JPEG, "a.jpg").expect(201)).body as { id: string; url: string };
-/** Stands in for time passing: the account was deactivated this many days ago. */
-const deactivatedDaysAgo = (t: TestApp, uid: string, days: number) => t.users.updateOne({ uid }, { $set: { deactivatedAt: new Date(Date.now() - days * DAY) } });
+/**
+ * Stands in for time passing: "Delete account" was chosen this many days ago, by an app build from
+ * before the deactivate/delete choice (no `mode`), so it's deleted 30 days after that.
+ */
+const deactivatedDaysAgo = (t: TestApp, uid: string, days: number) =>
+  t.users.updateOne({ uid }, { $set: { deactivatedAt: new Date(Date.now() - days * DAY), deletionDueAt: new Date(Date.now() + (30 - days) * DAY) } });
 const fresh = (uid: string) => ({ Authorization: `Bearer t:${uid}:u:password:fresh` });
 
 /** Gives `uid` one of everything a neighbour can leave behind, and deactivates them. Returns the ids. */
@@ -107,7 +111,7 @@ describe("Account deletion, 30 days after deactivation (DATA_DELETION_MODE=live)
     firebaseState.deleteDown = false;
   });
 
-  it("at 29 days nothing is due, and signing in still restores the account", async () => {
+  it("at 29 days nothing is due, and they can still cancel: signing in offers it, reactivating restores the account", async () => {
     await deactivatedDaysAgo(t, "ada", 29);
     expect(await deletion.enqueueDue()).toBe(0);
     expect(await deletion.purge("ada")).toBeNull();
@@ -115,14 +119,18 @@ describe("Account deletion, 30 days after deactivation (DATA_DELETION_MODE=live)
     await t.member("back", lekki);
     await t.http.post("/api/users/me/deactivate").set(t.auth("back")).send({ reason: "other" }).expect(204);
     await deactivatedDaysAgo(t, "back", 29);
-    expect((await t.http.get("/api/users/me").set(fresh("back")).expect(200)).body.uid).toBe("back");
-    expect((await t.users.findOne({ uid: "back" }).lean())?.deactivatedAt).toBeNull();
+    expect((await t.http.get("/api/users/me").set(fresh("back")).expect(200)).body.closure).toMatchObject({ kind: "deleting" });
+    expect((await t.http.post("/api/users/me/reactivate").set(fresh("back")).expect(200)).body.closure).toBeNull();
+    const record = await t.users.findOne({ uid: "back" }).lean();
+    expect(record?.deactivatedAt).toBeNull();
+    expect(record?.deletionDueAt).toBeNull();
   });
 
-  it("past 30 days the account can no longer be restored by signing in", async () => {
+  it("past its deletion date the account can no longer be restored", async () => {
     await deactivatedDaysAgo(t, "ada", 31);
     const res = await t.http.get("/api/users/me").set(fresh("ada")).expect(410);
-    expect(res.body.message).toMatch(/more than 30 days/);
+    expect(res.body.message).toBe("This account has been deleted.");
+    await t.http.post("/api/users/me/reactivate").set(fresh("ada")).expect(410);
     expect((await t.users.findOne({ uid: "ada" }).lean())?.deactivatedAt).toBeInstanceOf(Date);
   });
 
@@ -227,7 +235,7 @@ describe("Account deletion, 30 days after deactivation (DATA_DELETION_MODE=live)
 
   it("the only owner is never deleted: someone has to hand the role on first", async () => {
     const complain = jest.spyOn((deletion as unknown as { logger: { error: () => void } }).logger, "error").mockImplementation(() => undefined);
-    await t.member("boss", lekki, { role: "owner", deactivatedAt: new Date(Date.now() - 40 * DAY) });
+    await t.member("boss", lekki, { role: "owner", deactivatedAt: new Date(Date.now() - 40 * DAY), deletionDueAt: new Date(Date.now() - 10 * DAY) });
     expect(await deletion.purge("boss")).toBeNull();
     expect(complain).toHaveBeenCalled();
     expect((await t.users.findOne({ uid: "boss" }).lean())?.purgedAt ?? null).toBeNull();
@@ -263,8 +271,9 @@ describe("Account deletion in dry-run mode (the default)", () => {
     expect(await t.model("FeedPost").countDocuments({ authorUid: "dara", isActive: true })).toBe(1);
     expect(await t.model("MediaAsset").countDocuments({ ownerUid: "dara" })).toBe(2);
     expect((await t.model<{ participantUids: string[] }>("Conversation").findById(left.conversationId).lean())!.participantUids).toContain("dara");
-    // Nothing is being deleted, so the old rule stands: signing in restores it however long it has been.
-    await t.http.get("/api/users/me").set(fresh("dara")).expect(200);
+    // Nothing is being deleted, so they can still come back however long it has been.
+    expect((await t.http.get("/api/users/me").set(fresh("dara")).expect(200)).body.closure).toMatchObject({ kind: "deleting" });
+    await t.http.post("/api/users/me/reactivate").set(fresh("dara")).expect(200);
   });
 });
 

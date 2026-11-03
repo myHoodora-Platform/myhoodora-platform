@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, HttpException, HttpStatus, Injectable, NotFoundException, OnModuleInit } from "@nestjs/common";
+import { AccountLifecycle } from "../users/account-lifecycle";
 import { ConfigService } from "@nestjs/config";
 import { InjectModel } from "@nestjs/mongoose";
 import { createHash, randomBytes } from "node:crypto";
@@ -65,9 +66,17 @@ export class BusinessesService implements OnModuleInit {
     private readonly audit: AuditService,
     private readonly registry: ModerationRegistry,
     private readonly config: ConfigService,
+    private readonly accounts: AccountLifecycle,
   ) {}
 
   onModuleInit() {
+    // Account deletion: a business page is the business's, so it stays; it just isn't theirs to manage any more.
+    this.accounts.register({
+      name: "businesses",
+      purge: async (uid, dryRun) => ({
+        businessPagesUnlinked: dryRun ? await this.pages.countDocuments({ ownerUid: uid }).exec() : (await this.pages.updateMany({ ownerUid: uid }, { $unset: { ownerUid: 1 } }).exec()).modifiedCount,
+      }),
+    });
     this.registry.register({
       type: "business",
       load: async (id) => {

@@ -36,6 +36,7 @@ In production the API refuses to start if a **Required** variable is missing (`v
 | `SESSION_COOKIE_TTL_DAYS` | no (default 7) | Lifetime of the web session cookie; clamped to Firebase's 5 minutes–14 days |
 | `AUTH_REVOCATION_CACHE_SECONDS` | no (default 30, max 300) | How long the API trusts Firebase's last answer about a user's sessions. `0` asks Google on every request |
 | `NEARBY_BUFFER_M` | no (default 3000) | How far outside a Hood an address can be and still ask to join |
+| `AGE_CHECK_REQUIRED` | no (default on) | Taking part (onboarding, address checks, posting, messaging, reacting) needs a passed age check (`POST /users/me/age`). `false` lifts the server side only: for a client release that can't ask yet. Leave it on |
 | `EMAIL_CONFIRMATION_REQUIRED` | no (default on) | Posting and messaging need a confirmed email address. `false` turns that off. **Leave it off until verification emails reach people** (the Resend sending domain is verified): otherwise nobody who signed up with a password can post |
 | `HOOD_ACCESS_STRICT` | no (default on) | Rollback switch for the Hood access rules (see [security.md](./security.md)). `false` restores the behaviour before October 2026. Temporary: remove once the rules have bedded in |
 | `EVENT_REMINDERS_ENABLED` | no (default on) | `false` pauses the reminder scheduler |
@@ -51,8 +52,9 @@ Removed: `JWT_SECRET`, `JWT_EXPIRES_IN`. The API never issued its own tokens; no
 | Variable | Needed | Purpose |
 | --- | --- | --- |
 | `NEXT_PUBLIC_FIREBASE_API_KEY`, `…_AUTH_DOMAIN`, `…_PROJECT_ID`, `…_STORAGE_BUCKET`, `…_MESSAGING_SENDER_ID`, `…_APP_ID` | yes | The Firebase web app's config. Public identifiers, not secrets |
-| `NEXT_PUBLIC_API_URL` | yes in production | The API, including `/api`. Default `http://localhost:3001/api`. Also feeds the content policy's allowed connections |
-| `NEXT_PUBLIC_APP_URL` | yes in production | This site's public origin. Used for canonical URLs, link previews, `robots.txt` and the sitemap |
+| `NEXT_PUBLIC_API_URL` | yes in production | The API, including `/api` (the web adds the version: requests go to `…/api/v1`, see api-versioning.md). Default `http://localhost:3001/api`. Also feeds the content policy's allowed connections |
+| `NEXT_PUBLIC_APP_URL` | yes in production | This site's public origin. Used for canonical URLs, link previews, `robots.txt` and the sitemap. A production build fails without an https value |
+| `SITE_ENV` | off Vercel | `production` makes this deployment indexable by search engines. Anything else (or unset) serves `Disallow: /` and `X-Robots-Tag: noindex`. On Vercel, `VERCEL_ENV` is used when this is unset |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | optional | OAuth web client ID of the Firebase Google provider. Enables the One Tap prompt. Public |
 | `NEXT_PUBLIC_USE_MOCKS` | no (default off) | `true` runs on in-browser sample data. Never in production |
 | `GEOCODE_MAPS_CO_API_KEY` | for address search | Server-side key for onboarding's address lookup (`/api/geocode`) |
@@ -66,7 +68,7 @@ Template: `apps/mobile/.env.example`. Every `EXPO_PUBLIC_` value is compiled int
 | Variable | Needed | Purpose |
 | --- | --- | --- |
 | `EXPO_PUBLIC_APP_ENV` | no (default `development`) | `development`, `preview` or `production`. Shown on the More screen |
-| `EXPO_PUBLIC_API_URL` | yes | The API, including `/api`. A phone can't reach `localhost`: use the computer's LAN address, or staging |
+| `EXPO_PUBLIC_API_URL` | yes | The API, including `/api` (the app adds `/v1`, see api-versioning.md). A phone can't reach `localhost`: use the computer's LAN address, or staging |
 | `EXPO_PUBLIC_WEB_URL` | yes | The web app's origin: its address lookups (`/api/geocode`) and pages opened from the app (Terms, Privacy, Help) |
 | `EXPO_PUBLIC_FIREBASE_API_KEY`, `…_AUTH_DOMAIN`, `…_PROJECT_ID`, `…_APP_ID` | yes | The same Firebase web config as the web's `NEXT_PUBLIC_FIREBASE_*`. Public identifiers |
 

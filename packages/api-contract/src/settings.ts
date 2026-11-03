@@ -59,6 +59,14 @@ export const DEACTIVATION_REASONS = [
 
 export type DeactivationReason = (typeof DEACTIVATION_REASONS)[number]["id"];
 
+/**
+ * The two ways to leave, as on Nextdoor (docs/api-contract.md, Deactivate). "deactivate": closed until
+ * you reactivate, nothing deleted. "delete": closed now and deleted for good after DELETION_GRACE_DAYS,
+ * unless you cancel by reactivating.
+ */
+export type CloseMode = "deactivate" | "delete";
+export const DELETION_GRACE_DAYS = 7;
+
 /** The API's profile limits (PATCH /users/me). */
 export const DISPLAY_NAME_MIN = 2;
 export const DISPLAY_NAME_MAX = 60;

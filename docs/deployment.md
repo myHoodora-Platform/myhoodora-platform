@@ -52,12 +52,19 @@ Migrations are idempotent and recorded in the `migrations` collection: running t
 
 First deploy only, if the Hoods aren't there yet: `pnpm --filter @myhoodora/api seed:neighborhoods`.
 
+**The release with deactivate/delete, legal versions and `/api/v1` (November 2026):**
+- Run migrations right after the API deploys. `005-users-deletion-dates` gives accounts closed with the old single "Delete account" the 30-day deletion date it promised. Until it runs, those accounts are never purged.
+- The API still goes first: the new web calls `/api/v1/…`, `POST /users/me/reactivate` and `POST /users/me/legal`.
+- Every member is asked to agree to the 3 November Terms and Privacy Policy on their next visit. Tell members beforehand (Privacy Policy §13).
+- The `privacy@` and `dpo@` mailboxes must exist first ([compliance/ndpa.md](./compliance/ndpa.md) §6).
+
 ## 4. Configure the web app
 
 Set on the web host **before building** (these are compiled in):
 
 - `NEXT_PUBLIC_API_URL` = `https://<api-host>/api`
 - `NEXT_PUBLIC_APP_URL` = the public web origin, e.g. `https://www.myhoodora.com`
+- `SITE_ENV=production` on the production site only, unless it's on Vercel (where `VERCEL_ENV` says so). Every other deployment is kept out of search engines
 - the six `NEXT_PUBLIC_FIREBASE_*` values
 - `NEXT_PUBLIC_GOOGLE_CLIENT_ID` (optional, for One Tap)
 - `GEOCODE_MAPS_CO_API_KEY`
