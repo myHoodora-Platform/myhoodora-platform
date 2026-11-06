@@ -24,8 +24,8 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 
 // First, so a crash anywhere after this is reported (only in preview and production with a DSN).
 if (configResult.ok) initMonitoring(configResult.config);
-// Usage analytics, in production builds only (core/analytics).
-if (configResult.ok) initAnalytics(configResult.config);
+// Usage analytics: production builds only, once the person has said yes (core/analytics).
+if (configResult.ok) void initAnalytics(configResult.config);
 
 void SplashScreen.preventAutoHideAsync();
 
