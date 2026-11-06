@@ -16,6 +16,17 @@ export const DPO_EMAIL = "dpo@myhoodora.com";
 /** Must match the DPO named on the NDPC registration (Form 2, step 4). */
 export const DPO_NAME = "Peace Arakunle";
 
+/**
+ * The company behind myHoodora, as on its CAC registration and D-U-N-S certificate (Dun & Bradstreet
+ * Nigeria, valid to 28 October 2027). Google Play shows the same name and address on the store listing.
+ */
+export const COMPANY = {
+  legalName: "MYHOODORA LIMITED",
+  rcNumber: "9546341",
+  dunsNumber: "321520963",
+  address: "4 Amusa Idowu Street, off Community Road, Ijegun, Ikotun, Lagos State, Nigeria",
+} as const;
+
 export const SITE_URL = (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/+$/, "");
 
 /**
