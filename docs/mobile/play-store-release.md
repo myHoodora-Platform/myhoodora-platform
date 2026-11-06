@@ -47,13 +47,60 @@ Tick each box as it is done, and note the date. Items marked **(code)** need a c
 
 ## 2. Google Play Console and EAS set-up
 
-- [ ] **(you) Developer account.** Create it on a Google account the company owns, with a director's recovery details, not a developer's personal Gmail. The one-time fee is USD 25, so the card must allow international payments. Identity verification can take several days.
-- [ ] **(you) Organisation account** (decided 6 November 2026). Have ready: the company's D-U-N-S number (free from Dun & Bradstreet; it can take up to 30 days, so apply first; check that its name and address match the CAC registration exactly), the CAC documents, a director's government ID, and a public company website (www.myhoodora.com), email and phone. The company name and address appear on the listing. With an organisation account there's no minimum closed test before production.
-- [ ] **(you) Invite teammates** as users with their own permissions instead of sharing the owner login.
-- [ ] **(you) Create the app:** Play Console → Create app → name "myHoodora", default language English (United Kingdom) or English (US), App, Free. "Free" can't later be changed to paid.
-- [ ] **(you) Google service account key for EAS Submit.** Follow Expo's guide "Creating a Google Service Account key": Google Cloud project → service account → JSON key → invite the service account in Play Console (Users and permissions) with release rights for this app. Store the key on EAS, not in git: `eas credentials --platform android` → production → Google Service Account → Manage your Google Service Account Key for Play Store Submissions. Without it, `eas submit --non-interactive` fails with "Google Service Account Keys cannot be set up in --non-interactive mode".
-- [ ] **(you) Back up the upload key:** `eas credentials -p android` → Keystore → download. Keep it in the company password manager, outside git. Under Play App Signing (required for new apps) this is the **upload key**, and Google holds the real signing key.
-- [ ] **(you) Add Play's signing fingerprints to Firebase** after the first upload: Play Console → Test and release → App integrity → App signing → copy the app-signing key's SHA-1 and SHA-256 → Firebase → Project settings → Android app `com.myhoodora.app` → Add fingerprint. **Without this, Google sign-in fails for everyone who installs from Play**, even though it works in EAS builds. Then download the new `google-services.json` and update the `GOOGLE_SERVICES_JSON` file variable on EAS (both preview and production).
+Do these in order. Steps 2.1 to 2.4 happen in Google's consoles, signed in with the company's Google account. Step 2.5 is a terminal command. Step 2.6 waits for the first upload (section 5).
+
+### 2.1 The company's Google account and D-U-N-S number
+
+- [ ] **(you) A Google account the company owns**, for example a Google Workspace address on myhoodora.com, or a new Gmail used only for this. Its recovery phone and email should be a director's, not a developer's. It becomes the Play account's owner and can't be swapped out later without a transfer.
+- [ ] **(you) D-U-N-S number.** Check whether the company already has one at Dun & Bradstreet's lookup (dnb.com → "D-U-N-S Number" → "Look up"). If not, request one there (free; up to 30 days). The legal name and address must match the CAC registration **exactly**, because Google compares them. **Start this first**: nothing else in section 2 can finish without it.
+
+### 2.2 Create the developer account
+
+- [ ] **(you)** Go to play.google.com/console/signup with the company account → **An organisation** → enter the D-U-N-S number, legal name and address (as on D-U-N-S), the organisation's phone and website (https://www.myhoodora.com), the developer name shown on the store ("myHoodora", or the company's name), and a public contact email and phone.
+- [ ] **(you)** Pay the one-time USD 25 fee with a card that allows international payments (a dollar card, or a naira card with its international limit raised).
+- [ ] **(you)** Complete identity verification: a director's government ID, and the verification codes sent to the contact email and phone. Google may ask for CAC documents. Allow several days.
+- [ ] **(you)** Note that the developer name, email, address and phone appear on the store listing.
+
+### 2.3 Create the app and invite the team
+
+- [ ] **(you)** Play Console → **Create app**: app name `myHoodora`, default language English (United Kingdom), **App**, **Free**, then tick the two declarations (developer programme policies, US export laws). "Free" can't be changed to paid later.
+- [ ] **(you)** Play Console → **Users and permissions** → **Invite new users**: each teammate with their own Google account, and only the permissions they need (for developers: "Release apps to testing tracks" and "View app information"). Never share the owner login.
+
+### 2.4 A Google service account for EAS Submit
+
+EAS uploads builds to Play with this account's key. Use the Google Cloud project that already belongs to Firebase (`myhoodora-e9ba5`), so there's one project to look after.
+
+- [ ] **(you)** console.cloud.google.com → choose project `myhoodora-e9ba5` → **APIs & Services → Library** → search "Google Play Android Developer API" → **Enable**.
+- [ ] **(you)** **IAM & Admin → Service accounts → Create service account**: name `eas-play-submit`, no project roles (leave the role step empty) → **Done**.
+- [ ] **(you)** Open the new account → **Keys → Add key → Create new key → JSON**. A `.json` file downloads. **It's a password**: never put it in the repository, chat, email or WhatsApp.
+- [ ] **(you)** Copy the service account's email (`eas-play-submit@myhoodora-e9ba5.iam.gserviceaccount.com`). Play Console → **Users and permissions → Invite new users** → paste it → **App permissions** → add myHoodora → tick **View app information (read-only)**, **Edit and delete draft apps**, **Release to production, exclude devices, and use Play App Signing**, **Release apps to testing tracks**, **Manage testing tracks and edit tester lists** and **Manage store presence** (Play adds a few read-only ones itself) → **Invite user**. These are the permissions in Expo's guide (expo.fyi/creating-google-service-account). It can take up to a day before Google accepts the key.
+- [ ] **(you, or Claude with the file's path)** Store the key on EAS, not in git:
+  ```sh
+  cd apps/mobile
+  eas credentials --platform android
+  # → production → Google Service Account
+  # → Manage your Google Service Account Key for Play Store Submissions → Upload a new key → path to the .json
+  ```
+  Or skip this: the first `eas submit` asks for the key's path and stores it on EAS itself. Then delete the downloaded `.json` from Downloads, after saving a copy in the company password manager.
+
+### 2.5 Back up the upload key
+
+- [ ] **(you)** EAS made the Android keystore on 26 October 2026. Under Play App Signing it becomes the **upload key**: Google keeps the real signing key, and a lost upload key can be reset through Google support, but with a wait of days. Download a copy:
+  ```sh
+  cd apps/mobile
+  eas credentials --platform android
+  # → production → Keystore: Manage everything needed to build your project → Download existing keystore
+  ```
+  The command saves a `.jks` file and prints its passwords and alias. Put the file and the three values in the company password manager, then delete the local `.jks`. It must never be committed (`*.jks` is already in `apps/mobile/.gitignore`).
+
+### 2.6 After the first upload: Play's signing fingerprints in Firebase
+
+The first upload is in section 5 (`eas submit` to the internal track). Then:
+
+- [ ] **(you)** Play Console → myHoodora → **Test and release → App integrity → Play app signing** (older consoles: **Setup → App signing**) → copy the **App signing key certificate** SHA-1 and SHA-256 (not the upload key's: that one is already in Firebase).
+- [ ] **(you)** Firebase console → project `myhoodora-e9ba5` → Project settings → **Your apps** → Android `com.myhoodora.app` → **Add fingerprint**, once for each.
+- [ ] **(you)** Download the new `google-services.json` from the same page and replace the `GOOGLE_SERVICES_JSON` file variable on EAS (expo.dev → myhoodora-mvp/myhoodora → Environment variables), for **preview** and **production**.
+- [ ] **(you)** Install the internal-testing build from Play and sign in with Google. **Without these fingerprints, Google sign-in fails for every Play install**, even though it works in EAS builds.
 
 ## 3. Store listing
 
