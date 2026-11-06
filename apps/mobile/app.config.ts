@@ -38,6 +38,16 @@ const androidGoogleServices = nativeFirebaseFile("GOOGLE_SERVICES_JSON", "./goog
 const iosGoogleServices = nativeFirebaseFile("GOOGLE_SERVICE_INFO_PLIST", "./GoogleService-Info.plist");
 
 /**
+ * Firebase Analytics (usage only: Sentry stays the crash reporter). React Native Firebase's plugins
+ * need both native files, so without them they're left out and analytics stays off. Settings such as
+ * "no advertising ID" are in firebase.json; collection starts only in production (core/analytics).
+ */
+const firebaseAnalyticsPlugins: (string | [string, Record<string, unknown>])[] =
+  androidGoogleServices && iosGoogleServices
+    ? ["@react-native-firebase/app", ["@react-native-firebase/analytics", { ios: { withoutAdIdSupport: true } }]]
+    : [];
+
+/**
  * Crash reporting: links Sentry's native SDKs and uploads source maps and debug symbols from EAS
  * builds, so stack traces are readable. Org and project are build variables (SENTRY_ORG,
  * SENTRY_PROJECT); the auth token is the EAS secret SENTRY_AUTH_TOKEN, never written here.
@@ -85,15 +95,24 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
     // Approximate is enough to find a Hood and is what most people are comfortable granting.
     permissions: ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"],
-    // Added by React Native and libraries, never used: drawing over other apps (React Native's dev overlay),
-    // the microphone (video and the camera are silent) and biometrics (secure storage without a fingerprint
-    // prompt). Google Play asks about each permission an app ships with. Storage stays: older Android
-    // versions' photo picker can need it.
+    // Added by React Native and libraries, never used: drawing over other apps (React Native's dev overlay;
+    // debug builds still get it from their own manifest), the microphone (video and the camera are silent)
+    // and biometrics (secure storage without a fingerprint prompt). Google Play asks about each permission
+    // an app ships with. Storage stays: older Android versions' photo picker can need it.
     blockedPermissions: [
       "android.permission.SYSTEM_ALERT_WINDOW",
       "android.permission.RECORD_AUDIO",
       "android.permission.USE_BIOMETRIC",
       "android.permission.USE_FINGERPRINT",
+      // Firebase Analytics asks for the advertising ID; firebase.json turns its collection off, and
+      // Play's "Advertising ID" declaration says the app doesn't use it.
+      "com.google.android.gms.permission.AD_ID",
+      "android.permission.ACCESS_ADSERVICES_AD_ID",
+      "android.permission.ACCESS_ADSERVICES_ATTRIBUTION",
+      // expo-calendar adds these, but "Add to calendar" opens the phone's own new-event screen,
+      // which needs no permission (features/events/add-to-calendar.ts).
+      "android.permission.READ_CALENDAR",
+      "android.permission.WRITE_CALENDAR",
     ],
     predictiveBackGestureEnabled: false,
   },
@@ -122,6 +141,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ["expo-video", { supportsBackgroundPlayback: false, supportsPictureInPicture: false }],
     // The Alerts map: MapLibre with OpenFreeMap tiles, as on the web. No API key.
     "@maplibre/maplibre-react-native",
+    // Firebase's Apple SDK ships only through Swift Package Manager, which needs dynamic frameworks.
+    ["expo-build-properties", { ios: { useFrameworks: "dynamic" } }],
+    ...firebaseAnalyticsPlugins,
     ...googleSignInPlugin,
     sentryPlugin,
   ],

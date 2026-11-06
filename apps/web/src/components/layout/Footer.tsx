@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { MascotLockup } from "@myhoodora/ui/logo";
+import { COMPANY } from "@/lib/site";
 
 const COLUMNS: { title: string; links: { label: string; href: string; soon?: boolean; isNew?: boolean }[] }[] = [
   {
@@ -126,6 +127,13 @@ export function Footer() {
         <p>© {new Date().getFullYear()} myHoodora. All rights reserved.</p>
         <p>Made in Nigeria 🇳🇬 for neighbours everywhere.</p>
       </div>
+      <p className="mx-auto mt-3 max-w-6xl text-[11px] leading-relaxed">
+        myHoodora is operated by {COMPANY.legalName}, {COMPANY.address}. RC {COMPANY.rcNumber} ·{" "}
+        <abbr title="Data Universal Numbering System, Dun & Bradstreet" className="no-underline">
+          D-U-N-S
+        </abbr>
+        ® {COMPANY.dunsNumber}
+      </p>
     </footer>
   );
 }

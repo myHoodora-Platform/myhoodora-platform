@@ -1,12 +1,13 @@
 import { Outfit_400Regular, Outfit_600SemiBold, Outfit_700Bold, useFonts } from "@expo-google-fonts/outfit";
 import * as Sentry from "@sentry/react-native";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { Stack, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { initAnalytics, trackScreen } from "@/core/analytics/analytics";
 import { createQueryClient, wireQueryEnvironment } from "@/core/api/query-client";
 import { AuthProvider, useAuth } from "@/core/auth/auth-provider";
 import { configResult } from "@/core/config/env";
@@ -23,6 +24,8 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 
 // First, so a crash anywhere after this is reported (only in preview and production with a DSN).
 if (configResult.ok) initMonitoring(configResult.config);
+// Usage analytics, in production builds only (core/analytics).
+if (configResult.ok) initAnalytics(configResult.config);
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -35,6 +38,12 @@ function RootNavigator() {
   const t = useTheme();
   usePushNotifications();
   const settled = phase !== "bootstrapping" && phase !== "profileLoading";
+  const segments = useSegments();
+  const screen = segments.join("/");
+
+  useEffect(() => {
+    if (settled) trackScreen(screen.split("/"));
+  }, [settled, screen]);
 
   useEffect(() => {
     if (settled) void SplashScreen.hideAsync();
