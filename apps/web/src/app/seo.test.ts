@@ -1,6 +1,7 @@
 import { PHASE_DEVELOPMENT_SERVER, PHASE_PRODUCTION_BUILD } from "next/constants.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GUIDELINES_UPDATED } from "@/components/legal/community-guidelines";
+import { DELETE_ACCOUNT_UPDATED } from "@/components/legal/delete-account";
 import { PROVIDERS_UPDATED } from "@/components/legal/providers";
 
 const ORIGIN = "https://www.myhoodora.com";
@@ -41,6 +42,7 @@ describe("sitemap", () => {
         "/privacy",
         "/privacy/providers",
         "/terms",
+        "/delete-account",
       ].map((path) => `${ORIGIN}${path}`),
     );
   });
@@ -55,6 +57,7 @@ describe("sitemap", () => {
       "/privacy": expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
       "/privacy/providers": PROVIDERS_UPDATED,
       "/terms": expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      "/delete-account": DELETE_ACCOUNT_UPDATED,
     });
   });
 });

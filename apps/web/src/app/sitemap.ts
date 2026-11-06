@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { currentLegalVersion } from "@myhoodora/api-contract/legal";
 import { GUIDELINES_UPDATED } from "@/components/legal/community-guidelines";
+import { DELETE_ACCOUNT_UPDATED } from "@/components/legal/delete-account";
 import { PROVIDERS_UPDATED } from "@/components/legal/providers";
 import { SITE_URL } from "@/lib/site";
 
@@ -27,6 +28,7 @@ const PAGES: { path: string; lastModified?: string }[] = [
   { path: "/privacy", lastModified: currentLegalVersion("privacy").version },
   { path: "/privacy/providers", lastModified: PROVIDERS_UPDATED },
   { path: "/terms", lastModified: currentLegalVersion("terms").version },
+  { path: "/delete-account", lastModified: DELETE_ACCOUNT_UPDATED },
 ];
 
 export default function sitemap(): MetadataRoute.Sitemap {

@@ -85,6 +85,16 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
     // Approximate is enough to find a Hood and is what most people are comfortable granting.
     permissions: ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"],
+    // Added by React Native and libraries, never used: drawing over other apps (React Native's dev overlay),
+    // the microphone (video and the camera are silent) and biometrics (secure storage without a fingerprint
+    // prompt). Google Play asks about each permission an app ships with. Storage stays: older Android
+    // versions' photo picker can need it.
+    blockedPermissions: [
+      "android.permission.SYSTEM_ALERT_WINDOW",
+      "android.permission.RECORD_AUDIO",
+      "android.permission.USE_BIOMETRIC",
+      "android.permission.USE_FINGERPRINT",
+    ],
     predictiveBackGestureEnabled: false,
   },
   plugins: [
@@ -124,4 +134,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     eas: { projectId: EAS_PROJECT_ID },
   },
   runtimeVersion: { policy: "appVersion" },
+  // Over-the-air JavaScript fixes from EAS Update, per build channel (eas.json). Checked at launch and
+  // applied on the next one, so a launch never waits for the network. Native changes still need a build,
+  // and a new `version` above, so an update never reaches a build it doesn't fit.
+  updates: { url: `https://u.expo.dev/${EAS_PROJECT_ID}` },
 });

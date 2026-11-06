@@ -36,6 +36,7 @@ const COLUMNS: { title: string; links: { label: string; href: string; soon?: boo
       { label: "Privacy policy", href: "/privacy" },
       { label: "Terms of use", href: "/terms" },
       { label: "Community guidelines", href: "/guidelines" },
+      { label: "Delete your account", href: "/delete-account" },
     ],
   },
 ];
