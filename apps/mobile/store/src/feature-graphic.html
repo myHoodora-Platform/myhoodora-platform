@@ -1,0 +1,46 @@
+<!doctype html>
+<!--
+  Google Play feature graphic, 1024 × 500. Rendered to ../feature-graphic.png by render.mjs.
+  Play may crop the edges and lay its own play button over the centre in some places, so the
+  words sit left and nothing important touches the edges.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;700;800&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1024px; height: 500px; overflow: hidden; }
+  body {
+    font-family: "Outfit", system-ui, sans-serif;
+    background: radial-gradient(120% 140% at 0% 0%, #1a958a 0%, #147c73 45%, #0d5a53 100%);
+    color: #fff;
+    position: relative;
+  }
+  .photo {
+    position: absolute; right: 0; top: 0; width: 470px; height: 500px;
+    background: url("../../../web/public/images/hero-street.webp") center / cover;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 38%);
+            mask-image: linear-gradient(90deg, transparent 0%, #000 38%);
+  }
+  .photo::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(20,124,115,.55), rgba(13,90,83,.15)); }
+  .copy { position: absolute; left: 64px; top: 0; bottom: 0; width: 560px; display: flex; flex-direction: column; justify-content: center; gap: 18px; }
+  .lockup { width: 150px; height: auto; filter: drop-shadow(0 6px 18px rgba(0,0,0,.18)); }
+  h1 { font-size: 50px; line-height: 1.04; font-weight: 800; letter-spacing: -0.02em; }
+  h1 span { color: #ffd9d4; }
+  p { font-size: 21px; line-height: 1.35; font-weight: 500; color: rgba(255,255,255,.88); max-width: 470px; }
+  .chips { display: flex; gap: 10px; flex-wrap: wrap; }
+  .chip { font-size: 15px; font-weight: 700; padding: 7px 14px; border-radius: 999px; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.22); }
+</style>
+</head>
+<body>
+  <div class="photo"></div>
+  <div class="copy">
+    <img class="lockup" src="../../../web/public/logo/mascot-lockup-640.webp" alt="" />
+    <h1>Your neighbourhood,<br /><span>connected.</span></h1>
+    <p>Verified neighbours sharing news, alerts, tips and things for sale.</p>
+    <div class="chips"><span class="chip">Alerts</span><span class="chip">Recommendations</span><span class="chip">For Sale &amp; Free</span></div>
+  </div>
+</body>
+</html>

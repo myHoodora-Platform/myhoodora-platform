@@ -24,6 +24,7 @@ import { FeedBanner } from "./feed-banners";
 import { HoodSheet } from "./hood-sheet";
 import { AdCard } from "@/features/ads/ad-card";
 import { FeedPromptCard } from "@/features/feedback/feed-prompt-card";
+import { AnalyticsConsentCard } from "@/features/account/analytics-consent-card";
 import { adTracker, newFeedSession } from "@/features/ads/ad-tracking";
 import { ActiveAlertsCard } from "@/features/alerts/active-alerts-card";
 import { TOUR_TARGETS, useFirstRunTour } from "@/features/tour/home-tour";
@@ -201,6 +202,7 @@ export function FeedScreen() {
       {away ? null : <FeedBanner />}
       {/* A feedback prompt an admin set to appear here (features/feedback). */}
       <FeedPromptCard />
+      {away ? null : <AnalyticsConsentCard />}
     </View>
   );
 

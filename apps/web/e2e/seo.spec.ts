@@ -27,9 +27,9 @@ function tags(xml: string, name: string): string[] {
   return [...xml.matchAll(new RegExp(`<${name}>([^<]*)</${name}>`, "g"))].map((m) => m[1]!);
 }
 
-/** A sitemap URL, fetched from the server under test (the same path on a local build). */
+/** A sitemap URL as a crawler fetches it: as is on a live site, the same path on a local build. */
 function onServer(loc: string): string {
-  return new URL(loc).pathname;
+  return process.env.E2E_SEO_BASE_URL ? loc : new URL(loc).pathname;
 }
 
 async function getSitemap(request: APIRequestContext) {
@@ -80,7 +80,10 @@ test("lastmod values are real W3C dates, not the build or request time", async (
     expect(lastmod).toMatch(W3C_DATETIME);
     const time = Date.parse(lastmod);
     expect(Number.isNaN(time), lastmod).toBe(false);
-    expect(time, `${lastmod} is in the future`).toBeLessThanOrEqual(now);
+    // A date alone is read as midnight UTC, but it was "today" wherever it was written: allow the widest
+    // time-zone lead (UTC+14), so a page dated today in Lagos isn't "in the future" before 1 a.m.
+    const lead = lastmod.includes("T") ? 0 : 14 * 60 * 60 * 1000;
+    expect(time, `${lastmod} is in the future`).toBeLessThanOrEqual(now + lead);
     // A time of day within the last day would be a timestamp from the build, not the content.
     if (lastmod.includes("T")) expect(now - time, lastmod).toBeGreaterThan(24 * 60 * 60 * 1000);
   }

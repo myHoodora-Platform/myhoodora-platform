@@ -29,6 +29,13 @@ export const DEFAULT_REPORT_REASONS: ReportReasonSetting[] = [
   { id: "not_local", label: "Not about the neighbourhood", severity: "low", staffOnly: false },
 ];
 
+/**
+ * Days before the app asks again someone who said no to usage analytics (apps/mobile core/analytics).
+ * 0 never asks again. Six months is the benchmark European regulators use for asking again after a refusal.
+ */
+export const DEFAULT_ANALYTICS_REASK_DAYS = 180;
+export const MAX_ANALYTICS_REASK_DAYS = 730;
+
 export type PlatformSettingsDocument = HydratedDocument<PlatformSettings>;
 
 /** Singleton document (key = "platform"). */
@@ -42,6 +49,9 @@ export class PlatformSettings {
 
   @Prop({ type: [Object], default: () => DEFAULT_REPORT_REASONS.map((r) => ({ ...r })) })
   reportReasons!: ReportReasonSetting[];
+
+  @Prop({ type: Number, default: DEFAULT_ANALYTICS_REASK_DAYS })
+  analyticsReaskDays!: number;
 }
 
 export const PlatformSettingsSchema = SchemaFactory.createForClass(PlatformSettings);

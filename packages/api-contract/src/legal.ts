@@ -36,6 +36,11 @@ export const LEGAL_VERSIONS: Record<LegalDocument, LegalVersion[]> = {
   ],
   privacy: [
     {
+      version: "2026-11-07",
+      material: true,
+      changes: ["Optional app analytics: off unless you say yes, and never your name or posts."],
+    },
+    {
       version: "2026-11-03",
       material: true,
       changes: [
