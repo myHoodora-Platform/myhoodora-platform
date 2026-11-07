@@ -10,6 +10,7 @@ import { report } from "./feed-api";
 const REASONS: { id: ReportReason; label: string }[] = [
   { id: "spam", label: "Spam or advertising" },
   { id: "harassment", label: "Harassment or hate" },
+  { id: "child_safety", label: "Child safety or exploitation" },
   { id: "scam", label: "Scam or fraud" },
   { id: "misinformation", label: "False information" },
   { id: "not_local", label: "Not about this neighbourhood" },

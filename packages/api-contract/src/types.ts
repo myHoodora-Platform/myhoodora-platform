@@ -462,6 +462,7 @@ export interface AppNotification {
 export type ReportReason =
   | "spam"
   | "harassment"
+  | "child_safety"
   | "misinformation"
   | "scam"
   | "not_local"

@@ -20,6 +20,7 @@ import type { ReportInput, ReportReason } from "@/lib/api/types";
 const REASONS: { id: ReportReason; label: string }[] = [
   { id: "scam", label: "Scam or fraud" },
   { id: "harassment", label: "Harassment or hate" },
+  { id: "child_safety", label: "Child safety or exploitation" },
   { id: "misinformation", label: "False or misleading" },
   { id: "spam", label: "Spam or advertising" },
   { id: "not_local", label: "Not about this neighbourhood" },

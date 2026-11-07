@@ -27,6 +27,7 @@ export const APPEAL_MAX = 1000;
 export const REASON_LABEL: Record<string, string> = {
   spam: "Spam",
   harassment: "Harassment",
+  child_safety: "Child safety",
   misinformation: "Misinformation",
   scam: "Scam",
   not_local: "Not about the neighbourhood",
