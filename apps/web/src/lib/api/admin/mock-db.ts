@@ -566,6 +566,7 @@ export const platformSettings = () =>
       { id: "not_local", label: "Not about the neighbourhood", severity: "low", staffOnly: false },
     ],
     coverageCities: COVERAGE.map((c) => ({ city: c.city, hoods: c.areas.length })),
+    analyticsReaskDays: 180,
   }));
 export const savePlatformSettings = (s: PlatformSettings) => save("admin-settings", s);
 

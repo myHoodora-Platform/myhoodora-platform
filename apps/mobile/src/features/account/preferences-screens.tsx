@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check } from "lucide-react-native";
 import { useState, type ReactNode } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
+import { setAnalyticsConsent, useAnalyticsConsent } from "@/core/analytics/analytics";
 import { useSignedInUser } from "@/core/auth/auth-provider";
 import { feedKeys } from "@/features/feed/feed-api";
 import { useTheme } from "@/shared/theme/theme";
@@ -118,10 +119,21 @@ export function PrivacySettingsScreen() {
           <SettingsGroup footer="Helps neighbours trust newer and long-time residents alike.">
             <SettingsSwitch label="Show “Neighbour since” on your profile" value={prefs.privacy.showNeighbourSince} onChange={(showNeighbourSince) => change({ privacy: { showNeighbourSince } })} />
           </SettingsGroup>
+          <AnalyticsGroup />
           <BlockedGroup />
         </>
       )}
     </PreferencesPage>
+  );
+}
+
+/** Usage analytics on this phone (core/analytics): off until switched on here or on the feed card. */
+function AnalyticsGroup() {
+  const { loaded, consent } = useAnalyticsConsent();
+  return (
+    <SettingsGroup footer="Shares which features you use, never your name or posts.">
+      <SettingsSwitch label="Help improve myHoodora" value={consent?.choice === "granted"} disabled={!loaded} onChange={(on) => void setAnalyticsConsent(on ? "granted" : "denied")} />
+    </SettingsGroup>
   );
 }
 

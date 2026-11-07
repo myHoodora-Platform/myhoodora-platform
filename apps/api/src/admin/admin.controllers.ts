@@ -383,7 +383,7 @@ export class AdminController {
   }
 
   @Get("settings")
-  @ApiOperation({ summary: "Platform settings: report reasons, alert windows, coverage" })
+  @ApiOperation({ summary: "Platform settings: report reasons, alert windows, analytics re-ask, coverage" })
   @Can("settings.manage")
   async getSettings() {
     const [settings, coverageCities] = await Promise.all([this.settings.get(), this.hoods.coverageCities()]);
@@ -391,7 +391,7 @@ export class AdminController {
   }
 
   @Patch("settings")
-  @ApiOperation({ summary: "Update report reasons and alert windows" })
+  @ApiOperation({ summary: "Update report reasons, alert windows and the analytics re-ask interval" })
   @Can("settings.manage")
   async updateSettings(@CurrentViewer() v: Viewer, @Body() body: SettingsDto) {
     for (const [k, hours] of Object.entries(body.alertWindows ?? {})) {
@@ -399,7 +399,11 @@ export class AdminController {
         throw new BadRequestException("Alert windows must be between 1 hour and 30 days.");
       }
     }
-    const next = await this.settings.update({ alertWindows: body.alertWindows, reportReasons: body.reportReasons?.map(({ id, severity, staffOnly }) => ({ id, severity, staffOnly })) });
+    const next = await this.settings.update({
+      alertWindows: body.alertWindows,
+      reportReasons: body.reportReasons?.map(({ id, severity, staffOnly }) => ({ id, severity, staffOnly })),
+      analyticsReaskDays: body.analyticsReaskDays,
+    });
     await this.audit.record(v, "settings_update", { type: "settings", id: "platform", label: "Platform settings" });
     return { ...next, coverageCities: await this.hoods.coverageCities() };
   }

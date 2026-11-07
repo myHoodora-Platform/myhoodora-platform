@@ -55,6 +55,7 @@ export function PrivacyPolicyContent() {
           <li>myHoodora is for adults. We check your age once and don&apos;t keep your date of birth.</li>
           <li>You can see, correct and delete your data. Deleting your account really deletes it.</li>
           <li>No tracking cookies, analytics or ad trackers on the website.</li>
+          <li>The app counts how it&apos;s used only if you say yes, and never sees your name or what you write.</li>
         </ul>
       </div>
 
@@ -148,6 +149,14 @@ export function PrivacyPolicyContent() {
             <strong className={strong}>Crash reports</strong> from the app, which carry your account ID only (see
             section 4).
           </li>
+          <li>
+            <strong className={strong}>App usage analytics, only if you say yes:</strong> which screens of the app you
+            open (by type, such as &ldquo;a post&rdquo;, never which one), which features you use and for how long, your
+            app version, phone model, operating system, language, your country (worked out from your IP address, which
+            Google doesn&apos;t keep), and an ID made up for this install of the app. Never your name, email, account
+            ID, address, exact location, messages or anything you post. The app asks you once, and
+            you can change your answer in Settings → Privacy.
+          </li>
         </ul>
         <p>
           <strong className={strong}>What we get from others</strong>
@@ -215,6 +224,12 @@ export function PrivacyPolicyContent() {
             your account ID only, never your name, email, messages or screenshots.
           </li>
           <li>
+            <strong className={strong}>To see how the app is used</strong> (your consent): if you say yes to
+            &ldquo;Help improve myHoodora&rdquo;, the app counts which screens and features are used, so we know what
+            to fix and build next. It&apos;s off until you choose, and saying no changes nothing else about the app.
+            We don&apos;t use it for advertising or to build a profile of you.
+          </li>
+          <li>
             <strong className={strong}>To send service emails</strong> (performance of our contract): confirming
             your email, account and safety notices, and the notification emails you switch on in Settings →
             Notifications. We don&apos;t send marketing email. If we ever do, we&apos;ll ask first, separately from
@@ -222,7 +237,7 @@ export function PrivacyPolicyContent() {
           </li>
           <li>
             <strong className={strong}>With your consent:</strong> precise location from your device, push
-            notifications, and anything else we ask your permission for. You can withdraw consent at any time.
+            notifications, app usage analytics, and anything else we ask your permission for. You can withdraw consent at any time.
           </li>
           <li>
             <strong className={strong}>To meet legal obligations:</strong> for example, responding to lawful
@@ -261,7 +276,7 @@ export function PrivacyPolicyContent() {
             <strong className={strong}>Service providers who run myHoodora for us</strong>, under contracts that
             allow them to use it only to provide their service to us and require them to protect it. They provide
             sign-in, our database, hosting for the app and website, photo and video storage, email delivery, push
-            notifications, crash reports, and maps and address lookup.{" "}
+            notifications, crash reports, app usage analytics (if you say yes), and maps and address lookup.{" "}
             <Link href="/privacy/providers" className={link}>
               See every provider, what they handle and where they store it
             </Link>
@@ -304,6 +319,10 @@ export function PrivacyPolicyContent() {
           <li>Address checks: only your last 10, so a person can review a failed check.</li>
           <li>Your date of birth: not kept at all.</li>
           <li>
+            App usage analytics: kept by Google for up to 14 months, then deleted. Turning analytics off in Settings →
+            Privacy also clears what&apos;s stored on your phone and gives the app a new, unconnected ID.
+          </li>
+          <li>
             If you deactivate your account (Settings → Account → Deactivate account), your profile, posts, listings and
             comments are hidden until you log in and choose Reactivate. Nothing is deleted, and we stop emailing you.
           </li>
@@ -340,7 +359,8 @@ export function PrivacyPolicyContent() {
           <li>not be subject to decisions made only by automated means that significantly affect you;</li>
           <li>
             withdraw consent you have given, at any time, without penalty: turn off location, camera or notifications
-            in your phone&apos;s settings, change your emails in Settings → Notifications, or email us;
+            in your phone&apos;s settings, turn off &ldquo;Help improve myHoodora&rdquo; in Settings → Privacy, change
+            your emails in Settings → Notifications, or email us;
           </li>
           <li>
             complain to the <strong className={strong}>Nigeria Data Protection Commission (NDPC)</strong> if you
@@ -367,9 +387,10 @@ export function PrivacyPolicyContent() {
           We use only essential cookies and browser storage: to keep you signed in, protect your account, remember
           your settings, and keep the pages you&apos;ve already loaded available when your connection drops. Because
           they&apos;re all strictly necessary we don&apos;t ask for consent for them, and there&apos;s no cookie banner.
-          We don&apos;t use analytics, advertising or session-recording cookies or scripts. If we ever add any,
-          we&apos;ll ask you first and you&apos;ll be able to say no. Cached posts are cleared from your device when
-          you log out.
+          The website doesn&apos;t use analytics, advertising or session-recording cookies or scripts. If we ever add
+          any, we&apos;ll ask you first and you&apos;ll be able to say no. The app works the same way: its usage
+          analytics (section 2) stay off unless you say yes, and it has no advertising or session-recording tools.
+          Cached posts are cleared from your device when you log out.
         </p>
       </LegalSection>
 
