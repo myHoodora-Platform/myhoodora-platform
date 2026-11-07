@@ -18,7 +18,7 @@ import {
   Min,
   ValidateNested,
 } from "class-validator";
-import { ALERT_CATEGORIES, REPORT_REASONS } from "../platform/platform-settings.schema";
+import { ALERT_CATEGORIES, MAX_ANALYTICS_REASK_DAYS, REPORT_REASONS } from "../platform/platform-settings.schema";
 import { POST_CATEGORIES } from "../posts/domain/post-meta";
 import { ACCOUNT_STATUSES, ROLES, VERIFICATION_STATUSES } from "../shared/authz/roles";
 import { PageQuery } from "../shared/http/pagination";
@@ -134,6 +134,13 @@ export class SettingsDto {
   /** Hours per alert category (editable alert windows). */
   @IsOptional()
   alertWindows?: Partial<Record<(typeof ALERT_CATEGORIES)[number], number>>;
+
+  /** Days before the app asks again someone who said no to usage analytics; 0 never asks again. */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(MAX_ANALYTICS_REASK_DAYS)
+  analyticsReaskDays?: number;
 
   /** Read-only (derived from Hoods); accepted so the web can send the whole object back, then ignored. */
   @IsOptional()

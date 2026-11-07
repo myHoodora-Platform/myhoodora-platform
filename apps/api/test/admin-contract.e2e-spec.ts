@@ -68,6 +68,17 @@ describe("admin API ↔ web contract (§13)", () => {
     expectShape(saved.body, "PlatformSettings");
   });
 
+  it("analytics re-ask interval: 180 days by default, set by admins, read by the app", async () => {
+    expect((await get("/settings")).analyticsReaskDays).toBe(180);
+    const config = () => t.http.get("/api/app-config").set(t.auth("ada")).expect(200);
+    expect((await config()).body).toEqual({ analytics: { reaskDays: 180 } });
+    await t.http.patch("/api/admin/settings").set(t.auth("boss")).send({ analyticsReaskDays: 90 }).expect(200);
+    expect((await config()).body).toEqual({ analytics: { reaskDays: 90 } });
+    await t.http.patch("/api/admin/settings").set(t.auth("boss")).send({ analyticsReaskDays: 1000 }).expect(400);
+    await t.http.patch("/api/admin/settings").set(t.auth("ada")).send({ analyticsReaskDays: 0 }).expect(403);
+    await t.http.get("/api/app-config").expect(401);
+  });
+
   it("moderation", async () => {
     expectPage(await get("/reports"), "AdminReport");
     expectShape(await get(`/reports/${reportId}`), "ReportDetail");
