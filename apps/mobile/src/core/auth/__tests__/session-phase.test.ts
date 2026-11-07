@@ -50,7 +50,7 @@ describe("sessionPhase", () => {
     expect(sessionPhase({ ...base, profile: { isOnboarded: false, legal: never } })).toBe("needsTerms");
     expect(sessionPhase({ ...base, profile: { ...onboarded, legal: { terms: "2026-09-28", privacy: "2026-11-03" } }, onboardingSkipped: true })).toBe("needsTerms");
     expect(sessionPhase({ ...base, profile: { isOnboarded: false, ageConfirmed: false, legal: never } })).toBe("needsAgeCheck");
-    expect(sessionPhase({ ...base, profile: { ...onboarded, legal: { terms: "2026-11-03", privacy: "2026-11-03" } } })).toBe("ready");
+    expect(sessionPhase({ ...base, profile: { ...onboarded, legal: { terms: "2026-11-03", privacy: "2026-11-07" } } })).toBe("ready");
     // An older API that doesn't report it: not asked.
     expect(sessionPhase({ ...base, profile: onboarded })).toBe("ready");
   });

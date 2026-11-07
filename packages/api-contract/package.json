@@ -21,7 +21,8 @@
     "./calendar": "./src/calendar.ts",
     "./age": "./src/age.ts",
     "./legal": "./src/legal.ts",
-    "./api-version": "./src/api-version.ts"
+    "./api-version": "./src/api-version.ts",
+    "./app-config": "./src/app-config.ts"
   },
   "scripts": {
     "lint": "eslint .",

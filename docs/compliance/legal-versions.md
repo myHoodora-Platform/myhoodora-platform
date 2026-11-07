@@ -27,7 +27,8 @@ How the Terms of Use and the Privacy Policy are versioned, kept, and agreed to. 
 2. Edit the current text.
 3. Add the new version at the **top** of `LEGAL_VERSIONS[doc]`, dated the day it takes effect, with one line per change. Never edit or remove a published version.
 4. **Material or not?** Material means a new use of data, a new provider category, a new right or obligation, a change to how leaving works, or anything a member would want to object to. A typo or a clearer sentence isn't. For material: `material: true`, update `CURRENT_LEGAL` in the API (the test fails otherwise), and every member is asked again on their next visit.
-5. For a material change, tell members **before** it takes effect (the policy's §13 promises in-app or email notice). Date the version for when it applies.
-6. Deploy the API and the web together, then an app build. Older app builds don't know the new gate. They keep working, and their users are asked on the web or after updating.
+5. **If the change touches app usage analytics** (what it collects or why), set `ANALYTICS_POLICY_VERSION` in `packages/api-contract/src/app-config.ts` to the new version, so every phone is asked the analytics question again.
+6. For a material change, tell members **before** it takes effect (the policy's §13 promises in-app or email notice). Date the version for when it applies.
+7. Deploy the API and the web together, then an app build. Older app builds don't know the new gate. They keep working, and their users are asked on the web or after updating.
 
-Today: Terms `2026-11-03` (material), Privacy Policy `2026-11-03` (material). Both earlier versions are `2026-09-28`, the first published.
+Today: Terms `2026-11-03` (material), Privacy Policy `2026-11-07` (material: opt-in app usage analytics, effective the day it was published, as approved). Earlier versions: Terms `2026-09-28`; Privacy Policy `2026-11-03` and `2026-09-28` (the first published).

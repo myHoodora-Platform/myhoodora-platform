@@ -19,7 +19,7 @@ export interface Provider {
 }
 
 /** When this list last changed, "YYYY-MM-DD": shown on the page and used as its sitemap lastmod. */
-export const PROVIDERS_UPDATED = "2026-11-02";
+export const PROVIDERS_UPDATED = "2026-11-07";
 
 export const PROVIDERS: Provider[] = [
   {
@@ -91,6 +91,13 @@ export const PROVIDERS: Provider[] = [
     data: "Your account ID and what the app was doing when it crashed. Never your name, email, messages or screenshots",
     where: "United States",
     safeguard: "Sentry data processing addendum",
+  },
+  {
+    name: "Google Analytics for Firebase",
+    role: "App usage analytics, only if you say yes in the app",
+    data: "Screens and features used, app version, phone model, operating system, language, country and an ID for this install. Never your name, email, account ID or anything you write",
+    where: "United States",
+    safeguard: "Google Analytics data processing terms, with standard contractual clauses",
   },
   {
     name: "OpenFreeMap",
