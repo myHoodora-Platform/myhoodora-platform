@@ -73,6 +73,7 @@ The public version is **`/privacy/providers`**, built from `apps/web/src/compone
 | Resend | Email addresses, email content | US | Resend DPA |
 | Expo / APNs / FCM | Push tokens, notification text | US | Expo terms; Apple and Google terms |
 | Sentry (mobile) | Crash reports with uid only; PII scrubbed (`monitoring/scrub.ts`) | US/EU | Sentry DPA |
+| Google Analytics for Firebase (mobile, since 7 Nov 2026) | Only after opt-in: screens (route patterns), events, device model, OS, language, country, app instance ID. No uid, email or advertising ID | US | Google Analytics data processing terms + SCCs |
 | OpenFreeMap, maps.co, ip-api.com | IP address, typed address or coordinates | EU/US | Check terms; ip-api.com free tier has no DPA, so consider a paid tier or dropping it |
 
 **Already right:** fonts are self-hosted (`next/font` downloads them at build time; the CSP has no `fonts.googleapis.com`). The website loads no analytics, tag manager, pixel or session replay.
@@ -84,6 +85,8 @@ Quick re-check before each release: open the site in a private window, open DevT
 Only strictly necessary storage: the session cookie, security, settings, and the offline feed cache. Under GAID these need no consent, so **there is no cookie banner, by design**. The privacy policy says so.
 
 Rule for later: anything non-essential (analytics, ads SDKs, session replay, Firebase Analytics or Crashlytics beyond today's scrubbed Sentry) must default off, load only after opt-in through a banner with "Reject" as prominent as "Accept", allow withdrawal, and store proof of consent (when, where, what). Session replay must never record form fields.
+
+**App usage analytics follows this rule** (Privacy Policy 2026-11-07). Firebase Analytics is off in `firebase.json` and starts only in production builds after a yes on the feed card ("No thanks" and "Yes, I'll help" look the same). Settings → Privacy → "Help improve myHoodora" turns it off again, which also calls `resetAnalyticsData`. After a no, the app asks again once the days set in Admin → Settings → Platform have passed (default 180, the six-month benchmark European regulators use; 0 never), and asks everyone again when a privacy version changes analytics (`ANALYTICS_POLICY_VERSION`). A yes is never re-asked for time alone. Proof of consent (choice, time, privacy-policy version) is kept on the phone (`core/analytics`, `analytics.consent.v1`), because the choice is per install, like the data. No uid is ever sent, so nothing in Google's data links to an account. In the Firebase console (Analytics → Data retention), keep retention at 14 months or less, as the policy says.
 
 ## 5. Email
 

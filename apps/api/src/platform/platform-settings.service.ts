@@ -1,11 +1,12 @@
 import { Injectable } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
-import { ALERT_CATEGORIES, DEFAULT_ALERT_WINDOWS, DEFAULT_REPORT_REASONS, PlatformSettings, PlatformSettingsDocument, type AlertCategory, type ReportReasonSetting } from "./platform-settings.schema";
+import { ALERT_CATEGORIES, DEFAULT_ALERT_WINDOWS, DEFAULT_ANALYTICS_REASK_DAYS, DEFAULT_REPORT_REASONS, PlatformSettings, PlatformSettingsDocument, type AlertCategory, type ReportReasonSetting } from "./platform-settings.schema";
 
 export interface SettingsView {
   alertWindows: Record<AlertCategory, number>;
   reportReasons: ReportReasonSetting[];
+  analyticsReaskDays: number;
 }
 
 /** Admin-tunable platform rules, cached briefly (they change rarely). */
@@ -21,12 +22,13 @@ export class PlatformSettingsService {
     const value: SettingsView = {
       alertWindows: { ...DEFAULT_ALERT_WINDOWS, ...(doc?.alertWindows ?? {}) },
       reportReasons: DEFAULT_REPORT_REASONS.map((d) => ({ ...d, ...(doc?.reportReasons?.find((r) => r.id === d.id) ?? {}), id: d.id })),
+      analyticsReaskDays: doc?.analyticsReaskDays ?? DEFAULT_ANALYTICS_REASK_DAYS,
     };
     this.cache = { at: Date.now(), value };
     return value;
   }
 
-  async update(patch: { alertWindows?: Partial<Record<AlertCategory, number>>; reportReasons?: Pick<ReportReasonSetting, "id" | "severity" | "staffOnly">[] }): Promise<SettingsView> {
+  async update(patch: { alertWindows?: Partial<Record<AlertCategory, number>>; reportReasons?: Pick<ReportReasonSetting, "id" | "severity" | "staffOnly">[]; analyticsReaskDays?: number }): Promise<SettingsView> {
     const current = await this.get();
     const alertWindows = { ...current.alertWindows };
     for (const k of ALERT_CATEGORIES) {
@@ -37,7 +39,8 @@ export class PlatformSettingsService {
       const p = patch.reportReasons?.find((x) => x.id === r.id);
       return p ? { ...r, severity: p.severity, staffOnly: p.staffOnly } : r;
     });
-    await this.settings.updateOne({ key: "platform" }, { $set: { alertWindows, reportReasons } }, { upsert: true }).exec();
+    const analyticsReaskDays = patch.analyticsReaskDays ?? current.analyticsReaskDays;
+    await this.settings.updateOne({ key: "platform" }, { $set: { alertWindows, reportReasons, analyticsReaskDays } }, { upsert: true }).exec();
     this.cache = null;
     return this.get();
   }

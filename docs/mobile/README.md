@@ -9,6 +9,7 @@ How to run the app, and its push set-up, is in [`apps/mobile/README.md`](../../a
 | [api-integration-inventory.md](./api-integration-inventory.md) | What the app uses from the API, how errors are classified, realtime, and the gaps |
 | [ui-reference-inventory.md](./ui-reference-inventory.md) | Tokens, navigation and the screen-by-screen plan, from the web |
 | [dependency-compatibility.md](./dependency-compatibility.md) | SDK 57 versions, what is installed, and the compatibility checks |
+| [play-store-release.md](./play-store-release.md) | Releasing on Google Play: what's left in the code, the Play Console and EAS Submit set-up, store listing, Data safety answers, build and rollout |
 
 ## Status (20 October 2026)
 

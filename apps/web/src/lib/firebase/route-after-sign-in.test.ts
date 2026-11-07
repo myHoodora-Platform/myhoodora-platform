@@ -58,7 +58,7 @@ describe("routeAfterSignIn", () => {
     expect(await routeAfterSignIn(await userWith({ role: "member", isOnboarded: false, legal: never }), "/news-feed")).toBe("/accept-terms");
     expect(await routeAfterSignIn(await userWith({ role: "admin", isOnboarded: true, legal: { terms: "2026-09-28", privacy: "2026-11-03" } }), "/admin")).toBe("/accept-terms");
     expect(await routeAfterSignIn(await userWith({ role: "member", isOnboarded: true, ageConfirmed: false, legal: never }), "/news-feed")).toBe("/confirm-age");
-    expect(await routeAfterSignIn(await userWith({ role: "member", isOnboarded: true, legal: { terms: "2026-11-03", privacy: "2026-11-03" } }), "/news-feed")).toBe("/news-feed");
+    expect(await routeAfterSignIn(await userWith({ role: "member", isOnboarded: true, legal: { terms: "2026-11-03", privacy: "2026-11-07" } }), "/news-feed")).toBe("/news-feed");
   });
 
   it("waits for the server session, and refuses to route anywhere without one", async () => {

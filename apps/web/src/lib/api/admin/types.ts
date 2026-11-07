@@ -402,6 +402,8 @@ export interface AdminOverview {
 export interface PlatformSettings {
   reportReasons: { id: string; label: string; severity: ReportSeverity; staffOnly: boolean }[];
   coverageCities: { city: string; hoods: number }[];
+  /** Days before the app asks again someone who said no to usage analytics; 0 never asks again. */
+  analyticsReaskDays: number;
 }
 
 export interface SignupEntry {
