@@ -4,7 +4,7 @@ import { HydratedDocument } from "mongoose";
 export const ALERT_CATEGORIES = ["security", "power", "water", "flooding", "traffic", "fire", "scam", "other"] as const;
 export type AlertCategory = (typeof ALERT_CATEGORIES)[number];
 
-export const REPORT_REASONS = ["spam", "harassment", "misinformation", "scam", "not_local", "other"] as const;
+export const REPORT_REASONS = ["spam", "harassment", "child_safety", "misinformation", "scam", "not_local", "other"] as const;
 export type ReportReason = (typeof REPORT_REASONS)[number];
 export type Severity = "high" | "medium" | "low";
 
@@ -21,6 +21,8 @@ export const DEFAULT_ALERT_WINDOWS: Record<AlertCategory, number> = { traffic: 3
 export const URGENT_WINDOW_HOURS = 2;
 
 export const DEFAULT_REPORT_REASONS: ReportReasonSetting[] = [
+  // Child sexual abuse or exploitation: never shown to volunteer Leads (web /child-safety).
+  { id: "child_safety", label: "Child safety", severity: "high", staffOnly: true },
   { id: "harassment", label: "Harassment or hate", severity: "high", staffOnly: true },
   { id: "scam", label: "Scam or fraud", severity: "high", staffOnly: true },
   { id: "misinformation", label: "Misinformation", severity: "high", staffOnly: true },

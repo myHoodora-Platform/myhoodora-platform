@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { currentLegalVersion } from "@myhoodora/api-contract/legal";
 import { GUIDELINES_UPDATED } from "@/components/legal/community-guidelines";
+import { CHILD_SAFETY_UPDATED } from "@/components/legal/child-safety";
 import { DELETE_ACCOUNT_UPDATED } from "@/components/legal/delete-account";
 import { PROVIDERS_UPDATED } from "@/components/legal/providers";
 import { SITE_URL } from "@/lib/site";
@@ -25,6 +26,7 @@ const PAGES: { path: string; lastModified?: string }[] = [
   { path: "/press" },
   { path: "/contact" },
   { path: "/guidelines", lastModified: GUIDELINES_UPDATED },
+  { path: "/child-safety", lastModified: CHILD_SAFETY_UPDATED },
   { path: "/privacy", lastModified: currentLegalVersion("privacy").version },
   { path: "/privacy/providers", lastModified: PROVIDERS_UPDATED },
   { path: "/terms", lastModified: currentLegalVersion("terms").version },

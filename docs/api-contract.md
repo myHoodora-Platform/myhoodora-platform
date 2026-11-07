@@ -485,7 +485,7 @@ interface GroupPost { _id; groupId; authorUid; author: { uid; displayName; photo
 {
   targetType: "post" | "comment" | "listing" | "message",
   targetId,
-  reason: "spam" | "harassment" | "misinformation" | "scam" | "not_local" | "other",
+  reason: "spam" | "harassment" | "child_safety" | "misinformation" | "scam" | "not_local" | "other",
   details?
 }
 ```

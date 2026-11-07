@@ -17,6 +17,7 @@ import { timeAgo } from "@/lib/time";
 const REASON_LABEL: Record<string, string> = {
   spam: "Spam",
   harassment: "Harassment",
+  child_safety: "Child safety",
   misinformation: "Misinformation",
   scam: "Scam",
   not_local: "Not about the neighbourhood",
