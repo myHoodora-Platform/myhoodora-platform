@@ -35,6 +35,7 @@ describe("route access", () => {
     expect(isPublicPath("/about")).toBe(true);
     expect(isPublicPath("/safety")).toBe(true);
     expect(isPublicPath("/delete-account")).toBe(true);
+    expect(isPublicPath("/child-safety")).toBe(true);
     expect(isPublicPath("/ai")).toBe(true);
     for (const p of ["/careers", "/press", "/contact"]) expect(isPublicPath(p)).toBe(true);
     expect(isPublicPath("/business/get-started")).toBe(true);

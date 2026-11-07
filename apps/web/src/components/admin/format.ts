@@ -32,6 +32,7 @@ export function initials(name: string): string {
 export const REASON_LABEL: Record<string, string> = {
   harassment: "Harassment or hate",
   scam: "Scam or fraud",
+  child_safety: "Child safety",
   misinformation: "Misinformation",
   spam: "Spam or advertising",
   not_local: "Not about the neighbourhood",

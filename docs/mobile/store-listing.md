@@ -94,3 +94,23 @@ Photos in the shots: the website's own images (`apps/web/public/images`) and Clo
 - To undo everything: `docker exec myhoodora-mongo mongosh myhoodora --eval 'db.neighborhoods.updateOne({_id: ObjectId("6ae33231dea11b31ddca684e")}, {$set: {name: "QA UX Hood"}}); ["posts","listings","comments","reactions","groups","group_members","group_posts","rsvps","conversations","messages","notifications","poll_votes","users"].forEach(c => db[c].deleteMany({storeShot: true})); db.posts.updateMany({storeShotHidden: true}, {$set: {isActive: true}, $unset: {storeShotHidden: ""}}); db.listings.updateMany({storeShotHidden: true}, {$set: {removedAt: null}, $unset: {storeShotHidden: ""}}); db.groups.updateMany({storeShotHidden: true}, {$set: {archivedAt: null}, $unset: {storeShotHidden: ""}}); db.users.updateOne({email: "myhoodora+qa-store@gmail.com"}, {$set: {displayName: "QA Store"}})'`.
 - Signed in as `myhoodora+qa-store@gmail.com`, created by a person on the phone on 6 November 2026 (Claude doesn't type passwords into Firebase sign-in). Home Yaba, following Somolu, verified, all set in the local database. It's a real Firebase account: delete it before launch with the other QA accounts.
 - Redmi 14C over wireless adb, development build, `adb reverse` for ports 3001, 8081 and 3000. Its screen is 720 × 1640 (taller than Play's 2:1 limit), so the shots used `adb shell wm size 1080x2160` and `wm density 480`, with demo mode for a clean status bar. Reset afterwards: `wm size reset`, `wm density reset`, `am broadcast -a com.android.systemui.demo -e command exit`.
+
+## Demo content for Google's reviewer
+
+Google's reviewers sign in from outside Nigeria, so the reviewer account lives in a demo Hood instead of a real one. [`apps/mobile/store/src/review-seed.js`](../../apps/mobile/store/src/review-seed.js) adds, to the database the API uses:
+
+- Three demo Hoods, "Agege (Demo)", "Ikorodu (Demo)" and "Yaba (Demo)", placed 35 km out at sea south of Lagos. No real address can be matched into them and they are never "nearby" a real Hood (5 km), so real members never see them, their people or their posts (search is per Hood too).
+- 24 demo neighbours (`example.invalid` addresses, all emails and push off), 18 posts based on that week's real local news, 46 comments, a poll, RSVPs, 6 listings, 3 groups.
+- With `REVIEWER_EMAIL`: that account is placed in Agege (Demo), following Ikorodu (Demo), with 4 chats (a listing chat, a group chat, a direct chat and a message request) and 5 notifications.
+
+Photos: Pexels (free licence, no attribution needed) and myhoodora.com's own images. Everything is tagged `reviewDemo: true`. Run it from the repo root:
+
+```sh
+mongosh "<MONGODB_URI>" --quiet --eval 'var REVIEWER_EMAIL = "<reviewer email>"; load("apps/mobile/store/src/review-seed.js")'
+```
+
+Remove it after the app is approved (and before any later review, re-run it so the dates are fresh). The reviewer account itself isn't deleted:
+
+```sh
+mongosh "<MONGODB_URI>" --quiet --eval '["posts","listings","comments","reactions","groups","group_members","group_posts","rsvps","conversations","messages","notifications","poll_votes","users","neighborhoods"].forEach(c => db[c].deleteMany({reviewDemo: true}))'
+```
