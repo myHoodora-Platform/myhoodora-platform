@@ -331,6 +331,7 @@ const SEVERITY: Record<ReportReason, ReportSeverity> = {
   harassment: "high",
   scam: "high",
   misinformation: "high",
+  child_safety: "high",
   other: "medium",
   spam: "low",
   not_local: "low",
@@ -560,6 +561,7 @@ export const platformSettings = () =>
     reportReasons: [
       { id: "harassment", label: "Harassment or hate", severity: "high", staffOnly: true },
       { id: "scam", label: "Scam or fraud", severity: "high", staffOnly: true },
+      { id: "child_safety", label: "Child safety", severity: "high", staffOnly: true },
       { id: "misinformation", label: "Misinformation", severity: "high", staffOnly: true },
       { id: "other", label: "Something else", severity: "medium", staffOnly: false },
       { id: "spam", label: "Spam or advertising", severity: "low", staffOnly: false },
