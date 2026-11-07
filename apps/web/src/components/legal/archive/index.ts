@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 import type { LegalDocument } from "@myhoodora/api-contract/legal";
 import { PrivacyPolicy20260928 } from "./privacy-2026-09-28";
+import { PrivacyPolicy20261103 } from "./privacy-2026-11-03";
 import { Terms20260928 } from "./terms-2026-09-28";
 
 /**
@@ -9,5 +10,5 @@ import { Terms20260928 } from "./terms-2026-09-28";
  */
 export const LEGAL_ARCHIVE: Record<LegalDocument, Record<string, ComponentType>> = {
   terms: { "2026-09-28": Terms20260928 },
-  privacy: { "2026-09-28": PrivacyPolicy20260928 },
+  privacy: { "2026-11-03": PrivacyPolicy20261103, "2026-09-28": PrivacyPolicy20260928 },
 };

@@ -1603,3 +1603,11 @@ A prompt is returned when it is live (active, within its dates), its trigger mat
 - `POST /admin/prompts/:id/send`: manual prompts only, once. Live from then; with `push: true` its audience also gets a notification opening `/feedback/<id>`.
 - `GET /admin/prompts/:id/results` → `{ shown, dismissed, responses, responseRate, average, distribution, nps?, comments[] }` (comments carry the neighbour's name and Hood: staff only). `GET /admin/prompts/:id/export.csv`: every answer, formulas defused.
 - `GET /admin/prompts/settings` → `{ cooldownDays, storeReview: { enabled, milestones, minDaysSinceJoin, cooldownDays } }`; `PATCH` takes `cooldownDays`, `storeReviewEnabled`, `storeReviewMilestones`, `storeReviewMinDaysSinceJoin`, `storeReviewCooldownDays`.
+
+## 34. App config and the analytics question (2026-11-07)
+
+App usage analytics (Firebase Analytics, mobile, production builds) is opt-in: the feed asks once, and Settings → Privacy changes it. The choice is kept on the phone (`apps/mobile/src/core/analytics`).
+
+- `GET /app-config` (any signed-in member) → `{ analytics: { reaskDays } }`: days before the app asks again someone who said no. `0` never asks again.
+- Admins set it in Admin → Settings → Platform: `GET /admin/settings` includes `analyticsReaskDays` (default `180`); `PATCH /admin/settings` takes it, an integer from 0 to 730 (`settings.manage`; audited as `settings_update`).
+- When to ask is decided by `shouldAskAnalytics` (`packages/api-contract/src/app-config.ts`): never answered; or answered under an older analytics policy (`ANALYTICS_POLICY_VERSION`); or a no older than `reaskDays`. A yes is never asked again for time alone. Until `/app-config` has loaded, a no stays a no.

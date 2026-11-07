@@ -139,6 +139,27 @@ export function PlatformPage() {
                 <p className="mt-3 text-xs text-muted-foreground">Add a city by creating its first Hood.</p>
               </Panel>
             </div>
+
+            <Panel title="App analytics question">
+              <p className="mb-3 text-sm text-muted-foreground">
+                The app asks once whether it may share which features someone uses. If they say no, it asks again after this many days. A yes is never asked again.
+              </p>
+              <label className="flex flex-wrap items-center gap-3 text-sm">
+                <span className="font-medium">Ask again after a no, in days</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={730}
+                  step={1}
+                  value={draft.analyticsReaskDays}
+                  onChange={(e) => setDraft({ ...draft, analyticsReaskDays: Math.max(0, Math.min(730, Math.round(Number(e.target.value) || 0))) })}
+                  className="h-9 w-24 rounded-lg border border-border bg-card px-2"
+                />
+              </label>
+              <p className="mt-3 text-xs text-muted-foreground">
+                Default 180 (six months, the benchmark European regulators use). 0 never asks again. Asking more often than every few months can count as pressure, which weakens the consent. Everyone is also asked again when the privacy policy changes what analytics collects.
+              </p>
+            </Panel>
           </>
         )
       )}

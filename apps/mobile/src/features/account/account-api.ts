@@ -1,4 +1,5 @@
 import type { User } from "@firebase/auth";
+import type { AppConfig } from "@myhoodora/api-contract/app-config";
 import type { CloseMode, DeactivationReason, Preferences } from "@myhoodora/api-contract/settings";
 import type { HoodRequestView, MyHoods, PublicProfile, UserProfile } from "@myhoodora/api-contract/types";
 import { apiFetch } from "@/core/api/client";
@@ -7,7 +8,13 @@ export const accountKeys = {
   preferences: ["me", "preferences"] as const,
   publicProfile: (uid: string) => ["profile", uid] as const,
   blocks: ["me", "blocks"] as const,
+  appConfig: ["app-config"] as const,
 };
+
+/** Rules admins set for the apps (Admin → Settings → Platform), such as when to ask about analytics again. */
+export function getAppConfig(user: User): Promise<AppConfig> {
+  return apiFetch<AppConfig>(user, "/app-config");
+}
 
 /** `PATCH /users/me`: only these three; anything else is refused (contract §14). `photoURL: null` removes the photo. */
 export function updateMe(user: User, patch: { displayName?: string; bio?: string; photoURL?: string | null }): Promise<UserProfile> {
