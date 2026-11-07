@@ -13,6 +13,8 @@ import type { Metadata } from "next";
 export const CONTACT_EMAIL = "hello@myhoodora.com";
 export const PRIVACY_EMAIL = "privacy@myhoodora.com";
 export const DPO_EMAIL = "dpo@myhoodora.com";
+/** The designated child safety contact (/child-safety; Google Play's Child Safety Standards declaration). */
+export const SAFETY_EMAIL = "safety@myhoodora.com";
 /** Must match the DPO named on the NDPC registration (Form 2, step 4). */
 export const DPO_NAME = "Peace Arakunle";
 

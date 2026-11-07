@@ -65,6 +65,7 @@ export const PUBLIC_PATHS = [
   "/privacy/providers",
   "/terms",
   "/delete-account",
+  "/child-safety",
   "/reset-password",
   "/verify-email",
 ] as const;
