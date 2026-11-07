@@ -1,6 +1,7 @@
 import { PHASE_DEVELOPMENT_SERVER, PHASE_PRODUCTION_BUILD } from "next/constants.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GUIDELINES_UPDATED } from "@/components/legal/community-guidelines";
+import { CHILD_SAFETY_UPDATED } from "@/components/legal/child-safety";
 import { DELETE_ACCOUNT_UPDATED } from "@/components/legal/delete-account";
 import { PROVIDERS_UPDATED } from "@/components/legal/providers";
 
@@ -39,6 +40,7 @@ describe("sitemap", () => {
         "/press",
         "/contact",
         "/guidelines",
+        "/child-safety",
         "/privacy",
         "/privacy/providers",
         "/terms",
@@ -54,6 +56,7 @@ describe("sitemap", () => {
     const lastmod = Object.fromEntries(entries.filter((e) => e.lastModified).map((e) => [e.url.slice(ORIGIN.length), e.lastModified]));
     expect(lastmod).toEqual({
       "/guidelines": GUIDELINES_UPDATED,
+      "/child-safety": CHILD_SAFETY_UPDATED,
       "/privacy": expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
       "/privacy/providers": PROVIDERS_UPDATED,
       "/terms": expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
