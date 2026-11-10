@@ -15,7 +15,7 @@ Tick each box as it is done, and note the date. Items marked **(code)** need a c
 | Push (Android) | ✅ FCM V1 key is on the EAS project |
 | Signing key | 🟡 EAS made the keystore on 26 October 2026. Not backed up yet |
 | `TODO` / `FIXME` comments in `apps/mobile` | ✅ none |
-| EAS Submit | ✅ `submit.production` sends to internal testing as a draft. The Play service-account key (`myhoodora-play-api`, key `33ab5964…`) is on EAS since 7 November 2026 |
+| EAS Submit | 🟡 `submit.production` sends to internal testing as a draft. No Google service account key yet (section 2) |
 | Play account | Decided 6 November 2026: an **organisation** account, so no 14-day closed test |
 | Store listing, declarations | ❌ not started |
 
@@ -32,7 +32,6 @@ Tick each box as it is done, and note the date. Items marked **(code)** need a c
 
 ### Backend and services the app depends on
 
-- [x] **(code) Privacy policy update for app analytics** (7 Nov). Privacy Policy `2026-11-07`, material, effective on publication (approved by the user on 7 November 2026). App usage analytics is **opt-in**: off until the person says yes on a one-time feed card ("No thanks" as prominent as yes, shown after the first-run tour), with a switch in Settings → Privacy that also clears the phone's analytics data. Google Analytics for Firebase is on `/privacy/providers`. Members are asked to agree again on their next visit. **Deploy the API and the web together** (the API's `CURRENT_LEGAL` and the web's text must go live at the same time), before the store build.
 - [ ] **(you) Turn real deletion on: `DATA_DELETION_MODE=live` on the API host.** In the default `dry-run`, nothing is deleted, so the new page, the privacy policy and the Data safety answer would all be untrue. Read a week of dry-run logs, take a backup, then switch (`docs/compliance/ndpa.md`, section 2).
 - [ ] **(you) Deploy the API before the store build goes out.** The app relies on `/api/v1`, the legal-version gate and the deactivate/delete modes. An API older than the app breaks sign-in.
 - [ ] **(you) Hosting for real users.** The production API runs on Render's free tier, kept awake by UptimeRobot. If the monitor stops, cold starts of about 50 s return and logins fail (the app times out after 15 s). Move to a paid instance before launch.
@@ -71,11 +70,11 @@ Do these in order. Steps 2.1 to 2.4 happen in Google's consoles, signed in with 
 
 EAS uploads builds to Play with this account's key. Use the Google Cloud project that already belongs to Firebase (`myhoodora-e9ba5`), so there's one project to look after.
 
-- [x] **(you)** console.cloud.google.com → choose project `myhoodora-e9ba5` → **APIs & Services → Library** → search "Google Play Android Developer API" → **Enable**.
-- [x] **(you)** **IAM & Admin → Service accounts → Create service account**: name `eas-play-submit`, no project roles (leave the role step empty) → **Done**.
-- [x] **(you)** Open the new account → **Keys → Add key → Create new key → JSON**. A `.json` file downloads. **It's a password**: never put it in the repository, chat, email or WhatsApp.
-- [x] **(you)** Copy the service account's email (`eas-play-submit@myhoodora-e9ba5.iam.gserviceaccount.com`). Play Console → **Users and permissions → Invite new users** → paste it → **App permissions** → add myHoodora → tick **View app information (read-only)**, **Edit and delete draft apps**, **Release to production, exclude devices, and use Play App Signing**, **Release apps to testing tracks**, **Manage testing tracks and edit tester lists** and **Manage store presence** (Play adds a few read-only ones itself) → **Invite user**. These are the permissions in Expo's guide (expo.fyi/creating-google-service-account). It can take up to a day before Google accepts the key.
-- [x] **(you, or Claude with the file's path)** Store the key on EAS, not in git (done 7 Nov through EAS; the account used is `myhoodora-play-api`, not `eas-play-submit`):
+- [ ] **(you)** console.cloud.google.com → choose project `myhoodora-e9ba5` → **APIs & Services → Library** → search "Google Play Android Developer API" → **Enable**.
+- [ ] **(you)** **IAM & Admin → Service accounts → Create service account**: name `eas-play-submit`, no project roles (leave the role step empty) → **Done**.
+- [ ] **(you)** Open the new account → **Keys → Add key → Create new key → JSON**. A `.json` file downloads. **It's a password**: never put it in the repository, chat, email or WhatsApp.
+- [ ] **(you)** Copy the service account's email (`eas-play-submit@myhoodora-e9ba5.iam.gserviceaccount.com`). Play Console → **Users and permissions → Invite new users** → paste it → **App permissions** → add myHoodora → tick **View app information (read-only)**, **Edit and delete draft apps**, **Release to production, exclude devices, and use Play App Signing**, **Release apps to testing tracks**, **Manage testing tracks and edit tester lists** and **Manage store presence** (Play adds a few read-only ones itself) → **Invite user**. These are the permissions in Expo's guide (expo.fyi/creating-google-service-account). It can take up to a day before Google accepts the key.
+- [ ] **(you, or Claude with the file's path)** Store the key on EAS, not in git:
   ```sh
   cd apps/mobile
   eas credentials --platform android
@@ -114,7 +113,7 @@ Everything to paste, and how each graphic is made, is in [store-listing.md](./st
 | Full description | 4,000 characters, no keyword lists or claims you can't back up | ✅ written (about 2,150), each claim checked against the code |
 | App icon | 512 × 512 PNG | ✅ `store/icon-512.png` |
 | Feature graphic | 1024 × 500, required | ✅ `store/feature-graphic.png` (source `store/src/feature-graphic.html`) |
-| Phone screenshots | 2 to 8, real screens | ✅ 8 shots in `apps/mobile/store/screenshots/final/` (Redmi 14C, 1080 × 2160). Check the Cloudinary demo photos' licence before upload (store-listing.md) |
+| Phone screenshots | 2 to 8, real screens | 🟡 local demo data seeded and the shot list written; capture needs one sign-in on the emulator (store-listing.md) |
 | Tablet screenshots | Optional | Skip: the app is phone-only |
 | Category | One | Social |
 | Contact email | Required, public | hello@myhoodora.com (make sure someone reads it) |
@@ -130,7 +129,7 @@ Every answer must match what the app and its libraries actually do, and the priv
   - an email-and-password account (no OTP or SMS step), email already confirmed, age already confirmed, current terms accepted, and **already a member of a Hood**. Reviewers are outside Nigeria, so a new account can't pass onboarding's location check.
   - The Hood needs posts, listings and a conversation, so there's something to review.
   - Keep this account outside the QA clean-up list (`project_qa_test_accounts`) and never delete it while the app is listed.
-- [ ] **Ads:** **Yes, the app contains ads** (the sponsored cards in the feed, `features/ads`). The app doesn't read the advertising ID: Firebase Analytics' `AD_ID` permission is removed (`blockedPermissions`) and its collection turned off (`apps/mobile/firebase.json`), so answer "No" to the advertising ID question.
+- [ ] **Ads:** **Yes, the app contains ads** (the sponsored cards in the feed, `features/ads`). The app doesn't read the advertising ID (no `AD_ID` permission), so answer "No" to the advertising ID question.
 - [ ] **Content rating (IARC questionnaire):** category Social or communication. Users talk to each other and share content; the app shares the user's approximate location (their neighbourhood) with other users; no gambling, no violence, no purchases. Expect a Teen or 12+ style rating.
 - [ ] **Target audience:** 18 and over only, which matches the age check. Don't tick any age group under 18, so the Families policy doesn't apply.
 - [ ] **User-generated content:** Play requires terms users accept, a way to report content and users, a way to block users, and moderation. The app has terms acceptance (the gate), report sheets on posts, comments and listings, and block on a neighbour's profile and in conversations, with moderation in the admin app. Be ready to describe this.
@@ -146,7 +145,7 @@ Every answer must match what the app and its libraries actually do, and the priv
 | Photos | Yes, optional | Posts, listings, profile photo | No |
 | Messages (in-app) | Yes | App functionality | No |
 | Other user-generated content (posts, comments) | Yes | App functionality | No |
-| App interactions (screens viewed, ad impressions and clicks) | Yes. Ad views and clicks: our API, required. Screens and features: Firebase Analytics, production builds, **optional** (only after the person opts in) | Analytics, advertising | No |
+| App interactions (screens viewed, ad impressions and clicks) | Yes (our API, and Firebase Analytics in production builds) | Analytics, advertising | No |
 | Crash logs, diagnostics | Yes (Sentry, with personal data filtered) | App functionality, analytics | No |
 | Device or other IDs (push token; Firebase Analytics' app instance ID) | Yes | Notifications, analytics | No |
 
@@ -194,12 +193,4 @@ Not needed for Play, but these block the App Store: an Apple Developer account (
 1. Release countries: Nigeria only?
 2. Paid API hosting before launch?
 
-Decided: an organisation Play account; `expo-updates` installed before 1.0.0 (both 6 November 2026). Firebase Analytics in the app only, Sentry kept as the only crash reporter, no analytics on the website; store screenshots from a local demo neighbourhood (6 November 2026).
-
-## Next steps (6 November 2026)
-
-1. **Play service-account key:** rotated and on EAS (7 November 2026, key `33ab5964…`). Check that the old key `11e8baf7…` is deleted in Google Cloud, and move the downloaded `.json` out of the repository folder into the company password manager (`.gitignore` covers `myhoodora-e9ba5-*.json` meanwhile).
-2. **Screenshots:** done 6 November 2026 (`apps/mobile/store/screenshots/final/`). Before uploading, confirm the Cloudinary demo photos may be used, or swap them. Then undo the local demo data (command in store-listing.md) and delete the `myhoodora+qa-store` Firebase account before launch.
-3. **iOS:** set `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` on EAS (preview and production) to the iOS client ID in `GoogleService-Info.plist` (`CLIENT_ID`), and run an iOS build to check the new dynamic frameworks (React Native Firebase v27 needs them) before any iOS release.
-4. **Privacy policy version** for analytics: done 7 November 2026 (`2026-11-07`, opt-in analytics). Deploy the API and web together, then `DATA_DELETION_MODE=live`, then the store build.
-5. **Website seal (optional):** if you want D&B's "D-U-N-S Registered" seal on the site, ask Dun & Bradstreet Nigeria to enable the *website* seal for www.myhoodora.com. It's a third-party script, so it also needs a content-security-policy change and a line in the privacy policy. Until then the footer shows the company name, RC number and D-U-N-S number as text.
+Decided: an organisation Play account; `expo-updates` installed before 1.0.0 (both 6 November 2026).
