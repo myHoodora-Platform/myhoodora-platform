@@ -1,4 +1,4 @@
-import { isSameSite, pageTitle, webPageUrl } from "../web-urls";
+import { isSamePage, isSameSite, pageTitle, webPageUrl } from "../web-urls";
 
 const SITE = "https://myhoodora.com";
 
@@ -22,5 +22,15 @@ describe("in-app web pages", () => {
     expect(pageTitle("Community guidelines | myHoodora")).toBe("Community guidelines");
     expect(pageTitle("https://myhoodora.com/terms")).toBe("");
     expect(pageTitle(undefined)).toBe("");
+  });
+
+  it("keeps the policy sheet on the document being read, through www redirects", () => {
+    expect(isSamePage("https://myhoodora.com/terms", SITE, "/terms")).toBe(true);
+    expect(isSamePage("https://www.myhoodora.com/terms/", SITE, "/terms")).toBe(true);
+    expect(isSamePage("https://www.myhoodora.com/terms#section", SITE, "/terms")).toBe(true);
+    expect(isSamePage("https://myhoodora.com/privacy", SITE, "/terms")).toBe(false);
+    expect(isSamePage("http://myhoodora.com/terms", SITE, "/terms")).toBe(false);
+    expect(isSamePage("https://myhoodora.com.evil.example/terms", SITE, "/terms")).toBe(false);
+    expect(isSamePage("mailto:privacy@myhoodora.com", SITE, "/terms")).toBe(false);
   });
 });

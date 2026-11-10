@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Input } from "@myhoodora/ui/input";
@@ -22,6 +21,7 @@ import { useRedirectIfSignedIn } from "@/hooks/use-redirect-if-signed-in";
 import { toast } from "sonner";
 import { BirthField, CantJoinYet, EMPTY_BIRTH, type BirthInput } from "@/features/age/age-check-form";
 import { ageCheckLocked, lockAgeCheck } from "@/features/age/age-lock";
+import { PolicyReviewDialog } from "@/components/legal/policy-review-dialog";
 
 export default function RegisterPage() {
   // Blocks a second sign-up from a fast double submit (see login page).
@@ -34,9 +34,12 @@ export default function RegisterPage() {
   const [birth, setBirth] = useState<BirthInput>(EMPTY_BIRTH);
   const [birthProblem, setBirthProblem] = useState<string | null>(null);
 
+  const [reviewing, setReviewing] = useState(false);
   const {
     register,
     handleSubmit,
+    setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<RegisterInput>({
     resolver: zodResolver(registerSchema),
@@ -163,24 +166,39 @@ export default function RegisterPage() {
 
         <div className="flex flex-col gap-1 px-1 pt-1">
           <label className="flex items-start gap-2.5 cursor-pointer select-none">
+            {/* Ticked only by "I agree" after reading both to the end (PolicyReviewDialog); unticking is direct. */}
             <input
               type="checkbox"
               className="mt-1 rounded border-gray-300 text-primary focus:ring-primary size-4 shrink-0"
               {...register("agreeToTerms")}
+              onChange={(e) => {
+                if (e.target.checked) {
+                  e.preventDefault();
+                  setReviewing(true);
+                } else setValue("agreeToTerms", false, { shouldValidate: true });
+              }}
+              checked={watch("agreeToTerms")}
             />
             <span className="text-xs text-muted-foreground leading-normal">
               I agree to myHoodora&apos;s{" "}
-              <Link href="/terms" target="_blank" className="underline hover:text-primary transition-all font-semibold">Terms of Use</Link>{" "}
+              <button type="button" onClick={() => setReviewing(true)} className="underline hover:text-primary transition-all font-semibold">
+                Terms of Use
+              </button>{" "}
               and{" "}
-              <Link
-                href="/privacy"
-                className="underline hover:text-primary transition-all font-semibold"
-              >
+              <button type="button" onClick={() => setReviewing(true)} className="underline hover:text-primary transition-all font-semibold">
                 Privacy Policy
-              </Link>
+              </button>
               .
             </span>
           </label>
+          <PolicyReviewDialog
+            open={reviewing}
+            onOpenChange={setReviewing}
+            onAgree={() => {
+              setValue("agreeToTerms", true, { shouldValidate: true });
+              setReviewing(false);
+            }}
+          />
           {errors.agreeToTerms && (
             <span className="text-xs text-destructive font-semibold px-1 animate-in fade-in duration-200">
               {errors.agreeToTerms.message}
