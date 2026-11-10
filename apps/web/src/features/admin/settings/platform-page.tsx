@@ -211,7 +211,7 @@ type HoodoraAiLink = PlatformSettings["hoodoraAi"];
 function HoodoraAiPanel({ value, onChange }: { value: HoodoraAiLink; onChange: (next: HoodoraAiLink) => void }) {
   const options: { target: HoodoraAiLink["target"]; label: string; hint: string }[] = [
     { target: "studio", label: "AI Studio", hint: value.studioUrl.replace(/^https:\/\//, "").replace(/\/$/, "") },
-    { target: "page", label: "myHoodora AI page", hint: "myhoodora.com/ai, with the pilot sign-up form" },
+    { target: "page", label: "myHoodora AI page", hint: "myhoodora.com/ai, our own page" },
   ];
   const invalid = !safeStudioUrl(value.studioUrl);
   return (

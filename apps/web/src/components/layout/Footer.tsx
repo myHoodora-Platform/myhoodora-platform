@@ -126,7 +126,11 @@ export function Footer() {
       </div>
       <div className="mx-auto mt-12 flex max-w-6xl flex-col gap-2 border-t border-slate-800 pt-8 text-xs sm:flex-row sm:justify-between">
         <p>
-          © {new Date().getFullYear()} {COMPANY.legalName}. All rights reserved.
+          © {new Date().getFullYear()} {COMPANY.legalName}. All rights reserved. RC {COMPANY.rcNumber} ·{" "}
+          <abbr title="Data Universal Numbering System, Dun & Bradstreet" className="no-underline">
+            D-U-N-S
+          </abbr>
+          ® {COMPANY.dunsNumber}
         </p>
         <p>Made in Nigeria 🇳🇬 for neighbours everywhere.</p>
       </div>
