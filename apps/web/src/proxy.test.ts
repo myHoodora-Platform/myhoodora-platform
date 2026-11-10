@@ -3,12 +3,14 @@ import { NextRequest } from "next/server";
 
 // The two things the proxy asks about a cookie are the stubs: this server's own signature check,
 // and the API's verdict on whether the session is still live.
-const { VerifierUnavailableError, verifySessionCookie, sessionVerdict, staffVerdict } = vi.hoisted(() => ({
+const { VerifierUnavailableError, verifySessionCookie, sessionVerdict, staffVerdict, hoodoraAiStudioUrl } = vi.hoisted(() => ({
   VerifierUnavailableError: class VerifierUnavailableError extends Error {},
   verifySessionCookie: vi.fn(),
   sessionVerdict: vi.fn(),
   staffVerdict: vi.fn(),
+  hoodoraAiStudioUrl: vi.fn(),
 }));
+vi.mock("@/lib/hoodora-ai", () => ({ hoodoraAiStudioUrl }));
 vi.mock("@/lib/auth/session-cookie", () => ({
   SESSION_COOKIE: "__session",
   VerifierUnavailableError,
@@ -32,6 +34,7 @@ beforeEach(() => {
   verifySessionCookie.mockResolvedValue({ uid: "ada" });
   sessionVerdict.mockResolvedValue("live");
   staffVerdict.mockResolvedValue("staff");
+  hoodoraAiStudioUrl.mockResolvedValue(null);
 });
 
 describe("the page gate", () => {
@@ -101,5 +104,23 @@ describe("the page gate when this server can't check the cookie's signature", ()
   it("a failure that isn't about fetching keys is not swallowed", async () => {
     verifySessionCookie.mockRejectedValue(new Error("something else"));
     await expect(visit("/news-feed", "good")).rejects.toThrow("something else");
+  });
+});
+
+describe("/ai", () => {
+  it("goes to the AI Studio while admins have chosen it, signed in or not", async () => {
+    hoodoraAiStudioUrl.mockResolvedValue("https://studio.myhoodora.com/");
+    expect(redirectedTo(await visit("/ai"))).toBe("https://studio.myhoodora.com/");
+    expect(redirectedTo(await visit("/ai", "good"))).toBe("https://studio.myhoodora.com/");
+  });
+
+  it("serves our own page while it's chosen, or when the API can't say", async () => {
+    expect(served(await visit("/ai"))).toBe(true);
+  });
+
+  it("leaves every other page alone", async () => {
+    hoodoraAiStudioUrl.mockResolvedValue("https://studio.myhoodora.com/");
+    expect(served(await visit("/about"))).toBe(true);
+    expect(hoodoraAiStudioUrl).not.toHaveBeenCalled();
   });
 });

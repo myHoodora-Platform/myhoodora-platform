@@ -38,6 +38,18 @@ export const DEFAULT_REPORT_REASONS: ReportReasonSetting[] = [
 export const DEFAULT_ANALYTICS_REASK_DAYS = 180;
 export const MAX_ANALYTICS_REASK_DAYS = 730;
 
+/**
+ * Where "myHoodora AI" links go (web footer, the /ai address, the app's menu): our own /ai page, or the
+ * separate AI Studio site. Admins switch between them in Admin → Settings → Platform.
+ */
+export const HOODORA_AI_TARGETS = ["page", "studio"] as const;
+export type HoodoraAiTarget = (typeof HOODORA_AI_TARGETS)[number];
+export interface HoodoraAiLink {
+  target: HoodoraAiTarget;
+  studioUrl: string;
+}
+export const DEFAULT_HOODORA_AI: HoodoraAiLink = { target: "studio", studioUrl: "https://studio.myhoodora.com/" };
+
 export type PlatformSettingsDocument = HydratedDocument<PlatformSettings>;
 
 /** Singleton document (key = "platform"). */
@@ -54,6 +66,9 @@ export class PlatformSettings {
 
   @Prop({ type: Number, default: DEFAULT_ANALYTICS_REASK_DAYS })
   analyticsReaskDays!: number;
+
+  @Prop({ type: Object, default: () => ({ ...DEFAULT_HOODORA_AI }) })
+  hoodoraAi!: HoodoraAiLink;
 }
 
 export const PlatformSettingsSchema = SchemaFactory.createForClass(PlatformSettings);

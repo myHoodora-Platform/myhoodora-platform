@@ -13,6 +13,7 @@ import { errorMessage } from "@/lib/api/client";
 import { getPlatformSettings, listSignups, updatePlatformSettings } from "@/lib/api/admin/platform";
 import type { PlatformSettings, ReportSeverity, SignupEntry } from "@/lib/api/admin/types";
 import { ALERT_ACTIVE_HOURS, URGENT_WINDOW_HOURS } from "@/features/alerts/lifecycle";
+import { DEFAULT_HOODORA_AI, safeStudioUrl } from "@/lib/hoodora-ai";
 import { useAdminSession } from "../session";
 import { useAdminQuery } from "../use-admin-query";
 
@@ -32,8 +33,13 @@ export function PlatformPage() {
   if (!can("settings.manage")) return <Unauthorized message="Only admins can change platform settings." />;
 
   const dirty = JSON.stringify(draft) !== JSON.stringify(settings.data);
+  const studioUrlProblem = draft?.hoodoraAi && !safeStudioUrl(draft.hoodoraAi.studioUrl) ? "The AI Studio address must start with https://" : null;
   const save = async () => {
     if (!user || !draft) return;
+    if (studioUrlProblem) {
+      toast.error(studioUrlProblem);
+      return;
+    }
     setSaving(true);
     try {
       settings.setData(await updatePlatformSettings(user, draft, role));
@@ -50,7 +56,7 @@ export function PlatformPage() {
       <AdminPageHeader
         crumbs={[{ label: "Settings" }, { label: "Platform" }]}
         title="Platform settings"
-        description="How reports are routed, how long alerts stay live, and where we're open."
+        description="How reports are routed, how long alerts stay live, where myHoodora AI links go, and where we're open."
         actions={
           dirty && (
             <Button size="sm" onClick={() => void save()} loading={saving}>
@@ -140,6 +146,8 @@ export function PlatformPage() {
               </Panel>
             </div>
 
+            <HoodoraAiPanel value={draft.hoodoraAi ?? DEFAULT_HOODORA_AI} onChange={(hoodoraAi) => setDraft({ ...draft, hoodoraAi })} />
+
             <Panel title="App analytics question">
               <p className="mb-3 text-sm text-muted-foreground">
                 The app asks once whether it may share which features someone uses. If they say no, it asks again after this many days. A yes is never asked again.
@@ -194,5 +202,55 @@ export function PlatformPage() {
         )}
       </Panel>
     </div>
+  );
+}
+
+type HoodoraAiLink = PlatformSettings["hoodoraAi"];
+
+/** Where every "myHoodora AI" link goes: the website's footer, the /ai address and the app's menu. */
+function HoodoraAiPanel({ value, onChange }: { value: HoodoraAiLink; onChange: (next: HoodoraAiLink) => void }) {
+  const options: { target: HoodoraAiLink["target"]; label: string; hint: string }[] = [
+    { target: "studio", label: "AI Studio", hint: value.studioUrl.replace(/^https:\/\//, "").replace(/\/$/, "") },
+    { target: "page", label: "myHoodora AI page", hint: "myhoodora.com/ai, with the pilot sign-up form" },
+  ];
+  const invalid = !safeStudioUrl(value.studioUrl);
+  return (
+    <Panel title="myHoodora AI link">
+      <p className="mb-3 text-sm text-muted-foreground">
+        Where &ldquo;myHoodora AI&rdquo; takes people from the website&apos;s footer, the myhoodora.com/ai address and the app&apos;s menu.
+      </p>
+      <div role="radiogroup" aria-label="myHoodora AI link goes to" className="grid gap-2 sm:grid-cols-2">
+        {options.map((o) => {
+          const on = value.target === o.target;
+          return (
+            <button
+              key={o.target}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              onClick={() => onChange({ ...value, target: o.target })}
+              className={`rounded-xl border px-4 py-3 text-left text-sm transition-colors ${on ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border bg-card hover:bg-muted/60"}`}
+            >
+              <span className="block font-semibold">{o.label}</span>
+              <span className="block truncate text-xs text-muted-foreground">{o.hint}</span>
+            </button>
+          );
+        })}
+      </div>
+      <label className="mt-4 block text-sm">
+        <span className="font-medium">AI Studio address</span>
+        <input
+          type="url"
+          inputMode="url"
+          value={value.studioUrl}
+          onChange={(e) => onChange({ ...value, studioUrl: e.target.value.trim() })}
+          aria-invalid={invalid}
+          className={`mt-1 h-9 w-full rounded-lg border bg-card px-2 ${invalid ? "border-destructive" : "border-border"}`}
+        />
+      </label>
+      <p className={`mt-2 text-xs ${invalid ? "text-destructive" : "text-muted-foreground"}`}>
+        {invalid ? "Must start with https://" : "Kept when you switch to the page, so switching back is one click. Changes reach everyone within about a minute."}
+      </p>
+    </Panel>
   );
 }
