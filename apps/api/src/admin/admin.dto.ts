@@ -12,13 +12,14 @@ import {
   IsMongoId,
   IsOptional,
   IsString,
+  IsUrl,
   Length,
   Max,
   MaxLength,
   Min,
   ValidateNested,
 } from "class-validator";
-import { ALERT_CATEGORIES, MAX_ANALYTICS_REASK_DAYS, REPORT_REASONS } from "../platform/platform-settings.schema";
+import { ALERT_CATEGORIES, HOODORA_AI_TARGETS, MAX_ANALYTICS_REASK_DAYS, REPORT_REASONS } from "../platform/platform-settings.schema";
 import { POST_CATEGORIES } from "../posts/domain/post-meta";
 import { ACCOUNT_STATUSES, ROLES, VERIFICATION_STATUSES } from "../shared/authz/roles";
 import { PageQuery } from "../shared/http/pagination";
@@ -124,6 +125,12 @@ class ReasonSettingDto {
   @IsBoolean() staffOnly!: boolean;
 }
 
+class HoodoraAiLinkDto {
+  @IsIn(HOODORA_AI_TARGETS) target!: (typeof HOODORA_AI_TARGETS)[number];
+  /** Kept while the page is chosen, so switching back needs no retyping. */
+  @IsUrl({ protocols: ["https"], require_protocol: true }) @MaxLength(300) studioUrl!: string;
+}
+
 export class SettingsDto {
   @IsOptional()
   @IsArray()
@@ -141,6 +148,12 @@ export class SettingsDto {
   @Min(0)
   @Max(MAX_ANALYTICS_REASK_DAYS)
   analyticsReaskDays?: number;
+
+  /** Where "myHoodora AI" links go: our /ai page or the AI Studio site. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => HoodoraAiLinkDto)
+  hoodoraAi?: HoodoraAiLinkDto;
 
   /** Read-only (derived from Hoods); accepted so the web can send the whole object back, then ignored. */
   @IsOptional()

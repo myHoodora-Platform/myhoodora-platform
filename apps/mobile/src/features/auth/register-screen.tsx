@@ -12,11 +12,11 @@ import { AUTH_PHOTOS, AuthShell } from "./auth-shell";
 import { FooterLink } from "./footer-link";
 import { GoogleButton, OrDivider } from "./google-button";
 import { fieldErrors, signInFailure } from "./form-errors";
-import { openWeb } from "@/shared/utils/open-web";
 import { ageCheckLocked, lockAgeCheck, rememberAgeAnswer } from "@/core/age/age-lock";
 import { rememberLegalAcceptance } from "@/core/legal/pending-acceptance";
 import { BirthFields, EMPTY_BIRTH, type BirthInput } from "@/features/age/birth-fields";
 import { CantJoinYet } from "@/features/age/cant-join";
+import { PolicyReviewModal } from "@/features/legal/policy-review-modal";
 
 type Errors = { email?: string; password?: string; confirm?: string; birth?: string; agreeToTerms?: string };
 
@@ -28,6 +28,7 @@ export function RegisterScreen() {
   // The age check, in the form (docs/compliance/ndpa.md §1): Google sign-ups get it on its own screen.
   const [birth, setBirth] = useState<BirthInput>(EMPTY_BIRTH);
   const [agreeToTerms, setAgree] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
   const [errors, setErrors] = useState<Errors | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -74,8 +75,6 @@ export function RegisterScreen() {
       inFlight.current = false;
     }
   };
-
-  const open = (path: string) => void openWeb(path);
 
   if (locked) {
     return (
@@ -144,24 +143,34 @@ export function RegisterScreen() {
         onSubmitEditing={() => void submit()}
       />
       <View style={styles.row}>
+        {/* Turned on only by "I agree" after reading both to the end (PolicyReviewModal); off is direct. */}
         <Switch
           value={agreeToTerms}
-          onValueChange={setAgree}
+          onValueChange={(on) => (on ? setReviewing(true) : setAgree(false))}
           accessibilityLabel="I agree to the Terms of Use and Privacy Policy"
           trackColor={{ true: t.colors.primary, false: t.colors.input }}
         />
         <Text variant="caption" style={styles.flex}>
           I agree to the{" "}
-          <Text variant="caption" tone="primary" onPress={() => open("/terms")} accessibilityRole="link">
+          <Text variant="caption" tone="primary" onPress={() => setReviewing(true)} accessibilityRole="link">
             Terms of Use
           </Text>{" "}
           and{" "}
-          <Text variant="caption" tone="primary" onPress={() => open("/privacy")} accessibilityRole="link">
+          <Text variant="caption" tone="primary" onPress={() => setReviewing(true)} accessibilityRole="link">
             Privacy Policy
           </Text>
           .
         </Text>
       </View>
+      <PolicyReviewModal
+        visible={reviewing}
+        onClose={() => setReviewing(false)}
+        onAgree={() => {
+          setAgree(true);
+          setErrors((e) => (e ? { ...e, agreeToTerms: undefined } : e));
+          setReviewing(false);
+        }}
+      />
       {errors?.agreeToTerms ? <InlineAlert>{errors.agreeToTerms}</InlineAlert> : null}
       {failure ? <InlineAlert>{failure}</InlineAlert> : null}
       <Button label="Create account" onPress={submit} loading={busy} />

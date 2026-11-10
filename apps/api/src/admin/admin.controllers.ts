@@ -383,7 +383,7 @@ export class AdminController {
   }
 
   @Get("settings")
-  @ApiOperation({ summary: "Platform settings: report reasons, alert windows, analytics re-ask, coverage" })
+  @ApiOperation({ summary: "Platform settings: report reasons, alert windows, analytics re-ask, myHoodora AI link, coverage" })
   @Can("settings.manage")
   async getSettings() {
     const [settings, coverageCities] = await Promise.all([this.settings.get(), this.hoods.coverageCities()]);
@@ -391,7 +391,7 @@ export class AdminController {
   }
 
   @Patch("settings")
-  @ApiOperation({ summary: "Update report reasons, alert windows and the analytics re-ask interval" })
+  @ApiOperation({ summary: "Update report reasons, alert windows, the analytics re-ask interval and where myHoodora AI links go" })
   @Can("settings.manage")
   async updateSettings(@CurrentViewer() v: Viewer, @Body() body: SettingsDto) {
     for (const [k, hours] of Object.entries(body.alertWindows ?? {})) {
@@ -403,6 +403,7 @@ export class AdminController {
       alertWindows: body.alertWindows,
       reportReasons: body.reportReasons?.map(({ id, severity, staffOnly }) => ({ id, severity, staffOnly })),
       analyticsReaskDays: body.analyticsReaskDays,
+      hoodoraAi: body.hoodoraAi,
     });
     await this.audit.record(v, "settings_update", { type: "settings", id: "platform", label: "Platform settings" });
     return { ...next, coverageCities: await this.hoods.coverageCities() };
