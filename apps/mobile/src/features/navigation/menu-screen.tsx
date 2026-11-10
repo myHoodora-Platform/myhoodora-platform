@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import * as WebBrowser from "expo-web-browser";
 import type { Href } from "expo-router";
 import { useAuth, useSignedInUser } from "@/core/auth/auth-provider";
 import { useRouter } from "@/core/navigation/use-router";
@@ -16,6 +17,7 @@ import { SettingsGroup, SettingsRow } from "@/shared/ui/settings";
 import { Text } from "@/shared/ui/text";
 import { openWeb } from "@/shared/utils/open-web";
 import { getLeadStatus, moderationKeys } from "@/features/moderation/moderation-api";
+import { accountKeys, getAppConfig } from "@/features/account/account-api";
 import { TabHeader } from "./top-actions";
 
 export interface Shortcut {
@@ -48,6 +50,10 @@ export function MenuScreen() {
   const bottom = useTabBarSpace();
   const verified = profile?.verificationStatus === "verified";
   const user = useSignedInUser();
+  // Admins choose where myHoodora AI goes (Admin → Settings → Platform): the AI Studio, or our /ai page.
+  const appConfig = useQuery({ queryKey: accountKeys.appConfig, queryFn: () => getAppConfig(user), staleTime: 60 * 60 * 1000 });
+  const aiStudio = appConfig.data?.links?.hoodoraAiStudio;
+  const openAi = () => void (aiStudio?.startsWith("https://") ? WebBrowser.openBrowserAsync(aiStudio) : openWeb("/ai"));
   // Hood Leads see their review queue here (the web's user menu); nobody else sees the row.
   const lead = useQuery({ queryKey: moderationKeys.leadStatus, queryFn: () => getLeadStatus(user), enabled: verified, staleTime: 5 * 60_000 });
 
@@ -97,7 +103,7 @@ export function MenuScreen() {
         {/* The web's public pages, opened in the browser: they're written for the web and change there. */}
         <SettingsGroup title="More from myHoodora">
           <SettingsRow Icon={Store} label="myHoodora for Business" description="A free Business Page for your shop or service" onPress={() => void openWeb("/business")} />
-          <SettingsRow Icon={Sparkles} label="myHoodora AI" description="Lectures turned into songs, games and videos" onPress={() => void openWeb("/ai")} />
+          <SettingsRow Icon={Sparkles} label="myHoodora AI" description="Lectures turned into songs, games and videos" onPress={openAi} />
           <SettingsRow Icon={ShieldCheck} label="Safety tips" onPress={() => void openWeb("/safety")} />
           <SettingsRow Icon={Info} label="About myHoodora" onPress={() => void openWeb("/about")} />
         </SettingsGroup>

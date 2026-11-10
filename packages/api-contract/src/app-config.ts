@@ -1,10 +1,14 @@
 /**
- * Rules the apps follow that admins set (Admin → Settings → Platform), from `GET /app-config`.
+ * Rules the apps follow that admins set (Admin → Settings → Platform), from `GET /app-config` (public).
  */
 export interface AppConfig {
   analytics: {
     /** Days before the app asks again someone who said no to usage analytics. 0: never asks again. */
     reaskDays: number;
+  };
+  links: {
+    /** The AI Studio address while "myHoodora AI" links go there; null while they go to the website's /ai page. */
+    hoodoraAiStudio: string | null;
   };
 }
 
