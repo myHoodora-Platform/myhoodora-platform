@@ -15,6 +15,8 @@ export const PRIVACY_EMAIL = "privacy@myhoodora.com";
 export const DPO_EMAIL = "dpo@myhoodora.com";
 /** The designated child safety contact (/child-safety; Google Play's Child Safety Standards declaration). */
 export const SAFETY_EMAIL = "safety@myhoodora.com";
+/** The named person behind SAFETY_EMAIL. Must match the contact given in Play Console's Child Safety Standards declaration. */
+export const SAFETY_LEAD = { name: "Peace Arakunle", role: "Child Safety Lead" } as const;
 /** Must match the DPO named on the NDPC registration (Form 2, step 4). */
 export const DPO_NAME = "Peace Arakunle";
 

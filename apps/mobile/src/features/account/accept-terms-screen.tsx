@@ -10,6 +10,7 @@ import { Text } from "@/shared/ui/text";
 import { useToast } from "@/shared/ui/toast";
 import { openWeb } from "@/shared/utils/open-web";
 import { AUTH_PHOTOS, AuthShell } from "../auth/auth-shell";
+import { PolicyReviewModal } from "../legal/policy-review-modal";
 
 const DOCS: { doc: LegalDocument; path: string }[] = [
   { doc: "terms", path: "/terms" },
@@ -19,8 +20,9 @@ const DOCS: { doc: LegalDocument; path: string }[] = [
 /**
  * The "needsTerms" phase (docs/compliance/legal-versions.md), as on the web's /accept-terms: agree to
  * the current Terms of Use and Privacy Policy. Asked once of a new account that hasn't (a Google
- * sign-up), and again after a material change, with what changed. Email sign-ups ticked "I agree" on
- * the form already, so theirs is sent at once behind a spinner.
+ * sign-up), and again after a material change, with what changed. Email sign-ups agreed on the form
+ * already (through PolicyReviewModal), so theirs is sent at once behind a spinner; everyone else agrees
+ * there too: both documents, each read to the end.
  */
 export function AcceptTermsScreen() {
   const t = useTheme();
@@ -28,6 +30,7 @@ export function AcceptTermsScreen() {
   const toast = useToast();
   const [fromSignUp] = useState(legalAcceptancePending);
   const [busy, setBusy] = useState(fromSignUp);
+  const [reviewing, setReviewing] = useState(false);
   const started = useRef(false);
   const versions = { terms: currentLegalVersion("terms").version, privacy: currentLegalVersion("privacy").version };
 
@@ -87,13 +90,15 @@ export function AcceptTermsScreen() {
           </View>
         );
       })}
-      <Button
-        label="I agree"
-        onPress={() => {
+      <Button label="Read and agree" onPress={() => setReviewing(true)} />
+      <PolicyReviewModal
+        visible={reviewing}
+        onClose={() => setReviewing(false)}
+        busy={busy}
+        onAgree={() => {
           setBusy(true);
           void send("prompt");
         }}
-        loading={busy}
       />
       <Text variant="caption" tone="muted" style={styles.center}>
         Don&apos;t agree?{" "}

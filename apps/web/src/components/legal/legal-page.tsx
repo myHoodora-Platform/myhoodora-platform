@@ -36,6 +36,8 @@ export function LegalPage({ title, updatedAt, intro, children, explore = ["safet
               </p>
             )}
             <div className="mt-10 space-y-10">{children}</div>
+            {/* The end of the text: the app's policy sheet counts a document as read once this is on screen. */}
+            <div data-legal-end aria-hidden="true" />
           </div>
         </Section>
         <ExploreMore items={explore} className="border-t border-border bg-canvas" />

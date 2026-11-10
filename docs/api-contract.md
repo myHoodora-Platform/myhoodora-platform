@@ -1608,6 +1608,7 @@ A prompt is returned when it is live (active, within its dates), its trigger mat
 
 App usage analytics (Firebase Analytics, mobile, production builds) is opt-in: the feed asks once, and Settings → Privacy changes it. The choice is kept on the phone (`apps/mobile/src/core/analytics`).
 
-- `GET /app-config` (any signed-in member) → `{ analytics: { reaskDays } }`: days before the app asks again someone who said no. `0` never asks again.
+- `GET /app-config` (public, since 2026-11-10) → `{ analytics: { reaskDays }, links: { hoodoraAiStudio } }`: days before the app asks again someone who said no (`0` never asks again), and the AI Studio address while myHoodora AI links go there (`null`: the website's `/ai` page).
 - Admins set it in Admin → Settings → Platform: `GET /admin/settings` includes `analyticsReaskDays` (default `180`); `PATCH /admin/settings` takes it, an integer from 0 to 730 (`settings.manage`; audited as `settings_update`).
+- myHoodora AI link (2026-11-10): `GET /admin/settings` includes `hoodoraAi: { target: "page" | "studio", studioUrl }` (default `studio`, `https://studio.myhoodora.com/`); `PATCH /admin/settings` takes it (`studioUrl` must be https and is kept while `page` is chosen). The website's `/ai` redirects to the studio while it's chosen (`apps/web/src/proxy.ts`), and the app's Menu opens it in the browser.
 - When to ask is decided by `shouldAskAnalytics` (`packages/api-contract/src/app-config.ts`): never answered; or answered under an older analytics policy (`ANALYTICS_POLICY_VERSION`); or a no older than `reaskDays`. A yes is never asked again for time alone. Until `/app-config` has loaded, a no stays a no.
