@@ -13,6 +13,7 @@ import { MOCK_NEIGHBORHOOD, MOCK_NEIGHBOURS, seedComments, seedGroups, seedListi
 import { isRemoved } from "../mock/moderation-state";
 import type { ApiPost, Comment, Listing, PostCategory, ReportInput, ReportReason } from "../types";
 import { COVERAGE } from "@/lib/coverage";
+import { DEFAULT_HOODORA_AI } from "@/lib/hoodora-ai";
 import type {
   AdminHood,
   AdminReport,
@@ -556,8 +557,14 @@ export const broadcasts = () =>
   ]);
 export const saveBroadcasts = (list: Broadcast[]) => save("admin-broadcasts", list);
 
-export const platformSettings = () =>
-  load<PlatformSettings>("admin-settings", () => ({
+/** Settings saved before the AI link setting existed get its default. */
+export const platformSettings = (): PlatformSettings => {
+  const stored = storedPlatformSettings();
+  return { ...stored, hoodoraAi: stored.hoodoraAi ?? { ...DEFAULT_HOODORA_AI } };
+};
+
+const storedPlatformSettings = () =>
+  load<Omit<PlatformSettings, "hoodoraAi"> & Partial<Pick<PlatformSettings, "hoodoraAi">>>("admin-settings", () => ({
     reportReasons: [
       { id: "harassment", label: "Harassment or hate", severity: "high", staffOnly: true },
       { id: "scam", label: "Scam or fraud", severity: "high", staffOnly: true },

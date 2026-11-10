@@ -71,12 +71,27 @@ describe("admin API ↔ web contract (§13)", () => {
   it("analytics re-ask interval: 180 days by default, set by admins, read by the app", async () => {
     expect((await get("/settings")).analyticsReaskDays).toBe(180);
     const config = () => t.http.get("/api/app-config").set(t.auth("ada")).expect(200);
-    expect((await config()).body).toEqual({ analytics: { reaskDays: 180 } });
+    expect((await config()).body.analytics).toEqual({ reaskDays: 180 });
     await t.http.patch("/api/admin/settings").set(t.auth("boss")).send({ analyticsReaskDays: 90 }).expect(200);
-    expect((await config()).body).toEqual({ analytics: { reaskDays: 90 } });
+    expect((await config()).body.analytics).toEqual({ reaskDays: 90 });
     await t.http.patch("/api/admin/settings").set(t.auth("boss")).send({ analyticsReaskDays: 1000 }).expect(400);
     await t.http.patch("/api/admin/settings").set(t.auth("ada")).send({ analyticsReaskDays: 0 }).expect(403);
-    await t.http.get("/api/app-config").expect(401);
+  });
+
+  it("myHoodora AI link: the studio by default, switched by admins, readable signed out", async () => {
+    const studio = "https://studio.myhoodora.com/";
+    expect((await get("/settings")).hoodoraAi).toEqual({ target: "studio", studioUrl: studio });
+    const links = async () => (await t.http.get("/api/app-config").expect(200)).body.links;
+    expect(await links()).toEqual({ hoodoraAiStudio: studio });
+    await t.http.patch("/api/admin/settings").set(t.auth("boss")).send({ hoodoraAi: { target: "page", studioUrl: studio } }).expect(200);
+    expect(await links()).toEqual({ hoodoraAiStudio: null });
+    // The address is kept while the page is chosen, so switching back is one click.
+    expect((await get("/settings")).hoodoraAi).toEqual({ target: "page", studioUrl: studio });
+    await t.http.patch("/api/admin/settings").set(t.auth("boss")).send({ hoodoraAi: { target: "studio", studioUrl: "http://studio.myhoodora.com/" } }).expect(400);
+    await t.http.patch("/api/admin/settings").set(t.auth("boss")).send({ hoodoraAi: { target: "elsewhere", studioUrl: studio } }).expect(400);
+    await t.http.patch("/api/admin/settings").set(t.auth("ada")).send({ hoodoraAi: { target: "studio", studioUrl: studio } }).expect(403);
+    await t.http.patch("/api/admin/settings").set(t.auth("boss")).send({ hoodoraAi: { target: "studio", studioUrl: studio } }).expect(200);
+    expect(await links()).toEqual({ hoodoraAiStudio: studio });
   });
 
   it("moderation", async () => {

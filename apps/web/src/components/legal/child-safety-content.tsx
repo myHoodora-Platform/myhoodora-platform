@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { SAFETY_EMAIL } from "@/lib/site";
+import { COMPANY, SAFETY_EMAIL, SAFETY_LEAD } from "@/lib/site";
 import { LegalSection } from "./legal-page";
 
 const li = "list-disc space-y-2 pl-5";
@@ -20,11 +20,23 @@ const SAFETY = (
 export function ChildSafetyContent() {
   return (
     <>
-      <LegalSection title="1. Zero tolerance">
+      <LegalSection title="1. Zero tolerance for child sexual abuse and exploitation (CSAE)">
         <p>
-          myHoodora has zero tolerance for child sexual abuse and exploitation (CSAE). This applies everywhere on
-          myHoodora: the website, the iPhone and Android apps, posts, comments, photos, listings, groups and private
-          messages.
+          <strong className={strong}>
+            myHoodora strictly prohibits child sexual abuse and exploitation (CSAE), including all forms of child
+            sexual abuse material (CSAM), grooming, sexual exploitation, sextortion, child trafficking for sexual
+            purposes, and any activity that sexually abuses, exploits or endangers a child.
+          </strong>
+        </p>
+        <p>
+          This prohibition applies to every user, account, feature and service operated by myHoodora, including our
+          website, our Android and iPhone apps, posts, comments, photos, videos, marketplace listings, groups and
+          private messages.
+        </p>
+        <p>
+          Any content, behaviour or activity that facilitates, promotes, requests, distributes or attempts to
+          facilitate CSAE is strictly prohibited. Violations result in enforcement action, including content removal,
+          account suspension or permanent termination, and reporting to the relevant authorities.
         </p>
         <p>We do not allow, and we remove:</p>
         <ul className={li}>
@@ -74,7 +86,7 @@ export function ChildSafetyContent() {
       <LegalSection title="4. What we do when something is reported">
         <ul className={li}>
           <li>Child-safety reports are top priority in our staff&apos;s review queue.</li>
-          <li>We remove the content and permanently ban the account, and the person can&apos;t come back.</li>
+          <li>We remove the content and permanently suspend the account.</li>
           <li>We keep the evidence securely, and only for as long as the law requires, so the authorities can act.</li>
           <li>
             We report child sexual abuse material and exploitation to the authorities: the National Agency for the
@@ -93,11 +105,25 @@ export function ChildSafetyContent() {
         </p>
       </LegalSection>
 
-      <LegalSection title="6. Contact">
-        <p>
-          Our child safety contact can speak about these standards and how we enforce them: {SAFETY}. myHoodora is
-          operated by MYHOODORA LIMITED, Lagos, Nigeria.
-        </p>
+      <LegalSection title="6. Child safety point of contact">
+        <p>Our designated child safety contact can speak about these standards and how we enforce them:</p>
+        <ul className={li}>
+          <li>
+            <strong className={strong}>Contact person:</strong> {SAFETY_LEAD.name}
+          </li>
+          <li>
+            <strong className={strong}>Position:</strong> {SAFETY_LEAD.role}
+          </li>
+          <li>
+            <strong className={strong}>Organisation:</strong> {COMPANY.legalName}, operator of myHoodora
+          </li>
+          <li>
+            <strong className={strong}>Email:</strong> {SAFETY}
+          </li>
+          <li>
+            <strong className={strong}>Location:</strong> Lagos, Nigeria
+          </li>
+        </ul>
       </LegalSection>
     </>
   );
