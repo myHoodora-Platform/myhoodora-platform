@@ -404,6 +404,8 @@ export interface PlatformSettings {
   coverageCities: { city: string; hoods: number }[];
   /** Days before the app asks again someone who said no to usage analytics; 0 never asks again. */
   analyticsReaskDays: number;
+  /** Where "myHoodora AI" links go: our /ai page, or the AI Studio site (studioUrl is kept while the page is chosen). */
+  hoodoraAi: { target: "page" | "studio"; studioUrl: string };
 }
 
 export interface SignupEntry {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { safeNextPath } from "@/lib/safe-redirect";
 import { USE_MOCKS, isLive } from "@/lib/api/config";
+import { hoodoraAiStudioUrl } from "@/lib/hoodora-ai";
 import { SESSION_COOKIE, VerifierUnavailableError, sessionCookieOptions, verifySessionCookie } from "@/lib/auth/session-cookie";
 import { sessionVerdict, staffVerdict } from "@/lib/auth/session-gate";
 import {
@@ -60,6 +61,12 @@ export async function proxy(request: NextRequest) {
   const legacyTarget = legacyRedirectFor(pathname, searchParams);
   if (legacyTarget) {
     return NextResponse.redirect(new URL(legacyTarget, request.url), 308);
+  }
+
+  // myHoodora AI links all point here; admins choose whether this is our page or the AI Studio.
+  if (pathname === "/ai" && !USE_MOCKS) {
+    const studio = await hoodoraAiStudioUrl();
+    if (studio) return noStoreRedirect(new URL(studio));
   }
 
   // Mock mode has no API, so nothing can mint or check a session cookie:

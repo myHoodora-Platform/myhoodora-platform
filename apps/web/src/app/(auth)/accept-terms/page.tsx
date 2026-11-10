@@ -12,6 +12,7 @@ import { useAuth } from "@/context/AuthContext";
 import { errorMessage } from "@/lib/api/client";
 import { isClosed, isStaff, needsAgeCheck, needsTermsAcceptance } from "@/lib/auth/profile";
 import { DEFAULT_APP_ROUTE, ROUTES } from "@/lib/routes";
+import { PolicyReviewDialog } from "@/components/legal/policy-review-dialog";
 
 const DOCS: { doc: LegalDocument; href: string }[] = [
   { doc: "terms", href: "/terms" },
@@ -22,11 +23,13 @@ const DOCS: { doc: LegalDocument; href: string }[] = [
  * /accept-terms: agreeing to the current Terms of Use and Privacy Policy (docs/compliance/legal-versions.md).
  * A new account that hasn't (a Google sign-up) is asked once; a member is asked again after a material
  * change, with what changed since the version they agreed to. It can't be skipped, only signed out of.
+ * Agreeing goes through PolicyReviewDialog: both documents, each read to the end, then "I agree".
  */
 export default function AcceptTermsPage() {
   const router = useRouter();
   const { user, profile, profileStatus, loading, acceptLegal, logout } = useAuth();
   const [busy, setBusy] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
 
   useEffect(() => {
     if (loading) return;
@@ -101,9 +104,10 @@ export default function AcceptTermsPage() {
         })}
       </div>
 
-      <Button className="w-full" onClick={() => void agree()} loading={busy}>
-        I agree
+      <Button className="w-full" onClick={() => setReviewing(true)}>
+        Read and agree
       </Button>
+      <PolicyReviewDialog open={reviewing} onOpenChange={setReviewing} onAgree={agree} busy={busy} />
       <p className="border-t border-border pt-4 text-center text-xs text-muted-foreground">
         Don&apos;t agree? You can{" "}
         <button type="button" onClick={() => void logout().then(() => router.replace(ROUTES.home))} className="font-semibold underline hover:text-primary">

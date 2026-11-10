@@ -9,6 +9,19 @@ jest.mock("expo-router", () => ({
   useRouter: () => ({ canGoBack: () => true, back: jest.fn(), replace: jest.fn() }),
 }));
 
+// The real sheet is a WebView of the website; here its "I agree" stands for having read both to the end.
+jest.mock("@/features/legal/policy-review-modal", () => {
+  const { Pressable, Text } = jest.requireActual("react-native");
+  return {
+    PolicyReviewModal: ({ visible, onAgree }: { visible: boolean; onAgree: () => void }) =>
+      visible ? (
+        <Pressable accessibilityRole="button" onPress={onAgree}>
+          <Text>Read both: I agree</Text>
+        </Pressable>
+      ) : null,
+  };
+});
+
 beforeEach(async () => {
   mockSignUp.mockReset();
   // The under-18 test locks this "phone" for 30 days.
@@ -22,9 +35,20 @@ async function fill(year = "1990") {
   await fireEvent.changeText(screen.getByLabelText("Confirm password"), "neighbour-123");
   await fireEvent.changeText(screen.getByLabelText("Year you were born"), year);
   await fireEvent(screen.getByLabelText("I agree to the Terms of Use and Privacy Policy"), "valueChange", true);
+  await fireEvent.press(screen.getByText("Read both: I agree"));
 }
 
 describe("RegisterScreen", () => {
+  it("turns on \"I agree\" only from the policy sheet, after reading", async () => {
+    await render(<RegisterScreen />);
+    const agree = screen.getByLabelText("I agree to the Terms of Use and Privacy Policy");
+    await fireEvent(agree, "valueChange", true);
+    expect(agree.props.value).toBe(false);
+    await fireEvent.press(screen.getByText("Read both: I agree"));
+    expect(screen.getByLabelText("I agree to the Terms of Use and Privacy Policy").props.value).toBe(true);
+    expect(screen.queryByText("Read both: I agree")).toBeNull();
+  });
+
   it("asks Firebase once, however fast it is submitted", async () => {
     let finish!: () => void;
     mockSignUp.mockReturnValue(new Promise<void>((resolve) => (finish = resolve)));
