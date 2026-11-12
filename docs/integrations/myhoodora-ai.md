@@ -299,7 +299,7 @@ myHoodoraAI:
 - stores the `id` and answers **200** to a repeat without applying it again;
 - answers 2xx within 10 seconds, and does slow work afterwards.
 
-myHoodora delivers from a durable outbox: its `jobs` collection, written together with the change that caused the event. It retries with backoff (1 min, 5 min, 30 min, 2 h, 6 h, then every 12 h) for **24 hours**, and then alerts staff (dead letter). A 2xx is delivered; 400, 401, 404 and 422 are permanent failures; everything else is retried.
+myHoodora delivers from a durable outbox: its `jobs` collection, written as soon as the change that caused the event is saved (not in the same transaction, so an event can very rarely be lost; §9 covers it). An `account.updated` carries the account's state when it's delivered, not when it was queued. Each event is tried within 10 seconds and then after 1 min, 5 min, 30 min, 2 h, 6 h and 12 h (about 20 hours in all), and then logged for staff (dead letter). A 2xx is delivered; 400, 401, 404 and 422 are permanent failures; everything else (including no answer within 10 seconds) is retried. A retry keeps the event's `id` and `occurred_at`.
 
 Events are sent only for people who have signed in to myHoodoraAI, and only for organisations registered with §7.2.
 
@@ -322,7 +322,7 @@ Events can arrive **out of order**. Account and subscription events carry the **
 | `type`                     | `data`                                                                                                   | When                                                                                                             |
 | -------------------------- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `account.updated`          | The same shape as §7.1                                                                                   | Suspended or reinstated; deactivated or reactivated; deletion scheduled or cancelled; email changed or confirmed |
-| `account.sessions_revoked` | `{ "sub": "…", "revoked_at": "…" }`                                                                      | "Sign out everywhere"; password reset; Firebase sign-in disabled                                                 |
+| `account.sessions_revoked` | `{ "sub": "…", "revoked_at": "…" }`                                                                      | "Sign out everywhere"; deactivation. (A password reset happens in Firebase, which myHoodora's API doesn't hear)  |
 | `account.deleted`          | `{ "sub": "…", "deleted_at": "…" }`                                                                      | The account is gone for good. That `sub` is never used again                                                     |
 | `subscription.updated`     | `{ "organisation_id": "…", "status": "active", "paid_seats": 50, "paid_until": "2027-01-31T23:59:59Z" }` | Payment, renewal, change of seats, cancellation, lapse                                                           |
 

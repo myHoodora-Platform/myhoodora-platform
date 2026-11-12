@@ -127,8 +127,18 @@ myHoodora is the sign-in for myHoodora AI's educators and school admins (`studio
 
    The account is checked again at this point: suspended, closed or "signed out everywhere" since the code was issued means no token.
 4. Discovery and keys are at the API host's root: `/.well-known/openid-configuration` and `/.well-known/jwks.json` (public halves only).
+5. **Afterwards, myHoodora AI hears of changes** (contract §8) by signed events, sent only for people who have signed in there (an `IntegrationLink`):
 
-Code: `apps/api/src/oauth/`, `apps/web/src/app/(auth)/oauth/authorize/`. Tests: `apps/api/test/oauth.e2e-spec.ts` (the whole flow and every refusal), `apps/api/src/oauth/oauth.spec.ts`. Not built yet: account events to myHoodora AI, the subject and organisation API, and billing (contract §§7–8).
+   | Here | Event |
+   | --- | --- |
+   | Staff restrict, suspend or reinstate; the person deactivates, schedules deletion, comes back, or is closed as under 18; an email is changed or confirmed | `account.updated` with the status and email as they are when it's delivered |
+   | "Sign out everywhere", or deactivating | `account.sessions_revoked` |
+   | The account is purged | `account.deleted` (queued before the link is removed) |
+
+   `IntegrationEventsService` records each as a job, signs it with `AI_EVENTS_SECRET` (Standard Webhooks) and retries a failure after 1 min, 5 min, 30 min, 2 h, 6 h and 12 h; a 400, 401, 404 or 422, or the last failure, is logged as a dead letter. Queuing never fails the change itself. A password reset done in Firebase isn't seen by the API, so it sends nothing; myHoodora AI's sessions are its own.
+6. **myHoodora AI can also ask** with `GET /api/v1/integrations/ai/subjects/:sub` (contract §7.1), authenticated by a client assertion whose audience is `<issuer>/api/v1/integrations/ai`: the same snapshot as `account.updated`, or 404 `unknown_subject` once the account is gone.
+
+Code: `apps/api/src/oauth/`, `apps/web/src/app/(auth)/oauth/authorize/`. Tests: `apps/api/test/oauth.e2e-spec.ts` (the whole flow and every refusal), `apps/api/test/integration-events.e2e-spec.ts` (events, signatures, retries and the subject API), `apps/api/src/oauth/oauth.spec.ts`. Not built yet: the organisation API and billing (contract §§7.2–7.4, `subscription.updated`).
 
 ## Mock mode
 

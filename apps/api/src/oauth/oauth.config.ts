@@ -35,6 +35,13 @@ export interface OAuthConfig {
   /** For pairwise subjects (contract §5.2). Changing it changes every `sub`. */
   pairwiseSecret: string;
   clients: OAuthClient[];
+  /** Base of the Integration API (contract §7); also the audience of its client assertions. */
+  integrationApi: string;
+  /**
+   * Where account events go and how they're signed (contract §8). Optional: without AI_EVENTS_URL and
+   * AI_EVENTS_SECRET, sign-in still works and no events are sent (myHoodora AI's own checks still run).
+   */
+  events?: { url: string; secrets: string[] };
 }
 
 const MIN_PAIRWISE_SECRET_LENGTH = 32;
@@ -54,23 +61,38 @@ function parseJson(name: string, value: string | undefined): unknown {
 }
 
 /** The signing keys: a JWK set of private EC P-256 keys, each with a `kid`. */
-function signingKeysFrom(value: string | undefined): (JWK & { kid: string; d: string })[] {
-  const parsed = parseJson("OIDC_SIGNING_KEYS", value) as { keys?: unknown } | undefined;
+function signingKeysFrom(
+  value: string | undefined,
+): (JWK & { kid: string; d: string })[] {
+  const parsed = parseJson("OIDC_SIGNING_KEYS", value) as
+    | { keys?: unknown }
+    | undefined;
   const keys = Array.isArray(parsed?.keys) ? (parsed.keys as JWK[]) : [];
   for (const key of keys) {
-    if (key.kty !== "EC" || key.crv !== "P-256" || typeof key.d !== "string" || typeof key.kid !== "string" || !key.kid) {
-      throw new Error('OIDC_SIGNING_KEYS must be a JWK set of private EC P-256 keys, each with a "kid" (pnpm --filter @myhoodora/api oidc:keygen)');
+    if (
+      key.kty !== "EC" ||
+      key.crv !== "P-256" ||
+      typeof key.d !== "string" ||
+      typeof key.kid !== "string" ||
+      !key.kid
+    ) {
+      throw new Error(
+        'OIDC_SIGNING_KEYS must be a JWK set of private EC P-256 keys, each with a "kid" (pnpm --filter @myhoodora/api oidc:keygen)',
+      );
     }
   }
   const kids = keys.map((k) => k.kid);
-  if (new Set(kids).size !== kids.length) throw new Error("OIDC_SIGNING_KEYS has two keys with the same kid");
+  if (new Set(kids).size !== kids.length)
+    throw new Error("OIDC_SIGNING_KEYS has two keys with the same kid");
   return keys as (JWK & { kid: string; d: string })[];
 }
 
 function isUrl(value: string, requireHttps: boolean): boolean {
   try {
     const url = new URL(value);
-    return url.protocol === "https:" || (!requireHttps && url.protocol === "http:");
+    return (
+      url.protocol === "https:" || (!requireHttps && url.protocol === "http:")
+    );
   } catch {
     return false;
   }
@@ -80,7 +102,9 @@ function isUrl(value: string, requireHttps: boolean): boolean {
  * Reads the configuration. With the integration on, anything missing or malformed throws, so the API
  * refuses to start rather than run a half-configured identity provider. Off, nothing is checked.
  */
-export function oauthConfigFrom(env: Record<string, string | undefined>): OAuthConfig {
+export function oauthConfigFrom(
+  env: Record<string, string | undefined>,
+): OAuthConfig {
   const enabled = env.AI_INTEGRATION_ENABLED?.trim().toLowerCase() === "true";
   const production = env.NODE_ENV === "production";
   const issuer = trimSlash(env.OIDC_ISSUER ?? "");
@@ -90,7 +114,9 @@ export function oauthConfigFrom(env: Record<string, string | undefined>): OAuthC
     .map((s) => s.trim())
     .filter(Boolean);
   const jwksUrl = env.AI_CLIENT_JWKS_URL?.trim() || undefined;
-  const jwks = parseJson("AI_CLIENT_JWKS", env.AI_CLIENT_JWKS) as { keys: JWK[] } | undefined;
+  const jwks = parseJson("AI_CLIENT_JWKS", env.AI_CLIENT_JWKS) as
+    | { keys: JWK[] }
+    | undefined;
 
   const config: OAuthConfig = {
     enabled,
@@ -100,19 +126,68 @@ export function oauthConfigFrom(env: Record<string, string | undefined>): OAuthC
     jwksUri: `${issuer}/.well-known/jwks.json`,
     signingKeys: enabled ? signingKeysFrom(env.OIDC_SIGNING_KEYS) : [],
     pairwiseSecret: env.OIDC_PAIRWISE_SECRET ?? "",
-    clients: [{ clientId: AI_CLIENT_ID, redirectUris, jwksUrl, jwks, allowedAgeBands: ["adult"] }],
+    clients: [
+      {
+        clientId: AI_CLIENT_ID,
+        redirectUris,
+        jwksUrl,
+        jwks,
+        allowedAgeBands: ["adult"],
+      },
+    ],
+    integrationApi: `${issuer}/api/v1/integrations/ai`,
   };
+  const eventsUrl = env.AI_EVENTS_URL?.trim() ?? "";
+  // Several, space-separated, while rotating: every delivery is signed with each (Standard Webhooks).
+  const eventSecrets = (env.AI_EVENTS_SECRET ?? "")
+    .split(/\s+/)
+    .filter(Boolean);
+  if (eventsUrl || eventSecrets.length)
+    config.events = { url: eventsUrl, secrets: eventSecrets };
   if (!enabled) return config;
 
   const problems: string[] = [];
-  if (!isUrl(issuer, production)) problems.push(`OIDC_ISSUER must be an ${production ? "https " : ""}URL`);
-  if (config.signingKeys.length === 0) problems.push("OIDC_SIGNING_KEYS has no keys");
-  if (config.pairwiseSecret.length < MIN_PAIRWISE_SECRET_LENGTH) problems.push(`OIDC_PAIRWISE_SECRET must be at least ${MIN_PAIRWISE_SECRET_LENGTH} characters`);
-  if (redirectUris.length === 0) problems.push("AI_CLIENT_REDIRECT_URIS is empty");
-  for (const uri of redirectUris) if (!isUrl(uri, production)) problems.push(`AI_CLIENT_REDIRECT_URIS has an invalid${production ? " (non-https)" : ""} URL`);
-  if (!jwksUrl && !jwks) problems.push("AI_CLIENT_JWKS_URL (or AI_CLIENT_JWKS) is required");
-  if (jwksUrl && !isUrl(jwksUrl, production)) problems.push("AI_CLIENT_JWKS_URL must be an https URL");
-  if (jwks && !Array.isArray(jwks.keys)) problems.push('AI_CLIENT_JWKS must be a JWK set ({"keys": […]})');
-  if (problems.length) throw new Error(`AI_INTEGRATION_ENABLED is on, but: ${problems.join("; ")}`);
+  if (!isUrl(issuer, production))
+    problems.push(`OIDC_ISSUER must be an ${production ? "https " : ""}URL`);
+  if (config.signingKeys.length === 0)
+    problems.push("OIDC_SIGNING_KEYS has no keys");
+  if (config.pairwiseSecret.length < MIN_PAIRWISE_SECRET_LENGTH)
+    problems.push(
+      `OIDC_PAIRWISE_SECRET must be at least ${MIN_PAIRWISE_SECRET_LENGTH} characters`,
+    );
+  if (redirectUris.length === 0)
+    problems.push("AI_CLIENT_REDIRECT_URIS is empty");
+  for (const uri of redirectUris)
+    if (!isUrl(uri, production))
+      problems.push(
+        `AI_CLIENT_REDIRECT_URIS has an invalid${production ? " (non-https)" : ""} URL`,
+      );
+  if (!jwksUrl && !jwks)
+    problems.push("AI_CLIENT_JWKS_URL (or AI_CLIENT_JWKS) is required");
+  if (jwksUrl && !isUrl(jwksUrl, production))
+    problems.push("AI_CLIENT_JWKS_URL must be an https URL");
+  if (jwks && !Array.isArray(jwks.keys))
+    problems.push('AI_CLIENT_JWKS must be a JWK set ({"keys": […]})');
+  if (config.events) {
+    if (!isUrl(config.events.url, production))
+      problems.push(
+        "AI_EVENTS_URL must be an https URL (set it with AI_EVENTS_SECRET, or neither)",
+      );
+    if (config.events.secrets.length === 0)
+      problems.push("AI_EVENTS_SECRET is required with AI_EVENTS_URL");
+    if (
+      config.events.secrets.some(
+        (secret) => !/^whsec_[A-Za-z0-9+/]{32,}={0,2}$/.test(secret),
+      )
+    ) {
+      problems.push(
+        "AI_EVENTS_SECRET must look like whsec_<base64> (pnpm --filter @myhoodora/api oidc:keygen)",
+      );
+    }
+  }
+  if (problems.length)
+    throw new Error(
+      `AI_INTEGRATION_ENABLED is on, but: ${problems.join("; ")}`,
+    );
   return config;
 }
