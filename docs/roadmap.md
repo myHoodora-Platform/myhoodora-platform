@@ -20,6 +20,18 @@ Mostly not code.
 - Dark mode for the public pages, if wanted; today they are light by design.
 - Queue-backed delivery for broadcasts and email if volumes outgrow in-process batches.
 
+## myHoodoraAI integration
+
+Agreed 12 November 2026, not built. The contract both applications build to is [`integrations/myhoodora-ai.md`](./integrations/myhoodora-ai.md). myHoodora becomes the sign-in for myHoodoraAI's educators and school admins (adults only; learners keep myHoodoraAI accounts and never come here), and runs myHoodoraAI's billing. The work here, in order:
+
+1. Move the API to `api.myhoodora.com` (the issuer is part of every token).
+2. Sign-in for myHoodoraAI: signing keys and `/.well-known/*`, the `/oauth/authorize` web page (age check, terms and email confirmation, but no Hood onboarding), `POST /api/v1/oauth/token`, pairwise subjects. Behind `AI_INTEGRATION_ENABLED`.
+3. Account events to myHoodoraAI through the `jobs` outbox (suspension, deactivation, deletion, sign out everywhere, email changes), and `GET /api/v1/integrations/ai/subjects/:sub`.
+4. Billing for myHoodoraAI organisations: registration and learner counts from myHoodoraAI, the billing page, Paystack, and `subscription.updated` events. Commissions and agents stay off the platform.
+5. Later: opening myHoodoraAI from the mobile app without signing in again on the web.
+
+myHoodora stays 18 and over: none of this lets under-18s register.
+
 ## Mobile app
 
 Foundation built on 20 October 2026 (`docs/mobile/`): in the workspace and CI, sign-in, onboarding, the Hood feed (read), notifications and push. Next, in order: posting and reacting; For Sale & Free; Messages; the realtime stream (`expo/fetch` streaming); EAS preview builds and push credentials; then store submission (needs Sign in with Apple if Google sign-in is added, App Store guideline 4.8).
