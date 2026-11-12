@@ -9,3 +9,13 @@ export type LegalDocument = keyof typeof CURRENT_LEGAL;
 
 /** How many acceptance records a person keeps: proof of what they agreed to and when (GAID: keep records of consent). */
 export const LEGAL_RECORDS_KEPT = 20;
+
+/**
+ * Has agreed to the current version of both documents (or a newer one). The same test the clients make
+ * with `needsLegalAcceptance` (packages/api-contract/src/legal.ts), from the stored records.
+ */
+export function hasAcceptedCurrentLegal(acceptances: { doc: string; version: string }[] | undefined | null): boolean {
+  return (Object.keys(CURRENT_LEGAL) as LegalDocument[]).every((doc) =>
+    (acceptances ?? []).some((a) => a.doc === doc && a.version >= CURRENT_LEGAL[doc]),
+  );
+}

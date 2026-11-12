@@ -8,6 +8,7 @@ import { AgeCheckForm, CantJoinYet } from "@/features/age/age-check-form";
 import { ageCheckLocked, lockAgeCheck } from "@/features/age/age-lock";
 import { isStaff, needsAgeCheck } from "@/lib/auth/profile";
 import { DEFAULT_APP_ROUTE, ROUTES } from "@/lib/routes";
+import { takeOAuthResume } from "@/lib/oauth/resume";
 
 /**
  * /confirm-age: the age check, before onboarding, for everyone however they signed up
@@ -34,7 +35,8 @@ export default function ConfirmAgePage() {
     if (!user) {
       router.replace(`${ROUTES.login}?next=${encodeURIComponent(ROUTES.confirmAge)}`);
     } else if (profileStatus === "ready" && profile && !needsAgeCheck(profile)) {
-      router.replace(profile.isOnboarded || isStaff(profile.role) ? DEFAULT_APP_ROUTE : ROUTES.onboarding);
+      // Back to "Continue to myHoodora AI" if that's what sent them here (lib/oauth/resume.ts).
+      router.replace(takeOAuthResume() ?? (profile.isOnboarded || isStaff(profile.role) ? DEFAULT_APP_ROUTE : ROUTES.onboarding));
     }
   }, [blocked, loading, user, profile, profileStatus, router]);
 

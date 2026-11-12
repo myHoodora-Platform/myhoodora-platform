@@ -25,7 +25,7 @@ Mostly not code.
 Agreed 12 November 2026, not built. The contract both applications build to is [`integrations/myhoodora-ai.md`](./integrations/myhoodora-ai.md). myHoodora becomes the sign-in for myHoodoraAI's educators and school admins (adults only; learners keep myHoodoraAI accounts and never come here), and runs myHoodoraAI's billing. The work here, in order:
 
 1. Move the API to `api.myhoodora.com` (the issuer is part of every token).
-2. Sign-in for myHoodoraAI: signing keys and `/.well-known/*`, the `/oauth/authorize` web page (age check, terms and email confirmation, but no Hood onboarding), `POST /api/v1/oauth/token`, pairwise subjects. Behind `AI_INTEGRATION_ENABLED`.
+2. ✅ **Built 12 November 2026, off by default.** Sign-in for myHoodoraAI: signing keys and `/.well-known/*`, the `/oauth/authorize` web page (age check, terms and email confirmation, but no Hood onboarding), `POST /api/v1/oauth/token`, pairwise subjects. Behind `AI_INTEGRATION_ENABLED` ([authentication.md](./authentication.md#signing-in-to-myhoodora-ai)). Needs an independent security review before it's switched on in production.
 3. Account events to myHoodoraAI through the `jobs` outbox (suspension, deactivation, deletion, sign out everywhere, email changes), and `GET /api/v1/integrations/ai/subjects/:sub`.
 4. Billing for myHoodoraAI organisations: registration and learner counts from myHoodoraAI, the billing page, Paystack, and `subscription.updated` events. Commissions and agents stay off the platform.
 5. Later: opening myHoodoraAI from the mobile app without signing in again on the web.
