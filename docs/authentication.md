@@ -115,8 +115,8 @@ myHoodora is the sign-in for myHoodora AI's educators and school admins (`studio
 2. The page posts the request to **`POST /api/v1/oauth/authorize`** with the person's Firebase ID token. The API decides:
    - an unknown app or return address: **400**, and the page redirects nowhere;
    - suspended, closed, under 18, or "Cancel": back to myHoodora AI with an OAuth error;
-   - not yet age-checked, not on the current terms, or deactivated: a **step**. The page remembers itself in this tab (`lib/oauth/resume.ts`, 15 minutes), sends them to `/confirm-age`, `/accept-terms` or `/welcome-back`, and those pages return to it when they're done;
-   - an unconfirmed email: the page asks them to confirm it, with "Send the link again";
+   - not yet age-checked, not on the current terms, or deactivated: a **step**. The page remembers itself in this browser (`lib/oauth/resume.ts`, 15 minutes, used once), sends them to `/confirm-age`, `/accept-terms` or `/welcome-back`, and those pages return to it when they're done;
+   - an unconfirmed email: the page asks them to confirm it, with "Send the link again". It remembers itself too, so `/verify-email` (often opened from the email in another tab) carries on to myHoodora AI once the address is confirmed;
    - otherwise a **single-use code** (60 seconds, stored hashed, bound to the app, return address, PKCE challenge and nonce), and the page sends them back to myHoodora AI.
 
    **No Hood or address verification is needed**, and sign-in routing (`routeAfterSignIn`) skips onboarding for anyone on their way there.

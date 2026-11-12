@@ -10,7 +10,7 @@ import { resendVerificationEmail } from "@/lib/api/account";
 import { ApiError, errorMessage } from "@/lib/api/client";
 import { USE_MOCKS } from "@/lib/api/config";
 import { authorizeForApp } from "@/lib/api/oauth";
-import { rememberOAuthResume } from "@/lib/oauth/resume";
+import { rememberOAuthResume, takeOAuthResume } from "@/lib/oauth/resume";
 import { ROUTES } from "@/lib/routes";
 
 type View = { kind: "working" } | { kind: "leaving" } | { kind: "email" } | { kind: "error"; message: string };
@@ -39,16 +39,20 @@ export default function AuthorizePage() {
       try {
         const outcome = await authorizeForApp(user, { ...request.current.params, ...(decision && { decision }) });
         if (outcome.kind === "redirect") {
+          // Done here: nothing should bring them back to this page later.
+          takeOAuthResume();
           setView({ kind: "leaving" });
           // A full navigation to the app (another site): the address comes from our API, which only uses registered ones.
           window.location.assign(outcome.url);
           return;
         }
+        // Remembered for every step, the email one included: the confirmation link usually opens in
+        // another tab, and /verify-email continues from there.
+        rememberOAuthResume(request.current.here);
         if (outcome.step === "email") {
           setView({ kind: "email" });
           return;
         }
-        rememberOAuthResume(request.current.here);
         router.replace(outcome.step === "age_check" ? ROUTES.confirmAge : outcome.step === "terms" ? ROUTES.acceptTerms : ROUTES.welcomeBack);
       } catch (err) {
         const status = err instanceof ApiError ? err.status : 0;
