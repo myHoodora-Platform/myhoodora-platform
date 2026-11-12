@@ -1,10 +1,11 @@
-import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { Injectable, Optional, UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import { getFirebaseAdmin } from "../config/firebase.config";
 import { User, UserDocument } from "../users/schemas/user.schema";
 import { SessionRevocationService } from "./session-revocation.service";
+import { IntegrationEventsService } from "../oauth/integration-events.service";
 
 export interface WebSession {
   /** Firebase session cookie. The web server stores it HttpOnly; it never reaches browser JavaScript. */
@@ -19,6 +20,7 @@ export class AuthService {
     private readonly config: ConfigService,
     private readonly revocations: SessionRevocationService,
     @InjectModel(User.name) private readonly users: Model<UserDocument>,
+    @Optional() private readonly events?: IntegrationEventsService,
   ) {}
 
   /** Exchanges an ID token the guard has already verified (signature, expiry, revocation) for a session cookie. */
@@ -45,5 +47,7 @@ export class AuthService {
     // for anything to be re-checked with Firebase (AccountGuard reads this on each request).
     await this.users.updateOne({ uid }, { $set: { sessionsRevokedAt: revokedAt } }).exec();
     this.revocations.forget(uid);
+    // myHoodora AI ends its sessions too (docs/integrations/myhoodora-ai.md §8).
+    await this.events?.accountChanged(uid, "account.sessions_revoked");
   }
 }

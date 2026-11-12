@@ -24,7 +24,7 @@ This directory is the project's documentation of record. If a README or a commen
 | [compliance/ndpc-declaration-checklist.md](./compliance/ndpc-declaration-checklist.md) | Every measure declared on the NDPC registration, with its evidence, status and the steps to make it true |
 | [api-contract.md](./api-contract.md) | Every API route and shape the web app relies on |
 | [api-versioning.md](./api-versioning.md) | `/api/v1`, what counts as a breaking change, how to ship v2 and retire v1; app release versions (planned) |
-| [integrations/myhoodora-ai.md](./integrations/myhoodora-ai.md) | The contract with myHoodoraAI (studio.myhoodora.com): sign-in for its educators, account events, billing. Agreed, not built yet |
+| [integrations/myhoodora-ai.md](./integrations/myhoodora-ai.md) | The contract with myHoodoraAI (studio.myhoodora.com): sign-in for its educators, account events, billing. Sign-in and account events built (off by default); billing not yet |
 | [mobile/](./mobile/) | The Expo app: Phase 0 audit, architecture decisions (several still proposed), UI and API inventories, dependency baseline |
 | [product/](./product/) | Product research that shaped the design (Nextdoor study) |
 | [archive/](./archive/) | Old plans, audits and worklogs, kept for history. **Not current.** |

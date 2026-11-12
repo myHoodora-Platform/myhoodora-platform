@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { rememberOAuthResume, takeOAuthResume } from "./resume";
 
-/** sessionStorage for the node test environment. */
+/** localStorage for the node test environment. */
 function stubStorage() {
   const store = new Map<string, string>();
-  vi.stubGlobal("sessionStorage", {
+  vi.stubGlobal("localStorage", {
     getItem: (k: string) => store.get(k) ?? null,
     setItem: (k: string, v: string) => void store.set(k, v),
     removeItem: (k: string) => void store.delete(k),
@@ -42,7 +42,7 @@ describe("returning to “Continue to myHoodora AI” after a detour", () => {
   });
 
   it("does nothing when storage is blocked", () => {
-    vi.stubGlobal("sessionStorage", {
+    vi.stubGlobal("localStorage", {
       getItem: () => {
         throw new Error("blocked");
       },

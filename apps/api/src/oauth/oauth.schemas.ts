@@ -6,7 +6,10 @@ import { HydratedDocument } from "mongoose";
  * the PKCE challenge and the nonce. Only a hash of the code is stored. MongoDB removes it after it
  * expires; a used one stays until then, so using it twice is caught.
  */
-@Schema({ collection: "oauth_codes", timestamps: { createdAt: true, updatedAt: false } })
+@Schema({
+  collection: "oauth_codes",
+  timestamps: { createdAt: true, updatedAt: false },
+})
 export class OAuthCode {
   @Prop({ required: true, unique: true })
   codeHash!: string;
@@ -57,7 +60,8 @@ export class UsedClientAssertion {
   @Prop({ required: true, type: Date })
   expiresAt!: Date;
 }
-export const UsedClientAssertionSchema = SchemaFactory.createForClass(UsedClientAssertion);
+export const UsedClientAssertionSchema =
+  SchemaFactory.createForClass(UsedClientAssertion);
 UsedClientAssertionSchema.index({ clientId: 1, jti: 1 }, { unique: true });
 UsedClientAssertionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
@@ -82,7 +86,8 @@ export class IntegrationLink {
   @Prop({ required: true, type: Date })
   lastAt!: Date;
 }
-export const IntegrationLinkSchema = SchemaFactory.createForClass(IntegrationLink);
+export const IntegrationLinkSchema =
+  SchemaFactory.createForClass(IntegrationLink);
 IntegrationLinkSchema.index({ clientId: 1, uid: 1 }, { unique: true });
 IntegrationLinkSchema.index({ clientId: 1, sub: 1 }, { unique: true });
 IntegrationLinkSchema.index({ uid: 1 });

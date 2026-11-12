@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { InjectConnection, InjectModel } from "@nestjs/mongoose";
 import { Connection, Model, type ClientSession, type QueryFilter } from "mongoose";
@@ -8,6 +8,7 @@ import { accountActionEmail, messageEmail } from "../communications/templates/em
 import { HoodsService } from "../hoods/hoods.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import { RealtimeService } from "../realtime/realtime.service";
+import { IntegrationEventsService } from "../oauth/integration-events.service";
 import type { Viewer } from "../shared/auth/viewer";
 import { ROLE_RANK, type AccountStatus, type Role, type VerificationStatus } from "../shared/authz/roles";
 import { withTransaction } from "../shared/db/transaction";
@@ -63,6 +64,7 @@ export class StaffUsersService {
     private readonly comms: CommunicationsService,
     private readonly config: ConfigService,
     private readonly realtime: RealtimeService,
+    @Optional() private readonly events?: IntegrationEventsService,
   ) {}
 
   /** See `verification.strictHoodAccess` in configuration.ts. */
@@ -189,6 +191,11 @@ export class StaffUsersService {
     };
     const updated = session ? await run(session) : await withTransaction(this.connection, run);
     if (!session) await this.tellNeighbour(updated, input, hoodName, joinRequest);
+    // myHoodora AI hears of suspensions and their end (docs/integrations/myhoodora-ai.md §8). Inside a
+    // caller's transaction the event waits a moment, so it reads the state once that commits.
+    if (input.action === "restrict" || input.action === "suspend" || input.action === "reinstate") {
+      await this.events?.accountChanged(uid, "account.updated", session ? 10_000 : 0);
+    }
     if (joinRequest) this.realtime.toStaff("queue.changed");
     return updated;
   }

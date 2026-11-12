@@ -1,5 +1,5 @@
 import { searchRegex } from "../shared/http/pagination";
-import { BadRequestException, ConflictException, ForbiddenException, GoneException, Injectable, Logger, NotFoundException, type OnModuleInit } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, GoneException, Injectable, Logger, NotFoundException, Optional, type OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { InjectConnection, InjectModel } from "@nestjs/mongoose";
 import type { DecodedIdToken } from "firebase-admin/auth";
@@ -18,6 +18,7 @@ import { JobsService } from "../jobs/jobs.service";
 import { SUPPORT_WELCOME_JOB } from "../inbound/support-welcome";
 import { mergePreferences, type Preferences } from "./domain/preferences";
 import { AccountDeletionService } from "./account-deletion.service";
+import { IntegrationEventsService } from "../oauth/integration-events.service";
 import { ageVerdict } from "./domain/age";
 import { CURRENT_LEGAL, LEGAL_RECORDS_KEPT } from "./domain/legal";
 import { AccountLifecycle, DELETED_USER_NAME, DELETED_USER_UID, DELETION_GRACE_MS, LEGACY_DELETION_GRACE_MS } from "./account-lifecycle";
@@ -144,6 +145,7 @@ export class UsersService implements OnModuleInit {
     private readonly lifecycle: AccountLifecycle,
     private readonly deletion: AccountDeletionService,
     private readonly jobs: JobsService,
+    @Optional() private readonly events?: IntegrationEventsService,
   ) {}
 
   onModuleInit() {
@@ -186,7 +188,10 @@ export class UsersService implements OnModuleInit {
         existing.emailVerifiedAt = new Date();
         changed = true;
       }
-      if (changed) await existing.save();
+      if (changed) {
+        await existing.save();
+        await this.events?.accountChanged(existing.uid);
+      }
       return toMe(existing);
     }
 
@@ -289,6 +294,8 @@ export class UsersService implements OnModuleInit {
       throw err;
     }
     const updated = (await this.findByUid(viewer.uid))!;
+    // myHoodora AI keeps the address it knows up to date (docs/integrations/myhoodora-ai.md §8).
+    await this.events?.accountChanged(viewer.uid);
     await this.emailVerification.restartFor(updated).catch(() => this.logger.warn("Confirmation email for a changed address could not be queued."));
     return toMe(updated);
   }
@@ -626,6 +633,7 @@ export class UsersService implements OnModuleInit {
     await this.lifecycle.hide(uid);
     this.logger.log(`Account ${kind === "delete" ? "scheduled for deletion" : "deactivated"} (reason: ${dto.reason})`);
     await this.auth.revokeTokens(uid).catch(() => undefined);
+    await this.events?.accountChanged(uid);
   }
 
   /**
@@ -678,6 +686,7 @@ export class UsersService implements OnModuleInit {
     user.deletionDueAt = null;
     await user.save();
     this.logger.log("Account reactivated");
+    await this.events?.accountChanged(uid);
     return toMe(user);
   }
 
@@ -726,6 +735,7 @@ export class UsersService implements OnModuleInit {
     // The uid and why, never the date of birth: enough to show the account was closed for this.
     await this.audit.record(actor, "account_closed_under_age", { type: "user", id: uid, label: user.displayName ?? uid }, { reason });
     await this.deletion.enqueue(uid);
+    await this.events?.accountChanged(uid);
     this.logger.log(`Account ${uid} closed: under 18. Queued for deletion.`);
   }
 

@@ -48,6 +48,8 @@ In production the API refuses to start if a **Required** variable is missing (`v
 | `OIDC_PAIRWISE_SECRET` | with the integration on | **Secret**, 32 characters or more. Turns a uid into the ID myHoodora AI sees. **Never change it**: every person would become someone new to myHoodora AI |
 | `AI_CLIENT_REDIRECT_URIS` | with the integration on | myHoodora AI's callback, matched exactly (comma-separated) |
 | `AI_CLIENT_JWKS_URL` (or `AI_CLIENT_JWKS`) | with the integration on | Where myHoodora AI publishes its public keys (it signs its requests with the private halves). `AI_CLIENT_JWKS` holds the keys themselves, for local runs and tests |
+| `AI_EVENTS_URL` | no (set with `AI_EVENTS_SECRET`) | myHoodora AI's event receiver, e.g. `https://studio.myhoodora.com/api/integrations/myhoodora/v1/events`. Without it and the secret, no account events are sent (sign-in still works) |
+| `AI_EVENTS_SECRET` | with `AI_EVENTS_URL` | **Secret.** `whsec_<base64>` (`oidc:keygen` prints one); myHoodora AI holds the same value as `MYHOODORA_EVENTS_SECRET`. To rotate: put the new one after the old, space-separated (each event is signed with both), switch myHoodora AI to the new one, then remove the old |
 | `MONGO_AUTO_INDEX` | no (default on) | `false` once indexes are managed in Atlas |
 | `SWAGGER_ENABLED` | no | `true` exposes `/api/docs` in production |
 

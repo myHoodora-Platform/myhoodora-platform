@@ -124,7 +124,8 @@ Off by default (`AI_INTEGRATION_ENABLED`). When myHoodora AI is ready to use it 
 1. `pnpm --filter @myhoodora/api oidc:keygen` on a trusted machine. Put `OIDC_SIGNING_KEYS` and `OIDC_PAIRWISE_SECRET` in the API host's secret settings, **once per environment**. Don't keep them anywhere else, and never change the pairwise secret.
 2. Set `OIDC_ISSUER` (the API's public origin, ideally `https://api.myhoodora.com`), `AI_CLIENT_REDIRECT_URIS` and `AI_CLIENT_JWKS_URL`, then `AI_INTEGRATION_ENABLED=true`, and redeploy. A bad value stops start-up with a message naming it.
 3. Check: `curl -s https://<api-host>/.well-known/openid-configuration` shows the issuer and endpoints; `/.well-known/jwks.json` lists keys **without** a `"d"`.
-4. Rollback: `AI_INTEGRATION_ENABLED=false` and redeploy. Codes and links already stored are harmless; nothing else changes.
+4. Account events (optional, recommended): `oidc:keygen` prints an `AI_EVENTS_SECRET`. Set it on the API with `AI_EVENTS_URL` (myHoodora AI's `/api/integrations/myhoodora/v1/events`), and the same secret on myHoodora AI as `MYHOODORA_EVENTS_SECRET`. Deploy myHoodora AI first, so events find a receiver; a failed delivery is retried for about 20 hours anyway. Check: suspend a test account that has signed in there and watch the API log for no `dead letter`.
+5. Rollback: `AI_INTEGRATION_ENABLED=false` and redeploy. Codes and links already stored are harmless; nothing else changes. To stop only the events, clear `AI_EVENTS_URL` and `AI_EVENTS_SECRET`.
 
 ## Rollback
 

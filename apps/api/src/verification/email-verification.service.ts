@@ -1,4 +1,4 @@
-import { BadRequestException, HttpException, HttpStatus, Injectable, Logger, type OnModuleInit } from "@nestjs/common";
+import { BadRequestException, HttpException, HttpStatus, Injectable, Logger, Optional, type OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { InjectModel } from "@nestjs/mongoose";
 import { createHash, randomBytes } from "node:crypto";
@@ -7,6 +7,7 @@ import { CommunicationsService } from "../communications/communications.service"
 import { verifyEmail, welcomeVerifyEmail } from "../communications/templates/email-templates";
 import { getFirebaseAdmin } from "../config/firebase.config";
 import { RealtimeService } from "../realtime/realtime.service";
+import { IntegrationEventsService } from "../oauth/integration-events.service";
 import { AccountLifecycle } from "../users/account-lifecycle";
 import { User, UserDocument } from "../users/schemas/user.schema";
 import { EmailVerification, EmailVerificationDocument } from "./email-verification.schema";
@@ -37,6 +38,7 @@ export class EmailVerificationService implements OnModuleInit {
     private readonly config: ConfigService,
     private readonly accounts: AccountLifecycle,
     private readonly realtime: RealtimeService,
+    @Optional() private readonly events?: IntegrationEventsService,
   ) {}
 
   onModuleInit() {
@@ -79,7 +81,10 @@ export class EmailVerificationService implements OnModuleInit {
 
     const confirmed = await this.users.updateOne({ uid: token.uid, emailVerifiedAt: null }, { $set: { emailVerifiedAt: new Date() } }).exec();
     // Open apps (web tabs, the phone) refresh the profile, so "Confirm your email" goes and posting opens at once.
-    if (confirmed.modifiedCount > 0) this.realtime.toUser(token.uid, "session.changed");
+    if (confirmed.modifiedCount > 0) {
+      this.realtime.toUser(token.uid, "session.changed");
+      await this.events?.accountChanged(token.uid);
+    }
     // Invalidate any other outstanding links for this user.
     await this.tokens.updateMany({ uid: token.uid, consumedAt: null }, { $set: { consumedAt: new Date() } }).exec();
     try {

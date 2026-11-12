@@ -9,7 +9,8 @@ const PUBLIC_MEMBERS = ["kty", "crv", "x", "y", "kid"] as const;
 /** myHoodora's signing keys (contract §5.1): ES256 only. The first configured key signs; all are published. */
 @Injectable()
 export class OAuthKeysService {
-  private signer: Promise<{ kid: string; key: KeyLike | Uint8Array }> | null = null;
+  private signer: Promise<{ kid: string; key: KeyLike | Uint8Array }> | null =
+    null;
 
   constructor(@Inject(OAUTH_CONFIG) private readonly config: OAuthConfig) {}
 
@@ -19,7 +20,8 @@ export class OAuthKeysService {
     return {
       keys: this.config.signingKeys.map((key) => {
         const pub: JWK = { kty: key.kty, use: "sig", alg: "ES256" };
-        for (const member of PUBLIC_MEMBERS) if (key[member] !== undefined) pub[member] = key[member];
+        for (const member of PUBLIC_MEMBERS)
+          if (key[member] !== undefined) pub[member] = key[member];
         return pub;
       }),
     };
@@ -29,7 +31,9 @@ export class OAuthKeysService {
   async sign(payload: Record<string, unknown>): Promise<string> {
     this.ensureEnabled();
     const { kid, key } = await this.currentSigner();
-    return new SignJWT(payload).setProtectedHeader({ alg: "ES256", kid, typ: "JWT" }).sign(key);
+    return new SignJWT(payload)
+      .setProtectedHeader({ alg: "ES256", kid, typ: "JWT" })
+      .sign(key);
   }
 
   private currentSigner() {

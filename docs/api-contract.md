@@ -1624,3 +1624,7 @@ Body: the request's `response_type`, `client_id`, `redirect_uri`, `scope`, `stat
 - `400`: the app or its return address isn't registered. Show an error; redirect nowhere.
 - `200 { kind: "redirect", url }`: go there (a full navigation). It carries a code, or an OAuth error (`access_denied` with `cancelled`, `email_unverified`, `account_suspended`, `account_closed`; `invalid_request`).
 - `200 { kind: "step", step }`: `age_check`, `terms` or `reactivate` (send them to that page and return afterwards), or `email` (ask them to confirm it, then call again).
+
+### `GET /integrations/ai/subjects/:sub` (myHoodora AI's server only)
+
+Not for the web or the app. Authenticated by a client assertion (`Authorization: Bearer <assertion>`, audience `<issuer>/api/v1/integrations/ai`); errors are `{ statusCode, message, code }`. Shape and meaning: contract §7.1. Account events to myHoodora AI are outgoing webhooks (contract §8) and have no route here.
