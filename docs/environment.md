@@ -42,6 +42,12 @@ In production the API refuses to start if a **Required** variable is missing (`v
 | `EMAIL_CONFIRMATION_REQUIRED` | no (default on) | Posting and messaging need a confirmed email address. `false` turns that off. **Leave it off until verification emails reach people** (the Resend sending domain is verified): otherwise nobody who signed up with a password can post |
 | `HOOD_ACCESS_STRICT` | no (default on) | Rollback switch for the Hood access rules (see [security.md](./security.md)). `false` restores the behaviour before October 2026. Temporary: remove once the rules have bedded in |
 | `EVENT_REMINDERS_ENABLED` | no (default on) | `false` pauses the reminder scheduler |
+| `AI_INTEGRATION_ENABLED` | no (default off) | `true` turns on signing in to myHoodora AI with a myHoodora account ([integrations/myhoodora-ai.md](./integrations/myhoodora-ai.md)): `/.well-known/*`, `/oauth/authorize` and `/oauth/token`. Off, they answer 404. On, the API **will not start** unless the five settings below are valid |
+| `OIDC_ISSUER` | with the integration on | This API's public origin, e.g. `https://api.myhoodora.com`. It is in every token myHoodora AI checks: change it only together with myHoodora AI's `MYHOODORA_ISSUER` |
+| `OIDC_SIGNING_KEYS` | with the integration on | **Secret.** Private ES256 keys as a JWK set (`pnpm --filter @myhoodora/api oidc:keygen`). The first key signs; all are published at `/.well-known/jwks.json`. To rotate, put the new key first and remove the old one a day later |
+| `OIDC_PAIRWISE_SECRET` | with the integration on | **Secret**, 32 characters or more. Turns a uid into the ID myHoodora AI sees. **Never change it**: every person would become someone new to myHoodora AI |
+| `AI_CLIENT_REDIRECT_URIS` | with the integration on | myHoodora AI's callback, matched exactly (comma-separated) |
+| `AI_CLIENT_JWKS_URL` (or `AI_CLIENT_JWKS`) | with the integration on | Where myHoodora AI publishes its public keys (it signs its requests with the private halves). `AI_CLIENT_JWKS` holds the keys themselves, for local runs and tests |
 | `MONGO_AUTO_INDEX` | no (default on) | `false` once indexes are managed in Atlas |
 | `SWAGGER_ENABLED` | no | `true` exposes `/api/docs` in production |
 

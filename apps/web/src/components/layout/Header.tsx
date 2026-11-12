@@ -13,6 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@myhoodora/ui/dropdown-menu";
+import { isAuthorizePath } from "@myhoodora/api-contract/oauth";
 import { HeaderActions } from "./HeaderActions";
 
 interface NavLink {
@@ -81,6 +82,15 @@ export function Header() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const authCta = AUTH_CTA[pathname];
+  // Someone on their way to myHoodora AI (docs/integrations/myhoodora-ai.md §4.1) who switches between
+  // Log in and Sign up keeps going there afterwards. Read after mounting: the server can't see the query.
+  const [carryNext, setCarryNext] = useState<string | null>(null);
+  useEffect(() => {
+    const next = new URLSearchParams(window.location.search).get("next");
+    setCarryNext(next && isAuthorizePath(next) ? next : null);
+  }, [pathname]);
+  const authCtaHref =
+    authCta && carryNext && (authCta.href === "/login" || authCta.href === "/register") ? `${authCta.href}?next=${encodeURIComponent(carryNext)}` : authCta?.href;
 
   // Close the mobile menu whenever the route changes.
   useEffect(() => {
@@ -101,7 +111,7 @@ export function Header() {
                 {authCta.hint}
               </span>
             )}
-            <Link href={authCta.href}>
+            <Link href={authCtaHref ?? authCta.href}>
               <Button variant={authCta.variant} size="sm">
                 {authCta.label}
               </Button>

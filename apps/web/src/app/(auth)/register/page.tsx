@@ -11,9 +11,11 @@ import { registerSchema, type RegisterInput } from "@/lib/validation/auth";
 import { acceptLegalApi, confirmAgeApi, logoutUser, signUpUser } from "@/lib/firebase/auth";
 import { currentLegalVersion, needsLegalAcceptance } from "@myhoodora/api-contract/legal";
 import { readBirthInput } from "@myhoodora/api-contract/age";
-import { ROUTES } from "@/lib/routes";
+import { DEFAULT_APP_ROUTE, ROUTES } from "@/lib/routes";
 import { requireServerSession } from "@/lib/auth/session-sync";
-import { enterApp } from "@/lib/safe-redirect";
+import { enterApp, safeNextPath } from "@/lib/safe-redirect";
+import { rememberOAuthResume } from "@/lib/oauth/resume";
+import { isAuthorizePath } from "@myhoodora/api-contract/oauth";
 import { getAuthErrorMessage } from "@/lib/firebase/errors";
 import { GoogleOneTap } from "@/components/shared/google-one-tap";
 import { SocialAuthButtons } from "@/components/shared/social-auth-buttons";
@@ -22,6 +24,14 @@ import { toast } from "sonner";
 import { BirthField, CantJoinYet, EMPTY_BIRTH, type BirthInput } from "@/features/age/age-check-form";
 import { ageCheckLocked, lockAgeCheck } from "@/features/age/age-lock";
 import { PolicyReviewDialog } from "@/components/legal/policy-review-dialog";
+
+// "Continue to myHoodora AI" sends people here with ?next=/oauth/authorize?… (docs/integrations/myhoodora-ai.md §4.1).
+// Read at submit time, like the login page, so this page stays statically rendered.
+const authorizeNext = (): string | null => {
+  const next = new URLSearchParams(window.location.search).get("next");
+  return next && isAuthorizePath(next) ? safeNextPath(next) : null;
+};
+const socialNext = () => authorizeNext() ?? DEFAULT_APP_ROUTE;
 
 export default function RegisterPage() {
   // Blocks a second sign-up from a fast double submit (see login page).
@@ -86,6 +96,10 @@ export default function RegisterPage() {
         // Not recorded (a network blip): the age check screen asks again before onboarding.
         next = ROUTES.confirmAge;
       }
+      // On their way to myHoodora AI: straight back to it, or there after the step that's still needed.
+      const resume = authorizeNext();
+      if (resume && next === ROUTES.onboarding) next = resume;
+      else if (resume) rememberOAuthResume(resume);
       enterApp(next);
     } catch (err: unknown) {
       const { code, message, silent } = getAuthErrorMessage(err);
@@ -113,8 +127,8 @@ export default function RegisterPage() {
         </p>
       </div>
 
-      <SocialAuthButtons />
-      <GoogleOneTap />
+      <SocialAuthButtons next={socialNext} />
+      <GoogleOneTap next={socialNext} />
 
       <Divider label="or" className="py-1" />
 

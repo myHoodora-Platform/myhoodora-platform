@@ -117,6 +117,15 @@ E2E_BASE_URL=https://<web-host> E2E_EMAIL=… E2E_PASSWORD=… pnpm --filter web
 
 Order stays **API → web → mobile builds**: the app needs the API's `/push/devices` routes and the web's lookup routes accepting a Bearer token. On the API, `PUSH_PROVIDER` defaults to `expo` (set `EXPO_ACCESS_TOKEN` only if Expo's enhanced push security is on). Building, credentials and store steps: [`apps/mobile/README.md`](../apps/mobile/README.md). A mobile binary can't be rolled back once installed, so API changes must keep working for app versions already on phones.
 
+## Switching on sign-in for myHoodora AI
+
+Off by default (`AI_INTEGRATION_ENABLED`). When myHoodora AI is ready to use it ([integrations/myhoodora-ai.md](./integrations/myhoodora-ai.md)):
+
+1. `pnpm --filter @myhoodora/api oidc:keygen` on a trusted machine. Put `OIDC_SIGNING_KEYS` and `OIDC_PAIRWISE_SECRET` in the API host's secret settings, **once per environment**. Don't keep them anywhere else, and never change the pairwise secret.
+2. Set `OIDC_ISSUER` (the API's public origin, ideally `https://api.myhoodora.com`), `AI_CLIENT_REDIRECT_URIS` and `AI_CLIENT_JWKS_URL`, then `AI_INTEGRATION_ENABLED=true`, and redeploy. A bad value stops start-up with a message naming it.
+3. Check: `curl -s https://<api-host>/.well-known/openid-configuration` shows the issuer and endpoints; `/.well-known/jwks.json` lists keys **without** a `"d"`.
+4. Rollback: `AI_INTEGRATION_ENABLED=false` and redeploy. Codes and links already stored are harmless; nothing else changes.
+
 ## Rollback
 
 - **Web:** redeploy the previous build. It is stateless.
