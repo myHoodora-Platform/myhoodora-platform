@@ -8,6 +8,8 @@ export interface SubjectSnapshot {
   email: string;
   email_verified: boolean;
   age_band: "adult";
+  /** §5.4: the myHoodoraAI operator role, or null. */
+  ai_role: "operator" | null;
   updated_at: string;
 }
 
@@ -41,6 +43,7 @@ export function subjectSnapshot(
     email_verified: Boolean(user.emailVerifiedAt),
     // Only adults ever get a sign-in code (contract §4.2), so everyone linked is one.
     age_band: "adult",
+    ai_role: user.aiOperator ? "operator" : null,
     updated_at: (user.updatedAt ?? now).toISOString(),
   };
 }

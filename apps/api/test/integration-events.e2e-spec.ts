@@ -124,15 +124,13 @@ describe("Account events to myHoodora AI", () => {
   ) {
     await t.user(uid, { emailVerifiedAt: new Date(), ...patch });
     const sub = pairwiseSubject(PAIRWISE, CLIENT, uid);
-    await t
-      .model<IntegrationLink>(IntegrationLink.name)
-      .create({
-        clientId: CLIENT,
-        uid,
-        sub,
-        firstAt: new Date(),
-        lastAt: new Date(),
-      });
+    await t.model<IntegrationLink>(IntegrationLink.name).create({
+      clientId: CLIENT,
+      uid,
+      sub,
+      firstAt: new Date(),
+      lastAt: new Date(),
+    });
     return sub;
   }
   const jobs = () => t.model<Job>(Job.name);
@@ -205,6 +203,24 @@ describe("Account events to myHoodora AI", () => {
     expect(
       (await waitFor(eventOf("account.updated", sub))).event.data.status,
     ).toBe("active");
+  });
+
+  it("revoking the myHoodoraAI operator role sends account.updated with ai_role null (§5.4)", async () => {
+    const sub = await linked("kemi", {
+      aiOperator: { grantedAt: new Date(), grantedBy: "boss" },
+    });
+    await t.user("boss", { role: "admin" });
+    await t.http
+      .post("/api/admin/neighbours/kemi/ai-operator")
+      .set(t.auth("boss", { emailVerified: true }))
+      .send({ grant: false, reason: "Left the team" })
+      .expect(201);
+    const got = await waitFor(eventOf("account.updated", sub));
+    expect(got.event.data).toMatchObject({
+      sub,
+      status: "active",
+      ai_role: null,
+    });
   });
 
   it("deleting an account sends account.deleted with the subject, then forgets the link", async () => {
@@ -327,6 +343,7 @@ describe("Account events to myHoodora AI", () => {
         email: "gbenga@test.dev",
         email_verified: true,
         age_band: "adult",
+        ai_role: null,
         updated_at: expect.any(String),
       });
     });

@@ -186,6 +186,14 @@ export interface NeighbourDetail extends AdminNeighbour {
   secondaryHoods?: { id: string; name: string; city?: string; since: string }[];
   verificationAttempts: VerificationAttempt[];
   timeline: AuditEvent[];
+  /** The myHoodoraAI operator role (docs/integrations/myhoodora-ai.md §5.4). */
+  aiOperator?: AiOperatorStatus;
+}
+
+export interface AiOperatorStatus {
+  granted: boolean;
+  /** Signed in to myHoodoraAI already, so the role can no longer be granted. */
+  signedIn: boolean;
 }
 
 export type NeighbourAction = "verify" | "reject_verification" | "change_hood" | "warn" | "restrict" | "suspend" | "reinstate";

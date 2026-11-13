@@ -109,7 +109,7 @@ The app signs in with the same Firebase project (email and password today) and s
 
 ## Signing in to myHoodora AI
 
-myHoodora is the sign-in for myHoodora AI's educators and school admins (`studio.myhoodora.com`). The contract both sides build to is [integrations/myhoodora-ai.md](./integrations/myhoodora-ai.md). Built behind `AI_INTEGRATION_ENABLED` (off by default: everything below answers 404).
+myHoodora is the sign-in for everyone at myHoodora AI except learners (educators, school admins, partners and its platform admins) (`studio.myhoodora.com`). The contract both sides build to is [integrations/myhoodora-ai.md](./integrations/myhoodora-ai.md). Built behind `AI_INTEGRATION_ENABLED` (off by default: everything below answers 404).
 
 1. myHoodora AI sends the person to **`/oauth/authorize`** (a web page, protected like any other: signed-out visitors log in or sign up first, and `next` keeps the request through Log in ↔ Sign up).
 2. The page posts the request to **`POST /api/v1/oauth/authorize`** with the person's Firebase ID token. The API decides:
@@ -136,9 +136,10 @@ myHoodora is the sign-in for myHoodora AI's educators and school admins (`studio
    | The account is purged | `account.deleted` (queued before the link is removed) |
 
    `IntegrationEventsService` records each as a job, signs it with `AI_EVENTS_SECRET` (Standard Webhooks) and retries a failure after 1 min, 5 min, 30 min, 2 h, 6 h and 12 h; a 400, 401, 404 or 422, or the last failure, is logged as a dead letter. Queuing never fails the change itself. A password reset done in Firebase isn't seen by the API, so it sends nothing; myHoodora AI's sessions are its own.
-6. **myHoodora AI can also ask** with `GET /api/v1/integrations/ai/subjects/:sub` (contract §7.1), authenticated by a client assertion whose audience is `<issuer>/api/v1/integrations/ai`: the same snapshot as `account.updated`, or 404 `unknown_subject` once the account is gone.
+6. **Its platform admins get their role here** (contract §5.4): admins and owners grant "myHoodoraAI operator" from a neighbour's admin page (`POST /admin/neighbours/:uid/ai-operator`, `team.manage`), only to someone who hasn't signed in to myHoodora AI yet (409 otherwise: an account there holds one role). It's stored as `User.aiOperator`, sent as `hm_ai_role: "operator"` in the ID token and `ai_role` in the subject snapshot; revoking sends `account.updated`, and myHoodora AI returns the person to no role. Both are audited.
+7. **myHoodora AI can also ask** with `GET /api/v1/integrations/ai/subjects/:sub` (contract §7.1), authenticated by a client assertion whose audience is `<issuer>/api/v1/integrations/ai`: the same snapshot as `account.updated`, or 404 `unknown_subject` once the account is gone.
 
-Code: `apps/api/src/oauth/`, `apps/web/src/app/(auth)/oauth/authorize/`. Tests: `apps/api/test/oauth.e2e-spec.ts` (the whole flow and every refusal), `apps/api/test/integration-events.e2e-spec.ts` (events, signatures, retries and the subject API), `apps/api/src/oauth/oauth.spec.ts`. Not built yet: the organisation API and billing (contract §§7.2–7.4, `subscription.updated`).
+Code: `apps/api/src/oauth/`, `apps/web/src/app/(auth)/oauth/authorize/`. Tests: `apps/api/test/oauth.e2e-spec.ts` (the whole flow and every refusal), `apps/api/test/integration-events.e2e-spec.ts` (events, signatures, retries and the subject API), `apps/api/src/oauth/oauth.spec.ts`. Billing isn't part of the integration: it runs inside myHoodoraAI (contract §§7.2–7.4 were removed).
 
 ## Mock mode
 

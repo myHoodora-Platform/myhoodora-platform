@@ -78,6 +78,13 @@ export class User {
   ageAssurance?: "self_declared_dob";
 
   /**
+   * The myHoodoraAI operator role (docs/integrations/myhoodora-ai.md §5.4): granted by admins and
+   * owners only to someone who hasn't signed in to myHoodoraAI yet. Sent there as `hm_ai_role`.
+   */
+  @Prop({ type: { grantedAt: Date, grantedBy: String }, default: null, _id: false })
+  aiOperator?: { grantedAt: Date; grantedBy: string } | null;
+
+  /**
    * When the account is deleted for good (AccountDeletionService picks it up from then). Set when they
    * choose "Delete account" (7 days on, so they can cancel), and to now when someone turns out to be
    * under 18 (we must delete a child's data on discovery). Null while merely deactivated.

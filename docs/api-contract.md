@@ -759,7 +759,8 @@ interface AdminNeighbour {
 | Method & path | Notes |
 | --- | --- |
 | `GET /admin/neighbours?q&hoodId&verification&account&role&joinedFrom&joinedTo` | |
-| `GET /admin/neighbours/:uid` | Adds `location` (address **admins only**), `verificationAttempts[]`, `timeline` |
+| `GET /admin/neighbours/:uid` | Adds `location` (address **admins only**), `verificationAttempts[]`, `timeline`, `aiOperator: { granted, signedIn }` |
+| `POST /admin/neighbours/:uid/ai-operator` | `team.manage` (admins and owners). Body `{ grant: boolean, reason, note? }`. Grants or revokes the myHoodoraAI operator role (contract [§5.4](./integrations/myhoodora-ai.md)); **409** when granting to someone who has already signed in to myHoodoraAI. Answers `{ granted, signedIn }`. Audited as `ai_operator_grant` / `ai_operator_revoke` |
 | `GET /admin/neighbours/:uid/posts` · `/reports` | Paged |
 | `POST /admin/neighbours/:uid/actions` | `{ action: "verify" \| "reject_verification" \| "change_hood" \| "warn" \| "restrict" \| "suspend" \| "reinstate", hoodId?, days?, reason, note? }`. `suspend` is **A** |
 | `POST /admin/neighbours/bulk` | `{ uids, action: "verify" \| "restrict", hoodId?, reason }`, max 100 → `{ updated, results: [{ uid, ok, message? }] }`. Each neighbour is handled on their own (§26) |

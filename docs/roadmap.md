@@ -22,13 +22,14 @@ Mostly not code.
 
 ## myHoodoraAI integration
 
-Agreed 12 November 2026, not built. The contract both applications build to is [`integrations/myhoodora-ai.md`](./integrations/myhoodora-ai.md). myHoodora becomes the sign-in for myHoodoraAI's educators and school admins (adults only; learners keep myHoodoraAI accounts and never come here), and runs myHoodoraAI's billing. The work here, in order:
+Agreed 12 November 2026. The contract both applications build to is [`integrations/myhoodora-ai.md`](./integrations/myhoodora-ai.md). myHoodora is the sign-in for everyone at myHoodoraAI except learners: educators, school admins, partners and its platform admins, whose operator role myHoodora grants (adults only; learners keep myHoodoraAI accounts and never come here). **myHoodora provides sign-in only:** since 13 November 2026, billing, partners and their shares live inside myHoodoraAI (its decisions D-105 to D-113). The work here, in order:
 
-1. Move the API to `api.myhoodora.com` (the issuer is part of every token).
+1. ✅ **Done 13 November 2026.** Move the API to `api.myhoodora.com` (the issuer is part of every token).
 2. ✅ **Built 12 November 2026, off by default.** Sign-in for myHoodoraAI: signing keys and `/.well-known/*`, the `/oauth/authorize` web page (age check, terms and email confirmation, but no Hood onboarding), `POST /api/v1/oauth/token`, pairwise subjects. Behind `AI_INTEGRATION_ENABLED` ([authentication.md](./authentication.md#signing-in-to-myhoodora-ai)). Needs an independent security review before it's switched on in production.
 3. ✅ **Built 12 November 2026, off by default.** Account events to myHoodoraAI through the `jobs` outbox (suspension, deactivation, deletion, sign out everywhere, email changes), signed and retried on the contract's timetable, and `GET /api/v1/integrations/ai/subjects/:sub`. Events need `AI_EVENTS_URL` and `AI_EVENTS_SECRET` as well ([environment.md](./environment.md)).
-4. Billing for myHoodoraAI organisations: registration and learner counts from myHoodoraAI, the billing page, Paystack, and `subscription.updated` events. Commissions and agents stay off the platform.
-5. Later: opening myHoodoraAI from the mobile app without signing in again on the web.
+4. ~~Billing for myHoodoraAI organisations~~: removed 13 November 2026. Billing runs inside myHoodoraAI, so nothing about organisations, payments or learner counts reaches myHoodora.
+5. ✅ **Built 13 November 2026.** **The myHoodoraAI operator role** (its D-112, contract §5.4): admins and owners grant or revoke "myHoodoraAI operator" on an account that hasn't signed in to myHoodoraAI yet; the ID token carries `hm_ai_role`, the subject snapshot `ai_role`, and a change sends `account.updated`. Audited.
+6. Later: opening myHoodoraAI from the mobile app without signing in again on the web.
 
 myHoodora stays 18 and over: none of this lets under-18s register.
 

@@ -26,7 +26,7 @@ import {
   initials,
   timeAgo,
 } from "@/components/admin/format";
-import { getNeighbour } from "@/lib/api/admin/community";
+import { getNeighbour, setAiOperator } from "@/lib/api/admin/community";
 import { listPosts } from "@/lib/api/admin/content";
 import { listReports } from "@/lib/api/admin/moderation";
 import type { NeighbourAction } from "@/lib/api/admin/types";
@@ -65,6 +65,8 @@ export function NeighbourDetailPage({ uid }: { uid: string }) {
   const [removing, setRemoving] = useState<{ id: string; name: string } | null>(
     null,
   );
+  // The myHoodoraAI operator role (myhoodora-ai.md §5.4): grant or revoke.
+  const [aiDialog, setAiDialog] = useState<"grant" | "revoke" | null>(null);
   const { user } = useAuth();
 
   if (person.loading && !person.data) return <DetailSkeleton />;
@@ -113,6 +115,11 @@ export function NeighbourDetailPage({ uid }: { uid: string }) {
               }
             />
             {n.role !== "member" && <StatusBadge status={n.role} />}
+            {n.aiOperator?.granted && (
+              <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
+                myHoodora AI operator
+              </span>
+            )}
             {n.hood && (
               <Link
                 href={`/admin/hoods/${n.hood.id}`}
@@ -170,6 +177,22 @@ export function NeighbourDetailPage({ uid }: { uid: string }) {
                 <DropdownMenuItem onSelect={() => setAction("warn")}>
                   Send a warning
                 </DropdownMenuItem>
+                {can("team.manage") &&
+                  n.aiOperator &&
+                  (n.aiOperator.granted ? (
+                    <DropdownMenuItem onSelect={() => setAiDialog("revoke")}>
+                      Revoke myHoodora AI operator
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem
+                      disabled={n.aiOperator.signedIn}
+                      onSelect={() => setAiDialog("grant")}
+                    >
+                      {n.aiOperator.signedIn
+                        ? "Already uses myHoodora AI"
+                        : "Make myHoodora AI operator"}
+                    </DropdownMenuItem>
+                  ))}
                 <DropdownMenuSeparator />
                 {n.accountStatus === "active" && (
                   <DropdownMenuItem
@@ -424,6 +447,44 @@ export function NeighbourDetailPage({ uid }: { uid: string }) {
               note,
             });
             toast.success(`Removed ${removing.name}.`);
+            void person.refetch();
+          }}
+        />
+      )}
+
+      {aiDialog && (
+        <ActionDialog
+          open
+          onOpenChange={(o) => !o && setAiDialog(null)}
+          title={
+            aiDialog === "grant"
+              ? "Make myHoodora AI operator"
+              : "Revoke myHoodora AI operator"
+          }
+          consequence={
+            aiDialog === "grant"
+              ? `When ${n.displayName} first signs in to myHoodora AI with this account, they become one of its platform admins: they set prices and payment shares there, and see every payment.`
+              : `${n.displayName} stops being a myHoodora AI platform admin at once and is signed out there. At their next sign-in they choose a role like anyone new.`
+          }
+          reasons={
+            aiDialog === "grant"
+              ? ["Joins the myHoodora AI team", "Covers for a colleague"]
+              : ["Left the team", "No longer needs access", "Granted by mistake"]
+          }
+          destructive={aiDialog === "revoke"}
+          confirmLabel={aiDialog === "grant" ? "Grant" : "Revoke"}
+          onConfirm={async ({ reason, note }) => {
+            if (!user) return;
+            await setAiOperator(user, n.uid, {
+              grant: aiDialog === "grant",
+              reason,
+              note,
+            });
+            toast.success(
+              aiDialog === "grant"
+                ? `${n.displayName} is now a myHoodora AI operator.`
+                : `Revoked ${n.displayName}'s myHoodora AI operator role.`,
+            );
             void person.refetch();
           }}
         />
