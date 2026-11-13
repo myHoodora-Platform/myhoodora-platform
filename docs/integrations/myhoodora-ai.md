@@ -1,27 +1,26 @@
 # myHoodora ↔ myHoodoraAI integration contract (v1)
 
-**Status: agreed contract, not built yet** (12 November 2026). It describes the interface both applications build to. Each side's implementation status is in its own repository: myHoodora `docs/roadmap.md`, myHoodoraAI `docs/specs/11-repo-alignment.md`.
+**Status: built on both sides, off by default** (sign-in and account events, 12–13 November 2026). **Billing left the contract on 13 November 2026** (D-105): it runs inside myHoodoraAI, and myHoodora provides sign-in only. It describes the interface both applications build to. Each side's implementation status is in its own repository: myHoodora `docs/roadmap.md`, myHoodoraAI `docs/specs/11-repo-alignment.md`.
 
 **Identical copies** live in both repositories:
 
 - myHoodora: `docs/integrations/myhoodora-ai.md` (`myHoodora-Platform/myhoodora-platform`)
 - myHoodoraAI: `docs/specs/12-myhoodora-integration.md` (`myhoodora-hub/my-hoodora-ai`)
 
-A change to the contract lands in **both files, in the same release**, and follows [§11 Versioning](#11-versioning). The decisions behind it are in myHoodoraAI's decision log, `docs/specs/02-decision-log.md`: D-91 to D-102 (round R8).
+A change to the contract lands in **both files, in the same release**, and follows [§11 Versioning](#11-versioning). The decisions behind it are in myHoodoraAI's decision log, `docs/specs/02-decision-log.md`: D-91 to D-102 (round R8), D-105 (round R10).
 
 ---
 
 ## 1. What each application owns
 
-| Concern                                                                                                          | Owner                                                                                               | The other side holds                                                               |
-| ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Credentials, sign-in methods, password reset, MFA                                                                | **myHoodora** (Firebase Authentication)                                                             | nothing                                                                            |
-| A person's account state: active, suspended, closed, deleted; email; email verified; age check                   | **myHoodora** (MongoDB `users`)                                                                     | myHoodoraAI: a **snapshot**, refreshed at sign-in, by events and by pull           |
-| Who may use myHoodoraAI as an educator or school admin                                                           | **myHoodora** asserts an adult, active account; **myHoodoraAI** decides the role inside its own app | —                                                                                  |
-| Organisations (institution or solo educator), roles, courses, generated content, learners, progress, assessments | **myHoodoraAI** (Supabase)                                                                          | myHoodora: an organisation's id, kind, name and billing contacts, for billing only |
-| **Learner accounts** (created by educators, any age)                                                             | **myHoodoraAI** only. Learners never get a myHoodora account and are never sent to myHoodora        | myHoodora: **a count** per organisation, nothing else                              |
-| Subscription, payment (Paystack), paid seats, paid-until date                                                    | **myHoodora**                                                                                       | myHoodoraAI: a snapshot per organisation                                           |
-| Commissions, agents, negotiated agreements                                                                       | **Neither** application. Handled off the platform; never recorded or shown (D-100)                  | —                                                                                  |
+| Concern                                                                                                                  | Owner                                                                                               | The other side holds                                                     |
+| ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Credentials, sign-in methods, password reset, MFA                                                                        | **myHoodora** (Firebase Authentication)                                                             | nothing                                                                  |
+| A person's account state: active, suspended, closed, deleted; email; email verified; age check                           | **myHoodora** (MongoDB `users`)                                                                     | myHoodoraAI: a **snapshot**, refreshed at sign-in, by events and by pull |
+| Who may use myHoodoraAI as an educator, school admin, agent or platform admin                                            | **myHoodora** asserts an adult, active account; **myHoodoraAI** decides the role inside its own app | —                                                                        |
+| Organisations (institution or solo educator), roles, agents, courses, generated content, learners, progress, assessments | **myHoodoraAI** (Supabase)                                                                          | nothing                                                                  |
+| **Learner accounts** (created by educators, any age)                                                                     | **myHoodoraAI** only. Learners never get a myHoodora account and are never sent to myHoodora        | nothing                                                                  |
+| Subscriptions, payments (Paystack), paid seats, agents' commissions                                                      | **myHoodoraAI** (D-105–D-107)                                                                       | nothing                                                                  |
 
 **Never shared:** databases, cookies, sessions, environment variables, secrets. Neither application reads the other's database.
 
@@ -39,9 +38,8 @@ A change to the contract lands in **both files, in the same release**, and follo
 | Redirect URI (callback)   | `https://studio.myhoodora.com/auth/myhoodora/callback`              | myHoodoraAI                                    |
 | myHoodoraAI client keys   | `https://studio.myhoodora.com/.well-known/jwks.json`                | myHoodoraAI                                    |
 | Event receiver            | `https://studio.myhoodora.com/api/integrations/myhoodora/v1/events` | myHoodoraAI                                    |
-| Billing page              | `https://www.myhoodora.com/ai/billing?organisation=<id>`            | myHoodora web                                  |
 
-The API is to move to `api.myhoodora.com` **before** this goes to production: the issuer is part of every token, so changing it later means a coordinated change on both sides. Every URL above comes from configuration (§12), so staging uses its own hosts.
+The API moved to `api.myhoodora.com` on 13 November 2026. The issuer is part of every token, so changing it again means a coordinated change on both sides. Every URL above comes from configuration (§12), so staging uses its own hosts.
 
 ## 3. Clients
 
@@ -242,42 +240,16 @@ The safety net for missed events (§9). **200:**
 
 `status` is one of `active`, `restricted`, `suspended`, `deactivated`, `deleted`. **404** `unknown_subject`: no person has signed in to this client with that `sub`.
 
-### 7.2 `PUT /organisations/{organisation_id}`: register or update an organisation
+### 7.2–7.4 Removed
 
-`organisation_id` is myHoodoraAI's organisation UUID. Called when an organisation is created and whenever these fields change. It's an idempotent upsert.
-
-```json
-{
-  "kind": "solo_educator",
-  "name": "Ada Obi",
-  "billing_contacts": ["Qm9v…"],
-  "updated_at": "2026-11-12T09:30:00Z"
-}
-```
-
-- `kind`: `institution` or `solo_educator`. Both are billed at the same per-student rate (D-97).
-- `billing_contacts`: the `sub`s allowed to pay for this organisation on myHoodora's billing page: the solo educator, or the institution's school admins. Only people who have signed in through §4.
-
-**200** with the stored record. An older `updated_at` than the one stored is ignored (**409** `stale_update`).
-
-### 7.3 `PUT /organisations/{organisation_id}/usage`: learner count
-
-```json
-{ "active_learners": 42, "as_of": "2026-11-12T09:30:00Z" }
-```
-
-Sent when learners are added or removed (at most once a minute per organisation) and once a day. Only a **count**: no names, emails or IDs of learners (many are children). Idempotent; an older `as_of` is ignored. **404** `unknown_organisation` if §7.2 wasn't called first.
-
-### 7.4 `GET /organisations/{organisation_id}/subscription`: subscription state
-
-The same shape as the `subscription.updated` event's `data` (§8.3). Used at start-up, after an outage, and by the nightly reconciliation.
+Organisation registration, learner counts and subscription state were removed on 13 November 2026, before either side built them: billing runs inside myHoodoraAI (D-105). The numbers are kept so references to §7.5 stay valid.
 
 ### 7.5 Limits and retries
 
-|                 | Limit        | myHoodoraAI retries                                                                                                  |
-| --------------- | ------------ | -------------------------------------------------------------------------------------------------------------------- |
-| Token endpoint  | 60 a minute  | Never (codes are single-use)                                                                                         |
-| Integration API | 600 a minute | GET and PUT: once, after 1 to 2 seconds, on a network error, 429, 502, 503 or 504. Every call has a 5-second timeout |
+|                 | Limit        | myHoodoraAI retries                                                                                     |
+| --------------- | ------------ | ------------------------------------------------------------------------------------------------------- |
+| Token endpoint  | 60 a minute  | Never (codes are single-use)                                                                            |
+| Integration API | 600 a minute | Once, after 1 to 2 seconds, on a network error, 429, 502, 503 or 504. Every call has a 5-second timeout |
 
 A 429 carries `Retry-After`.
 
@@ -301,7 +273,7 @@ myHoodoraAI:
 
 myHoodora delivers from a durable outbox: its `jobs` collection, written as soon as the change that caused the event is saved (not in the same transaction, so an event can very rarely be lost; §9 covers it). An `account.updated` carries the account's state when it's delivered, not when it was queued. Each event is tried within 10 seconds and then after 1 min, 5 min, 30 min, 2 h, 6 h and 12 h (about 20 hours in all), and then logged for staff (dead letter). A 2xx is delivered; 400, 401, 404 and 422 are permanent failures; everything else (including no answer within 10 seconds) is retried. A retry keeps the event's `id` and `occurred_at`.
 
-Events are sent only for people who have signed in to myHoodoraAI, and only for organisations registered with §7.2.
+Events are sent only for people who have signed in to myHoodoraAI.
 
 ### 8.2 Envelope
 
@@ -315,53 +287,45 @@ Events are sent only for people who have signed in to myHoodoraAI, and only for 
 }
 ```
 
-Events can arrive **out of order**. Account and subscription events carry the **whole current state**, so the receiver applies one only if its `occurred_at` is newer than the last applied for that `sub` or organisation.
+Events can arrive **out of order**. `account.updated` carries the **whole current state**, so the receiver applies one only if its `occurred_at` is newer than the last applied for that `sub`.
 
 ### 8.3 Types
 
-| `type`                     | `data`                                                                                                   | When                                                                                                             |
-| -------------------------- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `account.updated`          | The same shape as §7.1                                                                                   | Suspended or reinstated; deactivated or reactivated; deletion scheduled or cancelled; email changed or confirmed |
-| `account.sessions_revoked` | `{ "sub": "…", "revoked_at": "…" }`                                                                      | "Sign out everywhere"; deactivation. (A password reset happens in Firebase, which myHoodora's API doesn't hear)  |
-| `account.deleted`          | `{ "sub": "…", "deleted_at": "…" }`                                                                      | The account is gone for good. That `sub` is never used again                                                     |
-| `subscription.updated`     | `{ "organisation_id": "…", "status": "active", "paid_seats": 50, "paid_until": "2027-01-31T23:59:59Z" }` | Payment, renewal, change of seats, cancellation, lapse                                                           |
+| `type`                     | `data`                              | When                                                                                                             |
+| -------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `account.updated`          | The same shape as §7.1              | Suspended or reinstated; deactivated or reactivated; deletion scheduled or cancelled; email changed or confirmed |
+| `account.sessions_revoked` | `{ "sub": "…", "revoked_at": "…" }` | "Sign out everywhere"; deactivation. (A password reset happens in Firebase, which myHoodora's API doesn't hear)  |
+| `account.deleted`          | `{ "sub": "…", "deleted_at": "…" }` | The account is gone for good. That `sub` is never used again                                                     |
 
-Subscription `status`:
-
-| `status` | Means                                                                                    |
-| -------- | ---------------------------------------------------------------------------------------- |
-| `none`   | Never paid. `paid_seats` is 0                                                            |
-| `active` | Paid and renewing                                                                        |
-| `lapsed` | Won't renew (cancelled or a failed renewal). Paid access lasts until `paid_until` (D-99) |
+(`subscription.updated` was removed with billing, D-105. A receiver acknowledges any type it doesn't know, §11.)
 
 ### 8.4 What myHoodoraAI does with each
 
-| Event or state                                      | myHoodoraAI                                                                                                                                                                                                                                                                            |
-| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `account.updated` with `active` or `restricted`     | Updates the snapshot; signing in is allowed                                                                                                                                                                                                                                            |
-| `account.updated` with `suspended` or `deactivated` | Ends every session of that user and refuses sign-in and token refresh until a later `active`                                                                                                                                                                                           |
-| `account.sessions_revoked`                          | Ends every session of that user; they can sign in again                                                                                                                                                                                                                                |
-| `account.deleted`                                   | Closes the myHoodoraAI account: sessions end, then its own deletion rules run. Courses are kept 30 days and the organisation's other admins are alerted; learners are never left without an owner silently (D-102)                                                                     |
-| `subscription.updated`                              | Updates the organisation's snapshot. While `paid_seats` ≤ active learners, no learner can be added (FR-BIL-5). With `none`, or with `lapsed`: no learners added, no publishing. After `paid_until`: learners see that their school's access is paused. Nothing is deleted (D-98, D-99) |
+| Event or state                                      | myHoodoraAI                                                                                                                                                                                                        |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `account.updated` with `active` or `restricted`     | Updates the snapshot; signing in is allowed                                                                                                                                                                        |
+| `account.updated` with `suspended` or `deactivated` | Ends every session of that user and refuses sign-in and token refresh until a later `active`                                                                                                                       |
+| `account.sessions_revoked`                          | Ends every session of that user; they can sign in again                                                                                                                                                            |
+| `account.deleted`                                   | Closes the myHoodoraAI account: sessions end, then its own deletion rules run. Courses are kept 30 days and the organisation's other admins are alerted; learners are never left without an owner silently (D-102) |
 
-Independently of events (D-98): **a course can't be published until its organisation has at least one learner**, and generated content can't be exported.
+Seats, subscriptions and publishing rules (D-98, D-99, D-106) are myHoodoraAI's own and don't depend on myHoodora.
 
 ## 9. Keeping in step when something is missed
 
 - **At sign-in**, the ID token refreshes the account snapshot.
 - **On each request**, myHoodoraAI refuses a user whose snapshot isn't `active` or `restricted`. When the snapshot is more than 15 minutes old, it refreshes it with §7.1, in the background, without blocking the page.
-- **Nightly**, it re-reads every linked account (§7.1) and every registered organisation's subscription (§7.4), and re-sends every organisation's usage (§7.3).
+- **Nightly**, it re-reads every linked account (§7.1).
 - **Sessions** in myHoodoraAI: access tokens last 10 minutes, with refresh-token rotation and a 7-day maximum session. A token issue or refresh checks the snapshot in the database. So once the snapshot changes (by event, pull or sign-in), a session that makes no further requests still ends within 10 minutes.
 
 ## 10. When one side is down
 
-| Situation                              | Effect                                       | Behaviour                                                                                                                                           |
-| -------------------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| myHoodora API down                     | No new educator sign-ins; billing pulls fail | Existing myHoodoraAI sessions continue. Learners are unaffected. The sign-in page says myHoodora is unavailable. The last known subscription stands |
-| myHoodora web down                     | No new educator sign-ins                     | As above                                                                                                                                            |
-| myHoodoraAI down                       | myHoodora unaffected                         | Events queue for up to 24 hours, then dead-letter. The nightly reconciliation catches up                                                            |
-| Google (Firebase) outage               | myHoodora answers 503 at authorise and token | myHoodoraAI shows "try again"; never treated as a sign-out                                                                                          |
-| A myHoodora signing key is compromised | Forged ID tokens possible                    | Rotate: new `kid`, remove the old one from the JWKS. myHoodoraAI refuses the removed `kid` after its next JWKS fetch                                |
+| Situation                              | Effect                                           | Behaviour                                                                                                                   |
+| -------------------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| myHoodora API down                     | No new sign-ins for educators, admins and agents | Existing myHoodoraAI sessions continue. Learners and billing are unaffected. The sign-in page says myHoodora is unavailable |
+| myHoodora web down                     | No new educator sign-ins                         | As above                                                                                                                    |
+| myHoodoraAI down                       | myHoodora unaffected                             | Events queue for up to 24 hours, then dead-letter. The nightly reconciliation catches up                                    |
+| Google (Firebase) outage               | myHoodora answers 503 at authorise and token     | myHoodoraAI shows "try again"; never treated as a sign-out                                                                  |
+| A myHoodora signing key is compromised | Forged ID tokens possible                        | Rotate: new `kid`, remove the old one from the JWKS. myHoodoraAI refuses the removed `kid` after its next JWKS fetch        |
 
 ## 11. Versioning
 
@@ -390,7 +354,6 @@ Names only; values live in each host's secret settings.
 | myHoodoraAI   | `MYHOODORA_CLIENT_KEYS`                                                       | **yes** | Private ES256 keys for client assertions; the public halves are served at its JWKS URL |
 | myHoodoraAI   | `MYHOODORA_EVENTS_SECRET`                                                     | **yes** | The same `whsec_…` value(s) as `AI_EVENTS_SECRET`                                      |
 | myHoodoraAI   | `MYHOODORA_SSO_ENABLED`                                                       | no      | Shows "Continue with myHoodora"                                                        |
-| myHoodoraAI   | `MYHOODORA_BILLING_ENFORCED`                                                  | no      | Applies the seat and subscription rules in §8.4. Off until myHoodora's billing is live |
 
 Every secret is server-side only: never `NEXT_PUBLIC_` or `EXPO_PUBLIC_`.
 
@@ -401,12 +364,12 @@ Every secret is server-side only: never `NEXT_PUBLIC_` or `EXPO_PUBLIC_`.
 - Exact redirect URIs; `state`, `nonce` and PKCE are required; codes are single-use, last 60 seconds and are stored hashed; client assertions are single-use.
 - **Never log** tokens, codes, assertions, secrets, `sub`-to-uid mappings or email addresses. Log error codes, event ids and the client id.
 - Claims and events are the **only** sources of a person's age band and account state in myHoodoraAI. They are written by its server into its database, where its access rules read them; no client can write them.
-- Learner data never leaves myHoodoraAI. Only a count crosses (§7.3).
-- Every endpoint here has tests: the happy path, and each rejection listed in §§4–8 (bad or missing signature, wrong `aud`, expired, replayed, unknown `kid`, wrong redirect URI, reused code, wrong verifier, stale event, unknown subject or organisation).
+- Learner data never leaves myHoodoraAI: nothing about learners crosses to myHoodora.
+- Every endpoint here has tests: the happy path, and each rejection listed in §§4–8 (bad or missing signature, wrong `aud`, expired, replayed, unknown `kid`, wrong redirect URI, reused code, wrong verifier, stale event, unknown subject).
 
 ## 14. Not in v1
 
 - Signing in to the myHoodora mobile app and going to myHoodoraAI without signing in on the web: the app opens myHoodoraAI in the browser, and the person signs in there once. A one-time hand-off from app to web is planned separately.
 - Learners signing in through myHoodora: learners keep myHoodoraAI accounts (D-91).
 - Under-18 myHoodora accounts: myHoodora stays 18 and over (D-92). `hm_age_band` leaves room for more values without a new version of the token.
-- Commissions and agents: off the platform (D-100).
+- Billing: not part of this contract. It runs inside myHoodoraAI (D-105).
