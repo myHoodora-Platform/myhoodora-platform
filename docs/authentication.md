@@ -109,7 +109,7 @@ The app signs in with the same Firebase project (email and password today) and s
 
 ## Signing in to myHoodora AI
 
-myHoodora is the sign-in for everyone at myHoodora AI except learners (educators, school admins, agents and its platform admins) (`studio.myhoodora.com`). The contract both sides build to is [integrations/myhoodora-ai.md](./integrations/myhoodora-ai.md). Built behind `AI_INTEGRATION_ENABLED` (off by default: everything below answers 404).
+myHoodora is the sign-in for everyone at myHoodora AI except learners (educators, school admins, partners and its platform admins) (`studio.myhoodora.com`). The contract both sides build to is [integrations/myhoodora-ai.md](./integrations/myhoodora-ai.md). Built behind `AI_INTEGRATION_ENABLED` (off by default: everything below answers 404).
 
 1. myHoodora AI sends the person to **`/oauth/authorize`** (a web page, protected like any other: signed-out visitors log in or sign up first, and `next` keeps the request through Log in ↔ Sign up).
 2. The page posts the request to **`POST /api/v1/oauth/authorize`** with the person's Firebase ID token. The API decides:
