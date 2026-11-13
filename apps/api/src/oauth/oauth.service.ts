@@ -142,6 +142,7 @@ export class OAuthService implements OnModuleInit {
         "hm_status",
         "hm_age_band",
         "hm_age_assurance",
+        "hm_ai_role",
         "hm_contract",
       ],
     };
@@ -345,6 +346,8 @@ export class OAuthService implements OnModuleInit {
         effectiveAccountStatus(user) === "restricted" ? "restricted" : "active",
       hm_age_band: "adult",
       hm_age_assurance: user.ageAssurance ?? "self_declared_dob",
+      // §5.4: granted by myHoodora's admins and owners; absent otherwise.
+      ...(user.aiOperator && { hm_ai_role: "operator" }),
       hm_contract: CONTRACT_VERSION,
     });
     this.logger.log(`ID token issued for ${clientId}`);

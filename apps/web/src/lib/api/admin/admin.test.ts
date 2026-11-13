@@ -3,7 +3,7 @@ import type { User } from "firebase/auth";
 import { ApiError } from "../client";
 import { isRemoved } from "../mock/moderation-state";
 import { submitReport } from "../reports";
-import { actOnNeighbour, createHood, getNeighbour, hoodsNear, listVerification, updateHood } from "./community";
+import { actOnNeighbour, createHood, getNeighbour, hoodsNear, listVerification, setAiOperator, updateHood } from "./community";
 import { actOnReport, getReport, listAudit, listReports, setReportClaim } from "./moderation";
 import { actOnBusiness, listBusinesses } from "./businesses";
 import { getAdminSession } from "./session";
@@ -78,6 +78,14 @@ describe("community", () => {
     const after = await listVerification(staff, { status: "pending_review" });
     expect(after.items.some((c) => c.uid === "nb_chidi")).toBe(false);
     expect((await getNeighbour(staff, "nb_chidi")).hood?.name).toBe("Ikeja");
+  });
+
+  it("grants and revokes the myHoodora AI operator role (contract §5.4)", async () => {
+    expect((await getNeighbour(staff, "nb_segun")).aiOperator).toEqual({ granted: false, signedIn: false });
+    await setAiOperator(staff, "nb_segun", { grant: true, reason: "Joins the myHoodora AI team" });
+    expect((await getNeighbour(staff, "nb_segun")).aiOperator?.granted).toBe(true);
+    await setAiOperator(staff, "nb_segun", { grant: false, reason: "Left the team" });
+    expect((await getNeighbour(staff, "nb_segun")).aiOperator?.granted).toBe(false);
   });
 
   it("keeps verification and account status separate", async () => {

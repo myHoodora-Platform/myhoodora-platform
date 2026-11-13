@@ -1,6 +1,7 @@
 import { Global, Module } from "@nestjs/common";
 import { MongooseModule } from "@nestjs/mongoose";
 import { User, UserSchema } from "../users/schemas/user.schema";
+import { AiOperatorService } from "./ai-operator.service";
 import { ClientAuthService } from "./client-auth.service";
 import { oauthConfigFrom } from "./oauth.config";
 import { IntegrationEventsService } from "./integration-events.service";
@@ -40,7 +41,8 @@ import { OAUTH_CONFIG } from "./oauth.tokens";
     ClientAuthService,
     OAuthService,
     IntegrationEventsService,
+    AiOperatorService,
   ],
-  exports: [OAuthService, IntegrationEventsService],
+  exports: [OAuthService, IntegrationEventsService, AiOperatorService],
 })
 export class OAuthModule {}

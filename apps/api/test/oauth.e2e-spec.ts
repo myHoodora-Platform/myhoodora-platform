@@ -159,6 +159,7 @@ describe("Signing in to myHoodoraAI (OAuth / OpenID Connect)", () => {
         hm_contract: "1",
       });
       expect(claims.exp! - claims.iat!).toBe(300);
+      expect(claims.hm_ai_role).toBeUndefined();
       expect(claims.sub).toHaveLength(43);
       expect(claims.sub).not.toContain("ada");
       expect(typeof claims.auth_time).toBe("number");
@@ -173,6 +174,38 @@ describe("Signing in to myHoodoraAI (OAuth / OpenID Connect)", () => {
       // Only a hash of the code is stored.
       const stored = await t.model<OAuthCode>(OAuthCode.name).find({ uid: "ada" }).lean().exec();
       expect(JSON.stringify(stored)).not.toContain(code);
+    });
+
+    it("the myHoodoraAI operator role (§5.4): granted by admins before a first sign-in, carried in the token", async () => {
+      await t.user("boss", { role: "admin" });
+      await t.user("mod", { role: "moderator" });
+      await ready("opal");
+      const grant = (uid: string, as: string, body: Record<string, unknown> = { grant: true, reason: "Runs myHoodora AI support" }) =>
+        t.http.post(`/api/admin/neighbours/${uid}/ai-operator`).set(t.auth(as, { emailVerified: true })).send(body);
+
+      await grant("opal", "mod").expect(403);
+      expect((await grant("opal", "boss").expect(201)).body).toEqual({ granted: true, signedIn: false });
+      const detail = (await t.http.get("/api/admin/neighbours/opal").set(t.auth("boss", { emailVerified: true })).expect(200)).body;
+      expect(detail.aiOperator).toEqual({ granted: true, signedIn: false });
+
+      const { code, verifier } = await codeFor("opal");
+      const claims = await idTokenClaims((await redeem({ code, code_verifier: verifier }, 200)).body.id_token);
+      expect(claims.hm_ai_role).toBe("operator");
+
+      // Signed in already: granting again changes nothing; granting someone who signed in first is refused.
+      expect((await grant("opal", "boss").expect(201)).body).toEqual({ granted: true, signedIn: true });
+      await ready("olu");
+      const first = await codeFor("olu");
+      await redeem({ code: first.code, code_verifier: first.verifier }, 200);
+      await grant("olu", "boss").expect(409);
+
+      // Revoked: the next token has no claim, and both changes are audited.
+      expect((await grant("opal", "boss", { grant: false, reason: "Left the team" }).expect(201)).body).toEqual({ granted: false, signedIn: true });
+      const after = await codeFor("opal");
+      expect((await idTokenClaims((await redeem({ code: after.code, code_verifier: after.verifier }, 200)).body.id_token)).hm_ai_role).toBeUndefined();
+      const audit = (await t.http.get("/api/admin/neighbours/opal").set(t.auth("boss", { emailVerified: true })).expect(200)).body.timeline;
+      expect(audit.map((e: { action: string }) => e.action)).toEqual(expect.arrayContaining(["ai_operator_grant", "ai_operator_revoke"]));
+      await grant("opal", "boss", { grant: true }).expect(400);
     });
 
     it("a restricted neighbour can still sign in, and the token says so", async () => {

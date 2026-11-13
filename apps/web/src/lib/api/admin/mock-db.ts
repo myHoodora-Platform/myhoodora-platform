@@ -119,6 +119,8 @@ export interface NeighbourRecord {
   attempts: VerificationAttempt[];
   /** Asked to join this nearby Hood from outside its boundary. */
   requestedHoodId?: string;
+  /** Granted the myHoodoraAI operator role (§5.4). Nobody in the mock has signed in there. */
+  aiOperator?: boolean;
 }
 
 function person(
