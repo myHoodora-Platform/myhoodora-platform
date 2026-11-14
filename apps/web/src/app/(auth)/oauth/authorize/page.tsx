@@ -10,14 +10,17 @@ import { resendVerificationEmail } from "@/lib/api/account";
 import { ApiError, errorMessage } from "@/lib/api/client";
 import { USE_MOCKS } from "@/lib/api/config";
 import { authorizeForApp } from "@/lib/api/oauth";
+import { accountConfirmed, forgetAccountConfirmed, rememberAccountConfirmed } from "@/lib/oauth/confirmed";
 import { rememberOAuthResume, takeOAuthResume } from "@/lib/oauth/resume";
 import { ROUTES } from "@/lib/routes";
 
-type View = { kind: "working" } | { kind: "leaving" } | { kind: "email" } | { kind: "error"; message: string };
+type View = { kind: "working" } | { kind: "confirm" } | { kind: "leaving" } | { kind: "email" } | { kind: "error"; message: string };
 
 /**
  * /oauth/authorize: "Continue to myHoodora AI" (docs/integrations/myhoodora-ai.md §4.1). myHoodora AI
- * sends educators here; this page asks the API, which decides everything:
+ * sends educators here. First the person confirms the signed-in account is theirs ("Continue as …"),
+ * in case someone else is signed in to myHoodora on this device; nothing goes to myHoodora AI before
+ * that (lib/oauth/confirmed.ts). Then this page asks the API, which decides everything:
  * - back to the app with a code, or with an error (suspended, closed, cancelled…);
  * - or a step first: the age check, the current terms or "Welcome back" (this page remembers itself,
  *   and that page returns here afterwards: lib/oauth/resume.ts), or confirming their email (here).
@@ -25,7 +28,7 @@ type View = { kind: "working" } | { kind: "leaving" } | { kind: "email" } | { ki
  */
 export default function AuthorizePage() {
   const router = useRouter();
-  const { user, loading, logout } = useAuth();
+  const { user, profile, loading, logout } = useAuth();
   const [view, setView] = useState<View>({ kind: "working" });
   const [resent, setResent] = useState(false);
   const started = useRef(false);
@@ -41,6 +44,7 @@ export default function AuthorizePage() {
         if (outcome.kind === "redirect") {
           // Done here: nothing should bring them back to this page later.
           takeOAuthResume();
+          forgetAccountConfirmed();
           setView({ kind: "leaving" });
           // A full navigation to the app (another site): the address comes from our API, which only uses registered ones.
           window.location.assign(outcome.url);
@@ -84,8 +88,24 @@ export default function AuthorizePage() {
       return;
     }
     request.current = { params: authorizeParamsFrom(search), here };
-    void ask();
+    // Confirmed already for this sign-in (back from the age check, the terms or "Welcome back"): carry on.
+    if (accountConfirmed(request.current.params.state, user.uid)) void ask();
+    else setView({ kind: "confirm" });
   }, [loading, user, router, ask]);
+
+  const confirm = useCallback(() => {
+    if (!user || !request.current) return;
+    rememberAccountConfirmed(request.current.params.state, user.uid);
+    void ask();
+  }, [user, ask]);
+
+  // Someone else's account: sign this browser out of myHoodora, and come back here after signing in.
+  const switchAccount = useCallback(async () => {
+    const here = request.current?.here;
+    forgetAccountConfirmed();
+    await logout();
+    router.replace(here ? `${ROUTES.login}?next=${encodeURIComponent(here)}` : ROUTES.login);
+  }, [logout, router]);
 
   if (view.kind === "error") {
     return (
@@ -95,6 +115,39 @@ export default function AuthorizePage() {
         <Button variant="outline" className="w-full" onClick={() => router.replace(ROUTES.home)}>
           Go to myHoodora
         </Button>
+      </div>
+    );
+  }
+
+  if (view.kind === "confirm" && user) {
+    const name = profile?.displayName || user.displayName || user.email?.split("@")[0] || "your account";
+    const firstName = name.split(" ")[0];
+    return (
+      <div className="space-y-5">
+        <div className="space-y-2 text-center">
+          <h1 className="text-xl font-bold">Continue to myHoodora AI</h1>
+          <p className="text-sm text-muted-foreground">Check this is your myHoodora account before you continue.</p>
+        </div>
+        <div className="flex items-center gap-3 rounded-xl border border-border p-4 text-left">
+          <span aria-hidden className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 font-bold text-primary">
+            {name.charAt(0).toUpperCase()}
+          </span>
+          <div className="min-w-0">
+            <p className="truncate font-semibold">{name}</p>
+            {user.email && <p className="truncate text-sm text-muted-foreground">{user.email}</p>}
+          </div>
+        </div>
+        <Button className="w-full" onClick={confirm}>
+          Continue as {firstName}
+        </Button>
+        <Button variant="outline" className="w-full" onClick={() => void switchAccount()}>
+          Not you? Use another account
+        </Button>
+        <p className="border-t border-border pt-4 text-center text-xs text-muted-foreground">
+          <button type="button" onClick={() => void ask("cancel")} className="font-semibold underline hover:text-primary">
+            Cancel and go back to myHoodora AI
+          </button>
+        </p>
       </div>
     );
   }
