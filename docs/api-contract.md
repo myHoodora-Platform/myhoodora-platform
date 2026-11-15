@@ -759,7 +759,8 @@ interface AdminNeighbour {
 | Method & path | Notes |
 | --- | --- |
 | `GET /admin/neighbours?q&hoodId&verification&account&role&joinedFrom&joinedTo` | |
-| `GET /admin/neighbours/:uid` | Adds `location` (address **admins only**), `verificationAttempts[]`, `timeline` |
+| `GET /admin/neighbours/:uid` | Adds `location` (address **admins only**), `verificationAttempts[]`, `timeline`, `aiOperator: { granted, signedIn }` |
+| `POST /admin/neighbours/:uid/ai-operator` | `team.manage` (admins and owners). Body `{ grant: boolean, reason, note? }`. Grants or revokes the myHoodoraAI operator role (contract [§5.4](./integrations/myhoodora-ai.md)); **409** when granting to someone who has already signed in to myHoodoraAI. Answers `{ granted, signedIn }`. Audited as `ai_operator_grant` / `ai_operator_revoke` |
 | `GET /admin/neighbours/:uid/posts` · `/reports` | Paged |
 | `POST /admin/neighbours/:uid/actions` | `{ action: "verify" \| "reject_verification" \| "change_hood" \| "warn" \| "restrict" \| "suspend" \| "reinstate", hoodId?, days?, reason, note? }`. `suspend` is **A** |
 | `POST /admin/neighbours/bulk` | `{ uids, action: "verify" \| "restrict", hoodId?, reason }`, max 100 → `{ updated, results: [{ uid, ok, message? }] }`. Each neighbour is handled on their own (§26) |
@@ -1612,3 +1613,19 @@ App usage analytics (Firebase Analytics, mobile, production builds) is opt-in: t
 - Admins set it in Admin → Settings → Platform: `GET /admin/settings` includes `analyticsReaskDays` (default `180`); `PATCH /admin/settings` takes it, an integer from 0 to 730 (`settings.manage`; audited as `settings_update`).
 - myHoodora AI link (2026-11-10): `GET /admin/settings` includes `hoodoraAi: { target: "page" | "studio", studioUrl }` (default `studio`, `https://studio.myhoodora.com/`); `PATCH /admin/settings` takes it (`studioUrl` must be https and is kept while `page` is chosen). The website's `/ai` redirects to the studio while it's chosen (`apps/web/src/proxy.ts`), and the app's Menu opens it in the browser.
 - When to ask is decided by `shouldAskAnalytics` (`packages/api-contract/src/app-config.ts`): never answered; or answered under an older analytics policy (`ANALYTICS_POLICY_VERSION`); or a no older than `reaskDays`. A yes is never asked again for time alone. Until `/app-config` has loaded, a no stays a no.
+
+## 35. Signing in to myHoodora AI (2026-11-12)
+
+Off unless `AI_INTEGRATION_ENABLED=true` (404 otherwise). The full interface, including the token endpoint myHoodora AI's server calls, is [integrations/myhoodora-ai.md](./integrations/myhoodora-ai.md); the flow is in [authentication.md](./authentication.md#signing-in-to-myhoodora-ai). The one route the web relies on:
+
+### `POST /oauth/authorize` (Bearer ID token; works for suspended and closed accounts)
+
+Body: the request's `response_type`, `client_id`, `redirect_uri`, `scope`, `state`, `nonce`, `code_challenge`, `code_challenge_method` as received (types in `packages/api-contract/src/oauth.ts`), and optionally `decision: "cancel"`. Throttled to 30 a minute.
+
+- `400`: the app or its return address isn't registered. Show an error; redirect nowhere.
+- `200 { kind: "redirect", url }`: go there (a full navigation). It carries a code, or an OAuth error (`access_denied` with `cancelled`, `email_unverified`, `account_suspended`, `account_closed`; `invalid_request`).
+- `200 { kind: "step", step }`: `age_check`, `terms` or `reactivate` (send them to that page and return afterwards), or `email` (ask them to confirm it, then call again).
+
+### `GET /integrations/ai/subjects/:sub` (myHoodora AI's server only)
+
+Not for the web or the app. Authenticated by a client assertion (`Authorization: Bearer <assertion>`, audience `<issuer>/api/v1/integrations/ai`); errors are `{ statusCode, message, code }`. Shape and meaning: contract §7.1. Account events to myHoodora AI are outgoing webhooks (contract §8) and have no route here.

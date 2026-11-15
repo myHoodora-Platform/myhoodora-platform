@@ -113,6 +113,13 @@ export class AlertActionDto {
   @IsString() @Length(2, 200) reason!: string;
 }
 
+/** §5.4 of the myHoodora AI contract: grant or revoke the myHoodoraAI operator role. */
+export class AiOperatorDto {
+  @IsBoolean() grant!: boolean;
+  @IsString() @Length(2, 200) reason!: string;
+  @IsOptional() @IsString() @MaxLength(500) note?: string;
+}
+
 export class TeamRoleDto {
   @IsIn(ROLES) role!: (typeof ROLES)[number];
 }

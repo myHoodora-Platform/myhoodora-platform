@@ -33,6 +33,7 @@ import { ModerationRegistryModule } from "./moderation/moderation-registry";
 import { AccountLifecycleModule } from "./users/account-lifecycle";
 import { ModerationModule } from "./moderation/moderation.module";
 import { NotificationsModule } from "./notifications/notifications.module";
+import { OAuthModule } from "./oauth/oauth.module";
 import { PlatformModule } from "./platform/platform.module";
 import { PostsModule } from "./posts/posts.module";
 import { PushModule } from "./push/push.module";
@@ -73,6 +74,7 @@ import { UsersModule } from "./users/users.module";
     StorageModule,
     PushModule,
     NotificationsModule,
+    OAuthModule,
     PlatformModule,
     ModerationRegistryModule,
     AccountLifecycleModule,

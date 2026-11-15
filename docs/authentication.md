@@ -107,6 +107,40 @@ The app signs in with the same Firebase project (email and password today) and s
 - **A 401** from the API signs the app out; a 503 never does (§26 of the contract).
 - The splash screen stays up until Firebase and `GET /users/me` have answered, so neither the login nor the feed flashes.
 
+## Signing in to myHoodora AI
+
+myHoodora is the sign-in for everyone at myHoodora AI except learners (educators, school admins, partners and its platform admins) (`studio.myhoodora.com`). The contract both sides build to is [integrations/myhoodora-ai.md](./integrations/myhoodora-ai.md). Built behind `AI_INTEGRATION_ENABLED` (off by default: everything below answers 404).
+
+1. myHoodora AI sends the person to **`/oauth/authorize`** (a web page, protected like any other: signed-out visitors log in or sign up first, and `next` keeps the request through Log in ↔ Sign up).
+2. The page posts the request to **`POST /api/v1/oauth/authorize`** with the person's Firebase ID token. The API decides:
+   - an unknown app or return address: **400**, and the page redirects nowhere;
+   - suspended, closed, under 18, or "Cancel": back to myHoodora AI with an OAuth error;
+   - not yet age-checked, not on the current terms, or deactivated: a **step**. The page remembers itself in this browser (`lib/oauth/resume.ts`, 15 minutes, used once), sends them to `/confirm-age`, `/accept-terms` or `/welcome-back`, and those pages return to it when they're done;
+   - an unconfirmed email: the page asks them to confirm it, with "Send the link again". It remembers itself too, so `/verify-email` (often opened from the email in another tab) carries on to myHoodora AI once the address is confirmed;
+   - otherwise a **single-use code** (60 seconds, stored hashed, bound to the app, return address, PKCE challenge and nonce), and the page sends them back to myHoodora AI.
+
+   **No Hood or address verification is needed**, and sign-in routing (`routeAfterSignIn`) skips onboarding for anyone on their way there.
+3. myHoodora AI's server redeems the code at **`POST /api/v1/oauth/token`**, authenticating with a signed client assertion (`private_key_jwt`, each used once). It gets an **ES256 ID token** for 5 minutes, with:
+   - a **pairwise `sub`** (never the Firebase uid);
+   - the email address;
+   - `hm_status`, `hm_age_band` (always `adult`: myHoodora stays 18 and over) and `hm_age_assurance`.
+
+   The account is checked again at this point: suspended, closed or "signed out everywhere" since the code was issued means no token.
+4. Discovery and keys are at the API host's root: `/.well-known/openid-configuration` and `/.well-known/jwks.json` (public halves only).
+5. **Afterwards, myHoodora AI hears of changes** (contract §8) by signed events, sent only for people who have signed in there (an `IntegrationLink`):
+
+   | Here | Event |
+   | --- | --- |
+   | Staff restrict, suspend or reinstate; the person deactivates, schedules deletion, comes back, or is closed as under 18; an email is changed or confirmed | `account.updated` with the status and email as they are when it's delivered |
+   | "Sign out everywhere", or deactivating | `account.sessions_revoked` |
+   | The account is purged | `account.deleted` (queued before the link is removed) |
+
+   `IntegrationEventsService` records each as a job, signs it with `AI_EVENTS_SECRET` (Standard Webhooks) and retries a failure after 1 min, 5 min, 30 min, 2 h, 6 h and 12 h; a 400, 401, 404 or 422, or the last failure, is logged as a dead letter. Queuing never fails the change itself. A password reset done in Firebase isn't seen by the API, so it sends nothing; myHoodora AI's sessions are its own.
+6. **Its platform admins get their role here** (contract §5.4): admins and owners grant "myHoodoraAI operator" from a neighbour's admin page (`POST /admin/neighbours/:uid/ai-operator`, `team.manage`), only to someone who hasn't signed in to myHoodora AI yet (409 otherwise: an account there holds one role). It's stored as `User.aiOperator`, sent as `hm_ai_role: "operator"` in the ID token and `ai_role` in the subject snapshot; revoking sends `account.updated`, and myHoodora AI returns the person to no role. Both are audited.
+7. **myHoodora AI can also ask** with `GET /api/v1/integrations/ai/subjects/:sub` (contract §7.1), authenticated by a client assertion whose audience is `<issuer>/api/v1/integrations/ai`: the same snapshot as `account.updated`, or 404 `unknown_subject` once the account is gone.
+
+Code: `apps/api/src/oauth/`, `apps/web/src/app/(auth)/oauth/authorize/`. Tests: `apps/api/test/oauth.e2e-spec.ts` (the whole flow and every refusal), `apps/api/test/integration-events.e2e-spec.ts` (events, signatures, retries and the subject API), `apps/api/src/oauth/oauth.spec.ts`. Billing isn't part of the integration: it runs inside myHoodoraAI (contract §§7.2–7.4 were removed).
+
 ## Mock mode
 
 With `NEXT_PUBLIC_USE_MOCKS=true` there is no API, so there is **no server session and no page gate**: the proxy lets every request through, `/api/auth/session` answers "ok" without a cookie, and the pages turn signed-out visitors away in the browser. Never deploy a mock build as the real site.

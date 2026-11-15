@@ -19,6 +19,7 @@ import { StaffUsersService } from "../users/staff-users.service";
 import {
   AdminPostQuery,
   AdminReportQuery,
+  AiOperatorDto,
   AlertActionDto,
   AlertQueryDto,
   AuditQueryDto,
@@ -38,6 +39,7 @@ import {
 import { AdminReadService } from "./admin-read.service";
 import { BroadcastsService, type Audience } from "./broadcasts.service";
 import { ContentActionsService } from "./content-actions.service";
+import { AiOperatorService } from "../oauth/ai-operator.service";
 import { ApiNotFound, ApiStandardErrors } from "../shared/http/api-docs";
 
 /** §13.1 capability names exposed to the web (owner-only ones omitted). */
@@ -64,6 +66,7 @@ export class AdminController {
     private readonly broadcasts: BroadcastsService,
     private readonly leads: HoodLeadsService,
     private readonly contentActions: ContentActionsService,
+    private readonly aiOperator: AiOperatorService,
   ) {}
 
   // ── 13.1 Session & overview ────────────────────────────────────────────────
@@ -156,7 +159,16 @@ export class AdminController {
       // Read-and-alerts neighbourhoods besides home (contract §31); staff can remove them.
       secondaryHoods: (u.secondaryHoods ?? []).map((h) => ({ id: h.id, name: h.name, city: h.city, since: new Date(h.since).toISOString() })),
       timeline: await this.audit.forTarget("user", uid),
+      // The myHoodoraAI operator role (myhoodora-ai.md §5.4): whether it's granted, and whether it still can be.
+      aiOperator: await this.aiOperator.status(uid),
     };
+  }
+
+  @Post("neighbours/:uid/ai-operator")
+  @ApiOperation({ summary: "Grant or revoke the myHoodoraAI operator role (only before their first sign-in there)" })
+  @Can("team.manage")
+  async setAiOperator(@CurrentViewer() v: Viewer, @Param("uid") uid: string, @Body() body: AiOperatorDto) {
+    return this.aiOperator.set(v, uid, body.grant, body.reason, body.note);
   }
 
   @Get("neighbours/:uid/posts")

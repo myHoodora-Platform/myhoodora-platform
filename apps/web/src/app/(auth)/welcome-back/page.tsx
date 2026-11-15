@@ -10,6 +10,7 @@ import { useAuth } from "@/context/AuthContext";
 import { errorMessage } from "@/lib/api/client";
 import { isClosed, isStaff, needsAgeCheck } from "@/lib/auth/profile";
 import { DEFAULT_APP_ROUTE, ROUTES } from "@/lib/routes";
+import { takeOAuthResume } from "@/lib/oauth/resume";
 
 const longDate = (iso: string) => new Date(iso).toLocaleDateString("en-NG", { day: "numeric", month: "long", year: "numeric" });
 
@@ -27,7 +28,8 @@ export default function WelcomeBackPage() {
     if (loading) return;
     if (!user) router.replace(ROUTES.login);
     else if (profileStatus === "ready" && profile && !isClosed(profile)) {
-      router.replace(needsAgeCheck(profile) ? ROUTES.confirmAge : profile.isOnboarded || isStaff(profile.role) ? DEFAULT_APP_ROUTE : ROUTES.onboarding);
+      // Reopened: on to "Continue to myHoodora AI" if that's what sent them here (lib/oauth/resume.ts).
+      router.replace(needsAgeCheck(profile) ? ROUTES.confirmAge : (takeOAuthResume() ?? (profile.isOnboarded || isStaff(profile.role) ? DEFAULT_APP_ROUTE : ROUTES.onboarding)));
     }
   }, [loading, user, profile, profileStatus, router]);
 

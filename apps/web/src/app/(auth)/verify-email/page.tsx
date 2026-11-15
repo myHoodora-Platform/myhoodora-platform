@@ -2,19 +2,23 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle2, MailWarning } from "lucide-react";
 import { Button } from "@myhoodora/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { confirmEmail, resendVerificationEmail } from "@/lib/api/account";
 import { errorMessage } from "@/lib/api/client";
+import { takeOAuthResume } from "@/lib/oauth/resume";
 import { toast } from "sonner";
 
 type State = { status: "checking" } | { status: "done" } | { status: "failed"; message: string };
 
 function VerifyEmail() {
   const params = useSearchParams();
+  const router = useRouter();
   const { user, refreshProfile } = useAuth();
+  // On their way to myHoodora AI when they were asked to confirm (lib/oauth/resume.ts): back there afterwards.
+  const [resume, setResume] = useState<string | null>(null);
   const [state, setState] = useState<State>({ status: "checking" });
   const [resending, setResending] = useState(false);
   // Tokens are single use: StrictMode's double effect must not send it twice.
@@ -40,6 +44,15 @@ function VerifyEmail() {
     if (state.status === "done" && user) void refreshProfile();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.status, user]);
+
+  // Confirmed while signing in to myHoodora AI: carry on there (the authorise page asks again, now confirmed).
+  useEffect(() => {
+    if (state.status !== "done") return;
+    const next = takeOAuthResume();
+    if (!next) return;
+    setResume(next);
+    router.replace(next);
+  }, [state.status, router]);
 
   const resend = async () => {
     if (!user) return;
@@ -68,7 +81,9 @@ function VerifyEmail() {
         <CheckCircle2 className="mx-auto size-12 text-primary" aria-hidden />
         <div className="space-y-2">
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Email confirmed</h1>
-          <p className="text-sm text-muted-foreground">Thanks! We’ll use this address for safety alerts and account notices.</p>
+          <p className="text-sm text-muted-foreground">
+            {resume ? "Thanks! Taking you back to myHoodora AI…" : "Thanks! We’ll use this address for safety alerts and account notices."}
+          </p>
         </div>
         <Link href={user ? "/news-feed" : "/login"} className="block">
           <Button className="w-full">{user ? "Back to your neighbourhood" : "Sign in"}</Button>

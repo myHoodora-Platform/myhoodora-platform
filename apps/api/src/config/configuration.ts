@@ -1,3 +1,5 @@
+import { oauthConfigFrom } from "../oauth/oauth.config";
+
 /**
  * Typed configuration. Secrets live only in apps/api/.env (never in Next.js).
  * `validateEnv` fails fast in production when something essential is missing.
@@ -176,6 +178,8 @@ export default () => ({
 const CLOUDINARY_URL_SHAPE = /^cloudinary:\/\/[^:@\s]+:[^@\s]+@[\w-]+$/;
 
 export function validateEnv(env: Record<string, unknown>): Record<string, unknown> {
+  // Signing in to myHoodoraAI: with AI_INTEGRATION_ENABLED=true, a missing or malformed setting stops start-up (oauth.config.ts).
+  oauthConfigFrom(env as Record<string, string | undefined>);
   // Shape only: the message never echoes the value (it contains the API secret).
   if (typeof env.CLOUDINARY_URL === "string" && env.CLOUDINARY_URL.trim() && !CLOUDINARY_URL_SHAPE.test(env.CLOUDINARY_URL.trim())) {
     throw new Error("CLOUDINARY_URL must look like cloudinary://<api_key>:<api_secret>@<cloud_name>");

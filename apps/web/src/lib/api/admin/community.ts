@@ -20,23 +20,7 @@ import {
   saveNeighbours,
   type NeighbourRecord,
 } from "./mock-db";
-import type {
-  AccountStatus,
-  AdminHood,
-  AdminNeighbour,
-  AdminRole,
-  CreateHoodInput,
-  HoodDetail,
-  HoodFootprint,
-  HoodLead,
-  HoodStatus,
-  ListQuery,
-  NeighbourActionInput,
-  NeighbourDetail,
-  Page,
-  VerificationCase,
-  VerificationStatus,
-} from "./types";
+import type { AccountStatus, AdminHood, AdminNeighbour, AdminRole, AiOperatorStatus, CreateHoodInput, HoodDetail, HoodFootprint, HoodLead, HoodStatus, ListQuery, NeighbourActionInput, NeighbourDetail, Page, VerificationCase, VerificationStatus } from "./types";
 
 // ── Neighbours ──────────────────────────────────────────────────────────────
 
@@ -94,7 +78,29 @@ export async function getNeighbour(user: User, uid: string): Promise<NeighbourDe
   return mock(() => {
     const n = neighbourById(uid);
     if (!n) notFound("Neighbour");
-    return { ...toNeighbour(n), location: n.location, verificationAttempts: n.attempts, timeline: auditFor("user", uid).sort((a, b) => b.at.localeCompare(a.at)) };
+    return {
+      ...toNeighbour(n),
+      location: n.location,
+      verificationAttempts: n.attempts,
+      timeline: auditFor("user", uid).sort((a, b) => b.at.localeCompare(a.at)),
+      aiOperator: { granted: Boolean(n.aiOperator), signedIn: false },
+    };
+  });
+}
+
+/**
+ * live: POST /admin/neighbours/:uid/ai-operator (admins and owners, `team.manage`). Grants the
+ * myHoodoraAI operator role only to someone who hasn't signed in there yet (409 otherwise).
+ */
+export async function setAiOperator(user: User, uid: string, input: { grant: boolean; reason: string; note?: string }): Promise<AiOperatorStatus> {
+  if (isLive("admin.neighbours")) return adminSend(user, `/neighbours/${uid}/ai-operator`, input);
+  return mock(() => {
+    const list = neighbours();
+    const target = list.find((n) => n.uid === uid);
+    if (!target) notFound("Neighbour");
+    target.aiOperator = input.grant;
+    saveNeighbours(list);
+    return { granted: input.grant, signedIn: false };
   });
 }
 

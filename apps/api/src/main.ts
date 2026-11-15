@@ -6,6 +6,7 @@ import { ValidationPipe, Logger } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
 import { API_VERSION, applyApiVersioning } from './shared/http/versioning';
+import { applyGlobalPrefix } from './shared/http/prefix';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { initializeFirebase } from './config/firebase.config';
 import { API_DESCRIPTION, API_TAGS, ErrorResponse } from './shared/http/api-docs';
@@ -63,7 +64,7 @@ async function bootstrap() {
   });
 
   // ── Global prefix and versions (docs/api-versioning.md) ───────────────────
-  app.setGlobalPrefix('api');
+  applyGlobalPrefix(app);
   applyApiVersioning(app);
 
   // ── Swagger ───────────────────────────────────────────────────────────────

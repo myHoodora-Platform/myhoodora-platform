@@ -12,6 +12,7 @@ import { useAuth } from "@/context/AuthContext";
 import { errorMessage } from "@/lib/api/client";
 import { isClosed, isStaff, needsAgeCheck, needsTermsAcceptance } from "@/lib/auth/profile";
 import { DEFAULT_APP_ROUTE, ROUTES } from "@/lib/routes";
+import { takeOAuthResume } from "@/lib/oauth/resume";
 import { PolicyReviewDialog } from "@/components/legal/policy-review-dialog";
 
 const DOCS: { doc: LegalDocument; href: string }[] = [
@@ -35,8 +36,13 @@ export default function AcceptTermsPage() {
     if (loading) return;
     if (!user) router.replace(ROUTES.login);
     else if (profileStatus === "ready" && profile && !needsTermsAcceptance(profile)) {
+      // Another step first keeps "Continue to myHoodora AI" waiting; otherwise back to it, if that's what sent them here.
       router.replace(
-        isClosed(profile) ? ROUTES.welcomeBack : needsAgeCheck(profile) ? ROUTES.confirmAge : profile.isOnboarded || isStaff(profile.role) ? DEFAULT_APP_ROUTE : ROUTES.onboarding,
+        isClosed(profile)
+          ? ROUTES.welcomeBack
+          : needsAgeCheck(profile)
+            ? ROUTES.confirmAge
+            : (takeOAuthResume() ?? (profile.isOnboarded || isStaff(profile.role) ? DEFAULT_APP_ROUTE : ROUTES.onboarding)),
       );
     }
   }, [loading, user, profile, profileStatus, router]);

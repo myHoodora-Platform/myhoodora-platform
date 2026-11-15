@@ -1,4 +1,5 @@
 import { applyApiVersioning } from "../../src/shared/http/versioning";
+import { applyGlobalPrefix } from "../../src/shared/http/prefix";
 import { INestApplication, ValidationPipe, type Type } from "@nestjs/common";
 import { getConnectionToken, getModelToken } from "@nestjs/mongoose";
 import { Test, type TestingModuleBuilder } from "@nestjs/testing";
@@ -38,7 +39,7 @@ export async function createTestApp(customise?: (builder: TestingModuleBuilder) 
   const builder = Test.createTestingModule({ imports: [AppModule], controllers });
   const moduleRef = await (customise ? customise(builder) : builder).compile();
   const app = moduleRef.createNestApplication({ rawBody: true, logger: ["error"] });
-  app.setGlobalPrefix("api");
+  applyGlobalPrefix(app);
   applyApiVersioning(app);
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
   await app.init();

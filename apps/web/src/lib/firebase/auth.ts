@@ -19,6 +19,7 @@ import { MOCK_HOOD_RADIUS_M, MOCK_NEARBY_HOODS, MOCK_NEARBY_LIMIT_M, MOCK_NEIGHB
 import { hasSkippedOnboarding } from "@/features/onboarding/draft";
 import { isClosed, isStaff, needsAgeCheck, needsTermsAcceptance, parseProfile, type UserProfile } from "@/lib/auth/profile";
 import { readBirthInput, type AgeCheckResponse } from "@myhoodora/api-contract/age";
+import { isAuthorizePath } from "@myhoodora/api-contract/oauth";
 import { DEFAULT_APP_ROUTE, ROUTES } from "@/lib/routes";
 import { requireServerSession } from "@/lib/auth/session-sync";
 
@@ -74,6 +75,9 @@ export async function routeAfterSignIn(user: User, fallback: string): Promise<st
       return null;
     }),
   ]);
+  // On their way to myHoodora AI: the authorise page asks the API what's still needed (the age check,
+  // the terms, a confirmed email, reactivating) and sends them there itself. No Hood onboarding.
+  if (isAuthorizePath(fallback)) return fallback;
   // A closed account first: they choose to reactivate (as on Nextdoor) before anything opens.
   if (isClosed(profile)) return ROUTES.welcomeBack;
   // Then, staff included: the age check can't be skipped.

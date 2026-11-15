@@ -34,6 +34,12 @@ describe("routeAfterSignIn", () => {
     expect(await routeAfterSignIn(await userWith({ role: "admin", isOnboarded: true }), "/news-feed")).toBe("/news-feed");
   });
 
+  it("sends someone on their way to myHoodora AI straight back there, with no Hood onboarding: that page asks for any missing step", async () => {
+    const authorize = "/oauth/authorize?client_id=myhoodora-ai&state=s";
+    expect(await routeAfterSignIn(await userWith({ role: "member", isOnboarded: false }), authorize)).toBe(authorize);
+    expect(await routeAfterSignIn(await userWith({ role: "member", isOnboarded: false, ageConfirmed: false }), authorize)).toBe(authorize);
+  });
+
   it("still sends members to onboarding, whatever link they came from", async () => {
     expect(await routeAfterSignIn(await userWith({ role: "member", isOnboarded: false }), "/admin")).toBe("/onboarding");
   });
