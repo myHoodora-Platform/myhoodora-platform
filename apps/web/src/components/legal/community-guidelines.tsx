@@ -2,7 +2,7 @@ import Link from "next/link";
 import { LegalSection } from "./legal-page";
 
 /** When these guidelines last changed, "YYYY-MM-DD": shown on the page and used as its sitemap lastmod. */
-export const GUIDELINES_UPDATED = "2026-09-28";
+export const GUIDELINES_UPDATED = "2026-11-16";
 
 const li = "list-disc space-y-2 pl-5";
 
@@ -71,8 +71,19 @@ export function CommunityGuidelinesContent() {
         <ul className={li}>
           <li>Only list items you own and can hand over. Describe them honestly, with real photos and a real price.</li>
           <li>
-            Don&apos;t list weapons, drugs, prescription medicine, alcohol to minors, counterfeit goods, stolen items,
-            animals for fighting, or anything illegal in Nigeria.
+            Don&apos;t list, sell or give away:
+            <ul className={`${li} mt-2`}>
+              <li>weapons, ammunition or explosives;</li>
+              <li>drugs, anything made to use or hide drugs, prescription medicine, or medical devices that need a prescription;</li>
+              <li>alcohol of any kind, including home-made drinks;</li>
+              <li>tobacco, cigarettes, shisha, vapes, e-cigarettes and other nicotine products;</li>
+              <li>counterfeit goods, stolen items, or animals for fighting;</li>
+              <li>anything else illegal in Nigeria.</li>
+            </ul>
+          </li>
+          <li>
+            Events and recommendations can still mention a bar, a party with drinks or a lounge. The rule is about
+            selling these things, not talking about them.
           </li>
           <li>Meet in public places such as your estate gate, inspect before paying, and never pay a stranger upfront.</li>
           <li>Sales are agreements between neighbours. myHoodora isn&apos;t a party to them.</li>
