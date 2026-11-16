@@ -130,6 +130,20 @@ export default () => ({
     enabled: process.env.EVENT_REMINDERS_ENABLED !== "false",
   },
 
+  /**
+   * Store versions for the app's update prompts (docs/api-contract.md §34). The watcher checks the stores
+   * a few times a day unless APP_UPDATES_WATCH=false. Google Play needs a service account invited to the
+   * app in Play Console (GOOGLE_PLAY_SERVICE_ACCOUNT_JSON, raw JSON or base64); the App Store needs nothing.
+   */
+  appUpdates: {
+    watch: process.env.APP_UPDATES_WATCH !== "false",
+    androidPackage: process.env.ANDROID_PACKAGE_NAME?.trim() || "com.myhoodora.app",
+    iosBundleId: process.env.IOS_BUNDLE_ID?.trim() || "com.myhoodora.app",
+    /** The App Store country to look the app up in (Apple lists apps per country). */
+    iosCountry: process.env.APP_STORE_COUNTRY?.trim() || "ng",
+    googlePlayServiceAccount: process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON ?? "",
+  },
+
   /** Uploaded photos and videos (docs/api-contract.md §20). */
   storage: {
     /** cloudinary (default). Other providers need an adapter in src/storage/providers/. */

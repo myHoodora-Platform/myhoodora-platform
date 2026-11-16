@@ -17,7 +17,7 @@ Work top to bottom and tick each box as you go, with the date. **(you)** means a
 | Guideline 1.2 (user content) | 🟡 Report ✅, block ✅, published contact ✅ (/contact, hello@). Automatic **filter** for objectionable text ❌ |
 | Account deletion in the app (5.1.1(v)) | ✅ Menu → Settings & privacy → Account → Delete account |
 | Location (5.1.1(iv), 5.1.2(i)) | ✅ Typing an address works instead of sharing location |
-| Update prompts | ✅ Built 16 Nov. After approval, set the iPhone store page in Admin → Settings → Platform → App updates |
+| Update prompts | ✅ Built 16 Nov. The iPhone store page and Latest fill in by themselves once the app is live (Admin → Settings → Platform → App updates) |
 
 ## 1. Code that must land first (code)
 
@@ -145,7 +145,7 @@ App Information:
 ## 10. After approval (you, then code)
 
 - [ ] **Release** the version.
-- [ ] Admin → Settings → Platform → **App updates** → iPhone: store page `https://apps.apple.com/app/id<Apple ID>`, Latest `1.0.0`, Minimum `1.0.0`.
+- [ ] Admin → Settings → Platform → **App updates** → iPhone: the API fills in the store page and Latest by itself within 6 hours of the app appearing in Apple's lookup (or press **Check the stores now**). Check they look right.
 - [ ] Add the App Store badge and link to the website (code).
 - [ ] Keep the demo Hoods and reviewer account until both stores have approved every pending version; remove them as described in `store-listing.md` only after that.
 

@@ -1,4 +1,4 @@
-import type { AppUpdatesDraft } from "@/lib/app-updates";
+import type { AppStoreStatus, AppUpdatesAuto, AppUpdatesDraft } from "@/lib/app-updates";
 import type { SupportAttachment } from "@myhoodora/api-contract/support";
 /**
  * Admin API types — mirror docs/api-contract.md §13 exactly. When the
@@ -417,6 +417,10 @@ export interface PlatformSettings {
   hoodoraAi: { target: "page" | "studio"; studioUrl: string };
   /** Latest and minimum app store versions per platform, and each store page ("" while not in that store). */
   appUpdates: AppUpdatesDraft;
+  /** Latest follows the stores; Minimum follows Latest after this many days (0: only by hand). */
+  appUpdatesAuto: AppUpdatesAuto;
+  /** Read-only: what each store showed at the API's last check. */
+  appStoreStatus: Record<"android" | "ios", AppStoreStatus>;
 }
 
 export interface SignupEntry {

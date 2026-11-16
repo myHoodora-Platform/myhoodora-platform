@@ -5,6 +5,8 @@ export interface AppVersionRuleDraft {
   latest: string;
   minimum: string;
   storeUrl: string;
+  /** Read-only: when Latest last rose (Minimum follows it after `requireAfterDays`). */
+  latestSince?: string | null;
 }
 export type AppUpdatesDraft = Record<AppPlatform, AppVersionRuleDraft>;
 
@@ -13,6 +15,30 @@ export const DEFAULT_APP_UPDATES: AppUpdatesDraft = {
   android: { latest: "1.0.0", minimum: "1.0.0", storeUrl: "https://play.google.com/store/apps/details?id=com.myhoodora.app" },
   ios: { latest: "1.0.0", minimum: "1.0.0", storeUrl: "" },
 };
+
+/** Whether Latest follows the stores, and the days before Minimum follows Latest (0: only by hand). */
+export interface AppUpdatesAuto {
+  fromStores: boolean;
+  requireAfterDays: number;
+}
+export const DEFAULT_APP_UPDATES_AUTO: AppUpdatesAuto = { fromStores: true, requireAfterDays: 30 };
+export const MAX_REQUIRE_AFTER_DAYS = 365;
+
+/** The API's last look at one store (read-only). */
+export interface AppStoreStatus {
+  version: string | null;
+  url: string | null;
+  checkedAt: string | null;
+  problem: string | null;
+}
+export const NO_STORE_CHECK: AppStoreStatus = { version: null, url: null, checkedAt: null, problem: null };
+
+/** When Minimum will follow Latest by itself, or null if it won't (timer off, already equal, no start date). */
+export function minimumFollowsOn(rule: AppVersionRuleDraft, auto: AppUpdatesAuto): Date | null {
+  if (auto.requireAfterDays <= 0 || !rule.latestSince || rule.minimum === rule.latest) return null;
+  const since = Date.parse(rule.latestSince);
+  return Number.isFinite(since) ? new Date(since + auto.requireAfterDays * 24 * 60 * 60 * 1000) : null;
+}
 
 /** What's wrong with one platform's versions, in words for the form; null when it can be saved. */
 export function appVersionRuleProblem(rule: AppVersionRuleDraft): string | null {

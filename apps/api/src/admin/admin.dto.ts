@@ -25,6 +25,7 @@ import { ALERT_CATEGORIES, APP_VERSION_PATTERN, HOODORA_AI_TARGETS, MAX_ANALYTIC
 import { POST_CATEGORIES } from "../posts/domain/post-meta";
 import { ACCOUNT_STATUSES, ROLES, VERIFICATION_STATUSES } from "../shared/authz/roles";
 import { PageQuery } from "../shared/http/pagination";
+import { MAX_REQUIRE_AFTER_DAYS } from "../platform/app-version-rules";
 import { HOOD_STATUSES } from "../hoods/schemas/hood.schema";
 import { TARGET_TYPES } from "../moderation/moderation-registry";
 import { CASE_STATUSES, MODERATION_ACTIONS } from "../moderation/moderation.schemas";
@@ -145,6 +146,13 @@ class AppVersionRuleDto {
   @Matches(APP_VERSION_PATTERN, { message: "Versions look like 1.2.0." }) minimum!: string;
   /** Empty while the app isn't in that store. */
   @IsString() @MaxLength(300) @ValidateIf((o: AppVersionRuleDto) => o.storeUrl !== "") @IsUrl({ protocols: ["https"], require_protocol: true }) storeUrl!: string;
+  /** Read-only (set by the API); accepted so the web can send the whole object back, then ignored. */
+  @IsOptional() latestSince?: unknown;
+}
+
+class AppUpdatesAutoDto {
+  @IsBoolean() fromStores!: boolean;
+  @IsInt() @Min(0) @Max(MAX_REQUIRE_AFTER_DAYS) requireAfterDays!: number;
 }
 
 class AppUpdatesDto {
@@ -181,6 +189,16 @@ export class SettingsDto {
   @ValidateNested()
   @Type(() => AppUpdatesDto)
   appUpdates?: AppUpdatesDto;
+
+  /** Whether Latest follows the stores, and the days before Minimum follows Latest (0: never by itself). */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AppUpdatesAutoDto)
+  appUpdatesAuto?: AppUpdatesAutoDto;
+
+  /** Read-only (the last store check); accepted so the web can send the whole object back, then ignored. */
+  @IsOptional()
+  appStoreStatus?: unknown;
 
   /** Read-only (derived from Hoods); accepted so the web can send the whole object back, then ignored. */
   @IsOptional()

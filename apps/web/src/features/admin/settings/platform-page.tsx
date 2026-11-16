@@ -10,11 +10,11 @@ import { Panel } from "@/components/admin/detail";
 import { timeAgo } from "@/components/admin/format";
 import { useAuth } from "@/context/AuthContext";
 import { errorMessage } from "@/lib/api/client";
-import { getPlatformSettings, listSignups, updatePlatformSettings } from "@/lib/api/admin/platform";
+import { checkAppStores, getPlatformSettings, listSignups, updatePlatformSettings } from "@/lib/api/admin/platform";
 import type { PlatformSettings, ReportSeverity, SignupEntry } from "@/lib/api/admin/types";
 import { ALERT_ACTIVE_HOURS, URGENT_WINDOW_HOURS } from "@/features/alerts/lifecycle";
 import { DEFAULT_HOODORA_AI, safeStudioUrl } from "@/lib/hoodora-ai";
-import { appVersionRuleProblem, DEFAULT_APP_UPDATES, type AppUpdatesDraft, type AppVersionRuleDraft } from "@/lib/app-updates";
+import { appVersionRuleProblem, DEFAULT_APP_UPDATES, DEFAULT_APP_UPDATES_AUTO, MAX_REQUIRE_AFTER_DAYS, minimumFollowsOn, NO_STORE_CHECK, type AppUpdatesAuto, type AppUpdatesDraft, type AppVersionRuleDraft } from "@/lib/app-updates";
 import { useAdminSession } from "../session";
 import { useAdminQuery } from "../use-admin-query";
 
@@ -24,6 +24,7 @@ export function PlatformPage() {
   const settings = useAdminQuery(getPlatformSettings, "settings");
   const [draft, setDraft] = useState<PlatformSettings | null>(null);
   const [saving, setSaving] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [signupType, setSignupType] = useState<SignupEntry["type"]>("ai_pilot");
   const signups = useAdminQuery((u) => listSignups(u, signupType), signupType);
 
@@ -52,6 +53,19 @@ export function PlatformPage() {
       toast.error(errorMessage(err, "Couldn't save settings."));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const checkStores = async () => {
+    if (!user) return;
+    setChecking(true);
+    try {
+      settings.setData(await checkAppStores(user, role));
+      toast.success("Stores checked");
+    } catch (err) {
+      toast.error(errorMessage(err, "Couldn't check the stores."));
+    } finally {
+      setChecking(false);
     }
   };
 
@@ -152,7 +166,16 @@ export function PlatformPage() {
 
             <HoodoraAiPanel value={draft.hoodoraAi ?? DEFAULT_HOODORA_AI} onChange={(hoodoraAi) => setDraft({ ...draft, hoodoraAi })} />
 
-            <AppUpdatesPanel value={appUpdates} onChange={(next) => setDraft({ ...draft, appUpdates: next })} />
+            <AppUpdatesPanel
+              value={appUpdates}
+              auto={draft.appUpdatesAuto ?? DEFAULT_APP_UPDATES_AUTO}
+              status={draft.appStoreStatus ?? { android: NO_STORE_CHECK, ios: NO_STORE_CHECK }}
+              onChange={(next) => setDraft({ ...draft, appUpdates: next })}
+              onAutoChange={(next) => setDraft({ ...draft, appUpdatesAuto: next })}
+              onCheck={() => void checkStores()}
+              checking={checking}
+              dirty={dirty}
+            />
 
             <Panel title="App analytics question">
               <p className="mb-3 text-sm text-muted-foreground">
@@ -266,21 +289,69 @@ const STORE_NAMES = { android: "Google Play", ios: "the App Store" } as const;
 
 /**
  * Which store versions the app compares itself with. Below the latest: a "New version available" sheet
- * people can skip. Below the minimum: an "Update required" screen they can't get past.
+ * people can skip. Below the minimum: an "Update required" screen they can't get past. Latest can follow
+ * the stores by itself, and Minimum can follow Latest after some days, so nobody has to remember.
  */
-function AppUpdatesPanel({ value, onChange }: { value: AppUpdatesDraft; onChange: (next: AppUpdatesDraft) => void }) {
+function AppUpdatesPanel({
+  value,
+  auto,
+  status,
+  onChange,
+  onAutoChange,
+  onCheck,
+  checking,
+  dirty,
+}: {
+  value: AppUpdatesDraft;
+  auto: AppUpdatesAuto;
+  status: PlatformSettings["appStoreStatus"];
+  onChange: (next: AppUpdatesDraft) => void;
+  onAutoChange: (next: AppUpdatesAuto) => void;
+  onCheck: () => void;
+  checking: boolean;
+  dirty: boolean;
+}) {
   const set = (p: keyof AppUpdatesDraft, patch: Partial<AppVersionRuleDraft>) => onChange({ ...value, [p]: { ...value[p], ...patch } });
   return (
     <Panel title="App updates">
       <p className="mb-4 text-sm text-muted-foreground">
-        Raise <span className="font-medium text-foreground">Latest</span> once a new version is live in the store: older apps offer the update, and people can skip it. Raise{" "}
-        <span className="font-medium text-foreground">Minimum</span> only when older apps no longer work (for example after an API change): they then show a screen that only opens the store.
+        Below <span className="font-medium text-foreground">Latest</span>, the app offers the update and people can skip it. Below{" "}
+        <span className="font-medium text-foreground">Minimum</span>, it shows a screen that only opens the store.
       </p>
+
+      <div className="mb-4 space-y-3 rounded-xl bg-muted/60 p-4 text-sm">
+        <label className="flex items-start gap-3">
+          <input type="checkbox" checked={auto.fromStores} onChange={(e) => onAutoChange({ ...auto, fromStores: e.target.checked })} className="mt-0.5 size-4 accent-[var(--primary)]" />
+          <span>
+            <span className="block font-medium">Follow the stores</span>
+            <span className="block text-xs text-muted-foreground">Every 6 hours, Latest rises to the version live in Google Play and the App Store. Google Play counts a release only once it reaches everyone.</span>
+          </span>
+        </label>
+        <label className="flex flex-wrap items-center gap-3">
+          <span className="font-medium">Require the update after</span>
+          <input
+            type="number"
+            min={0}
+            max={MAX_REQUIRE_AFTER_DAYS}
+            step={1}
+            value={auto.requireAfterDays}
+            onChange={(e) => onAutoChange({ ...auto, requireAfterDays: Math.max(0, Math.min(MAX_REQUIRE_AFTER_DAYS, Math.round(Number(e.target.value) || 0))) })}
+            className="h-9 w-20 rounded-lg border border-border bg-card px-2"
+          />
+          <span>days</span>
+          <span className="basis-full text-xs text-muted-foreground">
+            Minimum follows Latest this many days after Latest rises, never above what the store has. 0 leaves Minimum to you. Over-the-air updates never need this: phones get them by themselves.
+          </span>
+        </label>
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-2">
         {(["android", "ios"] as const).map((p) => {
           const rule = value[p];
           const problem = appVersionRuleProblem(rule);
           const field = "mt-1 h-9 w-full rounded-lg border bg-card px-2";
+          const store = status[p];
+          const follows = minimumFollowsOn(rule, auto);
           return (
             <fieldset key={p} className="rounded-xl border border-border p-4">
               <legend className="px-1 text-sm font-semibold">{PLATFORM_NAMES[p]}</legend>
@@ -307,11 +378,34 @@ function AppUpdatesPanel({ value, onChange }: { value: AppUpdatesDraft; onChange
                 />
               </label>
               <p className={`mt-2 text-xs ${problem ? "text-destructive" : "text-muted-foreground"}`}>
-                {problem ?? (rule.storeUrl ? `Opens ${STORE_NAMES[p]}. Changes reach phones the next time the app opens.` : `Empty until the app is in ${STORE_NAMES[p]}: nobody on ${PLATFORM_NAMES[p]} is asked to update.`)}
+                {problem ?? (rule.storeUrl ? `Opens ${STORE_NAMES[p]}.` : `Empty until the app is in ${STORE_NAMES[p]}: nobody on ${PLATFORM_NAMES[p]} is asked to update. Filled in by itself once the store lists the app.`)}
               </p>
+              <dl className="mt-3 space-y-1 border-t border-border pt-3 text-xs">
+                <div className="flex justify-between gap-2">
+                  <dt className="text-muted-foreground">In {STORE_NAMES[p]}</dt>
+                  <dd className="font-medium">{store.version ?? (store.checkedAt && !store.problem ? "Not listed yet" : "Unknown")}</dd>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <dt className="text-muted-foreground">Last checked</dt>
+                  <dd>{store.checkedAt ? timeAgo(store.checkedAt) : "Never"}</dd>
+                </div>
+                {follows && (
+                  <div className="flex justify-between gap-2">
+                    <dt className="text-muted-foreground">Minimum becomes {rule.latest}</dt>
+                    <dd>{follows.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</dd>
+                  </div>
+                )}
+                {store.problem && <p className="text-destructive">{store.problem}</p>}
+              </dl>
             </fieldset>
           );
         })}
+      </div>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <Button size="sm" variant="outline" onClick={onCheck} loading={checking} disabled={dirty}>
+          Check the stores now
+        </Button>
+        <span className="text-xs text-muted-foreground">{dirty ? "Save your changes first." : "Changes reach phones the next time the app opens."}</span>
       </div>
     </Panel>
   );
