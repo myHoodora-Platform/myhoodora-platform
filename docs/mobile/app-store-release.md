@@ -69,10 +69,10 @@ In a terminal, from `apps/mobile`:
 npx eas-cli@latest credentials -p ios
 ```
 
-- [ ] Choose the **production** profile, then sign in with the Apple ID that owns the developer account and enter the 2FA code.
-- [ ] Let EAS **create the distribution certificate and provisioning profile** (it also registers the bundle ID and turns on Push Notifications and Sign in with Apple from the app's entitlements).
-- [ ] **Push Notifications key**: let EAS create and store an APNs key. Without it, iPhones get no notifications. Apple allows only two such keys per account, so don't make extras.
-- [ ] **App Store Connect API key**: let EAS create one for EAS Submit, so uploads need no password afterwards.
+- [x] Done 16 Nov 2026 with Peace's own Apple ID, invited to the MYHOODORA LIMITED team as an Admin (the Account Holder doesn't have to run it). Choose the **production** profile and the team **MYHOODORA LIMITED (P8TFVK9UYF)**.
+- [x] **Distribution certificate** `2ABA6877…` and **provisioning profile** `DZ9RH5A958`, both valid until 16 Nov 2027 (EAS offers to renew them).
+- [x] **Push Notifications key** `J8M787Q5WV`. Apple allows only two such keys per account, so don't make extras.
+- [x] **App Store Connect API key** `UKJ6UYKS2R` ("[Expo] EAS Submit", role APP_MANAGER), so uploads need no password.
 
 ## 6. Build and upload to TestFlight (Claude can run this once 1, 3, 4 and 5 are done)
 
