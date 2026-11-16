@@ -1,5 +1,5 @@
 import { searchRegex } from "../shared/http/pagination";
-import { BadRequestException, ConflictException, ForbiddenException, GoneException, Injectable, Logger, NotFoundException, Optional, type OnModuleInit } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, GoneException, Injectable, Logger, NotFoundException, Optional, ServiceUnavailableException, type OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { InjectConnection, InjectModel } from "@nestjs/mongoose";
 import type { DecodedIdToken } from "firebase-admin/auth";
@@ -195,6 +195,10 @@ export class UsersService implements OnModuleInit {
       return toMe(existing);
     }
 
+    // No account for this sign-in, but maybe one for this address: someone whose Firebase sign-in was
+    // deleted (by hand, in the Firebase console) and who signed in again, getting a new uid.
+    if (token.email && (await this.takeOverOrphanedAccount(token))) return this.getOrCreateMe(token);
+
     let rawToken: string | undefined;
     let created: UserDocument;
     try {
@@ -220,6 +224,8 @@ export class UsersService implements OnModuleInit {
       if ((err as { code?: number }).code === 11000) {
         const again = await this.findByUid(token.uid);
         if (again) return toMe(again);
+        // Not this sign-in's own race: the address was taken by another account in the same moment.
+        throw new ConflictException(EMAIL_TAKEN);
       }
       throw err;
     }
@@ -229,6 +235,52 @@ export class UsersService implements OnModuleInit {
       await this.emailVerification.sendWelcome(created, rawToken).catch(() => this.logger.warn("Welcome email could not be queued."));
     }
     return toMe(created);
+  }
+
+  /**
+   * One account per email address. A sign-in with a new uid and an address that already has an account
+   * takes that account over, keeping its profile, Hood, role and settings, but only if:
+   * - the address is confirmed for the new sign-in (otherwise anyone could type it in and get the account);
+   * - the old uid no longer exists in Firebase (Firebase allows one sign-in per address, so a live old uid
+   *   means something is wrong, and nothing is changed).
+   * Posts, messages and other content stay under the old uid. Returns whether it took one over.
+   */
+  private async takeOverOrphanedAccount(token: DecodedIdToken): Promise<boolean> {
+    const email = token.email!.trim().toLowerCase();
+    const holder = await this.users.findOne({ email, uid: { $ne: token.uid } }).exec();
+    if (!holder) return false;
+    if (token.email_verified !== true) {
+      throw new ConflictException("This email address already has a myHoodora account. Confirm the address from the email we sent, or contact support.");
+    }
+    try {
+      await getFirebaseAdmin().auth().getUser(holder.uid);
+      this.logger.error(`Two Firebase sign-ins hold ${email}: ${holder.uid} and ${token.uid}. Nothing was changed.`);
+      throw new ConflictException("This email address belongs to another myHoodora sign-in. Contact support and we'll sort it out.");
+    } catch (err) {
+      if (err instanceof ConflictException) throw err;
+      if ((err as { code?: string }).code !== "auth/user-not-found") throw new ServiceUnavailableException("We couldn't check your account just now. Try again in a moment.");
+    }
+    const provider = token.firebase?.sign_in_provider ?? holder.provider;
+    const moved = await withTransaction(this.connection, async (s) => {
+      // Only while it still has the old uid: two first requests racing take it over once.
+      const res = await this.users
+        .updateOne({ _id: holder._id, uid: holder.uid }, { $set: { uid: token.uid, provider, ...(holder.emailVerifiedAt ? {} : { emailVerifiedAt: new Date() }) } }, { session: s })
+        .exec();
+      if (res.modifiedCount === 0) return false;
+      await this.audit.record(
+        { uid: token.uid, displayName: holder.displayName ?? email, role: holder.role } as Viewer,
+        "account_relink",
+        { type: "user", id: token.uid, label: holder.displayName ?? email },
+        { reason: `Signed in again after the old Firebase sign-in (${holder.uid}) was deleted` },
+        s,
+      );
+      return true;
+    });
+    if (moved) {
+      this.logger.warn(`Account for ${email} moved from deleted Firebase uid ${holder.uid} to ${token.uid}.`);
+      await this.events?.accountChanged(token.uid);
+    }
+    return true;
   }
 
   async me(uid: string): Promise<MeResponse> {
@@ -291,6 +343,8 @@ export class UsersService implements OnModuleInit {
     } catch (err) {
       // Never leave the two disagreeing: sign-in would use one address and our emails the other.
       await firebase.updateUser(viewer.uid, { email: user.email }).catch(() => this.logger.error(`Email change for ${viewer.uid} failed half-way; Firebase still has the new address.`));
+      // Someone else took the address in the moment between the check above and this write.
+      if ((err as { code?: number }).code === 11000) throw new ConflictException(EMAIL_TAKEN);
       throw err;
     }
     const updated = (await this.findByUid(viewer.uid))!;
