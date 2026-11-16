@@ -107,6 +107,11 @@ export function apiFetch<T>(user: User, path: string, init?: RequestInitWithJson
   return request<T>(`${config().apiUrl}${path}`, user, init);
 }
 
+/** The API's public routes, signed in or not (e.g. "/app-config", read before anyone signs in). */
+export function apiFetchPublic<T>(path: string, init?: RequestInitWithJson): Promise<T> {
+  return request<T>(`${config().apiUrl}${path}`, null, init);
+}
+
 /** The web server's own routes (`EXPO_PUBLIC_WEB_URL`), e.g. "/api/geocode". Signed in with the same token. */
 export function webFetch<T>(user: User, path: string, init?: RequestInitWithJson): Promise<T> {
   return request<T>(`${config().webUrl}${path}`, user, init);

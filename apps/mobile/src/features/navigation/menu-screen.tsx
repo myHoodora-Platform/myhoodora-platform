@@ -51,7 +51,7 @@ export function MenuScreen() {
   const verified = profile?.verificationStatus === "verified";
   const user = useSignedInUser();
   // Admins choose where myHoodora AI goes (Admin → Settings → Platform): the AI Studio, or our /ai page.
-  const appConfig = useQuery({ queryKey: accountKeys.appConfig, queryFn: () => getAppConfig(user), staleTime: 60 * 60 * 1000 });
+  const appConfig = useQuery({ queryKey: accountKeys.appConfig, queryFn: getAppConfig, staleTime: 60 * 60 * 1000 });
   const aiStudio = appConfig.data?.links?.hoodoraAiStudio;
   const openAi = () => void (aiStudio?.startsWith("https://") ? WebBrowser.openBrowserAsync(aiStudio) : openWeb("/ai"));
   // Hood Leads see their review queue here (the web's user menu); nobody else sees the row.

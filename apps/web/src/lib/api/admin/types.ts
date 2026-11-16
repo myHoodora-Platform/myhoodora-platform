@@ -1,3 +1,4 @@
+import type { AppUpdatesDraft } from "@/lib/app-updates";
 import type { SupportAttachment } from "@myhoodora/api-contract/support";
 /**
  * Admin API types — mirror docs/api-contract.md §13 exactly. When the
@@ -414,6 +415,8 @@ export interface PlatformSettings {
   analyticsReaskDays: number;
   /** Where "myHoodora AI" links go: our /ai page, or the AI Studio site (studioUrl is kept while the page is chosen). */
   hoodoraAi: { target: "page" | "studio"; studioUrl: string };
+  /** Latest and minimum app store versions per platform, and each store page ("" while not in that store). */
+  appUpdates: AppUpdatesDraft;
 }
 
 export interface SignupEntry {

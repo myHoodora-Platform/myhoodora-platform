@@ -8,7 +8,7 @@ import { HoodsService } from "../hoods/hoods.service";
 import { HoodLeadsService } from "../moderation/hood-leads.service";
 import { ModerationRegistry } from "../moderation/moderation-registry";
 import { ModerationService } from "../moderation/moderation.service";
-import { ALERT_CATEGORIES } from "../platform/platform-settings.schema";
+import { ALERT_CATEGORIES, APP_PLATFORMS, compareVersions } from "../platform/platform-settings.schema";
 import { PlatformSettingsService } from "../platform/platform-settings.service";
 import { PostsService } from "../posts/posts.service";
 import { CurrentViewer, type Viewer } from "../shared/auth/viewer";
@@ -395,7 +395,7 @@ export class AdminController {
   }
 
   @Get("settings")
-  @ApiOperation({ summary: "Platform settings: report reasons, alert windows, analytics re-ask, myHoodora AI link, coverage" })
+  @ApiOperation({ summary: "Platform settings: report reasons, alert windows, analytics re-ask, myHoodora AI link, app store versions, coverage" })
   @Can("settings.manage")
   async getSettings() {
     const [settings, coverageCities] = await Promise.all([this.settings.get(), this.hoods.coverageCities()]);
@@ -403,7 +403,7 @@ export class AdminController {
   }
 
   @Patch("settings")
-  @ApiOperation({ summary: "Update report reasons, alert windows, the analytics re-ask interval and where myHoodora AI links go" })
+  @ApiOperation({ summary: "Update report reasons, alert windows, the analytics re-ask interval, where myHoodora AI links go and the app store versions" })
   @Can("settings.manage")
   async updateSettings(@CurrentViewer() v: Viewer, @Body() body: SettingsDto) {
     for (const [k, hours] of Object.entries(body.alertWindows ?? {})) {
@@ -411,11 +411,16 @@ export class AdminController {
         throw new BadRequestException("Alert windows must be between 1 hour and 30 days.");
       }
     }
+    for (const p of APP_PLATFORMS) {
+      const r = body.appUpdates?.[p];
+      if (r && compareVersions(r.minimum, r.latest) > 0) throw new BadRequestException("The minimum app version can't be newer than the latest.");
+    }
     const next = await this.settings.update({
       alertWindows: body.alertWindows,
       reportReasons: body.reportReasons?.map(({ id, severity, staffOnly }) => ({ id, severity, staffOnly })),
       analyticsReaskDays: body.analyticsReaskDays,
       hoodoraAi: body.hoodoraAi,
+      appUpdates: body.appUpdates,
     });
     await this.audit.record(v, "settings_update", { type: "settings", id: "platform", label: "Platform settings" });
     return { ...next, coverageCities: await this.hoods.coverageCities() };

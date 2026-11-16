@@ -13,6 +13,7 @@ import { MOCK_NEIGHBORHOOD, MOCK_NEIGHBOURS, seedComments, seedGroups, seedListi
 import { isRemoved } from "../mock/moderation-state";
 import type { ApiPost, Comment, Listing, PostCategory, ReportInput, ReportReason } from "../types";
 import { COVERAGE } from "@/lib/coverage";
+import { DEFAULT_APP_UPDATES } from "@/lib/app-updates";
 import { DEFAULT_HOODORA_AI } from "@/lib/hoodora-ai";
 import type {
   AdminHood,
@@ -559,14 +560,14 @@ export const broadcasts = () =>
   ]);
 export const saveBroadcasts = (list: Broadcast[]) => save("admin-broadcasts", list);
 
-/** Settings saved before the AI link setting existed get its default. */
+/** Settings saved before the AI link and app update settings existed get their defaults. */
 export const platformSettings = (): PlatformSettings => {
   const stored = storedPlatformSettings();
-  return { ...stored, hoodoraAi: stored.hoodoraAi ?? { ...DEFAULT_HOODORA_AI } };
+  return { ...stored, hoodoraAi: stored.hoodoraAi ?? { ...DEFAULT_HOODORA_AI }, appUpdates: stored.appUpdates ?? structuredClone(DEFAULT_APP_UPDATES) };
 };
 
 const storedPlatformSettings = () =>
-  load<Omit<PlatformSettings, "hoodoraAi"> & Partial<Pick<PlatformSettings, "hoodoraAi">>>("admin-settings", () => ({
+  load<Omit<PlatformSettings, "hoodoraAi" | "appUpdates"> & Partial<Pick<PlatformSettings, "hoodoraAi" | "appUpdates">>>("admin-settings", () => ({
     reportReasons: [
       { id: "harassment", label: "Harassment or hate", severity: "high", staffOnly: true },
       { id: "scam", label: "Scam or fraud", severity: "high", staffOnly: true },

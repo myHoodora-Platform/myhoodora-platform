@@ -2,7 +2,7 @@ import type { User } from "@firebase/auth";
 import type { AppConfig } from "@myhoodora/api-contract/app-config";
 import type { CloseMode, DeactivationReason, Preferences } from "@myhoodora/api-contract/settings";
 import type { HoodRequestView, MyHoods, PublicProfile, UserProfile } from "@myhoodora/api-contract/types";
-import { apiFetch } from "@/core/api/client";
+import { apiFetch, apiFetchPublic } from "@/core/api/client";
 
 export const accountKeys = {
   preferences: ["me", "preferences"] as const,
@@ -11,9 +11,12 @@ export const accountKeys = {
   appConfig: ["app-config"] as const,
 };
 
-/** Rules admins set for the apps (Admin → Settings → Platform), such as when to ask about analytics again. */
-export function getAppConfig(user: User): Promise<AppConfig> {
-  return apiFetch<AppConfig>(user, "/app-config");
+/**
+ * Rules admins set for the apps (Admin → Settings → Platform), such as when to ask about analytics
+ * again and which store versions are current. Public: the update check runs before sign-in too.
+ */
+export function getAppConfig(): Promise<AppConfig> {
+  return apiFetchPublic<AppConfig>("/app-config");
 }
 
 /** `PATCH /users/me`: only these three; anything else is refused (contract §14). `photoURL: null` removes the photo. */
