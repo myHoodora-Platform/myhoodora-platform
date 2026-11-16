@@ -9,6 +9,7 @@ import { TextField } from "@/shared/ui/text-field";
 import { signIn } from "./auth-api";
 import { AUTH_PHOTOS, AuthShell } from "./auth-shell";
 import { FooterLink } from "./footer-link";
+import { AppleButton } from "./apple-button";
 import { GoogleButton, OrDivider } from "./google-button";
 import { fieldErrors, signInFailure } from "./form-errors";
 
@@ -83,6 +84,7 @@ export function LoginScreen() {
       {failure ? <InlineAlert>{failure}</InlineAlert> : null}
       <Button label="Log in" onPress={submit} loading={busy} />
       <OrDivider label={"Or continue with"} />
+      <AppleButton onError={setFailure} />
       <GoogleButton onError={setFailure} />
       <FooterLink question="New to myHoodora?" action="Join now" href="/register" replace />
     </AuthShell>

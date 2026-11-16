@@ -10,6 +10,7 @@ import { TextField } from "@/shared/ui/text-field";
 import { signUp } from "./auth-api";
 import { AUTH_PHOTOS, AuthShell } from "./auth-shell";
 import { FooterLink } from "./footer-link";
+import { AppleButton } from "./apple-button";
 import { GoogleButton, OrDivider } from "./google-button";
 import { fieldErrors, signInFailure } from "./form-errors";
 import { ageCheckLocked, lockAgeCheck, rememberAgeAnswer } from "@/core/age/age-lock";
@@ -175,6 +176,7 @@ export function RegisterScreen() {
       {failure ? <InlineAlert>{failure}</InlineAlert> : null}
       <Button label="Create account" onPress={submit} loading={busy} />
       <OrDivider label={"Or sign up with"} />
+      <AppleButton onError={setFailure} signUp />
       <GoogleButton onError={setFailure} />
       <FooterLink question="Already a member?" action="Log in" href="/login" replace />
     </AuthShell>
