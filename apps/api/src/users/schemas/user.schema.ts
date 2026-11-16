@@ -153,6 +153,9 @@ export class User {
 
 export const UserSchema = SchemaFactory.createForClass(User);
 UserSchema.index({ createdAt: -1 });
+// One account per email address. Addresses are stored lowercased; accounts without one, and deleted
+// accounts, get a placeholder that contains their uid, so they never clash (users.service getOrCreateMe).
+UserSchema.index({ email: 1 }, { unique: true });
 // "Who has blocked this person?" (UsersService.hiddenAuthorsFor) runs on nearly every read.
 UserSchema.index({ blockedUids: 1 });
 // Alert fan-out also reaches people who read the Hood as a secondary one.
