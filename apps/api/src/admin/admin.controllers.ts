@@ -10,6 +10,7 @@ import { ModerationRegistry } from "../moderation/moderation-registry";
 import { ModerationService } from "../moderation/moderation.service";
 import { ALERT_CATEGORIES, APP_PLATFORMS, compareVersions } from "../platform/platform-settings.schema";
 import { PlatformSettingsService } from "../platform/platform-settings.service";
+import { AppVersionWatcherService } from "../platform/app-version-watcher.service";
 import { PostsService } from "../posts/posts.service";
 import { CurrentViewer, type Viewer } from "../shared/auth/viewer";
 import { withTransaction } from "../shared/db/transaction";
@@ -63,6 +64,7 @@ export class AdminController {
     private readonly posts: PostsService,
     private readonly registry: ModerationRegistry,
     private readonly settings: PlatformSettingsService,
+    private readonly storeWatcher: AppVersionWatcherService,
     private readonly broadcasts: BroadcastsService,
     private readonly leads: HoodLeadsService,
     private readonly contentActions: ContentActionsService,
@@ -421,9 +423,19 @@ export class AdminController {
       analyticsReaskDays: body.analyticsReaskDays,
       hoodoraAi: body.hoodoraAi,
       appUpdates: body.appUpdates,
+      appUpdatesAuto: body.appUpdatesAuto,
     });
     await this.audit.record(v, "settings_update", { type: "settings", id: "platform", label: "Platform settings" });
     return { ...next, coverageCities: await this.hoods.coverageCities() };
+  }
+
+  @Post("settings/app-updates/check")
+  @ApiOperation({ summary: "Check the App Store and Google Play now and move the app versions as the automatic check would" })
+  @Can("settings.manage")
+  async checkStores() {
+    await this.storeWatcher.check();
+    const [settings, coverageCities] = await Promise.all([this.settings.get(), this.hoods.coverageCities()]);
+    return { ...settings, coverageCities };
   }
 }
 
