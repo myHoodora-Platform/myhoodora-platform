@@ -1,4 +1,6 @@
-import { createUserWithEmailAndPassword, GoogleAuthProvider, sendPasswordResetEmail, signInWithCredential, signInWithEmailAndPassword } from "@firebase/auth";
+import { createUserWithEmailAndPassword, GoogleAuthProvider, OAuthProvider, sendPasswordResetEmail, signInWithCredential, signInWithEmailAndPassword, updateProfile } from "@firebase/auth";
+import * as AppleAuthentication from "expo-apple-authentication";
+import * as Crypto from "expo-crypto";
 import { GoogleSignin, isErrorWithCode, isSuccessResponse, statusCodes } from "@react-native-google-signin/google-signin";
 import { Platform } from "react-native";
 import { config } from "@/core/config/env";
@@ -54,4 +56,32 @@ export async function signInWithGoogle(): Promise<boolean> {
     if (isErrorWithCode(err) && (err.code === statusCodes.SIGN_IN_CANCELLED || err.code === statusCodes.IN_PROGRESS)) return false;
     throw err;
   }
+}
+
+/**
+ * "Sign in with Apple" (iPhone only; App Store guideline 4.8 asks for it next to Google). Apple's own
+ * sheet signs the person in, optionally hiding their email behind an @privaterelay.appleid.com address.
+ * A one-time nonce goes to Apple hashed and to Firebase raw, so a token can't be replayed. Apple sends
+ * the name only the first time someone signs in to the app, so it's saved to Firebase straight away.
+ * Returns false when the person closes Apple's sheet.
+ */
+export async function signInWithApple(): Promise<boolean> {
+  const rawNonce = Crypto.randomUUID();
+  const hashedNonce = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, rawNonce);
+  let apple: AppleAuthentication.AppleAuthenticationCredential;
+  try {
+    apple = await AppleAuthentication.signInAsync({
+      requestedScopes: [AppleAuthentication.AppleAuthenticationScope.FULL_NAME, AppleAuthentication.AppleAuthenticationScope.EMAIL],
+      nonce: hashedNonce,
+    });
+  } catch (err) {
+    if ((err as { code?: string }).code === "ERR_REQUEST_CANCELED") return false;
+    throw err;
+  }
+  if (!apple.identityToken) throw new Error("Apple didn't return a sign-in token.");
+  const credential = new OAuthProvider("apple.com").credential({ idToken: apple.identityToken, rawNonce });
+  const { user } = await signInWithCredential(firebaseAuth(), credential);
+  const name = apple.fullName ? AppleAuthentication.formatFullName(apple.fullName).trim() : "";
+  if (name && !user.displayName) await updateProfile(user, { displayName: name }).catch(() => undefined);
+  return true;
 }

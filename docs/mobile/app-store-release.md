@@ -8,7 +8,7 @@ Work top to bottom and tick each box as you go, with the date. **(you)** means a
 
 | Area | State |
 | --- | --- |
-| Apple Developer Program | 🟡 Paid (16 Nov). Confirm it is enrolled as the **organisation** MYHOODORA LIMITED (D-U-N-S 321520963), not as a person: the seller name on the App Store comes from this |
+| Apple Developer Program | ✅ Enrolled as an **Organization**, MYHOODORA LIMITED, Team ID `P8TFVK9UYF` (checked 16 Nov) |
 | App identity | ✅ Bundle ID `com.myhoodora.app`, version `1.0.0`, iPhone only (`supportsTablet: false`), so no iPad screenshots |
 | Build requirements | ✅ Xcode 26 / iOS 26 SDK (required since 28 Apr 2026): EAS picks an Xcode 26 image for SDK 57. ✅ iOS 13+ target (required since 9 Sep 2026): the project targets 16.4. Check the [requirements page](https://developer.apple.com/news/upcoming-requirements/) again on upload day for an iOS 27 SDK date |
 | Export compliance | ✅ `ITSAppUsesNonExemptEncryption: false` in `app.config.ts`, so App Store Connect asks no encryption questions |
@@ -21,9 +21,11 @@ Work top to bottom and tick each box as you go, with the date. **(you)** means a
 
 ## 1. Code that must land first (code)
 
-- [ ] **Sign in with Apple in the app** (guideline 4.8). The app offers Google sign-in, so it must also offer a login that shares only name and email and can hide the email: Sign in with Apple. This means `expo-apple-authentication`, a Firebase `OAuthProvider("apple.com")` credential, and the button on the sign-in and sign-up screens (iOS only). It's a native module, so it ships in the iOS build, not as an over-the-air update.
+- [x] **Sign in with Apple in the app** (guideline 4.8), 16 Nov 2026: `expo-apple-authentication` + `expo-crypto`, `ios.usesAppleSignIn` (entitlement `com.apple.developer.applesignin`), Apple's own button above Google's on the login ("Continue with Apple") and sign-up ("Sign up with Apple") screens, iPhone only. A hashed nonce goes to Apple and the raw one to Firebase (`OAuthProvider("apple.com")`); the name Apple sends on the first sign-in is saved to Firebase. After that it's the same path as Google: age check, terms, onboarding. It's native, so it ships in the iOS build, not over the air.
+- [ ] **Revoke Apple tokens when an account is deleted** (Apple's account-deletion rules for apps with Sign in with Apple). Needs a "Sign in with Apple" key (.p8) from Certificates, Identifiers & Profiles → Keys, then the API exchanges the authorisation code at sign-in and calls Apple's revoke endpoint on deletion. Planned next; reviewers rarely test it, but it's required.
+- [ ] **Sign in with Apple on the website** (`APPLE_SIGN_IN_ENABLED` is off): someone who joins with Apple on an iPhone can't sign in on the web until it's on. Needs a Services ID, the domain and return URL, and the same .p8 key in Firebase.
 - [ ] **Text filter for posts, comments, listings and messages** (guideline 1.2: "a method for filtering objectionable material from being posted"). Planned approach: a server-side word list (English, Pidgin, Yoruba, Igbo, Hausa slurs and threats) that blocks or holds a post before it's published, editable by admins. The kindness reminder alone is a nudge, not a filter.
-- [ ] **`submit.production.ios.ascAppId`** in `eas.json`, once step 4 gives the number.
+- [x] **`submit.production.ios`** in `eas.json` (16 Nov): `ascAppId` `6835366892`, `appleTeamId` `P8TFVK9UYF`.
 - [ ] **First production iOS build checked** (React Native Firebase needs `useFrameworks: "dynamic"`). Fix whatever it raises.
 - [ ] **App privacy manifest.** Expo writes `PrivacyInfo.xcprivacy`. Check that the uploaded build raises no "missing API declaration" email from Apple (required-reason APIs, since May 2024).
 - [ ] **iPhone screenshots** at 6.9" (1320 × 2868 or 1290 × 2796) from the iOS Simulator with the same demo content as the Play shots (`docs/mobile/store-listing.md`).
@@ -33,13 +35,16 @@ Work top to bottom and tick each box as you go, with the date. **(you)** means a
 
 At [developer.apple.com/account](https://developer.apple.com/account):
 
-- [ ] **Membership details** show Entity type: Organisation, MYHOODORA LIMITED. If it says Individual, contact Apple to convert before creating the app; the seller name can't be changed per app.
+- [x] **Membership details** (16 Nov): Enrolled as Organization, MYHOODORA LIMITED, Team ID P8TFVK9UYF.
 - [ ] **Agreements**: in App Store Connect → Business, accept the latest **Apple Developer Program License Agreement**. A free app needs nothing else. The Paid Apps Agreement, tax and banking forms are only needed for paid apps or in-app purchases.
 - [ ] **People**: you (Account Holder) can do everything. Anyone else who submits needs the Admin or App Manager role (App Store Connect → Users and Access).
 - [ ] **EU Digital Services Act**: only needed if the app is sold in the EU. With availability set to Nigeria (step 9), declare it when App Store Connect asks, but no trader verification is needed until you add EU countries.
 
 ## 3. Firebase and EAS (you)
 
+- [x] **Apple's private email relay** (16 Nov 2026): Certificates, Identifiers & Profiles → Services → Sign in with Apple for Email Communication. Registered domains `myhoodora.com` and `send.myhoodora.com` (Resend), and senders `hello@myhoodora.com` (the API's MAIL_FROM) and `noreply@myhoodora.com` (Firebase password reset). All four pass Apple's SPF check, so mail reaches "Hide My Email" addresses. Add any new sender here first.
+- [ ] **One SPF record for myhoodora.com** (DNS at QServers): it has two (`+a +mx +ip4:181.215.243.156` and `include:_spf.firebasemail.com`), which the SPF rules treat as an error; Gmail can file mail as spam. Replace both with `v=spf1 +a +mx +ip4:181.215.243.156 include:_spf.firebasemail.com ~all`.
+- [ ] **Firebase password-reset email**: sender name `myHoodora`, reply-to `hello@myhoodora.com` (done 16 Nov). Custom action URL `https://www.myhoodora.com/reset-password` failed to save: add `www.myhoodora.com` to Authentication → Settings → Authorised domains and retry. It applies to every Firebase template, but only password reset is sent today (the API confirms emails itself and changes addresses on the server).
 - [ ] **Firebase Console → Authentication → Sign-in method → Apple → Enable.** For sign-in from the iPhone app only, no Services ID or key is needed. Those are only for Apple sign-in on the website or Android, which stay off.
 - [ ] **Firebase iOS app**: the iOS app `com.myhoodora.app` exists (there's a `GoogleService-Info.plist`). If it was downloaded before Apple was turned on, download it again.
 - [ ] **EAS environment variables** ([expo.dev](https://expo.dev) → myhoodora-mvp/myhoodora → Environment variables), for **production** and **preview**:
@@ -51,14 +56,15 @@ At [developer.apple.com/account](https://developer.apple.com/account):
 
 You must create the app record before any build can be uploaded.
 
-- [ ] [App Store Connect](https://appstoreconnect.apple.com) → **Apps → + → New App**:
+- [x] **App ID registered** (16 Nov) in Certificates, Identifiers & Profiles: Explicit `com.myhoodora.app`, Push Notifications and Sign In with Apple (primary App ID; no server-to-server endpoint yet). No APNs SSL certificates: EAS uses an APNs key.
+- [x] [App Store Connect](https://appstoreconnect.apple.com) → **Apps → + → New App** (16 Nov), with Company Name `MYHOODORA LIMITED` (the permanent developer name):
   - Platforms: **iOS**
   - Name: **myHoodora** (30 characters at most, must be unique on the App Store; if it's taken, try "myHoodora: Neighbours")
   - Primary language: **English (U.K.)**
   - Bundle ID: **com.myhoodora.app**. If it isn't listed, run step 5 first (EAS registers it) and come back.
   - SKU: **myhoodora-ios** (private, never shown)
   - User access: Full access
-- [ ] Open the app → **App Information** → copy the **Apple ID** (a number like `6741234567`). Send it to Claude for `eas.json` (`ascAppId`) and Admin → App updates (`https://apps.apple.com/app/id<number>`).
+- [x] **Apple ID `6835366892`** (App Information). The store page will be `https://apps.apple.com/app/id6835366892`; the API fills it in once the app is live.
 
 ## 5. Signing credentials (you, about 10 minutes, needs your iPhone for the 2FA code)
 
@@ -68,10 +74,10 @@ In a terminal, from `apps/mobile`:
 npx eas-cli@latest credentials -p ios
 ```
 
-- [ ] Choose the **production** profile, then sign in with the Apple ID that owns the developer account and enter the 2FA code.
-- [ ] Let EAS **create the distribution certificate and provisioning profile** (it also registers the bundle ID and turns on Push Notifications and Sign in with Apple from the app's entitlements).
-- [ ] **Push Notifications key**: let EAS create and store an APNs key. Without it, iPhones get no notifications. Apple allows only two such keys per account, so don't make extras.
-- [ ] **App Store Connect API key**: let EAS create one for EAS Submit, so uploads need no password afterwards.
+- [x] Done 16 Nov 2026 with Peace's own Apple ID, invited to the MYHOODORA LIMITED team as an Admin (the Account Holder doesn't have to run it). Choose the **production** profile and the team **MYHOODORA LIMITED (P8TFVK9UYF)**.
+- [x] **Distribution certificate** `2ABA6877…` and **provisioning profile** `DZ9RH5A958`, both valid until 16 Nov 2027 (EAS offers to renew them).
+- [x] **Push Notifications key** `J8M787Q5WV`. Apple allows only two such keys per account, so don't make extras.
+- [x] **App Store Connect API key** `UKJ6UYKS2R` ("[Expo] EAS Submit", role APP_MANAGER), so uploads need no password.
 
 ## 6. Build and upload to TestFlight (Claude can run this once 1, 3, 4 and 5 are done)
 
