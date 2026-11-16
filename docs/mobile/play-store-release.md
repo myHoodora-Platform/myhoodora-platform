@@ -175,7 +175,7 @@ eas build --platform android --profile production --auto-submit
   - Use a **staged rollout** (for example 20% → 50% → 100%), watching Sentry and the Android vitals at each step. Halt the rollout if crashes rise.
   - Review takes up to 7 days, often longer for a new account.
 
-Later releases: build with the same command (the versionCode rises by itself), raise `version` in `app.config.ts` when the release is user-visible, and add `--auto-submit`. With `expo-updates` installed, JavaScript-only fixes can go out as an update instead (`eas update --channel production`).
+Later releases: build with the same command (the versionCode rises by itself), raise `version` in `app.config.ts` when the release is user-visible, and add `--auto-submit`. With `expo-updates` installed, JavaScript-only fixes can go out as an update instead (`eas update --channel production --environment production`): phones download it at launch (or when the app comes back after 30 minutes) and show "Restart to update". An update reaches only builds with the same `version` (runtime policy `appVersion`), so a release that changes native code needs a new `version`, a store build, and then Admin → Settings → Platform → App updates: raise **Latest** once it's live in the store (people get a skippable sheet), and **Minimum** only when older builds no longer work (they get a blocking screen).
 
 ## 6. After launch
 

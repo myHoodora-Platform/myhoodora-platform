@@ -14,6 +14,7 @@ import { getPlatformSettings, listSignups, updatePlatformSettings } from "@/lib/
 import type { PlatformSettings, ReportSeverity, SignupEntry } from "@/lib/api/admin/types";
 import { ALERT_ACTIVE_HOURS, URGENT_WINDOW_HOURS } from "@/features/alerts/lifecycle";
 import { DEFAULT_HOODORA_AI, safeStudioUrl } from "@/lib/hoodora-ai";
+import { appVersionRuleProblem, DEFAULT_APP_UPDATES, type AppUpdatesDraft, type AppVersionRuleDraft } from "@/lib/app-updates";
 import { useAdminSession } from "../session";
 import { useAdminQuery } from "../use-admin-query";
 
@@ -34,10 +35,13 @@ export function PlatformPage() {
 
   const dirty = JSON.stringify(draft) !== JSON.stringify(settings.data);
   const studioUrlProblem = draft?.hoodoraAi && !safeStudioUrl(draft.hoodoraAi.studioUrl) ? "The AI Studio address must start with https://" : null;
+  const appUpdates = draft?.appUpdates ?? DEFAULT_APP_UPDATES;
+  const appUpdatesProblem = draft ? (["android", "ios"] as const).map((p) => appVersionRuleProblem(appUpdates[p]) && `${PLATFORM_NAMES[p]}: ${appVersionRuleProblem(appUpdates[p])}`).find(Boolean) : null;
   const save = async () => {
     if (!user || !draft) return;
-    if (studioUrlProblem) {
-      toast.error(studioUrlProblem);
+    const problem = studioUrlProblem ?? appUpdatesProblem;
+    if (problem) {
+      toast.error(problem);
       return;
     }
     setSaving(true);
@@ -56,7 +60,7 @@ export function PlatformPage() {
       <AdminPageHeader
         crumbs={[{ label: "Settings" }, { label: "Platform" }]}
         title="Platform settings"
-        description="How reports are routed, how long alerts stay live, where myHoodora AI links go, and where we're open."
+        description="How reports are routed, how long alerts stay live, where myHoodora AI links go, when the app asks people to update, and where we're open."
         actions={
           dirty && (
             <Button size="sm" onClick={() => void save()} loading={saving}>
@@ -147,6 +151,8 @@ export function PlatformPage() {
             </div>
 
             <HoodoraAiPanel value={draft.hoodoraAi ?? DEFAULT_HOODORA_AI} onChange={(hoodoraAi) => setDraft({ ...draft, hoodoraAi })} />
+
+            <AppUpdatesPanel value={appUpdates} onChange={(next) => setDraft({ ...draft, appUpdates: next })} />
 
             <Panel title="App analytics question">
               <p className="mb-3 text-sm text-muted-foreground">
@@ -251,6 +257,62 @@ function HoodoraAiPanel({ value, onChange }: { value: HoodoraAiLink; onChange: (
       <p className={`mt-2 text-xs ${invalid ? "text-destructive" : "text-muted-foreground"}`}>
         {invalid ? "Must start with https://" : "Kept when you switch to the page, so switching back is one click. Changes reach everyone within about a minute."}
       </p>
+    </Panel>
+  );
+}
+
+const PLATFORM_NAMES = { android: "Android", ios: "iPhone" } as const;
+const STORE_NAMES = { android: "Google Play", ios: "the App Store" } as const;
+
+/**
+ * Which store versions the app compares itself with. Below the latest: a "New version available" sheet
+ * people can skip. Below the minimum: an "Update required" screen they can't get past.
+ */
+function AppUpdatesPanel({ value, onChange }: { value: AppUpdatesDraft; onChange: (next: AppUpdatesDraft) => void }) {
+  const set = (p: keyof AppUpdatesDraft, patch: Partial<AppVersionRuleDraft>) => onChange({ ...value, [p]: { ...value[p], ...patch } });
+  return (
+    <Panel title="App updates">
+      <p className="mb-4 text-sm text-muted-foreground">
+        Raise <span className="font-medium text-foreground">Latest</span> once a new version is live in the store: older apps offer the update, and people can skip it. Raise{" "}
+        <span className="font-medium text-foreground">Minimum</span> only when older apps no longer work (for example after an API change): they then show a screen that only opens the store.
+      </p>
+      <div className="grid gap-4 lg:grid-cols-2">
+        {(["android", "ios"] as const).map((p) => {
+          const rule = value[p];
+          const problem = appVersionRuleProblem(rule);
+          const field = "mt-1 h-9 w-full rounded-lg border bg-card px-2";
+          return (
+            <fieldset key={p} className="rounded-xl border border-border p-4">
+              <legend className="px-1 text-sm font-semibold">{PLATFORM_NAMES[p]}</legend>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <label>
+                  <span className="font-medium">Latest</span>
+                  <input value={rule.latest} placeholder="1.0.0" inputMode="decimal" onChange={(e) => set(p, { latest: e.target.value.trim() })} className={`${field} border-border`} />
+                </label>
+                <label>
+                  <span className="font-medium">Minimum</span>
+                  <input value={rule.minimum} placeholder="1.0.0" inputMode="decimal" onChange={(e) => set(p, { minimum: e.target.value.trim() })} className={`${field} border-border`} />
+                </label>
+              </div>
+              <label className="mt-3 block text-sm">
+                <span className="font-medium">Store page</span>
+                <input
+                  type="url"
+                  inputMode="url"
+                  value={rule.storeUrl}
+                  placeholder={p === "ios" ? "https://apps.apple.com/app/id…" : "https://play.google.com/store/apps/details?id=…"}
+                  onChange={(e) => set(p, { storeUrl: e.target.value.trim() })}
+                  aria-invalid={Boolean(problem)}
+                  className={`${field} ${problem ? "border-destructive" : "border-border"}`}
+                />
+              </label>
+              <p className={`mt-2 text-xs ${problem ? "text-destructive" : "text-muted-foreground"}`}>
+                {problem ?? (rule.storeUrl ? `Opens ${STORE_NAMES[p]}. Changes reach phones the next time the app opens.` : `Empty until the app is in ${STORE_NAMES[p]}: nobody on ${PLATFORM_NAMES[p]} is asked to update.`)}
+              </p>
+            </fieldset>
+          );
+        })}
+      </div>
     </Panel>
   );
 }

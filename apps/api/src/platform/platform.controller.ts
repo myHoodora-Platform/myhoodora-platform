@@ -7,6 +7,7 @@ import { PlatformSettingsService } from "./platform-settings.service";
 interface AppConfig {
   analytics: { reaskDays: number };
   links: { hoodoraAiStudio: string | null };
+  updates: Record<"android" | "ios", { latest: string; minimum: string; storeUrl: string | null }>;
 }
 
 /**
@@ -23,13 +24,15 @@ export class PlatformController {
   @ApiOperation({
     summary: "App settings set by admins",
     description:
-      "How many days before the app asks again someone who said no to usage analytics (0: never), and the AI Studio address when myHoodora AI links should go there (null: our own /ai page).",
+      "How many days before the app asks again someone who said no to usage analytics (0: never), and the AI Studio address when myHoodora AI links should go there (null: our own /ai page), and the latest and minimum app store versions per platform (storeUrl null: not in that store yet).",
   })
   async get(): Promise<AppConfig> {
-    const { analyticsReaskDays, hoodoraAi } = await this.settings.get();
+    const { analyticsReaskDays, hoodoraAi, appUpdates } = await this.settings.get();
+    const rule = (r: (typeof appUpdates)["android"]) => ({ latest: r.latest, minimum: r.minimum, storeUrl: r.storeUrl || null });
     return {
       analytics: { reaskDays: analyticsReaskDays },
       links: { hoodoraAiStudio: hoodoraAi.target === "studio" ? hoodoraAi.studioUrl : null },
+      updates: { android: rule(appUpdates.android), ios: rule(appUpdates.ios) },
     };
   }
 }

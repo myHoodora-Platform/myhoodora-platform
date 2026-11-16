@@ -14,6 +14,7 @@ import { configResult } from "@/core/config/env";
 import { initMonitoring, monitoringActive } from "@/core/monitoring/monitoring";
 import { AppearanceProvider } from "@/core/preferences/appearance";
 import { usePushNotifications } from "@/core/push/use-push-notifications";
+import { AppUpdatePrompts } from "@/features/updates/app-update-prompts";
 import { useTheme } from "@/shared/theme/theme";
 import { CrashScreen } from "@/shared/ui/crash-screen";
 import { Text } from "@/shared/ui/text";
@@ -138,6 +139,8 @@ function App() {
           <AppearanceProvider>
             <ToastProvider>
               <RootNavigator />
+              {/* "Update required", "New version available" and "Restart to update", above every screen. */}
+              <AppUpdatePrompts />
               {/* Confirmations in the app's own look (shared/ui/dialog), above every screen. */}
               <DialogHost />
             </ToastProvider>

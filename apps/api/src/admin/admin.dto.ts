@@ -16,10 +16,12 @@ import {
   Length,
   Max,
   MaxLength,
+  Matches,
   Min,
+  ValidateIf,
   ValidateNested,
 } from "class-validator";
-import { ALERT_CATEGORIES, HOODORA_AI_TARGETS, MAX_ANALYTICS_REASK_DAYS, REPORT_REASONS } from "../platform/platform-settings.schema";
+import { ALERT_CATEGORIES, APP_VERSION_PATTERN, HOODORA_AI_TARGETS, MAX_ANALYTICS_REASK_DAYS, REPORT_REASONS } from "../platform/platform-settings.schema";
 import { POST_CATEGORIES } from "../posts/domain/post-meta";
 import { ACCOUNT_STATUSES, ROLES, VERIFICATION_STATUSES } from "../shared/authz/roles";
 import { PageQuery } from "../shared/http/pagination";
@@ -138,6 +140,18 @@ class HoodoraAiLinkDto {
   @IsUrl({ protocols: ["https"], require_protocol: true }) @MaxLength(300) studioUrl!: string;
 }
 
+class AppVersionRuleDto {
+  @Matches(APP_VERSION_PATTERN, { message: "Versions look like 1.2.0." }) latest!: string;
+  @Matches(APP_VERSION_PATTERN, { message: "Versions look like 1.2.0." }) minimum!: string;
+  /** Empty while the app isn't in that store. */
+  @IsString() @MaxLength(300) @ValidateIf((o: AppVersionRuleDto) => o.storeUrl !== "") @IsUrl({ protocols: ["https"], require_protocol: true }) storeUrl!: string;
+}
+
+class AppUpdatesDto {
+  @ValidateNested() @Type(() => AppVersionRuleDto) android!: AppVersionRuleDto;
+  @ValidateNested() @Type(() => AppVersionRuleDto) ios!: AppVersionRuleDto;
+}
+
 export class SettingsDto {
   @IsOptional()
   @IsArray()
@@ -161,6 +175,12 @@ export class SettingsDto {
   @ValidateNested()
   @Type(() => HoodoraAiLinkDto)
   hoodoraAi?: HoodoraAiLinkDto;
+
+  /** Latest and minimum app store versions per platform, and each store page. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AppUpdatesDto)
+  appUpdates?: AppUpdatesDto;
 
   /** Read-only (derived from Hoods); accepted so the web can send the whole object back, then ignored. */
   @IsOptional()

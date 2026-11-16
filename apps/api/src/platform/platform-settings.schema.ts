@@ -50,6 +50,36 @@ export interface HoodoraAiLink {
 }
 export const DEFAULT_HOODORA_AI: HoodoraAiLink = { target: "studio", studioUrl: "https://studio.myhoodora.com/" };
 
+/**
+ * Store versions the app compares itself with (GET /app-config → updates): below `minimum` it blocks
+ * with "Update required", below `latest` it offers the update once in a while. `storeUrl` empty: the
+ * app isn't in that store yet, so nobody there is prompted.
+ */
+export const APP_PLATFORMS = ["android", "ios"] as const;
+export type AppPlatform = (typeof APP_PLATFORMS)[number];
+export interface AppVersionRule {
+  latest: string;
+  minimum: string;
+  storeUrl: string;
+}
+export type AppUpdates = Record<AppPlatform, AppVersionRule>;
+export const APP_VERSION_PATTERN = /^\d{1,4}\.\d{1,4}\.\d{1,4}$/;
+export const DEFAULT_APP_UPDATES: AppUpdates = {
+  android: { latest: "1.0.0", minimum: "1.0.0", storeUrl: "https://play.google.com/store/apps/details?id=com.myhoodora.app" },
+  ios: { latest: "1.0.0", minimum: "1.0.0", storeUrl: "" },
+};
+
+/** Same rule as packages/api-contract compareVersions (the API doesn't import the contract package). */
+export function compareVersions(a: string, b: string): number {
+  const pa = a.split(".").map((n) => Number.parseInt(n, 10) || 0);
+  const pb = b.split(".").map((n) => Number.parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (d !== 0) return d;
+  }
+  return 0;
+}
+
 export type PlatformSettingsDocument = HydratedDocument<PlatformSettings>;
 
 /** Singleton document (key = "platform"). */
@@ -69,6 +99,9 @@ export class PlatformSettings {
 
   @Prop({ type: Object, default: () => ({ ...DEFAULT_HOODORA_AI }) })
   hoodoraAi!: HoodoraAiLink;
+
+  @Prop({ type: Object, default: () => structuredClone(DEFAULT_APP_UPDATES) })
+  appUpdates!: AppUpdates;
 }
 
 export const PlatformSettingsSchema = SchemaFactory.createForClass(PlatformSettings);

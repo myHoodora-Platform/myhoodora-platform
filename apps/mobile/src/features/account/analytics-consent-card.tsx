@@ -26,7 +26,7 @@ export function AnalyticsConsentCard() {
   const user = useSignedInUser();
   const uid = user.uid;
   const { loaded, consent } = useAnalyticsConsent();
-  const config = useQuery({ queryKey: accountKeys.appConfig, queryFn: () => getAppConfig(user), staleTime: 60 * 60 * 1000 });
+  const config = useQuery({ queryKey: accountKeys.appConfig, queryFn: getAppConfig, staleTime: 60 * 60 * 1000 });
   const { running } = useTour();
   const [tourOwed, setTourOwed] = useState(true);
   useEffect(() => {

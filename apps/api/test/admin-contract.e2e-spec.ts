@@ -22,6 +22,8 @@ describe("admin API ↔ web contract (§13)", () => {
     await t.member("bola", hood);
     await t.user("pending", { verificationStatus: "pending_review", verificationAttempts: [{ at: new Date(), lat: 6.45, lng: 3.47, result: "outside_coverage" }] } as never);
     await t.member("boss", hood, { role: "owner" });
+    // A second admin, so the app-updates test has its own write allowance (writes are rate limited per person).
+    await t.member("rel", hood, { role: "admin" });
     postId = (await t.post("ada", { message: "Generator for sale, barely used" }))._id;
     await t.post("ada", { message: "Power out on Admiralty Way", category: "alert", alertCategory: "power" });
     await t.http.post("/api/reports").set(t.auth("bola")).send({ targetType: "post", targetId: postId, reason: "spam" }).expect(204);
@@ -92,6 +94,23 @@ describe("admin API ↔ web contract (§13)", () => {
     await t.http.patch("/api/admin/settings").set(t.auth("ada")).send({ hoodoraAi: { target: "studio", studioUrl: studio } }).expect(403);
     await t.http.patch("/api/admin/settings").set(t.auth("boss")).send({ hoodoraAi: { target: "studio", studioUrl: studio } }).expect(200);
     expect(await links()).toEqual({ hoodoraAiStudio: studio });
+  });
+
+  it("app updates: 1.0.0 with the Play page by default, set by admins, readable signed out", async () => {
+    const play = "https://play.google.com/store/apps/details?id=com.myhoodora.app";
+    const updates = async () => (await t.http.get("/api/app-config").expect(200)).body.updates;
+    expect(await updates()).toEqual({ android: { latest: "1.0.0", minimum: "1.0.0", storeUrl: play }, ios: { latest: "1.0.0", minimum: "1.0.0", storeUrl: null } });
+    const next = { android: { latest: "1.1.0", minimum: "1.0.0", storeUrl: play }, ios: { latest: "1.1.0", minimum: "1.1.0", storeUrl: "https://apps.apple.com/app/id123" } };
+    await t.http.patch("/api/admin/settings").set(t.auth("rel")).send({ appUpdates: next }).expect(200);
+    expect((await get("/settings")).appUpdates).toEqual(next);
+    expect(await updates()).toEqual(next);
+    const bad = (android: object) => t.http.patch("/api/admin/settings").set(t.auth("rel")).send({ appUpdates: { ...next, android: { ...next.android, ...android } } }).expect(400);
+    await bad({ latest: "1.1" });
+    await bad({ minimum: "1.2.0" }); // newer than latest
+    await bad({ storeUrl: "http://play.google.com/" });
+    await t.http.patch("/api/admin/settings").set(t.auth("ada")).send({ appUpdates: next }).expect(403);
+    await t.http.patch("/api/admin/settings").set(t.auth("rel")).send({ appUpdates: { ...next, ios: { ...next.ios, storeUrl: "" } } }).expect(200);
+    expect((await updates()).ios.storeUrl).toBeNull();
   });
 
   it("moderation", async () => {

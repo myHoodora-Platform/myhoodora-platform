@@ -10,6 +10,50 @@ export interface AppConfig {
     /** The AI Studio address while "myHoodora AI" links go there; null while they go to the website's /ai page. */
     hoodoraAiStudio: string | null;
   };
+  /**
+   * Which app store versions are current, per platform. Missing from an API older than this field:
+   * the app then never prompts.
+   */
+  updates?: Record<AppPlatform, AppVersionRule>;
+}
+
+export type AppPlatform = "android" | "ios";
+
+/** Admin-set store versions for one platform (Admin → Settings → Platform → App updates). */
+export interface AppVersionRule {
+  /** The newest version in the store. Older installs see a "New version available" sheet they can skip. */
+  latest: string;
+  /** The oldest version that still works. Older installs see a blocking "Update required" screen. */
+  minimum: string;
+  /** The app's store page; null until the app is in that store, and then nobody is prompted. */
+  storeUrl: string | null;
+}
+
+/** Store versions are plain "major.minor.patch" numbers, as in app.config.ts `version`. */
+export const APP_VERSION_PATTERN = /^\d{1,4}\.\d{1,4}\.\d{1,4}$/;
+
+/** Negative when a is older than b, 0 when equal, positive when newer. Missing parts count as 0. */
+export function compareVersions(a: string, b: string): number {
+  const pa = a.split(".").map((n) => Number.parseInt(n, 10) || 0);
+  const pb = b.split(".").map((n) => Number.parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (d !== 0) return d;
+  }
+  return 0;
+}
+
+export type StoreUpdateStatus = "required" | "available" | "none";
+
+/**
+ * What the app should say about the store: "required" below the minimum, "available" below the latest.
+ * Says nothing when it can't be sure: no installed version, no rule, no store page, or a malformed version.
+ */
+export function storeUpdateStatus(installed: string | null | undefined, rule: AppVersionRule | null | undefined): StoreUpdateStatus {
+  if (!installed || !rule?.storeUrl || !APP_VERSION_PATTERN.test(installed)) return "none";
+  if (APP_VERSION_PATTERN.test(rule.minimum) && compareVersions(installed, rule.minimum) < 0) return "required";
+  if (APP_VERSION_PATTERN.test(rule.latest) && compareVersions(installed, rule.latest) < 0) return "available";
+  return "none";
 }
 
 /**
