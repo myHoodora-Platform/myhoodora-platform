@@ -21,7 +21,9 @@ Work top to bottom and tick each box as you go, with the date. **(you)** means a
 
 ## 1. Code that must land first (code)
 
-- [ ] **Sign in with Apple in the app** (guideline 4.8). The app offers Google sign-in, so it must also offer a login that shares only name and email and can hide the email: Sign in with Apple. This means `expo-apple-authentication`, a Firebase `OAuthProvider("apple.com")` credential, and the button on the sign-in and sign-up screens (iOS only). It's a native module, so it ships in the iOS build, not as an over-the-air update.
+- [x] **Sign in with Apple in the app** (guideline 4.8), 16 Nov 2026: `expo-apple-authentication` + `expo-crypto`, `ios.usesAppleSignIn` (entitlement `com.apple.developer.applesignin`), Apple's own button above Google's on the login ("Continue with Apple") and sign-up ("Sign up with Apple") screens, iPhone only. A hashed nonce goes to Apple and the raw one to Firebase (`OAuthProvider("apple.com")`); the name Apple sends on the first sign-in is saved to Firebase. After that it's the same path as Google: age check, terms, onboarding. It's native, so it ships in the iOS build, not over the air.
+- [ ] **Revoke Apple tokens when an account is deleted** (Apple's account-deletion rules for apps with Sign in with Apple). Needs a "Sign in with Apple" key (.p8) from Certificates, Identifiers & Profiles → Keys, then the API exchanges the authorisation code at sign-in and calls Apple's revoke endpoint on deletion. Planned next; reviewers rarely test it, but it's required.
+- [ ] **Sign in with Apple on the website** (`APPLE_SIGN_IN_ENABLED` is off): someone who joins with Apple on an iPhone can't sign in on the web until it's on. Needs a Services ID, the domain and return URL, and the same .p8 key in Firebase.
 - [ ] **Text filter for posts, comments, listings and messages** (guideline 1.2: "a method for filtering objectionable material from being posted"). Planned approach: a server-side word list (English, Pidgin, Yoruba, Igbo, Hausa slurs and threats) that blocks or holds a post before it's published, editable by admins. The kindness reminder alone is a nudge, not a filter.
 - [x] **`submit.production.ios`** in `eas.json` (16 Nov): `ascAppId` `6835366892`, `appleTeamId` `P8TFVK9UYF`.
 - [ ] **First production iOS build checked** (React Native Firebase needs `useFrameworks: "dynamic"`). Fix whatever it raises.
@@ -40,6 +42,7 @@ At [developer.apple.com/account](https://developer.apple.com/account):
 
 ## 3. Firebase and EAS (you)
 
+- [ ] **Apple's private email relay**: people who choose "Hide My Email" get an @privaterelay.appleid.com address, and Apple only forwards mail from registered senders. In Certificates, Identifiers & Profiles → **Services → Sign in with Apple for Email Communication → Configure**, add the domain we send from (the Resend domain, e.g. `myhoodora.com`) and its sending addresses, and pass Apple's SPF check. Without it, confirmation and welcome emails to those people never arrive.
 - [ ] **Firebase Console → Authentication → Sign-in method → Apple → Enable.** For sign-in from the iPhone app only, no Services ID or key is needed. Those are only for Apple sign-in on the website or Android, which stay off.
 - [ ] **Firebase iOS app**: the iOS app `com.myhoodora.app` exists (there's a `GoogleService-Info.plist`). If it was downloaded before Apple was turned on, download it again.
 - [ ] **EAS environment variables** ([expo.dev](https://expo.dev) → myhoodora-mvp/myhoodora → Environment variables), for **production** and **preview**:

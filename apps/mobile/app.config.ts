@@ -79,6 +79,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     bundleIdentifier: "com.myhoodora.app",
     ...(iosGoogleServices && { googleServicesFile: iosGoogleServices }),
     supportsTablet: false,
+    // Sign in with Apple (App Store guideline 4.8: offered next to Google sign-in). Adds the entitlement.
+    usesAppleSignIn: true,
     infoPlist: {
       NSLocationWhenInUseUsageDescription: "myHoodora uses your location once, to find the neighbourhood you live in.",
       // Only standard HTTPS encryption, so App Store Connect asks no export-compliance questions.
@@ -119,6 +121,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   plugins: [
     "expo-router",
     "expo-secure-store",
+    "expo-apple-authentication",
     // The mascot lockup (the web's sign-in art) on the app's canvas, following the phone's light or dark
     // setting. The art is a sticker with a white edge, so its teal lettering still reads on the dark canvas.
     [
