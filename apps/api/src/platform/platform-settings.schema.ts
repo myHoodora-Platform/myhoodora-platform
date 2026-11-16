@@ -61,8 +61,18 @@ export interface AppVersionRule {
   latest: string;
   minimum: string;
   storeUrl: string;
+  /** When Latest last rose (by hand or from the store): Minimum follows it after the admin-set days. */
+  latestSince?: Date | null;
 }
 export type AppUpdates = Record<AppPlatform, AppVersionRule>;
+/** The last store check for one platform. `problem` explains a check that couldn't run or failed. */
+export interface AppStoreStatus {
+  version: string | null;
+  url: string | null;
+  checkedAt: Date | null;
+  problem: string | null;
+}
+
 export const APP_VERSION_PATTERN = /^\d{1,4}\.\d{1,4}\.\d{1,4}$/;
 export const DEFAULT_APP_UPDATES: AppUpdates = {
   android: { latest: "1.0.0", minimum: "1.0.0", storeUrl: "https://play.google.com/store/apps/details?id=com.myhoodora.app" },
@@ -102,6 +112,14 @@ export class PlatformSettings {
 
   @Prop({ type: Object, default: () => structuredClone(DEFAULT_APP_UPDATES) })
   appUpdates!: AppUpdates;
+
+  /** Whether Latest follows the stores and how many days before Minimum follows Latest (app-version-rules.ts). */
+  @Prop({ type: Object })
+  appUpdatesAuto?: { fromStores: boolean; requireAfterDays: number };
+
+  /** What each store showed at the last check, for the admin page. */
+  @Prop({ type: Object })
+  appStoreStatus?: Partial<Record<AppPlatform, AppStoreStatus>>;
 }
 
 export const PlatformSettingsSchema = SchemaFactory.createForClass(PlatformSettings);

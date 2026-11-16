@@ -35,6 +35,7 @@ export async function createTestApp(customise?: (builder: TestingModuleBuilder) 
   process.env.REALTIME_BUS = "memory";
   process.env.CLOUDINARY_URL = "";
   process.env.PUSH_PROVIDER = "log";
+  process.env.APP_UPDATES_WATCH = "false";
 
   const builder = Test.createTestingModule({ imports: [AppModule], controllers });
   const moduleRef = await (customise ? customise(builder) : builder).compile();
