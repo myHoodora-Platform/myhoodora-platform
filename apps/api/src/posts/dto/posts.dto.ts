@@ -25,12 +25,14 @@ import { ALERT_CATEGORIES } from "../../platform/platform-settings.schema";
 import { POST_CATEGORIES, POST_VISIBILITIES, type PostCategory, type PostVisibility } from "../domain/post-meta";
 import { REACTION_TYPES, type ReactionType } from "../schemas/post.schema";
 import { CursorQuery } from "../../shared/http/pagination";
+import { AllowedText } from "../../moderation/allowed-text.decorator";
 
 class PollOptionDto {
   @IsString()
   @Length(1, 20)
   id!: string;
 
+  @AllowedText()
   @IsString()
   @Length(1, 60)
   text!: string;
@@ -56,7 +58,7 @@ class PointDto {
    * The place in words, shown with the pin.
    * @example Allen Avenue roundabout
    */
-  @IsOptional() @IsString() @MaxLength(120) label?: string;
+  @IsOptional() @AllowedText() @IsString() @MaxLength(120) label?: string;
 }
 
 /**
@@ -76,10 +78,10 @@ export class CreatePostDto {
   @IsOptional() @IsString() @Matches(/^[A-Za-z0-9_-]{8,64}$/, { message: "clientId must be 8 to 64 letters, digits, hyphens or underscores" }) clientId?: string;
 
   /** Legacy: message with optional `<!--mh:{…}-->` prefix. */
-  @IsOptional() @IsString() @Length(1, 9000) content?: string;
+  @IsOptional() @AllowedText() @IsString() @Length(1, 9000) content?: string;
 
   /** @example Has anyone else lost power on Admiralty Way this evening? */
-  @IsOptional() @IsString() @Length(1, 8192) message?: string;
+  @IsOptional() @AllowedText() @IsString() @Length(1, 8192) message?: string;
 
   @IsOptional() @IsIn(["text", "image", "event", "alert"]) type?: "text" | "image" | "event" | "alert";
   @IsOptional() @IsIn(POST_CATEGORIES) category?: PostCategory;
@@ -90,8 +92,8 @@ export class CreatePostDto {
    * @example 2026-10-12T16:00:00.000Z
    */
   @IsOptional() @IsDateString() eventDate?: string;
-  @IsOptional() @IsString() @MaxLength(200) eventLocation?: string;
-  @IsOptional() @IsString() @MaxLength(80) thankedName?: string;
+  @IsOptional() @AllowedText() @IsString() @MaxLength(200) eventLocation?: string;
+  @IsOptional() @AllowedText() @IsString() @MaxLength(80) thankedName?: string;
   @IsOptional() @IsInt() @Min(0) @Max(1_000_000_000) priceNaira?: number | null;
   @IsOptional() @ValidateNested() @Type(() => PollDto) poll?: PollDto;
   @IsOptional() @IsIn(POST_VISIBILITIES) visibility?: PostVisibility;
@@ -131,6 +133,7 @@ export class ResolveAlertDto {
 
 /** PATCH /posts/:id: the author changes the text (nothing else). */
 export class EditPostDto {
+  @AllowedText()
   @IsString()
   @MaxLength(8192)
   message!: string;

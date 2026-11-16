@@ -2,13 +2,14 @@ import { ApiPropertyOptional } from "@nestjs/swagger";
 import { Transform, Type } from "class-transformer";
 import { ArrayMaxSize, IsArray, IsBoolean, IsIn, IsInt, IsMongoId, IsOptional, IsString, IsUrl, Length, MaxLength, Min, Max, ValidateIf } from "class-validator";
 import { LISTING_CATEGORIES, LISTING_CONDITIONS, LISTING_STATUSES, type ListingCategory, type ListingStatus } from "./listing.schema";
+import { AllowedText } from "../moderation/allowed-text.decorator";
 
 export class CreateListingDto {
   /** Must be your own Hood if sent. */
   @IsOptional() @IsMongoId() neighborhoodId?: string;
   /** @example "Office chair, barely used" */
-  @IsString() @Length(3, 80) title!: string;
-  @IsOptional() @IsString() @MaxLength(1500) description?: string;
+  @AllowedText() @IsString() @Length(3, 80) title!: string;
+  @IsOptional() @AllowedText() @IsString() @MaxLength(1500) description?: string;
   /** Naira, whole numbers; null = free.
    * @example 25000
    */

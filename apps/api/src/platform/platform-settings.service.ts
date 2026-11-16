@@ -1,4 +1,5 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
+import { MAX_BLOCKED_TERM_LENGTH, MAX_BLOCKED_TERMS, setAdminBlockedTerms } from "../moderation/content-filter";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import { DEFAULT_APP_UPDATES_AUTO, type AppUpdatesAuto } from "./app-version-rules";
@@ -13,6 +14,18 @@ export interface SettingsView {
   appUpdatesAuto: AppUpdatesAuto;
   /** Read-only: the last store check per platform. */
   appStoreStatus: Record<AppPlatform, AppStoreStatus>;
+  /** Admins' extra blocked words (the built-in ones aren't listed here). */
+  blockedTerms: string[];
+}
+
+/** Trimmed, lower case, single spaces, no duplicates, within the limits. */
+export function normaliseBlockedTerms(terms: readonly string[]): string[] {
+  const out = new Set<string>();
+  for (const t of terms) {
+    const term = t.trim().toLowerCase().replace(/\s+/g, " ");
+    if (term && term.length <= MAX_BLOCKED_TERM_LENGTH) out.add(term);
+  }
+  return [...out].slice(0, MAX_BLOCKED_TERMS);
 }
 
 const NO_CHECK: AppStoreStatus = { version: null, url: null, checkedAt: null, problem: null };
@@ -26,10 +39,24 @@ function withDefaults(stored: Partial<Record<keyof AppUpdates, Partial<AppUpdate
 
 /** Admin-tunable platform rules, cached briefly (they change rarely). */
 @Injectable()
-export class PlatformSettingsService {
+export class PlatformSettingsService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(PlatformSettingsService.name);
   private cache: { at: number; value: SettingsView } | null = null;
+  private refresh?: NodeJS.Timeout;
 
   constructor(@InjectModel(PlatformSettings.name) private readonly settings: Model<PlatformSettingsDocument>) {}
+
+  /** The content filter's admin words: loaded at start and refreshed every minute on every instance. */
+  onModuleInit() {
+    const load = () => void this.get().catch((err: Error) => this.logger.warn(`Couldn't load platform settings: ${err.message}`));
+    load();
+    this.refresh = setInterval(load, 60_000);
+    this.refresh.unref();
+  }
+
+  onModuleDestroy() {
+    clearInterval(this.refresh);
+  }
 
   async get(): Promise<SettingsView> {
     if (this.cache && Date.now() - this.cache.at < 30_000) return this.cache.value;
@@ -42,12 +69,14 @@ export class PlatformSettingsService {
       appUpdates: withDefaults(doc?.appUpdates),
       appUpdatesAuto: { ...DEFAULT_APP_UPDATES_AUTO, ...(doc?.appUpdatesAuto ?? {}) },
       appStoreStatus: { android: { ...NO_CHECK, ...(doc?.appStoreStatus?.android ?? {}) }, ios: { ...NO_CHECK, ...(doc?.appStoreStatus?.ios ?? {}) } },
+      blockedTerms: doc?.blockedTerms ?? [],
     };
+    setAdminBlockedTerms(value.blockedTerms);
     this.cache = { at: Date.now(), value };
     return value;
   }
 
-  async update(patch: { alertWindows?: Partial<Record<AlertCategory, number>>; reportReasons?: Pick<ReportReasonSetting, "id" | "severity" | "staffOnly">[]; analyticsReaskDays?: number; hoodoraAi?: HoodoraAiLink; appUpdates?: Record<AppPlatform, { latest: string; minimum: string; storeUrl: string }>; appUpdatesAuto?: AppUpdatesAuto }): Promise<SettingsView> {
+  async update(patch: { alertWindows?: Partial<Record<AlertCategory, number>>; reportReasons?: Pick<ReportReasonSetting, "id" | "severity" | "staffOnly">[]; analyticsReaskDays?: number; hoodoraAi?: HoodoraAiLink; appUpdates?: Record<AppPlatform, { latest: string; minimum: string; storeUrl: string }>; appUpdatesAuto?: AppUpdatesAuto; blockedTerms?: string[] }): Promise<SettingsView> {
     const current = await this.get();
     const alertWindows = { ...current.alertWindows };
     for (const k of ALERT_CATEGORIES) {
@@ -70,8 +99,9 @@ export class PlatformSettingsService {
           }),
         ) as AppUpdates)
       : current.appUpdates;
+    const blockedTerms = patch.blockedTerms ? normaliseBlockedTerms(patch.blockedTerms) : current.blockedTerms;
     const appUpdatesAuto = patch.appUpdatesAuto ? { fromStores: patch.appUpdatesAuto.fromStores, requireAfterDays: patch.appUpdatesAuto.requireAfterDays } : current.appUpdatesAuto;
-    await this.settings.updateOne({ key: "platform" }, { $set: { alertWindows, reportReasons, analyticsReaskDays, hoodoraAi, appUpdates, appUpdatesAuto } }, { upsert: true }).exec();
+    await this.settings.updateOne({ key: "platform" }, { $set: { alertWindows, reportReasons, analyticsReaskDays, hoodoraAi, appUpdates, appUpdatesAuto, blockedTerms } }, { upsert: true }).exec();
     this.cache = null;
     return this.get();
   }

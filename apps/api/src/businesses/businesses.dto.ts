@@ -1,11 +1,12 @@
 import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsEmail, IsIn, IsOptional, IsString, Length, Matches, MaxLength } from "class-validator";
 import { PageQuery } from "../shared/http/pagination";
 import { BUSINESS_CATEGORIES } from "./business.schema";
+import { AllowedText } from "../moderation/allowed-text.decorator";
 
 export class BusinessApplicationDto {
   @IsString() @Length(2, 80) businessName!: string;
   @IsIn(BUSINESS_CATEGORIES) category!: (typeof BUSINESS_CATEGORIES)[number];
-  @IsString() @Length(20, 300) description!: string;
+  @AllowedText() @IsString() @Length(20, 300) description!: string;
   /** Neighbourhood names from coverage. */
   @IsArray() @ArrayMinSize(1) @ArrayMaxSize(20) @IsString({ each: true }) @MaxLength(80, { each: true }) areasServed!: string[];
   @IsOptional() @IsString() @MaxLength(200) address?: string;

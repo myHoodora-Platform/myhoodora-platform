@@ -1631,3 +1631,11 @@ Body: the request's `response_type`, `client_id`, `redirect_uri`, `scope`, `stat
 ### `GET /integrations/ai/subjects/:sub` (myHoodora AI's server only)
 
 Not for the web or the app. Authenticated by a client assertion (`Authorization: Bearer <assertion>`, audience `<issuer>/api/v1/integrations/ai`); errors are `{ statusCode, message, code }`. Shape and meaning: contract §7.1. Account events to myHoodora AI are outgoing webhooks (contract §8) and have no route here.
+
+## 36. Content filter (2026-11-16)
+
+Objectionable text is refused wherever people write something others see (App Store guideline 1.2). Unlike the kindness reminder (§12, a nudge), this is enforced by the API: `400` with the message "Please rephrase: this contains words that aren't allowed on myHoodora. See the Community Guidelines." The apps show it as written.
+
+- **Where** (`@AllowedText()` in `apps/api/src/moderation/allowed-text.decorator.ts`): posts (`message`, `content`, poll option text, event location, thanked name, alert place label), post edits, comments, chat messages and edits, group chat titles, listings (title, description), groups (name, description), business applications (description), profile `displayName` and `bio` (also in onboarding). Not on text only staff read: reports, appeals, Hood requests, support.
+- **What** (`apps/api/src/moderation/content-filter.ts`): a short built-in list (sexual content and solicitation, slurs, the worst swear words) plus first-person threats to kill ("I will kill you", "we go kill am"), plus admins' words. Whole words only, so innocent words that contain a term pass ("Scunthorpe", "Essex", "Nigeria"). Text and terms are folded the same way first: lower case, no accents, look-alikes inside words (`p0rn`, `sh!t`), letters repeated three or more times (`fuuuck`), and spelled-out letters (`f.u.c.k`). Doubled letters are kept, so a slur can't fold into "Niger". `word*` also matches longer words starting with it.
+- **Admins** (`settings.manage`): `GET /admin/settings` includes `blockedTerms` (the admins' words; built-ins aren't listed). `PATCH /admin/settings` takes it, up to 500 terms of at most 60 characters, stored trimmed, lower case and without duplicates. They apply at once on the instance that saved them and within a minute on the others. Audited as `settings_update`.

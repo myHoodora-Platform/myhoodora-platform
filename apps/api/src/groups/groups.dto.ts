@@ -1,9 +1,10 @@
 import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsIn, IsMongoId, IsOptional, IsString, IsUrl, Length, MaxLength } from "class-validator";
 import { GROUP_BOUNDARIES, GROUP_CATEGORIES, GROUP_PRIVACY, type GroupBoundary, type GroupPrivacy } from "./group.schemas";
+import { AllowedText } from "../moderation/allowed-text.decorator";
 
 export class CreateGroupDto {
-  @IsString() @Length(3, 60) name!: string;
-  @IsString() @Length(10, 500) description!: string;
+  @AllowedText() @IsString() @Length(3, 60) name!: string;
+  @AllowedText() @IsString() @Length(10, 500) description!: string;
   @IsIn(GROUP_CATEGORIES) category!: (typeof GROUP_CATEGORIES)[number];
   @IsIn(GROUP_PRIVACY) privacy!: GroupPrivacy;
   @IsIn(GROUP_BOUNDARIES) boundary!: GroupBoundary;
@@ -13,8 +14,8 @@ export class CreateGroupDto {
 }
 
 export class UpdateGroupDto {
-  @IsOptional() @IsString() @Length(3, 60) name?: string;
-  @IsOptional() @IsString() @Length(10, 500) description?: string;
+  @IsOptional() @AllowedText() @IsString() @Length(3, 60) name?: string;
+  @IsOptional() @AllowedText() @IsString() @Length(10, 500) description?: string;
   @IsOptional() @IsIn(GROUP_CATEGORIES) category?: (typeof GROUP_CATEGORIES)[number];
   @IsOptional() @IsIn(GROUP_PRIVACY) privacy?: GroupPrivacy;
   @IsOptional() @IsIn(GROUP_BOUNDARIES) boundary?: GroupBoundary;

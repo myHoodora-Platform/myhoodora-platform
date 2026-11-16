@@ -113,6 +113,10 @@ export class PlatformSettings {
   @Prop({ type: Object, default: () => structuredClone(DEFAULT_APP_UPDATES) })
   appUpdates!: AppUpdates;
 
+  /** Admins' extra blocked words and phrases (moderation/content-filter.ts adds the built-in ones). */
+  @Prop({ type: [String], default: [] })
+  blockedTerms!: string[];
+
   /** Whether Latest follows the stores and how many days before Minimum follows Latest (app-version-rules.ts). */
   @Prop({ type: Object })
   appUpdatesAuto?: { fromStores: boolean; requireAfterDays: number };

@@ -177,6 +177,8 @@ export function PlatformPage() {
               dirty={dirty}
             />
 
+            <BlockedWordsPanel value={draft.blockedTerms ?? []} onChange={(blockedTerms) => setDraft({ ...draft, blockedTerms })} />
+
             <Panel title="App analytics question">
               <p className="mb-3 text-sm text-muted-foreground">
                 The app asks once whether it may share which features someone uses. If they say no, it asks again after this many days. A yes is never asked again.
@@ -407,6 +409,47 @@ function AppUpdatesPanel({
         </Button>
         <span className="text-xs text-muted-foreground">{dirty ? "Save your changes first." : "Changes reach phones the next time the app opens."}</span>
       </div>
+    </Panel>
+  );
+}
+
+/** Most words and phrases admins can add, and the longest (the API's limits). */
+const MAX_BLOCKED_TERMS = 500;
+const MAX_BLOCKED_TERM_LENGTH = 60;
+
+/**
+ * Words the content filter refuses on top of its built-in list (sexual content, slurs, the worst swear
+ * words, threats to kill). One per line; "word*" also covers longer words that start with it.
+ */
+function BlockedWordsPanel({ value, onChange }: { value: string[]; onChange: (next: string[]) => void }) {
+  const parse = (raw: string) => raw.split("\n").map((t) => t.trim()).filter(Boolean).slice(0, MAX_BLOCKED_TERMS);
+  const [text, setText] = useState(value.join("\n"));
+  // Follow the saved list (after Save or a reload) without fighting the cursor while typing.
+  useEffect(() => setText((current) => (parse(current).join("\n") === value.join("\n") ? current : value.join("\n"))), [value]);
+  const terms = parse(text);
+  const tooLong = terms.find((t) => t.length > MAX_BLOCKED_TERM_LENGTH);
+  return (
+    <Panel title="Blocked words">
+      <p className="mb-3 text-sm text-muted-foreground">
+        Posts, comments, listings, messages, group names and profiles containing these are refused with &ldquo;Please rephrase&rdquo;. A built-in list already covers sexual content, slurs, the worst swear words and threats to kill; add local insults and anything else here.
+      </p>
+      <textarea
+        value={text}
+        rows={6}
+        spellCheck={false}
+        aria-label="Blocked words, one per line"
+        placeholder={"one word or phrase per line\nolosho*"}
+        onChange={(e) => {
+          setText(e.target.value);
+          onChange(parse(e.target.value));
+        }}
+        className={`w-full rounded-lg border bg-card px-3 py-2 font-mono text-sm ${tooLong ? "border-destructive" : "border-border"}`}
+      />
+      <p className={`mt-2 text-xs ${tooLong ? "text-destructive" : "text-muted-foreground"}`}>
+        {tooLong
+          ? `"${tooLong.slice(0, 20)}…" is longer than ${MAX_BLOCKED_TERM_LENGTH} characters.`
+          : `${terms.length} of ${MAX_BLOCKED_TERMS}. Whole words only, so "ode" won't catch "code". End with * to cover longer words too (olosho* also catches oloshos). Spelling tricks such as p0rn or f.u.c.k are caught. Changes apply within a minute.`}
+      </p>
     </Panel>
   );
 }

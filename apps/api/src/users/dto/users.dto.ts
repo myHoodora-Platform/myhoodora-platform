@@ -1,14 +1,17 @@
 import { Transform, Type } from "class-transformer";
 import { IsBoolean, IsEmail, IsIn, IsLatitude, IsLongitude, IsMongoId, IsOptional, IsString, IsUrl, Length, Matches, MaxLength, ValidateIf, ValidateNested } from "class-validator";
+import { AllowedText } from "../../moderation/allowed-text.decorator";
 
 /** PATCH /users/me — profile fields only. `neighborhoodId` is NOT accepted (security: Hood changes go through verification or staff). */
 export class UpdateMeDto {
   @IsOptional()
+  @AllowedText()
   @IsString()
   @Length(2, 60)
   displayName?: string;
 
   @IsOptional()
+  @AllowedText()
   @IsString()
   @MaxLength(160)
   bio?: string;
@@ -42,6 +45,7 @@ export class OnboardingDto {
    * @example Ada Okafor
    */
   @IsOptional()
+  @AllowedText()
   @IsString()
   @Length(2, 60)
   displayName?: string;

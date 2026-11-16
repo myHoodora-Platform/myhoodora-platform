@@ -1,5 +1,6 @@
 import { Type } from "class-transformer";
 import { ArrayMaxSize, IsArray, IsBoolean, IsIn, IsMongoId, IsOptional, IsString, IsUrl, Length, MaxLength, ValidateNested } from "class-validator";
+import { AllowedText } from "../moderation/allowed-text.decorator";
 
 export class ChatContextDto {
   @IsIn(["listing"]) type!: "listing";
@@ -21,7 +22,7 @@ export class StartConversationDto {
 
 export class SendMessageDto {
   /** The text; may be left out (or empty) when `photos` are sent. */
-  @IsOptional() @IsString() @MaxLength(2000) body?: string;
+  @IsOptional() @AllowedText() @IsString() @MaxLength(2000) body?: string;
   /** Up to 4 photos uploaded with purpose "message" (2026-10-28). */
   @IsOptional()
   @IsArray()
@@ -39,7 +40,7 @@ export class ReactDto {
 }
 
 export class EditMessageDto {
-  @IsString() @MaxLength(2000) body!: string;
+  @AllowedText() @IsString() @MaxLength(2000) body!: string;
 }
 
 export class ArchiveConversationDto {
@@ -62,12 +63,12 @@ export class ConversationListQuery {
 /** POST /conversations/groups: a group chat with neighbours you choose (up to 49 others). */
 export class CreateGroupChatDto {
   /** @example "Road 4 neighbours" */
-  @IsString() @Length(1, 60) title!: string;
+  @AllowedText() @IsString() @Length(1, 60) title!: string;
   @IsArray() @ArrayMaxSize(49) @IsString({ each: true }) @Length(1, 128, { each: true }) memberUids!: string[];
 }
 
 export class RenameGroupChatDto {
-  @IsString() @Length(1, 60) title!: string;
+  @AllowedText() @IsString() @Length(1, 60) title!: string;
 }
 
 export class AddGroupMembersDto {
