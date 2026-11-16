@@ -566,11 +566,12 @@ export const platformSettings = (): PlatformSettings => {
   return { ...stored, hoodoraAi: stored.hoodoraAi ?? { ...DEFAULT_HOODORA_AI }, appUpdates: stored.appUpdates ?? structuredClone(DEFAULT_APP_UPDATES),
     appUpdatesAuto: stored.appUpdatesAuto ?? { ...DEFAULT_APP_UPDATES_AUTO },
     appStoreStatus: stored.appStoreStatus ?? { android: { ...NO_STORE_CHECK }, ios: { ...NO_STORE_CHECK } },
+    blockedTerms: stored.blockedTerms ?? [],
   };
 };
 
 const storedPlatformSettings = () =>
-  load<Omit<PlatformSettings, "hoodoraAi" | "appUpdates" | "appUpdatesAuto" | "appStoreStatus"> & Partial<Pick<PlatformSettings, "hoodoraAi" | "appUpdates" | "appUpdatesAuto" | "appStoreStatus">>>("admin-settings", () => ({
+  load<Omit<PlatformSettings, "hoodoraAi" | "appUpdates" | "appUpdatesAuto" | "appStoreStatus" | "blockedTerms"> & Partial<Pick<PlatformSettings, "hoodoraAi" | "appUpdates" | "appUpdatesAuto" | "appStoreStatus" | "blockedTerms">>>("admin-settings", () => ({
     reportReasons: [
       { id: "harassment", label: "Harassment or hate", severity: "high", staffOnly: true },
       { id: "scam", label: "Scam or fraud", severity: "high", staffOnly: true },

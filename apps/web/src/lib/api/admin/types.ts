@@ -421,6 +421,8 @@ export interface PlatformSettings {
   appUpdatesAuto: AppUpdatesAuto;
   /** Read-only: what each store showed at the API's last check. */
   appStoreStatus: Record<"android" | "ios", AppStoreStatus>;
+  /** Admins' extra words and phrases the content filter refuses (the built-in ones aren't listed). "word*" also covers longer words starting with it. */
+  blockedTerms: string[];
 }
 
 export interface SignupEntry {

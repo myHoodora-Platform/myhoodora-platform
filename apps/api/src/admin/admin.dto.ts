@@ -26,6 +26,7 @@ import { POST_CATEGORIES } from "../posts/domain/post-meta";
 import { ACCOUNT_STATUSES, ROLES, VERIFICATION_STATUSES } from "../shared/authz/roles";
 import { PageQuery } from "../shared/http/pagination";
 import { MAX_REQUIRE_AFTER_DAYS } from "../platform/app-version-rules";
+import { MAX_BLOCKED_TERM_LENGTH, MAX_BLOCKED_TERMS } from "../moderation/content-filter";
 import { HOOD_STATUSES } from "../hoods/schemas/hood.schema";
 import { TARGET_TYPES } from "../moderation/moderation-registry";
 import { CASE_STATUSES, MODERATION_ACTIONS } from "../moderation/moderation.schemas";
@@ -195,6 +196,14 @@ export class SettingsDto {
   @ValidateNested()
   @Type(() => AppUpdatesAutoDto)
   appUpdatesAuto?: AppUpdatesAutoDto;
+
+  /** Admins' extra blocked words and phrases for the content filter ("word*" also blocks longer words starting with it). */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_BLOCKED_TERMS)
+  @IsString({ each: true })
+  @MaxLength(MAX_BLOCKED_TERM_LENGTH, { each: true })
+  blockedTerms?: string[];
 
   /** Read-only (the last store check); accepted so the web can send the whole object back, then ignored. */
   @IsOptional()

@@ -8,8 +8,10 @@ import { Can } from "../shared/authz/can.decorator";
 import { ParseObjectIdPipe, ThreadPageQuery } from "../shared/http/pagination";
 import { CommentsService } from "./comments.service";
 import { ApiNotFound, ApiStandardErrors } from "../shared/http/api-docs";
+import { AllowedText } from "../moderation/allowed-text.decorator";
 
 class CreateCommentDto {
+  @AllowedText()
   @IsString()
   @Length(1, 1000)
   content!: string;
