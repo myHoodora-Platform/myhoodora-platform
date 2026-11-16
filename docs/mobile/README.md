@@ -10,6 +10,7 @@ How to run the app, and its push set-up, is in [`apps/mobile/README.md`](../../a
 | [ui-reference-inventory.md](./ui-reference-inventory.md) | Tokens, navigation and the screen-by-screen plan, from the web |
 | [dependency-compatibility.md](./dependency-compatibility.md) | SDK 57 versions, what is installed, and the compatibility checks |
 | [play-store-release.md](./play-store-release.md) | Releasing on Google Play: what's left in the code, the Play Console and EAS Submit set-up, store listing, Data safety answers, build and rollout |
+| [app-store-release.md](./app-store-release.md) | Releasing on the App Store: Apple account, Firebase and EAS set-up, signing, TestFlight, listing, App Privacy answers, review notes and common rejections |
 
 ## Status (20 October 2026)
 
