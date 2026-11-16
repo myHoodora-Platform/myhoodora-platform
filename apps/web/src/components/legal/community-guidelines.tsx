@@ -18,6 +18,16 @@ export function CommunityGuidelinesContent() {
           <li>No insults, name-calling, bullying or public shaming, in English, Pidgin or any other language.</li>
           <li>Criticise ideas, not people. Assume good intent.</li>
           <li>If a conversation turns heated, take it to private messages or step away.</li>
+          <li>
+            No nudity, pornography or sexual content, and no sexual messages or advances that nobody asked for, in
+            posts, photos, profiles, listings or private messages. Anything that sexualises children is reported to
+            the authorities (see our{" "}
+            <Link href="/child-safety" className="font-semibold text-primary hover:underline">
+              child safety standards
+            </Link>
+            ).
+          </li>
+          <li>No graphic violence or gore, and no threats.</li>
         </ul>
       </LegalSection>
 
