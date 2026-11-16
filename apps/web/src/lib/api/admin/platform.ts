@@ -147,6 +147,19 @@ export async function updatePlatformSettings(user: User, next: PlatformSettings,
   }, 300);
 }
 
+/** live: POST /admin/settings/app-updates/check (admin only): the API checks both stores now. The mock only stamps the time. */
+export async function checkAppStores(user: User, role: AdminRole): Promise<PlatformSettings> {
+  if (isLive("admin.settings")) return adminSend(user, "/settings/app-updates/check", {});
+  return mock(() => {
+    if (role === "moderator") forbidden();
+    const s = platformSettings();
+    const checkedAt = new Date().toISOString();
+    const next = { ...s, appStoreStatus: { android: { ...s.appStoreStatus.android, checkedAt }, ios: { ...s.appStoreStatus.ios, checkedAt } } };
+    savePlatformSettings(next);
+    return next;
+  }, 600);
+}
+
 /** live: GET /admin/signups?type */
 export async function listSignups(user: User, type: SignupEntry["type"]): Promise<SignupEntry[]> {
   if (isLive("admin.signups")) return adminGet(user, "/signups", { type: type === "ai_pilot" ? "ai_pilot" : "talent" });

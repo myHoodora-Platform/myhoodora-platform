@@ -1,4 +1,7 @@
 import { createTestApp, type TestApp } from "./helpers/app";
+import { AuditService } from "../src/audit/audit.service";
+import { AppVersionWatcherService } from "../src/platform/app-version-watcher.service";
+import type { StoreCheck, StoreVersionSource } from "../src/platform/store-versions";
 import { missingKeys, requiredKeys } from "./helpers/web-contract";
 jest.mock("../src/config/firebase.config", () => jest.requireActual("./helpers/firebase-mock").firebaseMock);
 
@@ -24,6 +27,7 @@ describe("admin API ↔ web contract (§13)", () => {
     await t.member("boss", hood, { role: "owner" });
     // A second admin, so the app-updates test has its own write allowance (writes are rate limited per person).
     await t.member("rel", hood, { role: "admin" });
+    await t.member("auto", hood, { role: "admin" });
     postId = (await t.post("ada", { message: "Generator for sale, barely used" }))._id;
     await t.post("ada", { message: "Power out on Admiralty Way", category: "alert", alertCategory: "power" });
     await t.http.post("/api/reports").set(t.auth("bola")).send({ targetType: "post", targetId: postId, reason: "spam" }).expect(204);
@@ -102,7 +106,7 @@ describe("admin API ↔ web contract (§13)", () => {
     expect(await updates()).toEqual({ android: { latest: "1.0.0", minimum: "1.0.0", storeUrl: play }, ios: { latest: "1.0.0", minimum: "1.0.0", storeUrl: null } });
     const next = { android: { latest: "1.1.0", minimum: "1.0.0", storeUrl: play }, ios: { latest: "1.1.0", minimum: "1.1.0", storeUrl: "https://apps.apple.com/app/id123" } };
     await t.http.patch("/api/admin/settings").set(t.auth("rel")).send({ appUpdates: next }).expect(200);
-    expect((await get("/settings")).appUpdates).toEqual(next);
+    expect((await get("/settings")).appUpdates).toMatchObject(next);
     expect(await updates()).toEqual(next);
     const bad = (android: object) => t.http.patch("/api/admin/settings").set(t.auth("rel")).send({ appUpdates: { ...next, android: { ...next.android, ...android } } }).expect(400);
     await bad({ latest: "1.1" });
@@ -111,6 +115,35 @@ describe("admin API ↔ web contract (§13)", () => {
     await t.http.patch("/api/admin/settings").set(t.auth("ada")).send({ appUpdates: next }).expect(403);
     await t.http.patch("/api/admin/settings").set(t.auth("rel")).send({ appUpdates: { ...next, ios: { ...next.ios, storeUrl: "" } } }).expect(200);
     expect((await updates()).ios.storeUrl).toBeNull();
+  });
+
+  it("app updates follow the stores: Latest from the store, Minimum after the admin's days, never above the store", async () => {
+    const watcher = t.app.get(AppVersionWatcherService);
+    const store: Record<"android" | "ios", StoreCheck> = { android: { version: "1.2.0", url: null, problem: null }, ios: { version: null, url: null, problem: null } };
+    (watcher as unknown as { sources: StoreVersionSource[] }).sources.splice(0, Infinity, { platform: "android", check: async () => store.android }, { platform: "ios", check: async () => store.ios });
+    const settings = async () => (await t.http.get("/api/admin/settings").set(t.auth("auto")).expect(200)).body;
+
+    expect((await settings()).appUpdatesAuto).toEqual({ fromStores: true, requireAfterDays: 30 });
+    const checked = (await t.http.post("/api/admin/settings/app-updates/check").set(t.auth("auto")).expect(201)).body;
+    expect(checked.appUpdates.android).toMatchObject({ latest: "1.2.0", minimum: "1.0.0" });
+    expect(checked.appStoreStatus.android).toMatchObject({ version: "1.2.0", problem: null });
+    expect(checked.appStoreStatus.ios).toMatchObject({ version: null, problem: null });
+    expect((await t.app.get(AuditService).recent(5)).map((e) => e.target.label)).toContain("App updates: Android latest 1.1.0 → 1.2.0");
+
+    // 31 days on, Minimum follows; the store failing meanwhile changes nothing and is reported.
+    store.ios = { version: null, url: null, problem: "Apple's lookup answered 503" };
+    await watcher.check(new Date(Date.now() + 31 * 24 * 60 * 60 * 1000));
+    const later = await settings();
+    expect(later.appUpdates.android.minimum).toBe("1.2.0");
+    expect(later.appUpdates.ios).toMatchObject({ latest: "1.1.0", minimum: "1.1.0" });
+    expect(later.appStoreStatus.ios.problem).toBe("Apple's lookup answered 503");
+    expect((await t.http.get("/api/app-config").expect(200)).body.updates.android).toMatchObject({ latest: "1.2.0", minimum: "1.2.0" });
+
+    // The whole settings object goes back as the admin page sends it; the timer is admin-set, 0 to 365.
+    await t.http.patch("/api/admin/settings").set(t.auth("auto")).send({ ...later, appUpdatesAuto: { fromStores: false, requireAfterDays: 0 } }).expect(200);
+    expect((await settings()).appUpdatesAuto).toEqual({ fromStores: false, requireAfterDays: 0 });
+    await t.http.patch("/api/admin/settings").set(t.auth("auto")).send({ appUpdatesAuto: { fromStores: true, requireAfterDays: 400 } }).expect(400);
+    await t.http.post("/api/admin/settings/app-updates/check").set(t.auth("ada")).expect(403);
   });
 
   it("moderation", async () => {
