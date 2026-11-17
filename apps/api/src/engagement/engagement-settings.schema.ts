@@ -10,7 +10,8 @@ export class EngagementSettings {
   /** Set by "End challenge" (or a planned end). Badges already earned stay. */
   @Prop({ type: Date, default: null }) challengeEndsAt?: Date | null;
   /** Hood Builder: this many verified invites, or this many active days, in the challenge. */
-  @Prop({ default: 3 }) minInvites!: number;
+  // Raised from 3 to 5 on 17 Nov 2026; the apps' fallback is BUILDER_INVITES in packages/api-contract/src/invites.ts.
+  @Prop({ default: 5 }) minInvites!: number;
   @Prop({ default: 5 }) minActiveDays!: number;
   /** Kill switches. */
   @Prop({ default: true }) streaksOn!: boolean;

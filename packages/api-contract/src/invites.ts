@@ -12,8 +12,8 @@ export type InviteVia = (typeof INVITE_VIAS)[number];
 export const INVITE_REF_PARAM = "ref";
 /** The first code a person arrives with is kept this long (then a newer one may replace it). */
 export const INVITE_REF_KEEP_DAYS = 30;
-/** Verified invites for the Builder badge (plan: 3, like Nextdoor's Top Inviters). */
-export const BUILDER_INVITES = 3;
+/** Verified invites for the Builder badge: 5 (raised from Nextdoor's Top Inviters 3 on 17 Nov 2026). Admins can change it per challenge. */
+export const BUILDER_INVITES = 5;
 
 /** What someone typed or a link carried → the code, or null. */
 export function normaliseInviteCode(input: unknown): string | null {

@@ -51,12 +51,14 @@ describe("Streaks, Hood Builders and badges", () => {
     expect(s.badge).toEqual({ builder: true, tier: "bronze", streak: 6 });
   });
 
-  it("makes a Hood Builder from 3 verified invites in the challenge; unverified or older invites don't count", async () => {
+  it("makes a Hood Builder from 5 verified invites in the challenge; unverified or older invites don't count", async () => {
     const at = new Date(Date.now() - 2 * DAY);
-    await t.users.updateMany({ uid: { $in: ["n0", "n1", "n2"] } }, { $set: { invitedBy: { uid: "bisi", code: "BIS22", via: "link", at } } });
-    await t.users.updateOne({ uid: "n3" }, { $set: { invitedBy: { uid: "bisi", code: "BIS22", via: "link", at }, verificationStatus: "unverified" } });
-    await t.users.updateOne({ uid: "n4" }, { $set: { invitedBy: { uid: "bisi", code: "BIS22", via: "link", at: new Date(Date.now() - 40 * DAY) } } });
-    expect((await me("bisi")).challenge).toMatchObject({ invites: 3, builder: true });
+    await t.users.updateMany({ uid: { $in: ["n0", "n1", "n2", "n3"] } }, { $set: { invitedBy: { uid: "bisi", code: "BIS22", via: "link", at } } });
+    await t.users.updateOne({ uid: "n5" }, { $set: { invitedBy: { uid: "bisi", code: "BIS22", via: "link", at }, verificationStatus: "unverified" } });
+    await t.users.updateOne({ uid: "n6" }, { $set: { invitedBy: { uid: "bisi", code: "BIS22", via: "link", at: new Date(Date.now() - 40 * DAY) } } });
+    expect((await me("bisi")).challenge).toMatchObject({ invites: 4, builder: false });
+    await t.users.updateOne({ uid: "n4" }, { $set: { invitedBy: { uid: "bisi", code: "BIS22", via: "link", at } } });
+    expect((await me("bisi")).challenge).toMatchObject({ invites: 5, builder: true });
     await activeOn("chidi", [0, 1]);
     expect((await me("chidi")).challenge).toMatchObject({ activeDays: 2, builder: false });
   });

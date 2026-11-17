@@ -55,3 +55,29 @@ export interface BuilderRow {
   invites: number;
   activeDays: number;
 }
+
+/**
+ * The slim strip at the top of the feed (web and app): what's going on with the challenge and your
+ * streak, in a line, opening the Invite page. Null when there's nothing to say (no streak, and no
+ * challenge running), so the feed stays quiet.
+ */
+export function challengeStrip(e: EngagementSummary | null | undefined): { title: string; detail: string } | null {
+  if (!e) return null;
+  const s = e.streak && e.streak.current > 0 ? e.streak : null;
+  const c = e.challenge;
+  const streak = s ? `${s.current}-day streak${s.activeToday ? " ✓" : ""}` : null;
+  if (c?.active && !c.builder) {
+    return {
+      title: "Become a Hood Builder",
+      detail: `${Math.min(c.invites, c.minInvites)} of ${c.minInvites} invites · ${Math.min(c.activeDays, c.minActiveDays)} of ${c.minActiveDays} days`,
+    };
+  }
+  if (c?.builder && (c.active || streak)) return { title: "You're a Hood Builder", detail: streak ? `${streak} · invite neighbours` : "Invite neighbours to grow your Hood" };
+  if (streak) return { title: streak, detail: s!.activeToday ? "Done for today. See you tomorrow!" : "Post, reply, vote or RSVP today to keep it going" };
+  return null;
+}
+
+/** Today's date in Lagos (WAT, UTC+1), e.g. "2026-11-17": "hide until tomorrow" keys on it. */
+export function lagosToday(now = Date.now()): string {
+  return new Date(now + 3_600_000).toISOString().slice(0, 10);
+}
