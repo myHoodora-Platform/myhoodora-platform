@@ -34,8 +34,19 @@ export class Ad {
   @Prop({ required: true, trim: true, maxlength: 80 }) title!: string;
   @Prop({ required: true, trim: true, maxlength: 60 }) advertiserName!: string;
   @Prop() advertiserLogoUrl?: string;
+  /**
+   * From myHoodora itself (a notice, a campaign), not a paid ad: shown as "myHoodora" with our logo and
+   * "Official · myHoodora", never "Sponsored". The advertiser name and logo fields are then ignored.
+   */
+  @Prop({ default: false }) official!: boolean;
+  /**
+   * Show first: while live, the first item of every feed it reaches (above the posts, even in a quiet
+   * Hood), instead of competing for slots between posts. Still at most `dailyCapPerUser` a day each.
+   */
+  @Prop({ default: false }) pinned!: boolean;
   @Prop({ required: true, enum: AD_FORMATS }) format!: AdFormat;
-  @Prop({ trim: true, maxlength: 500, default: "" }) primaryText!: string;
+  /** Line breaks are kept: apps show it as written. */
+  @Prop({ trim: true, maxlength: 1000, default: "" }) primaryText!: string;
   @Prop({ trim: true, maxlength: 60 }) headline?: string;
   @Prop({ enum: AD_CTAS }) ctaType?: AdCta;
   @Prop() ctaUrl?: string;

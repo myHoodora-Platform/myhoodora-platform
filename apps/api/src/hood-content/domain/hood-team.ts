@@ -18,9 +18,14 @@ export const HOOD_TEAM_PROFILE = {
   bio: "Official account. We share local information and questions to get neighbours talking. This space belongs to the neighbours.",
 } as const;
 
-/** The mascot avatar, served by the web app (apps/web/public/logo/hood-team-avatar.png). */
+/** The Hood Team's photo: the app icon, like every official myHoodora surface. */
 export function hoodTeamPhotoUrl(appUrl: string): string {
-  return `${appUrl.replace(/\/$/, "")}/logo/hood-team-avatar.png`;
+  return appIconUrl(appUrl);
+}
+
+/** The app icon (apps/web/public/logo/app-icon.png, from the mobile app's icon): official myHoodora notices. */
+export function appIconUrl(appUrl: string): string {
+  return `${appUrl.replace(/\/$/, "")}/logo/app-icon.png`;
 }
 
 export function isHoodTeam(uid: string | undefined | null): boolean {

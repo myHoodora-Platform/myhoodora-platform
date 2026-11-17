@@ -28,7 +28,7 @@ const FORMATS: { id: AdFormat; label: string; hint: string }[] = [
   { id: "image", label: "Image", hint: "One photo, text and a button" },
   { id: "video", label: "Video", hint: "Plays muted in the feed" },
   { id: "carousel", label: "Carousel", hint: "2–10 cards to swipe" },
-  { id: "announcement", label: "Announcement", hint: "Text on a colour" },
+  { id: "announcement", label: "Announcement", hint: "A notice: text on a colour, line breaks kept" },
   { id: "business", label: "Local business", hint: "Logo, photo and Call / Visit" },
   { id: "listings", label: "Seller's listings", hint: "A neighbour's For Sale items" },
 ];
@@ -49,8 +49,8 @@ const fromLocalInput = (v: string) => (v ? new Date(v).toISOString() : null);
 
 /** What the API takes from a loaded ad (it refuses fields it doesn't know). */
 function inputOf(ad: AdminAd): AdminAdInput {
-  const { title, advertiserName, advertiserLogoUrl, format, primaryText, headline, ctaType, ctaUrl, ctaPhone, media, cards, background, sellerUid, startsAt, endsAt, priority, dailyCapPerUser, hoodIds, cities, near } = ad;
-  return { title, advertiserName, advertiserLogoUrl, format, primaryText, headline, ctaType, ctaUrl, ctaPhone, media, cards, background, sellerUid, startsAt, endsAt, priority, dailyCapPerUser, hoodIds, cities, near };
+  const { title, advertiserName, advertiserLogoUrl, official, pinned, format, primaryText, headline, ctaType, ctaUrl, ctaPhone, media, cards, background, sellerUid, startsAt, endsAt, priority, dailyCapPerUser, hoodIds, cities, near } = ad;
+  return { title, advertiserName, advertiserLogoUrl, official, pinned, format, primaryText, headline, ctaType, ctaUrl, ctaPhone, media, cards, background, sellerUid, startsAt, endsAt, priority, dailyCapPerUser, hoodIds, cities, near };
 }
 
 /** Only what the chosen format uses, so switching formats doesn't send leftovers. */
@@ -67,7 +67,9 @@ function forFormat(a: AdminAdInput): AdminAdInput {
     ctaUrl: a.ctaType && a.ctaType !== "call" ? a.ctaUrl || undefined : undefined,
     ctaPhone: a.ctaType === "call" ? a.ctaPhone || undefined : undefined,
     headline: a.headline || undefined,
-    advertiserLogoUrl: a.advertiserLogoUrl || undefined,
+    advertiserLogoUrl: a.official ? undefined : a.advertiserLogoUrl || undefined,
+    // Official notices are always signed "myHoodora" (the API shows our name and logo).
+    ...(a.official && { advertiserName: "myHoodora" }),
   };
 }
 
@@ -173,10 +175,37 @@ function Editor({ ad, onSaved }: { ad?: AdminAd; onSaved: (ad: AdminAd) => void 
                 <Field label="Name (staff only)" htmlFor="ad-title" hint="For this list and the audit log.">
                   <input id="ad-title" value={form.title ?? ""} onChange={(e) => set({ title: e.target.value })} maxLength={80} className={fieldInputClass} placeholder="e.g. Mama Put, December" />
                 </Field>
-                <Field label="Advertiser" htmlFor="ad-advertiser" hint="Shown above “Sponsored”.">
-                  <input id="ad-advertiser" value={form.advertiserName ?? ""} onChange={(e) => set({ advertiserName: e.target.value })} maxLength={60} className={fieldInputClass} />
-                </Field>
+                {!form.official && (
+                  <Field label="Advertiser" htmlFor="ad-advertiser" hint="Shown above “Sponsored”.">
+                    <input id="ad-advertiser" value={form.advertiserName ?? ""} onChange={(e) => set({ advertiserName: e.target.value })} maxLength={60} className={fieldInputClass} />
+                  </Field>
+                )}
               </div>
+
+              {!listings && (
+                <fieldset className="space-y-2">
+                  <legend className="text-sm font-semibold">Who it&apos;s from</legend>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {(
+                      [
+                        [true, "myHoodora (official notice)", "Our name and logo, labelled “Official · myHoodora”, never “Sponsored”. For campaigns, challenges and notices to neighbours."],
+                        [false, "An advertiser", "A business or sponsor: their name and logo, labelled “Sponsored”."],
+                      ] as const
+                    ).map(([official, label, hint]) => (
+                      <button
+                        key={label}
+                        type="button"
+                        aria-pressed={Boolean(form.official) === official}
+                        onClick={() => set(official ? { official: true, advertiserName: "myHoodora", advertiserLogoUrl: undefined } : { official: false, advertiserName: form.official ? "" : form.advertiserName })}
+                        className={cn("rounded-xl border p-3 text-left text-sm", Boolean(form.official) === official ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border hover:bg-muted/40")}
+                      >
+                        <span className="block font-semibold">{label}</span>
+                        <span className="block text-xs text-muted-foreground">{hint}</span>
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+              )}
 
               <fieldset className="space-y-2">
                 <legend className="text-sm font-semibold">Format</legend>
@@ -208,8 +237,8 @@ function Editor({ ad, onSaved }: { ad?: AdminAd; onSaved: (ad: AdminAd) => void 
                 </Field>
               )}
 
-              <Field label={form.format === "announcement" ? "Announcement" : "Text"} htmlFor="ad-text" optional={listings} hint={`${textLen}/500 · about 125 characters show before “See more”`}>
-                <textarea id="ad-text" value={form.primaryText ?? ""} onChange={(e) => set({ primaryText: e.target.value })} maxLength={500} rows={3} className={fieldInputClass} />
+              <Field label={form.format === "announcement" ? "Announcement" : "Text"} htmlFor="ad-text" optional={listings} hint={`${textLen}/1000 · line breaks are kept${form.format === "announcement" ? "" : " · about 125 characters show before “See more”"}`}>
+                <textarea id="ad-text" value={form.primaryText ?? ""} onChange={(e) => set({ primaryText: e.target.value })} maxLength={1000} rows={form.format === "announcement" ? 8 : 4} className={fieldInputClass} />
               </Field>
 
               {!listings && <MediaFields form={form} set={set} />}
@@ -230,7 +259,7 @@ function Editor({ ad, onSaved }: { ad?: AdminAd; onSaved: (ad: AdminAd) => void 
           {!listings && (
           <Panel title="Button">
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="What it does" htmlFor="ad-cta" optional={form.format === "announcement" || form.format === "carousel"}>
+              <Field label="What it does" htmlFor="ad-cta" optional>
                 <select id="ad-cta" value={form.ctaType ?? ""} onChange={(e) => set({ ctaType: (e.target.value || undefined) as AdCta | undefined })} className={fieldInputClass}>
                   <option value="">No button</option>
                   {AD_CTAS.map((c) => (
@@ -316,13 +345,22 @@ function Editor({ ad, onSaved }: { ad?: AdminAd; onSaved: (ad: AdminAd) => void 
                 <Field label="Ends" htmlFor="ad-end" optional>
                   <input id="ad-end" type="datetime-local" value={toLocalInput(form.endsAt)} onChange={(e) => set({ endsAt: fromLocalInput(e.target.value) })} className={fieldInputClass} />
                 </Field>
-                <Field label="Priority" htmlFor="ad-priority" hint="1–10: higher wins slots more often.">
+                <Field label="Priority" htmlFor="ad-priority" hint="1 (rarely) to 10 (most often): how often it wins a slot between posts.">
                   <input id="ad-priority" type="number" min={1} max={10} value={form.priority ?? 5} onChange={(e) => set({ priority: Number(e.target.value) })} className={fieldInputClass} />
                 </Field>
                 <Field label="Times a day per neighbour" htmlFor="ad-cap">
                   <input id="ad-cap" type="number" min={1} max={20} value={form.dailyCapPerUser ?? 3} onChange={(e) => set({ dailyCapPerUser: Number(e.target.value) })} className={fieldInputClass} />
                 </Field>
               </div>
+              <label className="flex items-start gap-3 rounded-xl border border-border p-3 text-sm">
+                <input type="checkbox" className="mt-0.5 size-4" checked={Boolean(form.pinned)} onChange={(e) => set({ pinned: e.target.checked })} />
+                <span>
+                  <span className="block font-semibold">Show first</span>
+                  <span className="block text-muted-foreground">
+                    The first thing in the feed for everyone it reaches, as soon as it&apos;s live, even in a quiet neighbourhood. Doesn&apos;t compete on priority. Still at most the times a day above. Shows in the phone app.
+                  </span>
+                </span>
+              </label>
             </div>
           </Panel>
 
@@ -473,11 +511,23 @@ function MediaFields({ form, set }: { form: AdminAdInput; set: (p: AdminAdInput)
   const f = form.format;
   const media = form.media?.[0];
   const cards = form.cards ?? [];
+  // "Add the advertiser's logo" opens the field even before anything is uploaded.
+  const [addingLogo, setAddingLogo] = useState(false);
+  const showLogo = !form.official && (f === "business" || Boolean(form.advertiserLogoUrl) || addingLogo);
   return (
     <div className="space-y-3">
-      {f === "business" || form.advertiserLogoUrl ? (
+      {showLogo ? (
         <Field label="Logo" htmlFor="ad-logo" optional={f !== "business"} hint="Square, shown round.">
-          <Upload label="Upload logo" accept={PHOTO_ACCEPT} current={form.advertiserLogoUrl} onDone={(url) => set({ advertiserLogoUrl: url })} onClear={() => set({ advertiserLogoUrl: undefined })} />
+          <Upload
+            label="Upload logo"
+            accept={PHOTO_ACCEPT}
+            current={form.advertiserLogoUrl || undefined}
+            onDone={(url) => set({ advertiserLogoUrl: url })}
+            onClear={() => {
+              setAddingLogo(false);
+              set({ advertiserLogoUrl: undefined });
+            }}
+          />
         </Field>
       ) : null}
       {(f === "image" || f === "business") && (
@@ -519,8 +569,8 @@ function MediaFields({ form, set }: { form: AdminAdInput; set: (p: AdminAdInput)
           <p className="text-xs text-muted-foreground">2 to 10 square cards, each with its own link. Images at least 600 px wide.</p>
         </div>
       )}
-      {f !== "business" && !form.advertiserLogoUrl && (
-        <button type="button" className="text-xs font-semibold text-primary hover:underline" onClick={() => set({ advertiserLogoUrl: "" })}>
+      {!showLogo && !form.official && (
+        <button type="button" className="text-xs font-semibold text-primary hover:underline" onClick={() => setAddingLogo(true)}>
           Add the advertiser&apos;s logo
         </button>
       )}

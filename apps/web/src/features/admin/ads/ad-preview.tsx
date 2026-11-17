@@ -23,7 +23,9 @@ const domainOf = (url?: string) => (url ? /^https?:\/\/(?:www\.)?([^/?#]+)/i.exe
 export function AdPreview({ ad, sellerName }: { ad: AdminAdInput; sellerName?: string }) {
   const listings = ad.format === "listings";
   // A seller's listings show under the seller's own name, whatever the advertiser field says.
-  const name = (listings && sellerName) || ad.advertiserName || "Advertiser";
+  const official = Boolean(ad.official) && !listings;
+  const name = official ? "myHoodora" : (listings && sellerName) || ad.advertiserName || "Advertiser";
+  const logo = official ? "/logo/app-icon.png" : ad.advertiserLogoUrl;
   const media = ad.media?.[0];
   const cta = listings ? { label: `See all from ${name.split(" ")[0]}`, sub: "Items for sale" } : ad.ctaType ? { label: AD_CTA_LABELS[ad.ctaType], sub: ad.ctaType === "call" ? ad.ctaPhone : domainOf(ad.ctaUrl) } : null;
   return (
@@ -31,23 +33,23 @@ export function AdPreview({ ad, sellerName }: { ad: AdminAdInput; sellerName?: s
       <div className="h-6 bg-white" />
       <div className="space-y-2.5 bg-white py-3">
         <div className="flex items-center gap-2.5 px-4">
-          {ad.advertiserLogoUrl ? (
+          {logo ? (
             // eslint-disable-next-line @next/next/no-img-element -- a preview of a stored file
-            <img src={ad.advertiserLogoUrl} alt="" className="size-10 rounded-full object-cover" />
+            <img src={logo} alt="" className="size-10 rounded-full object-cover" />
           ) : (
             <span className="flex size-10 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">{initials(name)}</span>
           )}
           <div className="min-w-0 flex-1">
             <p className="truncate text-[15px] font-semibold text-slate-900">{name}</p>
-            <p className="text-xs text-slate-500">Sponsored</p>
+            <p className={cn("text-xs", official ? "font-semibold text-primary" : "text-slate-500")}>{official ? "Official · myHoodora" : "Sponsored"}</p>
           </div>
           <Ellipsis className="size-5 text-slate-500" aria-hidden />
         </div>
 
         {ad.format === "announcement" ? (
-          <div className={cn("mx-4 rounded-2xl p-4 text-[17px] leading-snug", BACKGROUNDS[ad.background ?? "green"])}>{ad.primaryText || "Your announcement"}</div>
+          <div className={cn("mx-4 rounded-2xl p-4 text-[17px] leading-snug whitespace-pre-line", BACKGROUNDS[ad.background ?? "green"])}>{ad.primaryText || "Your announcement"}</div>
         ) : ad.primaryText ? (
-          <p className="line-clamp-3 px-4 text-[15px] leading-snug text-slate-900">{ad.primaryText}</p>
+          <p className="line-clamp-3 px-4 text-[15px] leading-snug whitespace-pre-line text-slate-900">{ad.primaryText}</p>
         ) : null}
 
         {listings ? (

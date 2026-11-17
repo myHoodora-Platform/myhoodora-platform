@@ -20,7 +20,8 @@ const STALLED_AFTER_MS = 2 * 60_000;
 @Schema({ timestamps: { createdAt: "sentAt", updatedAt: false }, collection: "broadcasts" })
 export class Broadcast {
   @Prop({ required: true, maxlength: 60 }) title!: string;
-  @Prop({ required: true, maxlength: 240 }) body!: string;
+  /** Line breaks kept: the apps show it as written (open in full from the notifications list). */
+  @Prop({ required: true, maxlength: 1000 }) body!: string;
   @Prop({ type: Object, required: true }) audience!: Audience;
   @Prop({ required: true }) audienceLabel!: string;
   /** How many people it was addressed to when it was sent. */

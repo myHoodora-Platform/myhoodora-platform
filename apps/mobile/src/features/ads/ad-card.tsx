@@ -73,8 +73,10 @@ export const AdCard = memo(function AdCard({ entry, session, active }: { entry: 
   };
 
   const announcement = ad.format === "announcement";
+  // A notice from myHoodora itself (campaigns, the challenge): ours, never "Sponsored".
+  const official = Boolean(ad.advertiser.official);
   return (
-    <View style={[styles.card, { backgroundColor: t.colors.card }]} accessibilityLabel={`Sponsored by ${ad.advertiser.name}`}>
+    <View style={[styles.card, { backgroundColor: t.colors.card }]} accessibilityLabel={official ? "Official notice from myHoodora" : `Sponsored by ${ad.advertiser.name}`}>
       <View style={styles.header}>
         <Pressable onPress={() => open()} accessibilityRole="link" accessibilityHint={ad.seller ? "Shows everything they're selling" : "Opens the advertiser's link"} style={({ pressed }) => [styles.who, { opacity: pressed ? 0.7 : 1 }]}>
           {ad.seller ? (
@@ -88,9 +90,15 @@ export const AdCard = memo(function AdCard({ entry, session, active }: { entry: 
             <Text variant="label" style={styles.name} numberOfLines={1}>
               {ad.advertiser.name}
             </Text>
-            <Text variant="caption" tone="muted">
-              Sponsored
-            </Text>
+            {official ? (
+              <Text variant="caption" style={{ color: t.colors.primary, fontFamily: t.fonts.semibold }}>
+                Official · myHoodora
+              </Text>
+            ) : (
+              <Text variant="caption" tone="muted">
+                Sponsored
+              </Text>
+            )}
           </View>
         </Pressable>
         <Pressable onPress={() => setMenu(true)} accessibilityRole="button" accessibilityLabel="Ad options" hitSlop={8} style={({ pressed }) => [styles.iconAction, pressed && { backgroundColor: t.colors.muted }]}>

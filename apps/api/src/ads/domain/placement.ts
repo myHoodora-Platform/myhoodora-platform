@@ -45,6 +45,18 @@ export interface Candidate {
   priority: number;
   /** How many more times this viewer may be shown it today (cap minus today's impressions). */
   remainingToday: number;
+  /** "Show first": goes above the posts on the first page, never between them (pickTop). */
+  pinned?: boolean;
+}
+
+/**
+ * The "Show first" ad for the top of a session's first page: of those with room under today's cap, the
+ * highest priority (then the newest id, so it's stable). Null when there's none.
+ */
+export function pickTop(candidates: Candidate[]): Candidate | null {
+  const open = candidates.filter((c) => c.pinned && c.remainingToday > 0);
+  open.sort((a, b) => b.priority - a.priority || (a.id < b.id ? 1 : -1));
+  return open[0] ?? null;
 }
 
 export type Placed<P> = { type: "post"; data: P } | { type: "ad"; adId: string; slotId: string };

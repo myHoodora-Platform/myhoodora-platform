@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, Gavel, Megaphone, MessageCircle, ShieldAlert, type LucideIcon } from "lucide-react";
 import { cn } from "@myhoodora/ui/utils";
@@ -30,16 +31,15 @@ export function NotificationItem({ item, onOpen, compact }: NotificationItemProp
   const typeIcon = TYPE_ICON[item.type];
   // Actor-led phrasing for social events ("Ada commented on your post").
   const actorLed = item.type === "comment" || item.type === "message" || item.type === "reaction";
-
-  return (
-    <Link
-      href={item.href}
-      onClick={() => onOpen(item._id)}
-      className={cn(
-        "flex items-start gap-3 rounded-xl px-3 py-3 transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none",
-        !item.read && "bg-primary/[0.04]",
-      )}
-    >
+  // Notices that point at this list (team broadcasts) open here in full, as written, instead of linking to it.
+  const inPlace = !item.href || (item.href.split(/[?#]/)[0] ?? "") === "/notifications";
+  const [open, setOpen] = useState(false);
+  const rowClass = cn(
+    "flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none",
+    !item.read && "bg-primary/[0.04]",
+  );
+  const body = (
+    <>
       <div className="relative shrink-0">
         {actor && actorLed ? (
           <UserAvatar person={actor} size={compact ? "sm" : "md"} />
@@ -52,7 +52,7 @@ export function NotificationItem({ item, onOpen, compact }: NotificationItemProp
         ) : null}
       </div>
       <div className="min-w-0 flex-1">
-        <p className={cn("text-sm text-foreground", compact ? "line-clamp-2" : "line-clamp-3")}>
+        <p className={cn("text-sm text-foreground", open ? "whitespace-pre-line" : compact ? "line-clamp-2" : "line-clamp-3")}>
           {actorLed && actor ? (
             <>
               <span className="font-bold">{actor.displayName}</span> {item.title}
@@ -60,11 +60,33 @@ export function NotificationItem({ item, onOpen, compact }: NotificationItemProp
           ) : (
             <span className="font-bold">{item.title}</span>
           )}
-          {item.body && <span className="text-muted-foreground">: {item.body}</span>}
+          {item.body && !open && <span className="text-muted-foreground">: {item.body}</span>}
         </p>
+        {item.body && open && <p className="mt-1.5 text-sm whitespace-pre-line text-foreground/90">{item.body}</p>}
         <p className="mt-0.5 text-xs text-muted-foreground">{timeAgo(item.createdAt)}</p>
       </div>
       {!item.read && <span className="mt-2 size-2.5 shrink-0 rounded-full bg-brand-coral" aria-label="Unread" />}
+    </>
+  );
+
+  if (inPlace) {
+    return (
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => {
+          onOpen(item._id);
+          setOpen((v) => !v);
+        }}
+        className={rowClass}
+      >
+        {body}
+      </button>
+    );
+  }
+  return (
+    <Link href={item.href} onClick={() => onOpen(item._id)} className={rowClass}>
+      {body}
     </Link>
   );
 }

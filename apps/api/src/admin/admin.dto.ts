@@ -223,7 +223,7 @@ class AudienceDto {
 
 export class BroadcastDto {
   @IsString() @Length(3, 60) title!: string;
-  @IsString() @Length(10, 240) body!: string;
+  @IsString() @Length(10, 1000) body!: string;
   @ValidateNested() @Type(() => AudienceDto) audience!: AudienceDto;
 }
 

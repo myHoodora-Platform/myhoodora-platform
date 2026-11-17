@@ -183,6 +183,8 @@ export function FeedScreen() {
   if (!hoodId) return <NotInHoodYet />;
 
   const posts = feed.data?.pages.flatMap((p) => p.entries) ?? [];
+  // Neighbours' posts only: a "Show first" notice can be the one thing in a quiet Hood's feed.
+  const postCount = posts.filter((e) => !isAd(e)).length;
   const { padTop, padBottom, progressViewOffset, ...scroll } = underHeader(headerHeight, bottomSpace);
   // Refreshing in the background (not a pull): a small spinner in the header, nothing moves.
   const quietlyRefreshing = feed.isRefetching && !pull.refreshing && !feed.isFetchingNextPage;
@@ -240,13 +242,18 @@ export function FeedScreen() {
           <ActivityIndicator style={styles.footer} color={t.colors.primary} accessibilityLabel="Loading more posts" />
         ) : feed.isFetchNextPageError ? (
           <ErrorState error={feed.error} onRetry={() => void feed.fetchNextPage()} title="Couldn't load more" />
+        ) : posts.length > 0 && postCount === 0 && !feed.hasNextPage && filter === "all" ? (
+          <View>
+            <EmptyState title="It's quiet here" body="Nothing has been posted in your neighbourhood yet. Start the conversation." action={{ label: "Write a post", onPress: () => router.push("/compose") }} />
+            {hoodId && !away ? <StarterChips hoodId={hoodId} /> : null}
+          </View>
         ) : posts.length > 0 && !feed.hasNextPage ? (
           <View>
             <Text variant="caption" tone="muted" style={[styles.centred, styles.footer]}>
               You&apos;re all caught up.
             </Text>
             {/* A quiet Hood: help neighbours start talking (docs/product/hood-activation-plan.md). */}
-            {filter === "all" && hoodId && !away && posts.length < QUIET_HOOD_POSTS ? <StarterChips hoodId={hoodId} /> : null}
+            {filter === "all" && hoodId && !away && postCount < QUIET_HOOD_POSTS ? <StarterChips hoodId={hoodId} /> : null}
           </View>
         ) : null
       }

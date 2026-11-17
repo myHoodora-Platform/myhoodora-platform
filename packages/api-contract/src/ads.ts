@@ -48,7 +48,8 @@ export interface AdCard {
 export interface FeedAd {
   _id: string;
   format: AdFormat;
-  advertiser: { name: string; logoUrl?: string };
+  /** `official`: a notice from myHoodora itself: show "Official · myHoodora", never "Sponsored". */
+  advertiser: { name: string; logoUrl?: string; official?: true };
   primaryText: string;
   headline?: string;
   cta: { type: AdCta; label: string; url?: string; phone?: string } | null;
@@ -127,6 +128,10 @@ export interface AdminAd {
   title: string;
   advertiserName: string;
   advertiserLogoUrl?: string;
+  /** From myHoodora itself (name and logo are ours; labelled "Official · myHoodora"). */
+  official?: boolean;
+  /** Show first: the top of the feed (even a quiet one) instead of between posts. */
+  pinned?: boolean;
   format: AdFormat;
   primaryText: string;
   headline?: string;

@@ -4,7 +4,7 @@ import { type Href } from "expo-router";
 import { useRouter } from "@/core/navigation/use-router";
 import { Image } from "expo-image";
 import { BadgeCheck, CalendarDays, CheckCheck, Heart, Megaphone, MessageCircle, Send, ShieldCheck, TriangleAlert, Users, type LucideIcon } from "lucide-react-native";
-import { memo, useCallback, useMemo } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import * as WebBrowser from "expo-web-browser";
 import { Pressable, RefreshControl, SectionList, StyleSheet, View } from "react-native";
 import type { ColorTokens } from "@myhoodora/design-tokens";
@@ -73,7 +73,12 @@ function Faces({ n, background }: { n: AppNotification; background: string }) {
   );
 }
 
-const NotificationRow = memo(function NotificationRow({ n, onOpen }: { n: AppNotification; onOpen: (n: AppNotification) => void }) {
+/** Notices that point at this list (broadcasts from the team): they open here, in full, not as another screen. */
+export function opensInPlace(href: string | undefined): boolean {
+  return !href || (href.split(/[?#]/)[0] ?? "") === "/notifications";
+}
+
+const NotificationRow = memo(function NotificationRow({ n, onOpen, expanded }: { n: AppNotification; onOpen: (n: AppNotification) => void; expanded: boolean }) {
   const t = useTheme();
   const { names, rest } = titleParts(n);
   const age = shortAge(n.createdAt);
@@ -87,12 +92,24 @@ const NotificationRow = memo(function NotificationRow({ n, onOpen }: { n: AppNot
     >
       <Faces n={n} background={background} />
       <View style={styles.flex}>
-        <Text numberOfLines={3}>
-          {names ? <Text variant="label" style={styles.inline}>{names}</Text> : null}
-          {rest}
-          {n.body ? <Text tone="muted">{`: ${n.body}`}</Text> : null}
-          <Text tone="muted">{`  ${age}`}</Text>
-        </Text>
+        {expanded ? (
+          // The whole message, as it was written (line breaks kept), selectable to copy a link.
+          <View style={styles.full}>
+            <Text>
+              {names ? <Text variant="label" style={styles.inline}>{names}</Text> : null}
+              {rest}
+              <Text tone="muted">{`  ${age}`}</Text>
+            </Text>
+            {n.body ? <Text selectable>{n.body}</Text> : null}
+          </View>
+        ) : (
+          <Text numberOfLines={3}>
+            {names ? <Text variant="label" style={styles.inline}>{names}</Text> : null}
+            {rest}
+            {n.body ? <Text tone="muted">{`: ${n.body}`}</Text> : null}
+            <Text tone="muted">{`  ${age}`}</Text>
+          </Text>
+        )}
       </View>
       {n.preview ? (
         <Image source={n.preview.image} style={[styles.thumb, { backgroundColor: t.colors.muted }]} contentFit="cover" recyclingKey={n._id} accessibilityIgnoresInvertColors />
@@ -115,6 +132,7 @@ function NotificationsList() {
   const list = useNotifications();
   const pull = usePullRefresh(list.refetch);
   const sections = useMemo(() => sectionNotifications(list.data ?? []), [list.data]);
+  const [expanded, setExpanded] = useState<string | null>(null);
   const open = useCallback(
     (n: AppNotification) => {
       if (!n.read) {
@@ -122,6 +140,8 @@ function NotificationsList() {
         queryClient.setQueryData<AppNotification[]>(NOTIFICATIONS_QUERY_KEY, (rows) => rows?.map((r) => (r._id === n._id ? { ...r, read: true } : r)));
         markRead(user, n._id).catch(() => queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_QUERY_KEY }));
       }
+      // A notice for this list itself opens here, in full; tapping again folds it.
+      if (opensInPlace(n.href)) return setExpanded((cur) => (cur === n._id ? null : n._id));
       // Screens the app doesn't have yet open on the web, signed in there separately.
       if (isAppRoute(n.href)) router.push(n.href as Href);
       else void WebBrowser.openBrowserAsync(`${config().webUrl}${n.href}`);
@@ -146,7 +166,7 @@ function NotificationsList() {
           {section.title}
         </Text>
       )}
-      renderItem={({ item }) => <NotificationRow n={item} onOpen={open} />}
+      renderItem={({ item }) => <NotificationRow n={item} onOpen={open} expanded={expanded === item._id} />}
       refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={() => void pull.onRefresh()} tintColor={t.colors.primary} colors={[t.colors.primary]} progressViewOffset={insets.top} />}
     />
   );
@@ -172,6 +192,7 @@ export function NotificationsScreen() {
 }
 
 const styles = StyleSheet.create({
+  full: { gap: 6 },
   row: { flexDirection: "row", gap: 12, paddingHorizontal: 16, paddingVertical: 10, minHeight: MIN_TOUCH, alignItems: "center" },
   flex: { flex: 1 },
   inline: { fontSize: 16, lineHeight: 22 },

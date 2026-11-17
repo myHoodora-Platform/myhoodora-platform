@@ -20,7 +20,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
   const line = post ? (post.mode === "full" ? previewLine(post, 180) : `A neighbour shared ${postKindWords(post.category)}.`) : "A neighbour shared this on myHoodora.";
   const official = post?.author.kind === "team";
   // Read from disk: the image renderer won't fetch from our own (or any private) address.
-  const avatar = `data:image/png;base64,${(await readFile(join(process.cwd(), "public/logo/hood-team-avatar.png"))).toString("base64")}`;
+  const avatar = `data:image/png;base64,${(await readFile(join(process.cwd(), "public/logo/app-icon.png"))).toString("base64")}`;
 
   return new ImageResponse(
     (

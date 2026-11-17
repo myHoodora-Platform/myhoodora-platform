@@ -192,8 +192,8 @@ export function BroadcastsPage() {
                 placeholder="e.g. Scheduled maintenance tonight"
               />
             </Field>
-            <Field label="Message" htmlFor="bc-body" hint={`${body.length}/240`}>
-              <textarea id="bc-body" value={body} onChange={(e) => setBody(e.target.value)} maxLength={240} rows={3} className={fieldInputClass} />
+            <Field label="Message" htmlFor="bc-body" hint={`${body.length}/1000 · line breaks are kept; phones show the first lines, the notifications list opens it in full`}>
+              <textarea id="bc-body" value={body} onChange={(e) => setBody(e.target.value)} maxLength={1000} rows={8} className={fieldInputClass} />
             </Field>
             <div className="flex flex-col gap-3 rounded-xl bg-muted/60 p-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm">
@@ -219,7 +219,7 @@ export function BroadcastsPage() {
                 MYHOODORA <span className="ml-auto">now</span>
               </div>
               <p className="mt-1 text-sm font-bold text-slate-900">{title || "Your title"}</p>
-              <p className="text-sm text-slate-700">{body || "Your message appears here, as neighbours will see it on their phone."}</p>
+              <p className="line-clamp-4 text-sm whitespace-pre-line text-slate-700">{body || "Your message appears here, as neighbours will see it on their phone."}</p>
             </div>
           </div>
         </div>
@@ -240,7 +240,7 @@ export function BroadcastsPage() {
                     {timeAgo(b.sentAt)} · {b.sentBy}
                   </p>
                 </div>
-                <p className="mt-0.5 text-sm text-muted-foreground">{b.body}</p>
+                <p className="mt-0.5 line-clamp-3 text-sm whitespace-pre-line text-muted-foreground">{b.body}</p>
                 <p className="mt-1 text-xs font-semibold text-primary">
                   {b.audienceLabel} · {b.reach.toLocaleString()} {b.reach === 1 ? "neighbour" : "neighbours"}
                 </p>

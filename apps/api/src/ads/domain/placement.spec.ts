@@ -1,4 +1,4 @@
-import { DEFAULT_RULES, gapAfter, initialState, pickAd, placeAds, type Candidate, type Placed } from "./placement";
+import { DEFAULT_RULES, gapAfter, initialState, pickAd, pickTop, placeAds, type Candidate, type Placed } from "./placement";
 
 const posts = (from: number, n: number) => Array.from({ length: n }, (_, i) => `p${from + i}`);
 const ad = (id: string, format = "image", priority = 5, remainingToday = 3): Candidate => ({ id, format, priority, remainingToday });
@@ -78,5 +78,14 @@ describe("gapAfter", () => {
       expect(g).toBeGreaterThanOrEqual(6);
       expect(g).toBeLessThanOrEqual(8);
     }
+  });
+});
+
+describe("pickTop", () => {
+  const c = (id: string, priority: number, extra: Partial<Candidate> = {}): Candidate => ({ id, format: "image", priority, remainingToday: 3, ...extra });
+  it("takes the highest-priority Show first ad with room left today, never an ordinary one", () => {
+    expect(pickTop([c("a", 10), c("b", 1, { pinned: true }), c("c", 5, { pinned: true })])?.id).toBe("c");
+    expect(pickTop([c("b", 9, { pinned: true, remainingToday: 0 }), c("d", 2, { pinned: true })])?.id).toBe("d");
+    expect(pickTop([c("a", 10)])).toBeNull();
   });
 });

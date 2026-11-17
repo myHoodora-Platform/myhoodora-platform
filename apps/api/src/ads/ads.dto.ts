@@ -55,8 +55,12 @@ export class AdInputDto {
   @IsOptional() @IsString() @Length(1, 80) title?: string;
   @IsOptional() @IsString() @Length(1, 60) advertiserName?: string;
   @IsOptional() @IsUrl(HTTPS) advertiserLogoUrl?: string;
+  /** From myHoodora itself: shown with our name and logo, labelled "Official · myHoodora". */
+  @IsOptional() @IsBoolean() official?: boolean;
+  /** Show first: at the top of the feed instead of between posts. */
+  @IsOptional() @IsBoolean() pinned?: boolean;
   @IsOptional() @IsIn(AD_FORMATS) format?: AdFormat;
-  @IsOptional() @IsString() @MaxLength(500) primaryText?: string;
+  @IsOptional() @IsString() @MaxLength(1000) primaryText?: string;
   @IsOptional() @IsString() @MaxLength(60) headline?: string;
   @IsOptional() @IsIn(AD_CTAS) ctaType?: AdCta;
   @IsOptional() @IsUrl(HTTPS) ctaUrl?: string;

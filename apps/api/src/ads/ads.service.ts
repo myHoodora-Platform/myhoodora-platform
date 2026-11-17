@@ -11,6 +11,10 @@ import { AccountLifecycle, DELETED_USER_NAME } from "../users/account-lifecycle"
 import { UsersService } from "../users/users.service";
 import { Ad, AdEvent, AdHide, AdSettings, type AdTrackedType, type AdCta, type AdDocument, type AdEventType, type AdFormat, type AdStatus } from "./ad.schema";
 import type { AdInputDto, AdSettingsDto } from "./ads.dto";
+import { appIconUrl } from "../hood-content/domain/hood-team";
+
+/** How official notices are signed (Ad.official). */
+const MYHOODORA = "myHoodora";
 import { DEFAULT_RULES, type Candidate, type PlacementRules } from "./domain/placement";
 import { liveAdFilter, reaches } from "./domain/targeting";
 
@@ -34,7 +38,7 @@ type AdRow = Ad & { _id: Types.ObjectId };
 export interface AdView {
   _id: string;
   format: AdFormat;
-  advertiser: { name: string; logoUrl?: string };
+  advertiser: { name: string; logoUrl?: string; official?: true };
   primaryText: string;
   headline?: string;
   cta: { type: AdCta; label: string; url?: string; phone?: string } | null;
@@ -273,7 +277,7 @@ export class AdsService implements OnModuleInit {
     const today = new Map(seen.map((s) => [s._id, s.n]));
     const open = rows.filter((r) => !hiddenIds.has(String(r._id)));
     return {
-      candidates: open.map((r) => ({ id: String(r._id), format: r.format, priority: r.priority, remainingToday: r.dailyCapPerUser - (today.get(String(r._id)) ?? 0) })),
+      candidates: open.map((r) => ({ id: String(r._id), format: r.format, priority: r.priority, remainingToday: r.dailyCapPerUser - (today.get(String(r._id)) ?? 0), ...(r.pinned && { pinned: true }) })),
       ads: new Map(open.map((r) => [String(r._id), r])),
     };
   }
@@ -285,11 +289,16 @@ export class AdsService implements OnModuleInit {
   toView(r: AdRow, hoodName?: string, aspects?: Map<string, number>, promoted?: { seller: { uid: string; name: string; photoURL?: string }; listings: PromotedListing[]; total: number }): AdView {
     const aimed = r.hoodIds.length || r.cities.length || r.near;
     const seller = promoted?.seller;
-    const advertiserName = seller?.name ?? r.advertiserName;
+    const official = Boolean(r.official) && !seller;
+    const advertiserName = official ? MYHOODORA : (seller?.name ?? r.advertiserName);
     return {
       _id: String(r._id),
       format: r.format,
-      advertiser: seller ? { name: seller.name, logoUrl: seller.photoURL } : { name: r.advertiserName, logoUrl: r.advertiserLogoUrl },
+      advertiser: official
+        ? { name: MYHOODORA, logoUrl: appIconUrl(process.env.APP_URL ?? "https://myhoodora.com"), official: true }
+        : seller
+          ? { name: seller.name, logoUrl: seller.photoURL }
+          : { name: r.advertiserName, logoUrl: r.advertiserLogoUrl },
       primaryText: r.primaryText,
       headline: r.headline,
       cta: seller
@@ -301,7 +310,9 @@ export class AdsService implements OnModuleInit {
       cards: r.cards.map((c) => ({ imageUrl: c.imageUrl, headline: c.headline, url: c.url })),
       background: r.background,
       ...(promoted && { seller: promoted.seller, listings: promoted.listings, listingsTotal: promoted.total }),
-      why: r.near?.label && !r.hoodIds.length && !r.cities.length ? `You're seeing this because ${advertiserName} chose to reach neighbourhoods within ${r.near.radiusKm} km of ${r.near.label}. Ads never use your posts, messages or exact location.` : aimed && hoodName ? `You're seeing this because ${advertiserName} chose to reach neighbours in ${hoodName}. Ads never use your posts, messages or exact location.` : `You're seeing this because ${advertiserName} is shown to neighbours across myHoodora. Ads never use your posts, messages or exact location.`,
+      why: official
+        ? "This is a notice from the myHoodora team, not a paid ad. Notices never use your posts, messages or exact location."
+        : r.near?.label && !r.hoodIds.length && !r.cities.length ? `You're seeing this because ${advertiserName} chose to reach neighbourhoods within ${r.near.radiusKm} km of ${r.near.label}. Ads never use your posts, messages or exact location.` : aimed && hoodName ? `You're seeing this because ${advertiserName} chose to reach neighbours in ${hoodName}. Ads never use your posts, messages or exact location.` : `You're seeing this because ${advertiserName} is shown to neighbours across myHoodora. Ads never use your posts, messages or exact location.`,
     };
   }
 
@@ -368,8 +379,8 @@ export class AdsService implements OnModuleInit {
   }
 
   private editable(a: Partial<Ad>): Partial<Ad> {
-    const { title, advertiserName, advertiserLogoUrl, format, primaryText, headline, ctaType, ctaUrl, ctaPhone, media, cards, background, sellerUid, startsAt, endsAt, priority, dailyCapPerUser, hoodIds, cities, near } = a;
-    return { title, advertiserName, advertiserLogoUrl, format, primaryText, headline, ctaType, ctaUrl, ctaPhone, media, cards, background, sellerUid, startsAt, endsAt, priority, dailyCapPerUser, hoodIds, cities, near: near ?? null };
+    const { title, advertiserName, advertiserLogoUrl, official, pinned, format, primaryText, headline, ctaType, ctaUrl, ctaPhone, media, cards, background, sellerUid, startsAt, endsAt, priority, dailyCapPerUser, hoodIds, cities, near } = a;
+    return { title, advertiserName, advertiserLogoUrl, official, pinned, format, primaryText, headline, ctaType, ctaUrl, ctaPhone, media, cards, background, sellerUid, startsAt, endsAt, priority, dailyCapPerUser, hoodIds, cities, near: near ?? null };
   }
 
   /**
@@ -412,8 +423,8 @@ export class AdsService implements OnModuleInit {
       if (f === "video" && (media.length !== 1 || media[0]!.kind !== "video" || !media[0]!.posterUrl)) problems.push("Add one video and its poster image.");
       if (f === "carousel" && ((a.cards?.length ?? 0) < 2 || (a.cards?.length ?? 0) > 10)) problems.push("A carousel needs 2 to 10 cards.");
       if (f === "announcement" && media.length) problems.push("Announcements are text only.");
-      if (f === "business" && !a.advertiserLogoUrl) problems.push("Add the business's logo.");
-      if ((f === "image" || f === "video" || f === "business") && !a.ctaType) problems.push("Choose what the button does.");
+      if (f === "business" && !a.official && !a.advertiserLogoUrl) problems.push("Add the business's logo.");
+      // The button is optional: an ad can just say something. With one, it needs somewhere to go.
       if (a.ctaType === "call" && !a.ctaPhone) problems.push("Add the phone number to call.");
       if (a.ctaType && a.ctaType !== "call" && !a.ctaUrl) problems.push("Add the link the button opens.");
     }

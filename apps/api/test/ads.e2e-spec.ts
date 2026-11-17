@@ -74,10 +74,19 @@ describe("Sponsored items: admin, placement, targeting, caps, events", () => {
       expect((await create({ ...imageAd, media: [{ url: VIDEO, kind: "image" }] }).expect(400)).body.message).toMatch(/a video/);
     });
 
+    it("goes live without a button; an official notice is signed by myHoodora, never 'Sponsored'", async () => {
+      const plain = (await create({ title: "Quiet", advertiserName: "Iron Gym", format: "image", primaryText: "Open all December.", media: [{ url: IMG, kind: "image" }] }).expect(201)).body as { _id: string };
+      await status(plain._id, "active").expect(200);
+      const notice = (await create({ title: "Day 1", advertiserName: "Anything", official: true, format: "announcement", primaryText: "DAY 1: GET TO KNOW YOUR HOOD!\n\nIntroduce yourself." }).expect(201)).body as { _id: string; official: boolean };
+      expect(notice.official).toBe(true);
+      await status(notice._id, "active").expect(200);
+    });
+
     it("starts as a draft; going live checks it's complete; every step is audited", async () => {
       const draft = (await create({ title: "Gym", advertiserName: "Iron Gym", format: "image", media: [{ url: IMG, kind: "image" }] }).expect(201)).body as { _id: string; status: string };
       expect(draft.status).toBe("draft");
-      expect((await status(draft._id, "active").expect(400)).body.message).toMatch(/text.*button|button.*text/s);
+      // Only the text is missing: a button is optional (an ad can just say something).
+      expect((await status(draft._id, "active").expect(400)).body.message).toBe("Write the ad's text.");
       // A draft may be unfinished; going live is when it must be complete.
       await t.http.patch(`/api/admin/ads/${draft._id}`).set(admin()).send({ primaryText: "First week free.", ctaType: "call" }).expect(200);
       expect((await status(draft._id, "active").expect(400)).body.message).toMatch(/phone number/);
@@ -259,6 +268,32 @@ describe("Sponsored items: admin, placement, targeting, caps, events", () => {
       await t.http.post(`/api/ads/${ad}/report`).set(t.auth("chidi")).send({ reason: "rude" }).expect(400);
       expect(ads(await feed("chidi", lekki, "session=session777&limit=10"))).toHaveLength(0);
       expect((await t.http.get(`/api/admin/ads/${ad}`).set(admin()).expect(200)).body.stats).toMatchObject({ hides: 2, reports: 1 });
+    });
+  });
+
+  describe("Show first", () => {
+    it("tops the first page of every feed it reaches, even an empty one; never between posts; whatever its priority", async () => {
+      await pauseAll();
+      await t.member("dayo", yaba);
+      const rival = (await create({ ...imageAd, title: "Rival", priority: 10 }).expect(201)).body as { _id: string };
+      await status(rival._id, "active").expect(200);
+      const notice = (await create({ title: "Day 1", advertiserName: "x", official: true, pinned: true, priority: 1, format: "announcement", primaryText: "DAY 1: GET TO KNOW YOUR HOOD!\n\nIntroduce yourself." }).expect(201)).body as { _id: string };
+      await status(notice._id, "active").expect(200);
+
+      const p1 = await feed("ada", lekki, "session=sessionTOP1&limit=10");
+      expect(p1.items[0]).toMatchObject({ type: "ad", slotId: "sessionTOP1:top", data: { _id: notice._id, advertiser: { name: "myHoodora", official: true } } });
+      expect((p1.items[0] as Extract<Item, { type: "ad" }>).data.primaryText).toContain("\n\nIntroduce");
+      // Between posts it's the others' turn; it doesn't come again on later pages.
+      expect(ads(p1).slice(1).every((a) => a.data._id !== notice._id)).toBe(true);
+      const p2 = await feed("ada", lekki, `session=sessionTOP1&limit=10&cursor=${p1.nextCursor}`);
+      expect(ads(p2).some((a) => a.data._id === notice._id)).toBe(false);
+
+      // A Hood with no posts at all still gets it.
+      const empty = await feed("dayo", yaba, "session=sessionTOP2&limit=10");
+      expect(shape(empty)).toBe("A");
+      expect(empty.items[0]).toMatchObject({ type: "ad", data: { _id: notice._id } });
+      await status(rival._id, "paused").expect(200);
+      await status(notice._id, "paused").expect(200);
     });
   });
 });

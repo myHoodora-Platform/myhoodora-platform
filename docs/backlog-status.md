@@ -101,6 +101,7 @@ Plan: [product/hood-activation-plan.md](./product/hood-activation-plan.md). Cont
 | Starter chips in the composer (web + app) | ⬜ next | API ready: `GET /hood-content/starters` |
 | Post audiences, public link previews, "See more on myHoodora" card | ✅ built | Contract §38. "Open in the app" on Android web; "nearby fill" in quiet feeds still to do |
 | Invite codes and referral paths | ⬜ next | Plan WP-E; no referral tracking existed before |
+| Followed Hoods: post, vote in polls and RSVP there (not only react and reply) | ⬜ to do (asked 17 Nov) | API: let `POST /posts` take a followed Hood's `neighborhoodId`, polls and RSVPs load by own + followed Hoods; web and app composers get a "Post to" choice; update the hood-requests e2e |
 | App banners / "better in the app" / app links | ⬜ planned | Plan WP-H; app links need a store build |
 | Streaks, Builder badge, challenge campaign | ⬜ planned | Plan WP-C, counted back to 17 Nov |
 | Christmas and New Year looks | ⬜ planned | Plan WP-D, ready by 12 Dec |
