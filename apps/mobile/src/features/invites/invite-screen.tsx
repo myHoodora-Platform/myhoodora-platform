@@ -95,7 +95,7 @@ function Body() {
         </View>
 
         <View style={[styles.codeBox, { borderColor: tint(t.colors.primary, 0.4), backgroundColor: tint(t.colors.primary, 0.06) }]}>
-          <Text variant="caption" tone="muted">
+          <Text variant="caption" tone="muted" style={styles.codeLabel}>
             YOUR INVITE CODE
           </Text>
           <Text style={[styles.code, { fontFamily: t.fonts.bold }]} selectable accessibilityLabel={`Your invite code: ${s.code.split("").join(" ")}`}>
@@ -178,7 +178,7 @@ function Progress({ value, max, label }: { value: number; max: number; label: st
   const t = useTheme();
   const v = Math.min(value, max);
   return (
-    <View style={[styles.track, { backgroundColor: t.colors.muted }]} accessible accessibilityRole="progressbar" accessibilityLabel={label} accessibilityValue={{ min: 0, max, now: v }}>
+    <View style={[styles.track, { backgroundColor: t.colors.border }]} accessible accessibilityRole="progressbar" accessibilityLabel={label} accessibilityValue={{ min: 0, max, now: v }}>
       <View style={[styles.fill, { width: `${(v / max) * 100}%`, backgroundColor: t.colors.primary }]} />
     </View>
   );
@@ -204,7 +204,9 @@ function Challenge({ invitesFallback }: { invitesFallback: number }) {
         {e?.badge ? <ParticipationBadge badge={e.badge} size={34} /> : null}
       </View>
       <View style={styles.rowBetween}>
-        <Text variant="caption">Neighbours who joined and verified</Text>
+        <Text variant="caption" style={styles.flex}>
+          Neighbours who joined and verified
+        </Text>
         <Text variant="caption" tone="muted">
           {Math.min(invites, minInvites)} of {minInvites}
         </Text>
@@ -213,7 +215,9 @@ function Challenge({ invitesFallback }: { invitesFallback: number }) {
       {c ? (
         <>
           <View style={styles.rowBetween}>
-            <Text variant="caption">Days you posted, replied, voted or RSVP&apos;d</Text>
+            <Text variant="caption" style={styles.flex}>
+              Days active
+            </Text>
             <Text variant="caption" tone="muted">
               {Math.min(c.activeDays, c.minActiveDays)} of {c.minActiveDays}
             </Text>
@@ -232,7 +236,7 @@ function Challenge({ invitesFallback }: { invitesFallback: number }) {
         </Text>
       ) : null}
       <Text variant="caption" tone="muted">
-        One missed day a week doesn&apos;t break a streak. Reactions don&apos;t count, real conversations do.
+        A day counts when you post, reply, vote or RSVP; reactions don&apos;t. One missed day a week doesn&apos;t break a streak.
       </Text>
     </View>
   );
@@ -243,16 +247,19 @@ const styles = StyleSheet.create({
   body: { paddingHorizontal: 16, gap: 16 },
   card: { borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, padding: 16, gap: 12 },
   row: { flexDirection: "row", alignItems: "center", gap: 12 },
-  rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12 },
   flex: { flex: 1 },
   icon: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
-  codeBox: { borderRadius: 16, borderWidth: 1, borderStyle: "dashed", alignItems: "center", paddingVertical: 14, gap: 4 },
-  code: { fontSize: 36, letterSpacing: 8 },
+  codeBox: { borderRadius: 16, borderWidth: 1, borderStyle: "dashed", alignItems: "center", paddingTop: 16, paddingBottom: 8, gap: 6 },
+  codeLabel: { fontSize: 12, letterSpacing: 1.2 },
+  // A line tall enough for the 36 pt code (the body's 22 squeezed it), and the letter spacing balanced
+  // on the left too: it also follows the last letter, which pulled the code off centre.
+  code: { fontSize: 36, lineHeight: 46, letterSpacing: 6, paddingLeft: 6 },
   copy: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: MIN_TOUCH - 8 },
   center: { textAlign: "center" },
   stats: { flexDirection: "row", gap: 8 },
   stat: { flex: 1, borderRadius: 12, padding: 10, alignItems: "center" },
-  statN: { fontSize: 24 },
+  statN: { fontSize: 24, lineHeight: 32 },
   track: { height: 8, borderRadius: 4, overflow: "hidden" },
   fill: { height: "100%", borderRadius: 4 },
   person: { flexDirection: "row", alignItems: "center", gap: 12, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth },

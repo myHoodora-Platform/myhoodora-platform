@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AppState, StyleSheet, useWindowDimensions, View } from "react-native";
 import Animated, { cancelAnimation, Easing, useAnimatedStyle, useSharedValue, withDelay, withRepeat, withSequence, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useFixedHeaderHeight } from "@/shared/ui/header-height";
 import { useSeason } from "./use-season";
 
 /** The moving part plays this long after the app opens (or comes back), then only still lights stay. */
@@ -33,11 +34,13 @@ export function SeasonOverlay() {
 
 function Lights({ season, still }: { season: Season; still: boolean }) {
   const insets = useSafeAreaInsets();
+  const header = useFixedHeaderHeight();
   const { width } = useWindowDimensions();
   const colours = SEASON_PALETTES[season.accent];
   const n = Math.max(10, Math.round(width / 26));
+  // Strung along the header's foot (as on the web), never over its buttons; a typical header until it measures.
   return (
-    <View style={[styles.wire, { top: insets.top + 2 }]}>
+    <View style={[styles.wire, { top: (header || insets.top + 56) - 1 }]}>
       {Array.from({ length: n }, (_, i) => (
         <Bulb key={i} colour={colours[i % colours.length]!} delay={(i % 5) * 320} still={still} />
       ))}

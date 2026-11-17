@@ -20,6 +20,7 @@ import { deactivate } from "./account-api";
 import { DiagnosticsGroup } from "./diagnostics-group";
 import { replayHomeTour } from "@/features/tour/home-tour";
 import { showDialog } from "@/shared/ui/dialog";
+import { useMyBadge } from "@/features/invites/use-my-badge";
 
 const PUSH_LABEL = { granted: "On", denied: "Off", undetermined: "Off", unsupported: "Not available" } as const;
 
@@ -38,6 +39,7 @@ function SettingsContent() {
   const user = useSignedInUser();
   const toast = useToast();
   const { profile, logout, logoutEverywhere } = useAuth();
+  const badge = useMyBadge(profile?.verificationStatus === "verified");
   const push = usePushSetting();
   const { surface, setSurface, theme, setTheme, festive, setFestive } = useAppearance();
   const [leaving, setLeaving] = useState<CloseMode | null>(null);
@@ -86,7 +88,7 @@ function SettingsContent() {
     <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 }]} scrollIndicatorInsets={{ top: insets.top }}>
       <SettingsGroup>
         <SettingsRow
-          leading={<Avatar name={profile?.displayName} photoURL={profile?.photoURL} size={52} />}
+          leading={<Avatar name={profile?.displayName} photoURL={profile?.photoURL} size={52} badge={badge} />}
           label={profile?.displayName ?? "Your profile"}
           description={profile?.email ?? user.email ?? undefined}
           onPress={() => router.push("/settings/profile")}

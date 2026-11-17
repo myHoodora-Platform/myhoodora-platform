@@ -39,7 +39,13 @@ export function SeasonGreeting() {
   };
 
   return (
-    <View style={[styles.card, { backgroundColor: t.colors.card, borderColor: SEASON_PALETTES[season.accent][0] }]} accessibilityRole="summary">
+    <View style={[styles.card, { backgroundColor: t.colors.card, borderColor: t.colors.border }]} accessibilityRole="summary">
+      {/* A ribbon in the season's colours: festive, where a coloured outline (red at Christmas) read as an error. */}
+      <View style={styles.ribbon}>
+        {SEASON_PALETTES[season.accent].map((c, i) => (
+          <View key={i} style={[styles.ribbonPart, { backgroundColor: c }]} />
+        ))}
+      </View>
       <View style={styles.row}>
         <View style={styles.mascot}>
           <FestiveMascot hat={season.mascot} size={52} />
@@ -85,12 +91,14 @@ export function SeasonGreeting() {
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: 18, borderWidth: 1.5, padding: 14, gap: 10 },
+  card: { borderRadius: 18, borderWidth: StyleSheet.hairlineWidth, padding: 14, paddingTop: 18, gap: 10, overflow: "hidden" },
+  ribbon: { position: "absolute", top: 0, left: 0, right: 0, height: 4, flexDirection: "row" },
+  ribbonPart: { flex: 1 },
   row: { flexDirection: "row", gap: 12 },
   mascot: { paddingTop: 10 },
   flex: { flex: 1, gap: 4 },
   body: { fontSize: 14, lineHeight: 20 },
-  count: { fontSize: 24, marginTop: 4 },
+  count: { fontSize: 24, lineHeight: 32, marginTop: 4 },
   cta: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6, minHeight: MIN_TOUCH - 12 },
   close: { width: MIN_TOUCH - 12, height: MIN_TOUCH - 12, alignItems: "center", justifyContent: "center", marginTop: -6, marginRight: -6 },
   image: { width: "100%", height: 180, borderRadius: 12 },
