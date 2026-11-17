@@ -37,10 +37,12 @@ export async function finishProviderSignIn(signIn: () => Promise<User>, fallback
 interface SocialAuthButtonsProps {
   /** Where to go afterwards (e.g. the page they were sent to log in for). Defaults to the feed. */
   next?: () => string;
+  /** On an iPhone, Apple's button comes first (when enabled). */
+  appleFirst?: boolean;
 }
 
 /** "Continue with Google" (and Apple, when enabled). Used by login, register and the landing sign-up card. */
-export function SocialAuthButtons({ next }: SocialAuthButtonsProps) {
+export function SocialAuthButtons({ next, appleFirst }: SocialAuthButtonsProps) {
   const [busy, setBusy] = useState<"google" | "apple" | null>(null);
   if (!GOOGLE_SIGN_IN_ENABLED && !APPLE_SIGN_IN_ENABLED) return null;
 
@@ -51,7 +53,7 @@ export function SocialAuthButtons({ next }: SocialAuthButtonsProps) {
   };
 
   return (
-    <div className="space-y-3">
+    <div className={appleFirst ? "flex flex-col-reverse gap-3" : "space-y-3"}>
       {GOOGLE_SIGN_IN_ENABLED && (
         <Button type="button" variant="outline" className="w-full gap-3" onClick={run("google", signInWithGoogle)} loading={busy === "google"} disabled={busy !== null}>
           <svg className="size-5" viewBox="0 0 24 24" aria-hidden>

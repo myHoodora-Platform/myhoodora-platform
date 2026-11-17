@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { PublicPostPreview } from "@myhoodora/api-contract/types";
-import { BadgeCheck, CalendarDays, Lock, MapPin, MessageCircle, Smartphone, ThumbsUp, X } from "lucide-react";
+import { BadgeCheck, CalendarDays, Lock, Mail, MapPin, MessageCircle, Smartphone, ThumbsUp, X } from "lucide-react";
+import { SocialAuthButtons } from "@/components/shared/social-auth-buttons";
 import { MascotWordmark } from "@myhoodora/ui/logo";
 import { cn } from "@myhoodora/ui/utils";
 import { imageUrl } from "@/lib/media/media-url";
@@ -41,9 +42,14 @@ export function SharedPostView({ post, postId, refCode }: { post: PublicPostPrev
   }, [full, dismissed]);
 
   const next = encodeURIComponent(`/p/${postId}`);
-  const join = `/register${refCode ? `?ref=${encodeURIComponent(refCode)}` : ""}`;
+  const join = `/register?next=${next}${refCode ? `&ref=${encodeURIComponent(refCode)}` : ""}`;
   const login = `/login?next=${next}`;
-  const ask = () => setCard(true);
+  const [why, setWhy] = useState<Ask | null>(null);
+  const ask = (reason?: Ask) => {
+    setWhy(reason ?? null);
+    setDismissed(false);
+    setCard(true);
+  };
   const hoodName = post?.hood.name ?? "your neighbourhood";
 
   return (
@@ -74,60 +80,39 @@ export function SharedPostView({ post, postId, refCode }: { post: PublicPostPrev
       </main>
 
       {/* Full posts: a bar to join while they read; the card when they act or reach the end. */}
-      {full && (!card || dismissed) && (
+      {(full ? !card || dismissed : dismissed) && (
         <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card/95 px-4 py-3 backdrop-blur">
           <div className="mx-auto flex max-w-2xl items-center gap-3">
             <p className="min-w-0 flex-1 text-sm">
               <span className="font-semibold">Join {hoodName} on myHoodora</span>
               <span className="block text-muted-foreground">Free, for verified neighbours.</span>
             </p>
-            <Link href={join} className="shrink-0 rounded-full bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">
+            <button type="button" onClick={() => ask()} className="shrink-0 rounded-full bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">
               Join
-            </Link>
+            </button>
           </div>
         </div>
       )}
 
       {card && !dismissed && (
-        <div className="fixed inset-0 z-30 flex items-end justify-center bg-black/20 p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="see-more-title">
-          <div className="relative w-full max-w-md rounded-2xl bg-card p-6 text-center shadow-2xl sm:p-8">
-            {full && (
-              <button type="button" onClick={() => setDismissed(true)} className="absolute top-3 right-3 rounded-full p-2 text-muted-foreground hover:bg-muted" aria-label="Keep reading">
-                <X className="size-5" />
-              </button>
-            )}
-            <h2 id="see-more-title" className="text-2xl font-extrabold tracking-tight">
-              See more on myHoodora
-            </h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {full
-                ? `Join ${hoodName}'s neighbours to reply, react and see what's happening near you.`
-                : `This was shared by a neighbour in ${hoodName}. Only verified neighbours there can read it. Join to find your own neighbourhood.`}
-            </p>
-            <div className="mt-6 space-y-3">
-              <Link href={login} className="block w-full rounded-xl bg-primary py-3 text-base font-bold text-primary-foreground hover:bg-primary/90">
-                Log in
-              </Link>
-              <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                <span className="h-px flex-1 bg-border" /> or <span className="h-px flex-1 bg-border" />
-              </div>
-              <Link href={join} className="mx-auto block w-full max-w-xs rounded-xl bg-[#2e7d32] py-3 text-base font-bold text-white hover:bg-[#276b2b]">
-                Create new account
-              </Link>
-              {appLink && (
-                <a href={appLink} className="inline-flex items-center gap-2 pt-1 text-sm font-semibold text-primary hover:underline">
-                  <Smartphone className="size-4" aria-hidden /> Open in the myHoodora app
-                </a>
-              )}
-            </div>
-          </div>
-        </div>
+        <JoinSheet
+          why={why}
+          full={full}
+          hoodName={hoodName}
+          postPath={`/p/${postId}`}
+          login={login}
+          join={join}
+          appLink={appLink}
+          onClose={() => setDismissed(true)}
+        />
       )}
     </div>
   );
 }
 
-function PostBody({ post, onAct }: { post: PublicPostPreview; onAct: () => void }) {
+type Ask = "react" | "reply" | "vote" | "more";
+
+function PostBody({ post, onAct }: { post: PublicPostPreview; onAct: (why: Ask) => void }) {
   const team = post.author.kind === "team";
   const full = post.mode === "full";
   return (
@@ -184,7 +169,7 @@ function PostBody({ post, onAct }: { post: PublicPostPreview; onAct: () => void 
                   const pct = post.pollResults?.total ? Math.round((n / post.pollResults.total) * 100) : 0;
                   return (
                     <li key={o.id}>
-                      <button type="button" onClick={onAct} className="relative w-full overflow-hidden rounded-lg border border-border px-3 py-2 text-left text-sm">
+                      <button type="button" onClick={() => onAct("vote")} className="relative w-full overflow-hidden rounded-lg border border-border px-3 py-2 text-left text-sm">
                         <span className="absolute inset-y-0 left-0 bg-primary/10" style={{ width: `${pct}%` }} aria-hidden />
                         <span className="relative flex justify-between gap-3">
                           <span>{o.text}</span>
@@ -214,10 +199,10 @@ function PostBody({ post, onAct }: { post: PublicPostPreview; onAct: () => void 
       </div>
 
       <div className="flex items-center gap-1 border-t border-border px-2 py-1 text-sm text-muted-foreground">
-        <button type="button" onClick={onAct} className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg py-2 font-semibold hover:bg-muted">
+        <button type="button" onClick={() => onAct("react")} className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg py-2 font-semibold hover:bg-muted">
           <ThumbsUp className="size-4" aria-hidden /> {post.reactionTotal ? post.reactionTotal : "Like"}
         </button>
-        <button type="button" onClick={onAct} className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg py-2 font-semibold hover:bg-muted">
+        <button type="button" onClick={() => onAct("reply")} className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg py-2 font-semibold hover:bg-muted">
           <MessageCircle className="size-4" aria-hidden /> {post.commentCount ? pluralize(post.commentCount, "reply", "replies") : "Reply"}
         </button>
       </div>
@@ -235,7 +220,7 @@ function PostBody({ post, onAct }: { post: PublicPostPreview; onAct: () => void 
           ))}
           {post.commentCount > post.replies.length && (
             <li>
-              <button type="button" onClick={onAct} className="text-sm font-semibold text-primary hover:underline">
+              <button type="button" onClick={() => onAct("more")} className="text-sm font-semibold text-primary hover:underline">
                 See all {pluralize(post.commentCount, "reply", "replies")}
               </button>
             </li>
@@ -251,6 +236,72 @@ function Unavailable() {
     <div className="rounded-2xl border border-border bg-card p-8 text-center">
       <p className="text-lg font-bold">This post isn&apos;t available</p>
       <p className="mt-1 text-sm text-muted-foreground">It may have been removed. Join myHoodora to see what&apos;s happening in your neighbourhood.</p>
+    </div>
+  );
+}
+
+const HEADLINES: Record<Ask, string> = {
+  react: "Like what you see?",
+  reply: "Join the conversation",
+  vote: "Have your say",
+  more: "See every reply",
+};
+
+/**
+ * The sign-in sheet for someone not signed in (the user's brief: beautiful, and one tap to continue).
+ * It says what they were trying to do, offers Google in one tap (and Apple first on an iPhone, once
+ * enabled), email, logging in, or the app; and always closes. Afterwards they come back to this post.
+ */
+function JoinSheet({ why, full, hoodName, postPath, login, join, appLink, onClose }: { why: Ask | null; full: boolean; hoodName: string; postPath: string; login: string; join: string; appLink: string | null; onClose: () => void }) {
+  const [ios, setIos] = useState(false);
+  const close = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    setIos(/iPhone|iPad|iPod/i.test(navigator.userAgent));
+    close.current?.focus();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const headline = why ? HEADLINES[why] : full ? "See more on myHoodora" : `What's happening in ${hoodName}`;
+  return (
+    <div className="fixed inset-0 z-30 flex items-end justify-center bg-black/30 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="join-title" onClick={onClose}>
+      <div
+        className="relative w-full max-w-md animate-fade-in rounded-t-3xl bg-card px-6 pt-3 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-center shadow-2xl sm:rounded-3xl sm:pt-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <span className="mx-auto mb-3 block h-1.5 w-10 rounded-full bg-muted sm:hidden" aria-hidden />
+        <button ref={close} type="button" onClick={onClose} className="absolute top-3 right-3 rounded-full p-2 text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/40" aria-label={full ? "Keep reading" : "Not now"}>
+          <X className="size-5" />
+        </button>
+        {/* eslint-disable-next-line @next/next/no-img-element -- the small app icon */}
+        <img src="/logo/app-icon.png" alt="" className="mx-auto size-16 rounded-2xl shadow-sm ring-1 ring-border" />
+        <h2 id="join-title" className="mt-3 text-2xl font-extrabold tracking-tight">
+          {headline}
+        </h2>
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          {full
+            ? `Join ${hoodName}'s neighbours on myHoodora to like, reply and see what's happening near you. It's free.`
+            : `A neighbour in ${hoodName} shared this. Only verified neighbours there can read it in full. Join free to find your own neighbourhood.`}
+        </p>
+        <div className="mt-5 space-y-3 text-left">
+          <SocialAuthButtons next={() => postPath} appleFirst={ios} />
+          <Link href={join} className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 text-base font-bold text-primary-foreground hover:bg-primary/90">
+            <Mail className="size-4" aria-hidden /> Continue with email
+          </Link>
+          <p className="text-center text-sm text-muted-foreground">
+            Already a member?{" "}
+            <Link href={login} className="font-semibold text-primary hover:underline">
+              Log in
+            </Link>
+          </p>
+          {appLink && (
+            <a href={appLink} className="flex items-center justify-center gap-2 rounded-xl border border-border py-2.5 text-sm font-semibold hover:bg-muted">
+              <Smartphone className="size-4" aria-hidden /> Open in the myHoodora app
+            </a>
+          )}
+        </div>
+        <p className="mt-4 text-[11px] text-muted-foreground">For verified neighbours only. We check your address once and never show it.</p>
+      </div>
     </div>
   );
 }
