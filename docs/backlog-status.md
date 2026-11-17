@@ -108,6 +108,7 @@ Plan: [product/hood-activation-plan.md](./product/hood-activation-plan.md). Cont
 | Web app prompts (WP-H): mobile-web "Open in the app" banner, "Better in the app" sheet, desktop QR card, admin App prompts, shared-link sign-in sheet with one-tap Google, anonymous funnel counts | ✅ 17 Nov. **Manual:** set `NEXT_PUBLIC_IOS_APP_ID` and the iOS store link once the iPhone app is live |
 | Nearby fill + share note: quiet Hoods show Anyone/Nearby posts from next door, labelled; sharing a Hood-only post says outsiders see a preview | ✅ 17 Nov |
 | Moderator console (WP-B): Needs a reply (newcomers first, 2-hour target), reply as me or as Hood Team, reply-time stats, Hood assignments + My Hoods | ✅ 17 Nov (refreshes every minute; live push to staff later) |
+| Dashboards (WP-F): Admin → Activation (every Hood red/amber/green with what it still needs, Hood Team share), challenge weekly invite sign-ups, funnel, Builders, keep/push/end advice | ✅ 17 Nov |
 | App banners / "better in the app" / app links | ⬜ planned | Plan WP-H; app links need a store build |
 | Streaks, Builder badge, challenge campaign | ⬜ planned | Plan WP-C, counted back to 17 Nov |
 | Christmas and New Year looks | ⬜ planned | Plan WP-D, ready by 12 Dec |

@@ -5,6 +5,7 @@ import {
   Building2,
   FileText,
   Flag,
+  Gauge,
   History,
   Inbox,
   LayoutDashboard,
@@ -104,6 +105,7 @@ export const ADMIN_NAV: AdminNavSection[] = [
       { title: "Hood content", href: "/admin/hood-content", icon: Sparkles },
       { title: "Invites", href: "/admin/invites", icon: UserPlus },
       { title: "Launch challenge", href: "/admin/engagement", icon: Trophy },
+      { title: "Activation", href: "/admin/dashboards", icon: Gauge },
     ],
   },
   {

@@ -1735,3 +1735,10 @@ Plan WP-B. `admin.access` + `moderation.act` (moderators and up).
 - `POST /admin/console/reply { postId, content, as: "self" | "team" }` → the comment (as yourself it shows "Staff"; as the Hood Team, "Official"). Audited `console_reply|console_reply_team`.
 - `GET /admin/console/stats` → last 7 days: `{ posts, replied, medianMinutesToFirstReply, firstRepliesByStaff[] }`.
 - `GET /admin/console/assignments`, `PUT /admin/console/assignments/:uid { hoodIds }` (`team.manage`, audited `hood_assignment`).
+
+## 46. Activation and challenge dashboards (2026-11-17)
+
+Plan WP-F. `admin.access`.
+
+- `GET /admin/dashboards/activation` → `{ rows[] { hood, light: green|amber|red, missing[], neighbours, items (30 d), teamItems, leads, welcome, moderator }, counts }`. Green = 15+ posts in 30 days, 5+ verified neighbours, a Hood Lead, a Hood Team welcome post and an assigned moderator; amber = people and some life; red = nearly empty. Reddest first.
+- `GET /admin/dashboards/challenge` → `{ startedAt, weekly[] { week, signups, invited, invitedVerified }, funnel (since the start, §43), builders, hoods (light counts), advice: keep_going|push_harder|consider_ending, why }`. Advice follows the plan: end when ≥ 80% of Hoods are activated or invite sign-ups haven't grown two weeks running; push when ≥ 30% are red; otherwise keep going.
