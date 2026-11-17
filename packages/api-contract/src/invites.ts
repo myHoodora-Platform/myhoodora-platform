@@ -103,3 +103,15 @@ export interface StaffInviteView {
   joined: number;
   verified: number;
 }
+
+/**
+ * The note shown when someone shares a post only their Hood can read (plan WP-G): people outside will
+ * see a preview. Null when the post is for Nearby Hoods or Anyone, or a safety alert is the Hood's own anyway.
+ */
+export function shareNote(post: { visibility?: string | null; category?: string; author?: { neighborhoodName?: string } }, hoodName?: string): string | null {
+  if (post.visibility && post.visibility !== "neighbourhood") return null;
+  const hood = hoodName ?? post.author?.neighborhoodName ?? "your neighbourhood";
+  return post.category === "alert"
+    ? `Shared. Safety alerts stay in ${hood}: people outside see only that there was one.`
+    : `Shared. People outside ${hood} will see a preview only. Pick “Anyone” when you post to let everyone read it.`;
+}

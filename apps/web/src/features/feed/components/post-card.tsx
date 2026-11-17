@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
+import { shareNote } from "@myhoodora/api-contract/invites";
 import Link from "next/link";
 import { CalendarDays, CheckCircle2, HandHeart, MapPin, MessageCircle, Pin, Share2 } from "lucide-react";
 import { cn } from "@myhoodora/ui/utils";
@@ -191,7 +193,12 @@ export function PostCard({ post, onReact, onDelete, variant = "feed" }: PostCard
         </Link>
         <button
           type="button"
-          onClick={() => void shareLink(postHref, post.message)}
+          onClick={() =>
+            void shareLink(postHref, post.message).then(() => {
+              const note = shareNote(post, author.neighborhoodName);
+              if (note) toast(note);
+            })
+          }
           className="ml-auto flex h-10 items-center gap-2 rounded-full px-3 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted"
         >
           <Share2 className="size-[18px]" aria-hidden />

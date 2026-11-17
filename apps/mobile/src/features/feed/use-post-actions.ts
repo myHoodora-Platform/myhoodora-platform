@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useSignedInUser } from "@/core/auth/auth-provider";
 import { useToast } from "@/shared/ui/toast";
 import { shareLink } from "@/shared/utils/share";
+import { shareNote } from "@myhoodora/api-contract/invites";
 import { feedKeys, recordShare, setFollowing, setSaved } from "./feed-api";
 import { updatePostEverywhere } from "./use-reaction";
 
@@ -38,6 +39,9 @@ export function usePostActions() {
     share: async (post: ApiPost) => {
       const shared = await shareLink(`/p/${post._id}`, `${post.author?.displayName ?? "A neighbour"} on myHoodora: ${(post.message ?? post.content).slice(0, 120)}`);
       if (!shared) return;
+      // Neighbourhood-only: tell them what people outside will see (plan WP-G).
+      const note = shareNote(post);
+      if (note) toast(note);
       // Counting is a nicety: a failure here never bothers the person who just shared.
       const res = await recordShare(user, post._id).catch(() => null);
       if (res) updatePostEverywhere(client, post._id, (p) => ({ ...p, shareCount: res.shareCount }));
