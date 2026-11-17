@@ -15,6 +15,8 @@ export interface AppConfig {
    * the app then never prompts.
    */
   updates?: Record<AppPlatform, AppVersionRule>;
+  /** The festive season on now or starting within a day (contract §41). Missing from older APIs. */
+  season?: import("./seasons").Season | null;
 }
 
 export type AppPlatform = "android" | "ios";

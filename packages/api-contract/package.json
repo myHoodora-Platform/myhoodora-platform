@@ -10,6 +10,7 @@
     "./prompts": "./src/prompts.ts",
     "./hood-content": "./src/hood-content.ts",
     "./invites": "./src/invites.ts",
+    "./seasons": "./src/seasons.ts",
     "./errors": "./src/errors.ts",
     "./lookups": "./src/lookups.ts",
     "./push": "./src/push.ts",

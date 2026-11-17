@@ -1,5 +1,6 @@
 import { Stack } from "expo-router";
 import { PromptHost } from "@/features/feedback/prompt-host";
+import { SeasonOverlay } from "@/features/season/season-overlay";
 import { useLiveUpdates } from "@/features/live/use-live-updates";
 import { TourProvider } from "@/features/tour/tour-provider";
 import { useTheme } from "@/shared/theme/theme";
@@ -27,6 +28,8 @@ export default function AppLayout() {
     </Stack>
     {/* Feedback prompts admins send, shown over whatever is open (features/feedback). */}
     <PromptHost />
+    {/* Christmas lights, sparkles or fireworks during a festive season (features/season); never blocks a tap. */}
+    <SeasonOverlay />
     </TourProvider>
   );
 }

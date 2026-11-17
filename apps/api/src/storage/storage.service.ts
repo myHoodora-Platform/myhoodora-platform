@@ -37,7 +37,7 @@ const UNUSED_UPLOAD_KEPT_MS = DAY_MS;
 /** Files looked at per sweep. */
 const SWEEP_BATCH = 200;
 /** Everything that keeps stored files. A sweep without all of them would delete files the missing one is using. */
-const REFERENCE_SOURCES = ["posts", "listings", "groups", "users", "ads", "messages", "support"] as const;
+const REFERENCE_SOURCES = ["posts", "listings", "groups", "users", "ads", "messages", "support", "seasons"] as const;
 
 /** A module that keeps URLs of stored files, and can say which of a set it still needs. */
 export interface MediaReferenceSource {

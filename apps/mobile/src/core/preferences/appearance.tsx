@@ -16,6 +16,7 @@ export type ThemeChoice = "system" | "light" | "dark";
 
 const SURFACE_KEY = "appearance.surface";
 const THEME_KEY = "appearance.theme";
+const FESTIVE_KEY = "appearance.festive";
 const SURFACES: readonly Surface[] = ["glass", "plain"];
 const THEMES: readonly ThemeChoice[] = ["system", "light", "dark"];
 
@@ -24,9 +25,12 @@ interface AppearanceValue {
   setSurface: (s: Surface) => void;
   theme: ThemeChoice;
   setTheme: (t: ThemeChoice) => void;
+  /** Lights, sparkles and fireworks during festive seasons (on unless turned off). */
+  festive: boolean;
+  setFestive: (on: boolean) => void;
 }
 
-const AppearanceContext = createContext<AppearanceValue>({ surface: "glass", setSurface: () => undefined, theme: "system", setTheme: () => undefined });
+const AppearanceContext = createContext<AppearanceValue>({ surface: "glass", setSurface: () => undefined, theme: "system", setTheme: () => undefined, festive: true, setFestive: () => undefined });
 
 function applyTheme(theme: ThemeChoice) {
   Appearance.setColorScheme(theme === "system" ? "unspecified" : theme);
@@ -35,10 +39,12 @@ function applyTheme(theme: ThemeChoice) {
 export function AppearanceProvider({ children }: { children: ReactNode }) {
   const [surface, setSurfaceState] = useState<Surface>("glass");
   const [theme, setThemeState] = useState<ThemeChoice>("system");
+  const [festive, setFestiveState] = useState(true);
 
   useEffect(() => {
-    void AsyncStorage.multiGet([SURFACE_KEY, THEME_KEY])
-      .then(([[, s], [, th]]) => {
+    void AsyncStorage.multiGet([SURFACE_KEY, THEME_KEY, FESTIVE_KEY])
+      .then(([[, s], [, th], [, f]]) => {
+        if (f === "off") setFestiveState(false);
         if (SURFACES.includes(s as Surface)) setSurfaceState(s as Surface);
         if (THEMES.includes(th as ThemeChoice)) {
           setThemeState(th as ThemeChoice);
@@ -59,11 +65,16 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
     void AsyncStorage.setItem(THEME_KEY, th).catch(() => undefined);
   }, []);
 
+  const setFestive = useCallback((on: boolean) => {
+    setFestiveState(on);
+    void AsyncStorage.setItem(FESTIVE_KEY, on ? "on" : "off").catch(() => undefined);
+  }, []);
+
   // With "system" Appearance is unspecified, so this is the phone's own setting.
   const phone = useColorScheme();
   const scheme = theme === "system" ? (phone === "dark" ? "dark" : "light") : theme;
 
-  const value = useMemo(() => ({ surface, setSurface, theme, setTheme }), [surface, setSurface, theme, setTheme]);
+  const value = useMemo(() => ({ surface, setSurface, theme, setTheme, festive, setFestive }), [surface, setSurface, theme, setTheme, festive, setFestive]);
   return (
     <AppearanceContext.Provider value={value}>
       <ColorSchemeContext.Provider value={scheme}>{children}</ColorSchemeContext.Provider>

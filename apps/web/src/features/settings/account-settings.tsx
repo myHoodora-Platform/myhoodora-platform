@@ -9,12 +9,13 @@ import { cn } from "@myhoodora/ui/utils";
 import { Field, fieldInputClass } from "@/components/shared/field";
 import { ResponsiveModal } from "@/components/shared/responsive-modal";
 import { useAuth } from "@/context/AuthContext";
+import { festiveEffectsOn, setFestiveEffects } from "@/features/season/festive-prefs";
 import { errorMessage } from "@/lib/api/client";
 import { resetUserPassword } from "@/lib/firebase/auth";
 import { DEACTIVATION_REASONS, DELETION_GRACE_DAYS, deactivateAccount, type CloseMode, type DeactivationReason } from "@/lib/api/settings";
 import { ROUTES } from "@/lib/routes";
 import { THEME_OPTIONS, readThemePreference, saveThemePreference, type ThemePreference } from "@/lib/theme";
-import { Segmented, SettingsRow, SettingsSection } from "./ui";
+import { Segmented, SettingsRow, SettingsSection, Switch } from "./ui";
 
 const PROVIDER_LABELS: Record<string, string> = {
   password: "Email & password",
@@ -157,8 +158,12 @@ function SignOutEverywhereDialog({ open, onOpenChange }: { open: boolean; onOpen
 /** Light, dark, or whatever the device uses. Saved on this device only. */
 function AppearanceSetting() {
   const [theme, setTheme] = useState<ThemePreference>("system");
+  const [festive, setFestive] = useState(true);
   // Read after mount: the choice lives in this browser, so the server can't know it.
-  useEffect(() => setTheme(readThemePreference()), []);
+  useEffect(() => {
+    setTheme(readThemePreference());
+    setFestive(festiveEffectsOn());
+  }, []);
   return (
     <SettingsSection title="Appearance" description="How myHoodora looks on this device.">
       <SettingsRow label="Theme" description="System follows your phone or computer's light and dark setting.">
@@ -169,6 +174,16 @@ function AppearanceSetting() {
           onChange={(next) => {
             setTheme(next);
             saveThemePreference(next);
+          }}
+        />
+      </SettingsRow>
+      <SettingsRow label="Festive effects" description="Lights, sparkles and fireworks at Christmas and New Year. Off: just the greeting card.">
+        <Switch
+          label="Festive effects"
+          checked={festive}
+          onChange={(on) => {
+            setFestive(on);
+            setFestiveEffects(on);
           }}
         />
       </SettingsRow>

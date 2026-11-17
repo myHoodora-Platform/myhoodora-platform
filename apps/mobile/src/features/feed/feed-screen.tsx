@@ -33,6 +33,7 @@ import { FEED_FILTERS, feedKeys, getHood, isAd, listHoodPage, type FeedEntry, ty
 import { PostCard } from "./post-card";
 import { StarterChips } from "./starter-chips";
 import { WhoInvitedYouCard } from "@/features/invites/who-invited-you-card";
+import { SeasonGreeting } from "@/features/season/season-greeting";
 
 /** Below this many posts a Hood still feels quiet: offer conversation starters. */
 const QUIET_HOOD_POSTS = 10;
@@ -207,6 +208,7 @@ export function FeedScreen() {
       </View>
       {away || (filter !== "all" && filter !== "alerts") ? null : <ActiveAlertsCard posts={posts.filter((e): e is ApiPost => !isAd(e))} hoodName={hood.data?.name} />}
       {away ? null : <FeedBanner />}
+      {away ? null : <SeasonGreeting />}
       {away ? null : <WhoInvitedYouCard />}
       {/* A feedback prompt an admin set to appear here (features/feedback). */}
       <FeedPromptCard />
