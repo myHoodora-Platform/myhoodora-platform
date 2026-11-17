@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react-native";
-import { Bookmark, CalendarDays, ChevronRight, Gavel, HelpCircle, Info, LifeBuoy, Settings, ShieldCheck, ShoppingBag, Siren, Sparkles, Store, Users } from "lucide-react-native";
+import { Bookmark, CalendarDays, ChevronRight, Gavel, UserPlus, HelpCircle, Info, LifeBuoy, Settings, ShieldCheck, ShoppingBag, Siren, Sparkles, Store, Users } from "lucide-react-native";
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
@@ -83,6 +83,10 @@ export function MenuScreen() {
             <Tile key={s.label} shortcut={s} onPress={() => router.push(s.href)} />
           ))}
         </View>
+
+        <SettingsGroup>
+          <SettingsRow Icon={UserPlus} label="Invite neighbours" description="Your invite code, and who joined with it" onPress={() => router.push("/invite")} />
+        </SettingsGroup>
 
         {lead.data?.isLead ? (
           <SettingsGroup>

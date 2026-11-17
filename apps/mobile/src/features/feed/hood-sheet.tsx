@@ -7,7 +7,6 @@ import { MIN_TOUCH, tint, useTheme } from "@/shared/theme/theme";
 import { HoodMapBadge } from "@/shared/ui/hood-map-badge";
 import { Sheet, SheetItem } from "@/shared/ui/sheet";
 import { Text } from "@/shared/ui/text";
-import { shareLink } from "@/shared/utils/share";
 import { feedKeys, getHood } from "./feed-api";
 
 /**
@@ -83,7 +82,8 @@ export function HoodSheet({ visible, onClose, viewing, onView }: { visible: bool
         icon={<UserPlus size={20} color={t.colors.primary} />}
         onPress={() => {
           onClose();
-          void shareLink("/", `Join me on myHoodora, the app for neighbours in ${home.data?.name ?? "our neighbourhood"}.`);
+          // Their code, link and who joined with it (plan WP-E).
+          router.push("/invite");
         }}
       />
     </Sheet>
