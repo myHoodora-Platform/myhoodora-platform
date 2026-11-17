@@ -63,14 +63,24 @@ export class CloudinaryStorageAdapter implements StorageProvider {
       // Prepare the delivery MP4 in the background so the first viewer doesn't wait on (or 423 from) on-the-fly processing.
       ...(file.resourceType === "video" && { eager: [VIDEO_DELIVERY], eager_async: true }),
     };
+    // From disk the SDK streams the file in one request (measured: 65.8 MB video in 18 s, +28 MB memory).
+    // Its chunked uploader was far worse (231 s, +365 MB: it re-copies each chunk as it grows), and one
+    // request covers our 100 MB cap.
+    const send = () => ("buffer" in file.source ? this.fromBuffer(file.source.buffer, options) : this.sdk.uploader.upload(file.source.path, options));
     let res: UploadApiResponse;
     try {
-      // From disk the SDK streams the file in one request (measured: 65.8 MB video in 18 s, +28 MB memory).
-      // Its chunked uploader was far worse (231 s, +365 MB: it re-copies each chunk as it grows), and one
-      // request covers our 100 MB cap.
-      res = "buffer" in file.source ? await this.fromBuffer(file.source.buffer, options) : await this.sdk.uploader.upload(file.source.path, options);
-    } catch (err) {
-      throw this.toError("upload", (err as { error?: UploadApiErrorResponse }).error ?? (err as UploadApiErrorResponse));
+      res = await send();
+    } catch (first) {
+      const err = sdkError(first);
+      // A blip on Cloudinary's side (seen: a 499 "Request Timeout" seconds into a 5-photo post) gets one
+      // quiet second try from here, so the phone doesn't send the photo again over mobile data.
+      if (!isTransient(err)) throw this.toError("upload", err);
+      this.logger.warn(`Cloudinary upload failed (${err?.http_code ?? "no response"}); trying once more`);
+      try {
+        res = await send();
+      } catch (second) {
+        throw this.toError("upload", sdkError(second));
+      }
     }
     if (!res?.public_id) throw this.toError("upload", undefined);
     return {
@@ -161,7 +171,21 @@ export class CloudinaryStorageAdapter implements StorageProvider {
     const code = err?.http_code;
     this.logger.warn(`Cloudinary ${op} failed${code ? ` (${code})` : ""}: ${(err?.message ?? "no response").slice(0, 200)}`);
     // 4xx other than auth/rate limits means this file was refused; everything else is on the provider's side.
-    const rejected = typeof code === "number" && code >= 400 && code < 500 && ![401, 403, 408, 420, 429].includes(code);
+    const rejected = typeof code === "number" && code >= 400 && code < 500 && !NOT_THE_FILE.includes(code);
     return new StorageError(rejected ? "rejected" : "unavailable", `cloudinary:${op}:${code ?? "error"}`);
   }
+}
+
+/** 4xx codes that say nothing about the file: auth, timeouts (499 is the SDK's own "Request Timeout"), rate limits. */
+const NOT_THE_FILE = [401, 403, 408, 420, 429, 499];
+
+/** The SDK rejects with `{ error }` from its callback API, or the error itself. */
+function sdkError(err: unknown): Partial<UploadApiErrorResponse> | undefined {
+  return (err as { error?: UploadApiErrorResponse } | undefined)?.error ?? (err as UploadApiErrorResponse | undefined);
+}
+
+/** Worth one more try: a timeout, Cloudinary's own fault, or no answer at all. Never a refused file or bad credentials. */
+function isTransient(err?: Partial<UploadApiErrorResponse>): boolean {
+  const code = err?.http_code;
+  return typeof code !== "number" || code === 408 || code === 499 || code >= 500;
 }

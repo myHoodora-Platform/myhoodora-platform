@@ -46,19 +46,18 @@ async function request<T>(url: string, user: User | null, init: RequestInitWithJ
   }, timeoutMs);
   signal?.addEventListener("abort", () => controller.abort());
 
-  let response: Response;
+  const allHeaders: Record<string, string> = {
+    Accept: "application/json",
+    ...(token && { Authorization: `Bearer ${token}` }),
+    ...(json !== undefined && { "Content-Type": "application/json" }),
+    ...(headers as Record<string, string> | undefined),
+  };
+  let response: Answer;
   try {
-    response = await fetch(url, {
-      ...rest,
-      signal: controller.signal,
-      headers: {
-        Accept: "application/json",
-        ...(token && { Authorization: `Bearer ${token}` }),
-        ...(json !== undefined && { "Content-Type": "application/json" }),
-        ...(headers as Record<string, string> | undefined),
-      },
-      body: json !== undefined ? JSON.stringify(json) : rest.body,
-    });
+    response =
+      rest.body instanceof FormData
+        ? await sendForm(url, { method: rest.method, headers: allHeaders, body: rest.body, signal: controller.signal })
+        : await fetch(url, { ...rest, signal: controller.signal, headers: allHeaders, body: json !== undefined ? JSON.stringify(json) : rest.body });
   } catch {
     if (timedOut) throw transportError("timeout");
     if (signal?.aborted) throw new ApiError("Cancelled", 0, "network");
@@ -87,8 +86,38 @@ async function request<T>(url: string, user: User | null, init: RequestInitWithJ
   }
 }
 
+/** What `request` reads from an answer: a fetch Response, or an upload's XMLHttpRequest. */
+type Answer = Pick<Response, "ok" | "status" | "text"> & { headers: { get(name: string): string | null } };
+
+/**
+ * Photo and document uploads go through XMLHttpRequest, not fetch. Since Expo 57 the global fetch is
+ * expo/fetch, which can't send React Native's `{ uri, name, type }` file parts: it throws before
+ * anything leaves the phone (iOS and Android alike), which read as "can't reach myHoodora".
+ * React Native's XMLHttpRequest reads the file from its uri natively and sets the multipart boundary.
+ */
+export function sendForm(url: string, init: { method?: string; headers: Record<string, string>; body: FormData; signal: AbortSignal }): Promise<Answer> {
+  return new Promise((resolve, reject) => {
+    if (init.signal.aborted) return reject(new Error("Aborted"));
+    const xhr = new XMLHttpRequest();
+    xhr.open(init.method ?? "POST", url);
+    for (const [name, value] of Object.entries(init.headers)) {
+      // The multipart Content-Type (with its boundary) is XMLHttpRequest's to set.
+      if (name.toLowerCase() !== "content-type") xhr.setRequestHeader(name, value);
+    }
+    xhr.onload = () => {
+      const text = typeof xhr.responseText === "string" ? xhr.responseText : "";
+      resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, text: async () => text, headers: { get: (name) => xhr.getResponseHeader(name) } });
+    };
+    xhr.onerror = () => reject(new Error("Network request failed"));
+    xhr.ontimeout = () => reject(new Error("Network request timed out"));
+    xhr.onabort = () => reject(new Error("Aborted"));
+    init.signal.addEventListener("abort", () => xhr.abort());
+    xhr.send(init.body);
+  });
+}
+
 /** Something in front of the API answered with a web page: tell the team (see reportEdgePage). */
-function reportPage(response: Response, url: string): void {
+function reportPage(response: Answer, url: string): void {
   // The host and the route's first two parts ("/api/feed", skipping the "/v1"): enough to group by, with no ids or query.
   const match = /^https?:\/\/([^/?#]+)([^?#]*)/.exec(url);
   const parts = (match?.[2] ?? "").split("/").filter((part) => part && !/^v\d+$/.test(part));

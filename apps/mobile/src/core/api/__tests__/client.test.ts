@@ -42,3 +42,61 @@ describe("a web page in place of the API", () => {
     expect(reportEdgePage).not.toHaveBeenCalled();
   });
 });
+
+describe("uploads (multipart)", () => {
+  /** A stand-in XMLHttpRequest that records what was sent and answers with `status` / `body`. */
+  function fakeXhr(status: number, body: string, fail = false) {
+    const sent: { method?: string; url?: string; headers: Record<string, string>; body?: unknown } = { headers: {} };
+    class FakeXhr {
+      status = 0;
+      responseText = "";
+      onload?: () => void;
+      onerror?: () => void;
+      ontimeout?: () => void;
+      onabort?: () => void;
+      open(method: string, url: string) {
+        sent.method = method;
+        sent.url = url;
+      }
+      setRequestHeader(name: string, value: string) {
+        sent.headers[name] = value;
+      }
+      getResponseHeader() {
+        return null;
+      }
+      abort() {
+        this.onabort?.();
+      }
+      send(data: unknown) {
+        sent.body = data;
+        setTimeout(() => {
+          if (fail) return this.onerror?.();
+          this.status = status;
+          this.responseText = body;
+          this.onload?.();
+        }, 0);
+      }
+    }
+    (globalThis as { XMLHttpRequest: unknown }).XMLHttpRequest = FakeXhr;
+    globalThis.fetch = jest.fn();
+    return sent;
+  }
+
+  // expo/fetch (Expo 57's global fetch) can't send React Native's { uri, name, type } parts; XMLHttpRequest can.
+  it("go through XMLHttpRequest, never fetch, with the token and no hand-set Content-Type", async () => {
+    const sent = fakeXhr(201, JSON.stringify({ id: "m1", url: "https://cdn.test/m1.jpg" }));
+    const form = new FormData();
+    form.append("file", { uri: "file:///cache/photo.jpg", name: "photo.jpg", type: "image/jpeg" } as unknown as Blob);
+    await expect(apiFetch(user, "/media", { method: "POST", body: form })).resolves.toEqual({ id: "m1", url: "https://cdn.test/m1.jpg" });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(sent).toMatchObject({ method: "POST", url: "https://api.test/api/v1/media", body: form, headers: { Authorization: "Bearer token", Accept: "application/json" } });
+    expect(Object.keys(sent.headers).map((h) => h.toLowerCase())).not.toContain("content-type");
+  });
+
+  it("read the API's refusals and lost connections like any other request", async () => {
+    fakeXhr(413, JSON.stringify({ message: "That photo is too big" }));
+    await expect(apiFetch(user, "/media", { method: "POST", body: new FormData() })).rejects.toMatchObject({ kind: "client" });
+    fakeXhr(0, "", true);
+    await expect(apiFetch(user, "/media", { method: "POST", body: new FormData() })).rejects.toMatchObject({ kind: "network" });
+  });
+});
