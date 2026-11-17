@@ -12,6 +12,7 @@ import { ComposerProvider } from "@/features/feed/composer-context";
 import { hasSkippedOnboarding } from "@/features/onboarding/draft";
 import { FirstRunTour } from "@/features/tour/first-run-tour";
 import { SeasonLayer } from "@/features/season/season-layer";
+import { BetterInAppSheet } from "@/features/app-prompts/better-in-app-sheet";
 import { prefetchUnreadMessages } from "@/features/chat/use-unread-messages";
 import { prefetchNotifications } from "@/features/notifications/use-notifications";
 import { ROUTES } from "@/lib/routes";
@@ -187,6 +188,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <OnboardingGatingModal />
           <FirstRunTour />
           <SeasonLayer />
+          <BetterInAppSheet />
         </div>
       </ComposerProvider>
     </TooltipProvider>

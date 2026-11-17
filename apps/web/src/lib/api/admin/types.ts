@@ -427,6 +427,8 @@ export interface PlatformSettings {
   appStoreStatus: Record<"android" | "ios", AppStoreStatus>;
   /** Admins' extra words and phrases the content filter refuses (the built-in ones aren't listed). "word*" also covers longer words starting with it. */
   blockedTerms: string[];
+  /** "Get the app" prompts on the mobile website (contract §43). */
+  appPrompts?: import("@myhoodora/api-contract/app-config").AppPrompts;
 }
 
 export interface SignupEntry {

@@ -17,7 +17,20 @@ export interface AppConfig {
   updates?: Record<AppPlatform, AppVersionRule>;
   /** The festive season on now or starting within a day (contract §41). Missing from older APIs. */
   season?: import("./seasons").Season | null;
+  /** "Get the app" prompts on the mobile website (contract §43). Missing from older APIs: treat as on. */
+  appPrompts?: AppPrompts;
 }
+
+/** Admin → Settings → Platform → App prompts. */
+export interface AppPrompts {
+  /** The slim "Open in the app" banner on phones. */
+  banner: boolean;
+  /** The one-off "Better in the app" sheet at good moments. */
+  sheet: boolean;
+  /** After someone closes the sheet, the days before it may show again. */
+  sheetEveryDays: number;
+}
+export const DEFAULT_APP_PROMPTS: AppPrompts = { banner: true, sheet: true, sheetEveryDays: 7 };
 
 export type AppPlatform = "android" | "ios";
 

@@ -7,6 +7,7 @@ import { MascotWordmark } from "@myhoodora/ui/logo";
 import { normaliseInviteCode, type PublicInvite } from "@myhoodora/api-contract/invites";
 import { PLAY_STORE_URL, inAppBrowser } from "@/features/shared-post/shared-visit";
 import { rememberInviteRef } from "./invite-ref";
+import { trackFunnel } from "@/lib/api/funnel";
 
 const WHY = [
   { Icon: BellRing, title: "Safety alerts", text: "Hear first when something happens on your street." },
@@ -21,6 +22,7 @@ export function InviteLanding({ invite, code, fromPoster }: { invite: PublicInvi
 
   useEffect(() => {
     if (shownCode) rememberInviteRef(shownCode, fromPoster ? "qr" : "link");
+    trackFunnel(fromPoster ? "poster_view" : "invite_view");
     setWebview(inAppBrowser(navigator.userAgent));
   }, [shownCode, fromPoster]);
 

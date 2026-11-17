@@ -1713,3 +1713,12 @@ Plan WP-C. Types: `@myhoodora/api-contract/engagement`.
 - `GET /engagement/me` → `EngagementSummary { streak | null, challenge | null, badge | null }` (worked out fresh, saved on the user). Everyone recently active is refreshed every 6 hours.
 - **Badges on avatars**: post, comment and profile authors carry `badge?: { builder?, tier?, streak? }`; apps show the mascot ringed in the tier colour (green for a Builder without one), never like the verified tick.
 - Admin: `GET /admin/engagement` (settings, counts), `PATCH /admin/engagement` (`engagement.manage`: name, start, end (null reopens), thresholds, `streaksOn`, `badgesOn` kill switches), `POST /admin/engagement/end-challenge`, `GET /admin/engagement/builders` (`?format=csv`), `GET /admin/engagement/people/:uid`, `PUT /admin/engagement/builders/:uid { on, reason }` (audited `builder_grant|builder_revoke`). Account deletion clears invites and engagement data.
+
+## 43. "Get the app" prompts and the funnel (2026-11-17)
+
+Plan WP-H / WP-F.
+
+- `GET /app-config` gains `appPrompts { banner, sheet, sheetEveryDays }` (Admin → Settings → Platform → App prompts; `PATCH /admin/settings { appPrompts }`, 1–90 days).
+- Mobile web: a slim, dismissible "Open in the app" bar (two weeks away once closed) that opens **the same page** in the app on Android (an `intent://` link whose fallback is the Play Store with `referrer=ref=<code>`), and "Get" on iPhone once the App Store link is set; the "Better in the app" sheet only from the second visit, 4 s in, at most every `sheetEveryDays` after closing; desktop: a "Get the app" QR card in the sidebar. iPhone Safari's own Smart App Banner turns on with `NEXT_PUBLIC_IOS_APP_ID`.
+- Shared posts: a sign-in sheet that names what the visitor tried (like, reply, vote, more replies), Google in one tap (Apple first on iPhone once enabled), email, log in, open in the app; always closable; returns to the post.
+- `POST /public/funnel { event }` (no sign-in, 120/min per address) counts anonymous steps by Lagos day: `shared_view, shared_join_tap, invite_view, poster_view, banner_shown|open|dismiss, sheet_shown|open|dismiss`. Nothing about the person is stored. `GET /admin/funnel?from` (staff) → `{ days, totals, daily }`.

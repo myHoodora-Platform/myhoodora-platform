@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { PublicPostPreview } from "@myhoodora/api-contract/types";
 import { BadgeCheck, CalendarDays, Lock, Mail, MapPin, MessageCircle, Smartphone, ThumbsUp, X } from "lucide-react";
 import { SocialAuthButtons } from "@/components/shared/social-auth-buttons";
+import { trackFunnel } from "@/lib/api/funnel";
 import { MascotWordmark } from "@myhoodora/ui/logo";
 import { cn } from "@myhoodora/ui/utils";
 import { imageUrl } from "@/lib/media/media-url";
@@ -29,6 +30,7 @@ export function SharedPostView({ post, postId, refCode }: { post: PublicPostPrev
 
   useEffect(() => {
     rememberSharedVisit({ postId, hoodName: post?.hood.name, ref: refCode });
+    trackFunnel("shared_view");
     setAppLink(openInAppHref(`p/${postId}`, navigator.userAgent));
     setWebview(inAppBrowser(navigator.userAgent));
   }, [postId, post?.hood.name, refCode]);
@@ -46,6 +48,7 @@ export function SharedPostView({ post, postId, refCode }: { post: PublicPostPrev
   const login = `/login?next=${next}`;
   const [why, setWhy] = useState<Ask | null>(null);
   const ask = (reason?: Ask) => {
+    trackFunnel("shared_join_tap");
     setWhy(reason ?? null);
     setDismissed(false);
     setCard(true);

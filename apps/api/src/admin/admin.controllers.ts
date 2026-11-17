@@ -425,6 +425,7 @@ export class AdminController {
       appUpdates: body.appUpdates,
       appUpdatesAuto: body.appUpdatesAuto,
       blockedTerms: body.blockedTerms,
+      appPrompts: body.appPrompts,
     });
     await this.audit.record(v, "settings_update", { type: "settings", id: "platform", label: "Platform settings" });
     return { ...next, coverageCities: await this.hoods.coverageCities() };

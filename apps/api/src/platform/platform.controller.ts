@@ -11,6 +11,8 @@ interface AppConfig {
   updates: Record<"android" | "ios", { latest: string; minimum: string; storeUrl: string | null }>;
   /** The festive season on now, or starting within a day (contract §41); null otherwise. */
   season: SeasonView | null;
+  /** "Get the app" prompts on the mobile website (contract §43). */
+  appPrompts: { banner: boolean; sheet: boolean; sheetEveryDays: number };
 }
 
 /**
@@ -33,13 +35,14 @@ export class PlatformController {
       "How many days before the app asks again someone who said no to usage analytics (0: never), and the AI Studio address when myHoodora AI links should go there (null: our own /ai page), and the latest and minimum app store versions per platform (storeUrl null: not in that store yet), and the festive season on now or starting within a day (null: none).",
   })
   async get(): Promise<AppConfig> {
-    const { analyticsReaskDays, hoodoraAi, appUpdates } = await this.settings.get();
+    const { analyticsReaskDays, hoodoraAi, appUpdates, appPrompts } = await this.settings.get();
     const rule = (r: (typeof appUpdates)["android"]) => ({ latest: r.latest, minimum: r.minimum, storeUrl: r.storeUrl || null });
     return {
       analytics: { reaskDays: analyticsReaskDays },
       links: { hoodoraAiStudio: hoodoraAi.target === "studio" ? hoodoraAi.studioUrl : null },
       updates: { android: rule(appUpdates.android), ios: rule(appUpdates.ios) },
       season: await this.seasons.forApps(),
+      appPrompts,
     };
   }
 }

@@ -43,6 +43,7 @@ import { PublicPostsModule } from "./public-posts/public-posts.module";
 import { InvitesModule } from "./invites/invites.module";
 import { SeasonsModule } from "./seasons/seasons.module";
 import { EngagementModule } from "./engagement/engagement.module";
+import { FunnelModule } from "./funnel/funnel.module";
 import { SearchModule } from "./search/search.module";
 import { StorageModule } from "./storage/storage.module";
 import { UsersModule } from "./users/users.module";
@@ -96,6 +97,7 @@ import { UsersModule } from "./users/users.module";
     InvitesModule,
     SeasonsModule,
     EngagementModule,
+    FunnelModule,
     SearchModule,
     CommentsModule,
     ModerationModule,

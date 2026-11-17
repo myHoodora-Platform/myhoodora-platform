@@ -161,6 +161,12 @@ class AppUpdatesDto {
   @ValidateNested() @Type(() => AppVersionRuleDto) ios!: AppVersionRuleDto;
 }
 
+export class AppPromptsDto {
+  @IsBoolean() banner!: boolean;
+  @IsBoolean() sheet!: boolean;
+  @Type(() => Number) @IsInt() @Min(1) @Max(90) sheetEveryDays!: number;
+}
+
 export class SettingsDto {
   @IsOptional()
   @IsArray()
@@ -204,6 +210,12 @@ export class SettingsDto {
   @IsString({ each: true })
   @MaxLength(MAX_BLOCKED_TERM_LENGTH, { each: true })
   blockedTerms?: string[];
+
+  /** "Get the app" prompts on the mobile website. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AppPromptsDto)
+  appPrompts?: AppPromptsDto;
 
   /** Read-only (the last store check); accepted so the web can send the whole object back, then ignored. */
   @IsOptional()

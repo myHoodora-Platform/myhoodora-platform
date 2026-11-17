@@ -7,6 +7,7 @@ import { cn } from "@myhoodora/ui/utils";
 import { useComposer } from "@/features/feed/composer-context";
 import { navTourId } from "@/features/tour/placement";
 import { ROUTES } from "@/lib/routes";
+import { GetTheAppCard } from "@/features/app-prompts/get-the-app-card";
 import { PRIMARY_NAV, isNavActive } from "./navigation";
 
 /** Desktop left nav (≥1024px). Mobile uses MobileTabBar instead. */
@@ -72,6 +73,7 @@ export function AppSidebar() {
           Community guidelines
         </Link>
       </div>
+      <GetTheAppCard />
     </aside>
   );
 }
