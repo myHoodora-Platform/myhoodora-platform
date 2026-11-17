@@ -29,6 +29,9 @@ const ALERT_FANOUT = "alert.fanout";
 /** Neighbours told per step of that job. */
 const FANOUT_PAGE = 1_000;
 
+/** How far back nearby fill looks. */
+const NEARBY_FILL_DAYS = 21;
+
 export interface PostView {
   _id: string;
   authorUid: string;
@@ -52,6 +55,8 @@ export interface PostView {
   visibility: FeedPost["visibility"];
   /** Pinned by the Hood Team: the feed's first page shows it on top until it expires. */
   pinned?: boolean;
+  /** Nearby fill (plan WP-G): an Anyone/Nearby post from the Hood next door, in a quiet Hood's feed. */
+  nearby?: { hoodId: string; hoodName: string };
   /** "team": an official Hood Team post. */
   source?: "team";
   /** Absent: full and you can take part. "read_only": in the audience to read, not to take part. "teaser": outside it. */
@@ -435,7 +440,40 @@ export class PostsService implements OnModuleInit {
       query.limit(q.limit).lean<FeedPost[]>().exec(),
       firstPage ? this.posts.find(pinnedFilter).sort({ pinnedUntil: -1, createdAt: -1 }).limit(MAX_PINNED).lean<FeedPost[]>().exec() : [],
     ]);
-    return this.toViews([...pinned, ...docs], viewer);
+    const own = await this.toViews([...pinned, ...docs], viewer);
+    // A quiet Hood (its first page isn't full): what neighbours next door shared with Nearby Hoods or Anyone.
+    if (!firstPage || q.category || hoodId !== viewer.hoodId || docs.length >= q.limit - 1) return own;
+    return [...own, ...(await this.nearbyFill(viewer, hoodId, hidden, q.limit - 1 - docs.length))];
+  }
+
+  /**
+   * Up to `room` recent posts from the Hoods around this one that their authors opened to Nearby Hoods or
+   * Anyone (never alerts), newest first, marked with where they're from. Kept under a page so paging, which
+   * follows the Hood's own posts, ends where it should.
+   */
+  private async nearbyFill(viewer: Viewer, hoodId: string, hidden: string[], room: number): Promise<PostView[]> {
+    if (room <= 0) return [];
+    const near = await this.hoods.nearbyHoodIds(hoodId);
+    if (!near.length) return [];
+    const docs = await this.posts
+      .find({
+        neighborhoodId: { $in: near },
+        visibility: { $in: ["anyone", "nearby"] },
+        category: { $ne: "alert" },
+        isActive: true,
+        removedAt: null,
+        authorDeactivated: { $ne: true },
+        createdAt: { $gte: new Date(Date.now() - NEARBY_FILL_DAYS * 86_400_000) },
+        ...(hidden.length && { authorUid: { $nin: hidden } }),
+      })
+      .sort({ createdAt: -1 })
+      .limit(room)
+      .lean<FeedPost[]>()
+      .exec();
+    if (!docs.length) return [];
+    const names = await this.hoods.findManyByIds([...new Set(docs.map((d) => d.neighborhoodId))]);
+    const views = await this.toViews(docs, viewer);
+    return views.map((v) => ({ ...v, pinned: undefined, nearby: { hoodId: v.neighborhoodId, hoodName: names.get(v.neighborhoodId)?.name ?? "a nearby neighbourhood" } }));
   }
 
   /**

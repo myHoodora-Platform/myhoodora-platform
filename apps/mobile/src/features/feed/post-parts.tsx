@@ -94,6 +94,14 @@ export function PostAuthor({ post, size = 40, compact = false, onAuthor, onAutho
             </Text>
           </View>
         ) : null}
+        {post.nearby ? (
+          <View style={styles.row}>
+            <MapPin size={11} color={t.colors.primary} />
+            <Text variant="caption" style={{ color: t.colors.primary }} numberOfLines={1}>
+              From {post.nearby.hoodName}, nearby
+            </Text>
+          </View>
+        ) : null}
         <View style={styles.row}>
           <Text variant="caption" tone="muted" numberOfLines={1} style={styles.shrink}>
             {meta}

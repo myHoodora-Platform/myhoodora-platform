@@ -56,7 +56,8 @@ export class AdFeedService {
     // Access, blocks and order are the plain feed's (404 outside your neighbourhoods).
     const posts = await this.posts.feed(viewer, hoodId, { limit: q.limit, before: cursor?.before, category: q.category });
     // Pinned posts come on top of the first page, beyond the limit: paging follows the dated ones.
-    const dated = posts.filter((p) => !p.pinned);
+    // Paging follows the Hood's own dated posts: not pinned ones, not nearby fill.
+    const dated = posts.filter((p) => !p.pinned && !p.nearby);
     const more = dated.length === q.limit;
     const rules = await this.ads.settings();
     const state = cursor?.state ?? initialState(rules);

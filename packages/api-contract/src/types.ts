@@ -70,6 +70,8 @@ export interface ApiPost {
   visibility?: PostVisibility;
   /** Pinned by the Hood Team: shown first on the first page of the feed until it expires. */
   pinned?: boolean;
+  /** Nearby fill (contract §44): from the Hood next door, shown in a quiet Hood's feed. */
+  nearby?: { hoodId: string; hoodName: string };
   /** "team" for official Hood Team posts. Absent (or "member") for neighbours' posts. */
   source?: "member" | "team";
   /**

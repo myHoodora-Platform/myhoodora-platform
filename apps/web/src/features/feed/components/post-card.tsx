@@ -84,6 +84,11 @@ export function PostCard({ post, onReact, onDelete, variant = "feed" }: PostCard
             <Pin className="size-3.5" aria-hidden /> Pinned
           </p>
         )}
+        {post.nearby && (
+          <p className="-mb-1 flex items-center gap-1 text-xs font-semibold text-primary">
+            <MapPin className="size-3.5" aria-hidden /> From {post.nearby.hoodName}, nearby
+          </p>
+        )}
         {/* Header */}
         <div className="flex items-start gap-3">
           <Link href={ROUTES.profile(post.authorUid)} className="shrink-0" tabIndex={-1} aria-hidden>

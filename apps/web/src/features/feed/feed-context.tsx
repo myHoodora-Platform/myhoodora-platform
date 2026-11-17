@@ -57,9 +57,9 @@ interface FeedContextValue {
 
 const FeedContext = createContext<FeedContextValue | undefined>(undefined);
 
-/** Posts that count for paging: pinned posts sit on top of the first page, outside it. */
+/** Posts that count for paging: pinned posts sit on top of the first page, and nearby fill below it, outside it. */
 function datedCount(posts: readonly Post[]): number {
-  return posts.filter((p) => !p.pinned).length;
+  return posts.filter((p) => !p.pinned && !p.nearby).length;
 }
 
 /** Append a page without duplicating posts the skip offset re-served. */
