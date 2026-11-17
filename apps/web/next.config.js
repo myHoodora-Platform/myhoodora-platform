@@ -68,6 +68,8 @@ function searchEngineHeaders() {
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Upgraded for a published security advisory (16.4.3 → 16.4.6), as `next upgrade --agent=security` sets.
+  experimental: { agentUpgrade: "security" },
   images: {
     // 90 is used for full-bleed hero photos so they stay crisp on large screens.
     qualities: [75, 90],
