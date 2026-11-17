@@ -5,6 +5,8 @@
   "testRegex": ".e2e-spec.ts$",
   "globalSetup": "<rootDir>/setup/global-setup.ts",
   "globalTeardown": "<rootDir>/setup/global-teardown.ts",
+  "setupFiles": ["<rootDir>/setup/per-worker-env.ts"],
+  "maxWorkers": "50%",
   "testTimeout": 60000,
   "transform": {
     "^.+\\.(t|j)s$": ["ts-jest", { "tsconfig": "<rootDir>/tsconfig.json" }]
