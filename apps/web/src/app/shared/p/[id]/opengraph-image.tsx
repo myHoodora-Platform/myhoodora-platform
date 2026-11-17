@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ImageResponse } from "next/og";
+import { ogFonts } from "@/lib/og/fonts";
 import { getSharedPost, postKindWords, previewLine } from "@/lib/api/public-posts";
 
 /**
@@ -24,7 +25,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
 
   return new ImageResponse(
     (
-      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", background: "#f3f8f7", padding: 72, fontFamily: "sans-serif" }}>
+      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", background: "#f3f8f7", padding: 72, fontFamily: "Outfit" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
           <img src={avatar} width={88} height={88} style={{ borderRadius: 44 }} alt="" />
           <div style={{ display: "flex", flexDirection: "column" }}>
@@ -44,6 +45,6 @@ export default async function Image({ params }: { params: Promise<{ id: string }
         </div>
       </div>
     ),
-    size,
+    { ...size, fonts: await ogFonts() },
   );
 }

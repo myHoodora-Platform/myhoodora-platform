@@ -15,6 +15,9 @@ export function systemPathToRoute({ path }: { path: string; initial?: boolean })
     // The web's profile page is /profile/<uid>; the app's is /u/<uid>.
     const profile = /^\/profile\/([^/]+)\/?$/.exec(pathname);
     if (profile) return `/u/${profile[1]}`;
+    // A shared badge or a poster is the same invite as /i/<code> in the app.
+    const invite = /^\/i\/([^/]+)\/(badge|poster)\/?$/.exec(pathname);
+    if (invite) return `/i/${invite[1]}`;
     url.searchParams.delete("ref");
     const query = url.searchParams.toString();
     return `${pathname || "/"}${query ? `?${query}` : ""}`;

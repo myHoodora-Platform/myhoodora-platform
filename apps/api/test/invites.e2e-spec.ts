@@ -44,9 +44,13 @@ describe("Invite codes and referral paths", () => {
     expect(new Set(codes).size).toBe(30);
   });
 
-  it("the invite page shows the inviter's first name and Hood only", async () => {
+  it("the invite page shows the inviter's first name, Hood and avatar badge only", async () => {
     const page = (await t.http.get(`/api/public/invites/${adaCode.toLowerCase()}`).expect(200)).body;
-    expect(page).toEqual({ code: adaCode, inviter: { firstName: "Adaeze" }, hood: { name: "Lekki Phase 1", city: "Lagos" } });
+    expect(page).toEqual({ code: adaCode, inviter: { firstName: "Adaeze" }, hood: { name: "Lekki Phase 1", city: "Lagos" }, badge: null });
+    // A Hood Builder's badge shows (it's on their avatar anyway), for the "Share my badge" card.
+    await t.users.updateOne({ uid: "ada" }, { $set: { engagement: { streak: 4, best: 4, lastDay: null, tier: "bronze", challengeDays: 4, challengeInvites: 0, builderAt: new Date(), badge: { builder: true, tier: "bronze", streak: 4 }, computedAt: new Date() } } });
+    expect((await t.http.get(`/api/public/invites/${adaCode}`).expect(200)).body.badge).toEqual({ builder: true, tier: "bronze", streak: 4 });
+    await t.users.updateOne({ uid: "ada" }, { $set: { engagement: null } });
     expect(JSON.stringify(page)).not.toMatch(/Okafor|ada@/);
     await t.http.get("/api/public/invites/ZZZZZ").expect(404);
     await t.http.get("/api/public/invites/<b>").expect(404);

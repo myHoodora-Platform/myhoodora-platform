@@ -1,4 +1,4 @@
-import { BUILDER_INVITES } from "@myhoodora/api-contract/invites";
+import { badgeShareText, BUILDER_INVITES } from "@myhoodora/api-contract/invites";
 import { useQuery } from "@tanstack/react-query";
 import * as Clipboard from "expo-clipboard";
 import * as WebBrowser from "expo-web-browser";
@@ -18,7 +18,7 @@ import { Text } from "@/shared/ui/text";
 import { timeAgo } from "@/shared/utils/time";
 import { getEngagement, getInviteSummary, inviteKeys } from "./invites-api";
 import { ParticipationBadge } from "@/shared/ui/avatar";
-import { STREAK_TIER_AT } from "@myhoodora/api-contract/engagement";
+import { badgeLabel, STREAK_TIER_AT } from "@myhoodora/api-contract/engagement";
 import { rememberMyInviteCode } from "@/core/invites/invite-ref";
 
 /**
@@ -66,12 +66,7 @@ function Body() {
   const s = summary.data;
   const hoodName = hood.data?.name;
   const message = `Join me on myHoodora${hoodName ? `, the app for ${hoodName}` : ""}: safety alerts, trusted recommendations and things for sale near us. ${s.link}\n\nMy invite code: ${s.code}`;
-  const whatsapp = async () => {
-    const url = `whatsapp://send?text=${encodeURIComponent(message)}`;
-    // WhatsApp first (on ~95% of Nigerian phones); the share sheet when it isn't installed.
-    if (await Linking.canOpenURL(url).catch(() => false)) await Linking.openURL(url).catch(() => undefined);
-    else await Share.share({ message }).catch(() => undefined);
-  };
+  const whatsapp = () => shareOnWhatsApp(message);
   const copyCode = async () => {
     await Clipboard.setStringAsync(s.code);
     setCopied(true);
@@ -140,7 +135,7 @@ function Body() {
             </View>
           ))}
         </View>
-        <Challenge invitesFallback={s.verified} />
+        <Challenge invitesFallback={s.verified} link={s.link} hoodName={hoodName} />
 
         {s.people.length ? (
           s.people.map((p, i) => (
@@ -185,7 +180,14 @@ function Progress({ value, max, label }: { value: number; max: number; label: st
 }
 
 /** The launch challenge (plan WP-C): Hood Builder by either path, and the streak. The web's ChallengeProgress. */
-function Challenge({ invitesFallback }: { invitesFallback: number }) {
+/** WhatsApp first (on ~95% of Nigerian phones); the share sheet when it isn't installed. */
+async function shareOnWhatsApp(message: string) {
+  const url = `whatsapp://send?text=${encodeURIComponent(message)}`;
+  if (await Linking.canOpenURL(url).catch(() => false)) await Linking.openURL(url).catch(() => undefined);
+  else await Share.share({ message }).catch(() => undefined);
+}
+
+function Challenge({ invitesFallback, link, hoodName }: { invitesFallback: number; link: string; hoodName?: string }) {
   const t = useTheme();
   const user = useSignedInUser();
   const e = useQuery({ queryKey: inviteKeys.engagement(user.uid), queryFn: () => getEngagement(user), staleTime: 0 }).data;
@@ -238,6 +240,10 @@ function Challenge({ invitesFallback }: { invitesFallback: number }) {
       <Text variant="caption" tone="muted">
         A day counts when you post, reply, vote or RSVP; reactions don&apos;t. One missed day a week doesn&apos;t break a streak.
       </Text>
+      {/* "Share my badge": its WhatsApp preview is the badge card (the web's /i/<code>/badge), and it's an invite. */}
+      {e?.badge && badgeLabel(e.badge) ? (
+        <Button label="Share my badge" variant="secondary" onPress={() => void shareOnWhatsApp(badgeShareText(badgeLabel(e.badge)!, hoodName, `${link}/badge`))} />
+      ) : null}
     </View>
   );
 }

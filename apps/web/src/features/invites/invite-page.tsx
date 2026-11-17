@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Copy, MessageCircle, Printer, Share2, UserPlus } from "lucide-react";
+import { Check, Copy, Download, MessageCircle, Printer, Share2, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { ROUTES } from "@/lib/routes";
 import { toast } from "sonner";
 import { Button } from "@myhoodora/ui/button";
-import { BUILDER_INVITES } from "@myhoodora/api-contract/invites";
+import { badgePath, badgeShareText, BUILDER_INVITES } from "@myhoodora/api-contract/invites";
 import { useAuth } from "@/context/AuthContext";
 import { ProblemState } from "@/components/shared/connection-states";
 import { isLive } from "@/lib/api/config";
@@ -14,7 +14,7 @@ import { useNeighbourhood } from "@/hooks/use-neighbourhood";
 import { timeAgo } from "@/lib/time";
 import { loadInvites, useEngagement, useInviteSummary } from "./use-invites";
 import { ParticipationBadge } from "@/components/shared/user-avatar";
-import { STREAK_TIER_AT } from "@myhoodora/api-contract/engagement";
+import { badgeLabel, STREAK_TIER_AT } from "@myhoodora/api-contract/engagement";
 
 /**
  * Invite neighbours (plan WP-E): their code and personal link, WhatsApp first, how many joined and
@@ -122,7 +122,7 @@ export function InvitePage() {
             </div>
           ))}
         </dl>
-        <ChallengeProgress uid={user?.uid} fallbackInvites={summary.verified} />
+        <ChallengeProgress uid={user?.uid} fallbackInvites={summary.verified} code={summary.code} link={summary.link} hoodName={hood} />
 
         {summary.people.length > 0 ? (
           <ul className="mt-4 divide-y divide-border">
@@ -163,8 +163,9 @@ function Bar({ value, max, label }: { value: number; max: number; label: string 
  * The launch challenge (plan WP-C): Hood Builder by either path (verified invites, or active days), and
  * the streak. Counted back to the day the challenge began.
  */
-function ChallengeProgress({ uid, fallbackInvites }: { uid?: string; fallbackInvites: number }) {
+function ChallengeProgress({ uid, fallbackInvites, code, link, hoodName }: { uid?: string; fallbackInvites: number; code: string; link: string; hoodName?: string }) {
   const e = useEngagement(uid);
+  const label = badgeLabel(e?.badge);
   const c = e?.challenge;
   const minInvites = c?.minInvites ?? BUILDER_INVITES;
   return (
@@ -214,6 +215,22 @@ function ChallengeProgress({ uid, fallbackInvites }: { uid?: string; fallbackInv
         </p>
       )}
       <p className="text-xs text-muted-foreground">A day counts when you post, reply, vote or RSVP; reactions don&apos;t. One missed day a week doesn&apos;t break a streak.</p>
+      {label && (
+        // "Share my badge": a link whose WhatsApp preview is the badge card, or the card itself for a Status.
+        <div className="flex flex-wrap gap-2 border-t border-border pt-3">
+          <a
+            href={`https://wa.me/?text=${encodeURIComponent(badgeShareText(label, hoodName, `${link}/badge`))}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#1fa855] px-4 text-sm font-semibold text-white hover:bg-[#1a9049]"
+          >
+            <MessageCircle className="size-4" aria-hidden /> Share my badge
+          </a>
+          <a href={`${badgePath(code)}/opengraph-image`} download={`myhoodora-badge-${code}.png`} className="inline-flex h-10 items-center gap-2 rounded-xl border border-border bg-card px-4 text-sm font-semibold hover:bg-muted">
+            <Download className="size-4" aria-hidden /> Save image
+          </a>
+        </div>
+      )}
     </div>
   );
 }

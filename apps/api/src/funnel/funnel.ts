@@ -7,6 +7,7 @@ export const FUNNEL_EVENTS = [
   "shared_join_tap", // …and tapped to join or sign in
   "invite_view", // someone opened a personal invite link (/i/<code>)
   "poster_view", // a printed poster's QR code was scanned (/i/<code>?src=qr)
+  "badge_view", // someone opened a shared badge (/i/<code>/badge)
   "banner_shown",
   "banner_open",
   "banner_dismiss",

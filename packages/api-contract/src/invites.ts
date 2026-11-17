@@ -57,6 +57,18 @@ export interface PublicInvite {
   code: string;
   inviter: { firstName: string };
   hood: { name: string; city?: string } | null;
+  /** Their participation badge, as on their avatar (public anyway): the "Share my badge" card shows it. */
+  badge?: import("./engagement").AvatarBadge | null;
+}
+
+/** "Share my badge": the link whose preview is the badge card (it opens the same invite as /i/<code>). */
+export function badgePath(code: string): string {
+  return `/i/${code}/badge`;
+}
+
+/** The words that go with a shared badge. */
+export function badgeShareText(badgeText: string, hoodName: string | undefined, link: string): string {
+  return `I'm a ${badgeText} on myHoodora${hoodName ? `, the app for ${hoodName}` : ""} 🏠 Join me and our neighbours: ${link}`;
 }
 
 /** POST /invites/claim. Either a code or (from "Who invited you?") a neighbour in their Hood. */

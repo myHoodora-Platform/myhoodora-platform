@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { BellRing, HeartHandshake, ShoppingBag, Smartphone } from "lucide-react";
 import { MascotWordmark } from "@myhoodora/ui/logo";
+import { badgeLabel } from "@myhoodora/api-contract/engagement";
 import { normaliseInviteCode, type PublicInvite } from "@myhoodora/api-contract/invites";
+import { ParticipationBadge } from "@/components/shared/user-avatar";
 import { PLAY_STORE_URL, inAppBrowser } from "@/features/shared-post/shared-visit";
 import { rememberInviteRef } from "./invite-ref";
 import { trackFunnel } from "@/lib/api/funnel";
@@ -16,15 +18,16 @@ const WHY = [
 ];
 
 /** The /i/<code> landing page: who invited them, why join, and the code to type in the app. */
-export function InviteLanding({ invite, code, fromPoster }: { invite: PublicInvite | null; code: string; fromPoster: boolean }) {
+export function InviteLanding({ invite, code, fromPoster, fromBadge = false }: { invite: PublicInvite | null; code: string; fromPoster: boolean; fromBadge?: boolean }) {
   const shownCode = invite?.code ?? normaliseInviteCode(code);
   const [webview, setWebview] = useState(false);
 
   useEffect(() => {
-    if (shownCode) rememberInviteRef(shownCode, fromPoster ? "qr" : "link");
-    trackFunnel(fromPoster ? "poster_view" : "invite_view");
+    if (shownCode) rememberInviteRef(shownCode, fromPoster ? "qr" : fromBadge ? "badge" : "link");
+    trackFunnel(fromPoster ? "poster_view" : fromBadge ? "badge_view" : "invite_view");
     setWebview(inAppBrowser(navigator.userAgent));
-  }, [shownCode, fromPoster]);
+  }, [shownCode, fromPoster, fromBadge]);
+  const badge = invite?.badge ? badgeLabel(invite.badge) : null;
 
   const join = `/register${shownCode ? `?ref=${shownCode}` : ""}`;
   // The Play Store hands this to the app on its first launch (core/invites/install-referrer.ts there).
@@ -49,10 +52,12 @@ export function InviteLanding({ invite, code, fromPoster }: { invite: PublicInvi
         <section className="rounded-3xl bg-card p-6 text-center shadow-sm ring-1 ring-border sm:p-8">
           {who ? (
             <>
-              <span aria-hidden className="mx-auto flex size-16 items-center justify-center rounded-full bg-primary/10 text-2xl font-bold text-primary">
-                {who[0]}
+              <span className="relative mx-auto flex size-16 items-center justify-center rounded-full bg-primary/10 text-2xl font-bold text-primary">
+                <span aria-hidden>{who[0]}</span>
+                {invite?.badge && <ParticipationBadge badge={invite.badge} size="lg" />}
               </span>
               <h1 className="mt-4 text-2xl font-bold text-balance">{who} invited you to myHoodora</h1>
+              {badge && <p className="mt-1 text-sm font-semibold text-primary">{badge}</p>}
               <p className="mt-2 text-muted-foreground">
                 {invite?.hood ? `Join ${who} and your neighbours in ${invite.hood.name}${invite.hood.city ? `, ${invite.hood.city}` : ""}.` : "Join your neighbours and find out what's happening near you."}
               </p>

@@ -4,6 +4,7 @@ import { ConfigService } from "@nestjs/config";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model, type PipelineStage } from "mongoose";
 import { AuditService } from "../audit/audit.service";
+import { EngagementService } from "../engagement/engagement.service";
 import { HoodsService } from "../hoods/hoods.service";
 import type { Viewer } from "../shared/auth/viewer";
 import { User, type UserDocument } from "../users/schemas/user.schema";
@@ -48,11 +49,12 @@ export interface InviteSummary {
   askWhoInvited: boolean;
 }
 
-/** GET /public/invites/:code: the landing page for /i/<code>. First name and Hood only. */
+/** GET /public/invites/:code: the landing page for /i/<code>. First name, Hood and the badge their avatar already shows. */
 export interface PublicInvite {
   code: string;
   inviter: { firstName: string };
   hood: { name: string; city?: string } | null;
+  badge: NonNullable<User["engagement"]>["badge"];
 }
 
 export interface InviteLeaderboard {
@@ -80,6 +82,7 @@ export class InvitesService {
     private readonly hoods: HoodsService,
     private readonly audit: AuditService,
     private readonly config: ConfigService,
+    private readonly engagement: EngagementService,
   ) {}
 
   private get appUrl(): string {
@@ -163,7 +166,9 @@ export class InvitesService {
     const inviter = code ? await this.users.findOne({ inviteCode: code, purgedAt: null, deactivatedAt: null }).lean<Row>().exec() : null;
     if (!code || !inviter) throw new NotFoundException("That invite code isn't one we know.");
     const hood = inviter.verificationStatus === "verified" && inviter.neighborhoodId ? (await this.hoods.findManyByIds([inviter.neighborhoodId])).get(inviter.neighborhoodId) : undefined;
-    return { code, inviter: { firstName: firstName(inviter.displayName) }, hood: hood ? { name: hood.name, city: hood.city } : null };
+    // The badge their avatar shows (none while admins have badges switched off).
+    const badge = (await this.engagement.settings()).badgesOn ? (inviter.engagement?.badge ?? null) : null;
+    return { code, inviter: { firstName: firstName(inviter.displayName) }, hood: hood ? { name: hood.name, city: hood.city } : null, badge };
   }
 
   /**
