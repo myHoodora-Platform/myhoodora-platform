@@ -55,7 +55,9 @@ export class AdFeedService {
     const cursor = q.cursor ? decodeCursor(q.cursor) : null;
     // Access, blocks and order are the plain feed's (404 outside your neighbourhoods).
     const posts = await this.posts.feed(viewer, hoodId, { limit: q.limit, before: cursor?.before, category: q.category });
-    const more = posts.length === q.limit;
+    // Pinned posts come on top of the first page, beyond the limit: paging follows the dated ones.
+    const dated = posts.filter((p) => !p.pinned);
+    const more = dated.length === q.limit;
     const rules = await this.ads.settings();
     const state = cursor?.state ?? initialState(rules);
 
@@ -76,7 +78,7 @@ export class AdFeedService {
       const aspects = await this.storage.aspectRatios(placedAds.flatMap((a) => a.media.map((m) => m.url)));
       items = placed.items.map((i) => (i.type === "post" ? i : { type: "ad", slotId: i.slotId, data: this.ads.toView(ads.get(i.adId)!, hood?.name, aspects, promoted.get(i.adId)) }));
     }
-    const last = posts[posts.length - 1];
+    const last = dated[dated.length - 1];
     return { items, nextCursor: more && last ? encodeCursor({ v: 1, before: last.createdAt, state: next }) : null };
   }
 

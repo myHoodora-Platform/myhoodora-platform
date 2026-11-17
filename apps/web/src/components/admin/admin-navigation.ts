@@ -16,6 +16,7 @@ import {
   ShoppingBag,
   Siren,
   SlidersHorizontal,
+  Sparkles,
   UserCheck,
   UserCog,
   Users,
@@ -95,6 +96,7 @@ export const ADMIN_NAV: AdminNavSection[] = [
       },
       { title: "Groups", href: "/admin/groups", icon: UsersRound },
       { title: "Marketplace", href: "/admin/marketplace", icon: ShoppingBag },
+      { title: "Hood content", href: "/admin/hood-content", icon: Sparkles },
     ],
   },
   {

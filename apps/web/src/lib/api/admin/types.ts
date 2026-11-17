@@ -39,6 +39,7 @@ export type Capability =
   | "ads.manage"
   /** Feedback prompts, their answers, and store-review rules. */
   | "feedback.manage"
+  | "content.manage"
   /** Owner only: grant or revoke admin/owner. */
   | "team.manage.admins";
 

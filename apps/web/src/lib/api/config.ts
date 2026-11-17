@@ -19,6 +19,8 @@ export const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === "true";
  */
 export const ENDPOINTS = {
   "posts.list": "live",
+  // Conversation starters from the Hood Team's content bank (contract §37).
+  "hoodContent.starters": "live",
   "posts.create": "live",
   "posts.like": "live",
   "posts.delete": "live",
@@ -80,6 +82,8 @@ export const ENDPOINTS = {
   "admin.ads": "live",
   // Feedback prompts and store-review rules (contract §33). Live only, like ads.
   "admin.prompts": "live",
+  // The Hood Team's content bank, official posts, activation plans and daily prompts. Live only.
+  "admin.hoodContent": "live",
 } as const satisfies Record<string, "live" | "planned">;
 
 export type EndpointKey = keyof typeof ENDPOINTS;

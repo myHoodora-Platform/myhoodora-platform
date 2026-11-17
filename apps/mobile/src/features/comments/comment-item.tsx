@@ -12,6 +12,7 @@ import { updatePostEverywhere } from "@/features/feed/use-reaction";
 import { useOpenProfile } from "@/features/profile/use-open-profile";
 import { MIN_TOUCH, tint, useTheme } from "@/shared/theme/theme";
 import { ActionSheet } from "@/shared/ui/action-sheet";
+import { AuthorBadge } from "@/shared/ui/author-badge";
 import { Avatar } from "@/shared/ui/avatar";
 import { Text } from "@/shared/ui/text";
 import { useToast } from "@/shared/ui/toast";
@@ -93,12 +94,15 @@ export const CommentItem = memo(function CommentItem({
         <Avatar name={comment.author?.displayName} photoURL={comment.author?.photoURL} size={size} />
       </Pressable>
       <View style={styles.body}>
-        <Text variant="caption" numberOfLines={1}>
-          <Text variant="label" onPress={() => openProfile(comment.authorUid)} suppressHighlighting>
-            {name}
+        <View style={styles.nameRow}>
+          <Text variant="caption" numberOfLines={1} style={styles.nameText}>
+            <Text variant="label" onPress={() => openProfile(comment.authorUid)} suppressHighlighting>
+              {name}
+            </Text>
+            <Text variant="caption" tone="muted">{`  ${timeAgo(comment.createdAt)}`}</Text>
           </Text>
-          <Text variant="caption" tone="muted">{`  ${timeAgo(comment.createdAt)}`}</Text>
-        </Text>
+          <AuthorBadge kind={comment.author?.kind} staff={comment.author?.staff} />
+        </View>
         <SeeMoreText id={comment._id} text={comment.content} lines={COMMENT_LINES} style={styles.text} />
         <View style={styles.actions}>
           <Pressable onPress={() => onReply(comment)} accessibilityRole="button" accessibilityLabel={`Reply to ${name}`} hitSlop={10}>
@@ -167,6 +171,8 @@ export function PendingItem({ p, avatar, onRetry, onDiscard }: { p: PendingComme
 const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "flex-start", gap: 10, paddingLeft: 16, paddingRight: 4, paddingVertical: 8 },
   reply: { paddingLeft: 62 },
+  nameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  nameText: { flexShrink: 1 },
   sending: { opacity: 0.6 },
   body: { flex: 1, gap: 3 },
   text: { fontSize: 15, lineHeight: 21 },

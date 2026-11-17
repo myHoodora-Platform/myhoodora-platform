@@ -9,8 +9,8 @@ import type { PostCategory } from "@/lib/api/types";
 import { PostComposer } from "./components/post-composer";
 
 interface ComposerContextValue {
-  /** Opens the composer (category picker first unless one is given). */
-  openComposer: (category?: PostCategory) => void;
+  /** Opens the composer (category picker first unless one is given), optionally with text to start from. */
+  openComposer: (category?: PostCategory, message?: string) => void;
 }
 
 const ComposerContext = createContext<ComposerContextValue | undefined>(undefined);
@@ -22,17 +22,19 @@ export function ComposerProvider({ children }: { children: ReactNode }) {
   const { runGatedAction } = useAuth();
   const [open, setOpen] = useState(false);
   const [category, setCategory] = useState<PostCategory | undefined>();
+  const [message, setMessage] = useState<string | undefined>();
   // Remount the form on every open so it never shows a stale draft/step.
   const [session, setSession] = useState(0);
 
   const openComposer = useCallback(
-    (initial?: PostCategory) => {
+    (initial?: PostCategory, text?: string) => {
       runGatedAction(() => {
         if (initial === "for_sale") {
           router.push(`${ROUTES.forSale}?sell=1`);
           return;
         }
         setCategory(initial);
+        setMessage(text);
         setSession((s) => s + 1);
         setOpen(true);
       });
@@ -53,6 +55,7 @@ export function ComposerProvider({ children }: { children: ReactNode }) {
         <PostComposer
           key={session}
           initialCategory={category}
+          initialMessage={message}
           onCancel={() => setOpen(false)}
           onSell={() => {
             setOpen(false);

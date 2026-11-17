@@ -1,3 +1,4 @@
+import type { ConversationStarter } from "@myhoodora/api-contract/hood-content";
 import type { User } from "@firebase/auth";
 import { ApiError } from "@myhoodora/api-contract/errors";
 import type { AdEventInput, FeedAd, FeedPage } from "@myhoodora/api-contract/ads";
@@ -257,4 +258,9 @@ export function recordShare(user: User, postId: string): Promise<{ shareCount: n
 /** The author changes the text; returns the post. */
 export function editPost(user: User, postId: string, message: string): Promise<ApiPost> {
   return apiFetch(user, `/posts/${postId}`, { method: "PATCH", json: { message } });
+}
+
+/** `GET /hood-content/starters`: conversation starters filled in for the viewer's Hood (contract §37). */
+export function getStarters(user: User): Promise<ConversationStarter[]> {
+  return apiFetch(user, "/hood-content/starters");
 }

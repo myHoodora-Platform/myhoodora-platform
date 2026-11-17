@@ -22,6 +22,14 @@ export class User {
   @Prop({ trim: true, maxlength: 160 })
   bio?: string;
 
+  /**
+   * "team": the official myHoodora Hood Team account (hood-content/domain/hood-team.ts). A system
+   * account nobody can sign in to: it posts welcome posts and prompts into Hoods, always labelled
+   * "Official · Hood Team". Absent for everyone else.
+   */
+  @Prop({ type: String, enum: ["team"] })
+  accountKind?: "team";
+
   @Prop({ default: "email" })
   provider!: string; // 'password' | 'google.com' | 'apple.com'
 

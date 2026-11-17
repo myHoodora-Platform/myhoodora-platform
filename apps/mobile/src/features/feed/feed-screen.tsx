@@ -31,6 +31,10 @@ import { TOUR_TARGETS, useFirstRunTour } from "@/features/tour/home-tour";
 import { useTourTarget } from "@/features/tour/tour-provider";
 import { FEED_FILTERS, feedKeys, getHood, isAd, listHoodPage, type FeedEntry, type FeedFilter, type HoodPage } from "./feed-api";
 import { PostCard } from "./post-card";
+import { StarterChips } from "./starter-chips";
+
+/** Below this many posts a Hood still feels quiet: offer conversation starters. */
+const QUIET_HOOD_POSTS = 10;
 
 /**
  * The fixed header: your neighbourhood (a tiny map, tap for details and invites) on the left;
@@ -223,7 +227,10 @@ export function FeedScreen() {
         ) : feed.isError ? (
           <ErrorState error={feed.error} onRetry={() => void refresh()} />
         ) : filter === "all" ? (
-          <EmptyState title="It's quiet here" body="Nothing has been posted in your neighbourhood yet. Start the conversation." action={{ label: "Write a post", onPress: () => router.push("/compose") }} />
+          <View>
+            <EmptyState title="It's quiet here" body="Nothing has been posted in your neighbourhood yet. Start the conversation." action={{ label: "Write a post", onPress: () => router.push("/compose") }} />
+            {hoodId && !away ? <StarterChips hoodId={hoodId} /> : null}
+          </View>
         ) : (
           <EmptyState title={`No ${label} yet`} body="Nothing like this has been posted in your neighbourhood yet." action={{ label: "Show everything", onPress: () => setFilter("all") }} />
         )
@@ -234,9 +241,13 @@ export function FeedScreen() {
         ) : feed.isFetchNextPageError ? (
           <ErrorState error={feed.error} onRetry={() => void feed.fetchNextPage()} title="Couldn't load more" />
         ) : posts.length > 0 && !feed.hasNextPage ? (
-          <Text variant="caption" tone="muted" style={[styles.centred, styles.footer]}>
-            You&apos;re all caught up.
-          </Text>
+          <View>
+            <Text variant="caption" tone="muted" style={[styles.centred, styles.footer]}>
+              You&apos;re all caught up.
+            </Text>
+            {/* A quiet Hood: help neighbours start talking (docs/product/hood-activation-plan.md). */}
+            {filter === "all" && hoodId && !away && posts.length < QUIET_HOOD_POSTS ? <StarterChips hoodId={hoodId} /> : null}
+          </View>
         ) : null
       }
       onEndReached={() => feed.hasNextPage && !feed.isFetchingNextPage && !feed.isFetchNextPageError && void feed.fetchNextPage()}

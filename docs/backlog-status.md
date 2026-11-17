@@ -88,6 +88,23 @@ _As of 2 October 2026. Each line was checked against the code or by running it; 
 | Web pages in place of the API | 🟡 watch | Seen 29 Oct: Cloudflare's "Just a moment…" check and Render's restart page reached the app. The app now says it can't reach myHoodora instead of showing the page, and reports each one to Sentry (warning "A web page instead of the API", tag `where:api-edge-page`, at most one per phone every 10 minutes) with the status, host, route, `server` and `cf-mitigated` headers and the `cf-ray` id. `cf_mitigated:challenge` is Cloudflare's bot check: if those keep coming, ask why API requests from the app are being challenged |
 | Connect Sentry in the Expo dashboard | ⏳ suggestion | Optional: shows Sentry errors next to builds in Expo. Not needed for reporting |
 
+## Hood activation and the Launch Challenge (from 17 November 2026)
+
+Plan: [product/hood-activation-plan.md](./product/hood-activation-plan.md). Content: [product/hood-content-bank.md](./product/hood-content-bank.md) (180 items).
+
+| Item | Status | Notes |
+| --- | --- | --- |
+| Hood Team account, official posts, pins, scheduling, content bank, activation plan, daily prompt (API) | ✅ built | Contract §37. `test/hood-content.e2e-spec.ts` (120 neighbours, 120 posts, 4 Hoods) |
+| Admin → Hood content (web) | ✅ built | Activation · Post as Hood Team · Content bank (import, city versions) · Daily prompt · Scheduled |
+| "Official · Hood Team", "Staff" and "Pinned" labels (web + app) | ✅ built | App change ships by OTA |
+| Ops: import the bank, fill Lagos/Ibadan versions of info items, apply activation, switch daily prompt on | ⬜ to do | Info items with `[FILL: …]` post only where a checked city version exists |
+| Starter chips in the composer (web + app) | ⬜ next | API ready: `GET /hood-content/starters` |
+| Post audiences, public link previews, "See more on myHoodora" card | ⬜ next | Plan WP-G |
+| Invite codes and referral paths | ⬜ next | Plan WP-E; no referral tracking existed before |
+| App banners / "better in the app" / app links | ⬜ planned | Plan WP-H; app links need a store build |
+| Streaks, Builder badge, challenge campaign | ⬜ planned | Plan WP-C, counted back to 17 Nov |
+| Christmas and New Year looks | ⬜ planned | Plan WP-D, ready by 12 Dec |
+
 ## Known issues left open
 
 - The page gate remembers "live" per server instance for 60 seconds.

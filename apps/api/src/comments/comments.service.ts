@@ -18,7 +18,7 @@ export interface CommentView {
   _id: string;
   postId: string;
   authorUid: string;
-  author: { uid: string; displayName: string; photoURL?: string };
+  author: { uid: string; displayName: string; photoURL?: string; kind?: "team"; staff?: boolean };
   content: string;
   createdAt: string;
   likes: string[];
@@ -324,7 +324,7 @@ export class CommentsService implements OnModuleInit {
         _id: String(r._id),
         postId: r.postId,
         authorUid: gone ? "" : r.authorUid,
-        author: gone ? { uid: "", displayName: "" } : { uid: r.authorUid, displayName: a?.displayName ?? "Neighbour", photoURL: a?.photoURL },
+        author: gone ? { uid: "", displayName: "" } : { uid: r.authorUid, displayName: a?.displayName ?? "Neighbour", photoURL: a?.photoURL, ...(a?.kind && { kind: a.kind }), ...(a?.staff && { staff: true }) },
         content: gone ? "" : r.content,
         createdAt: (r.createdAt ?? new Date()).toISOString(),
         likes: [],

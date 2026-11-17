@@ -85,13 +85,15 @@ const PLACEHOLDERS: Record<PostCategory, string> = {
 
 interface PostComposerProps {
   initialCategory?: PostCategory;
+  /** Text to start from (a conversation starter the neighbour tapped). */
+  initialMessage?: string;
   onDone: (post: Post) => void;
   onCancel: () => void;
   /** "Sell or give away" is a listing, not a post — hand off to that flow. */
   onSell: () => void;
 }
 
-export function PostComposer({ initialCategory, onDone, onCancel, onSell }: PostComposerProps) {
+export function PostComposer({ initialCategory, initialMessage, onDone, onCancel, onSell }: PostComposerProps) {
   const { createPost } = useFeed();
   const { user } = useAuth();
   const online = useOnlineStatus();
@@ -112,7 +114,7 @@ export function PostComposer({ initialCategory, onDone, onCancel, onSell }: Post
     resolver: zodResolver(schema),
     defaultValues: {
       category: initialCategory ?? "general",
-      message: "",
+      message: initialMessage ?? "",
       urgent: false,
       pollOptions: [{ text: "" }, { text: "" }],
       pollDays: 3,

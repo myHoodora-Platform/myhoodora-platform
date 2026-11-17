@@ -44,14 +44,15 @@ const REASON_TEXT: Record<string, string> = {
  * Writing a post (Nextdoor's "Post" button): pick what it is, write it, post. One tap posts once: the
  * draft carries a clientId, so even a retry after a lost response can't make a second post.
  */
-export function ComposeScreen({ kind: startKind }: { kind?: string }) {
+export function ComposeScreen({ kind: startKind, text: startText }: { kind?: string; text?: string }) {
   const t = useTheme();
   const router = useRouter();
   const user = useSignedInUser();
   const { profile } = useAuth();
   const client = useQueryClient();
   const toast = useToast();
-  const [draft, setDraft] = useState<Draft>(() => blankDraft(kindFromParam(startKind)));
+  // A conversation starter the neighbour tapped arrives as the text to start from.
+  const [draft, setDraft] = useState<Draft>(() => ({ ...blankDraft(kindFromParam(startKind)), message: (startText ?? "").slice(0, MESSAGE_MAX) }));
   const [errors, setErrors] = useState<DraftErrors | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);

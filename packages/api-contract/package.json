@@ -8,6 +8,7 @@
     "./types": "./src/types.ts",
     "./ads": "./src/ads.ts",
     "./prompts": "./src/prompts.ts",
+    "./hood-content": "./src/hood-content.ts",
     "./errors": "./src/errors.ts",
     "./lookups": "./src/lookups.ts",
     "./push": "./src/push.ts",

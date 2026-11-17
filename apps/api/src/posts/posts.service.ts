@@ -15,6 +15,7 @@ import { mediaMixProblem } from "../storage/media-kind";
 import { DELETED_MEDIA_KEPT_MS, REMOVED_MEDIA_KEPT_MS, StorageService } from "../storage/storage.service";
 import { AccountLifecycle } from "../users/account-lifecycle";
 import { UsersService } from "../users/users.service";
+import { hoodTeamViewer } from "../hood-content/domain/hood-team";
 import { eventDateProblem, hasEnded } from "./domain/event-time";
 import { decodePostContent, encodePostContent, postTypeFor, type PostMeta } from "./domain/post-meta";
 import type { CreatePostDto, FeedQuery } from "./dto/posts.dto";
@@ -30,7 +31,7 @@ const FANOUT_PAGE = 1_000;
 export interface PostView {
   _id: string;
   authorUid: string;
-  author: { uid: string; displayName: string; photoURL?: string; neighborhoodName?: string };
+  author: { uid: string; displayName: string; photoURL?: string; neighborhoodName?: string; kind?: "team"; staff?: boolean };
   neighborhoodId: string;
   type: FeedPost["type"];
   /** Legacy encoded form, for clients that still decode it. */
@@ -48,6 +49,10 @@ export interface PostView {
   /** Events only: the counts and the viewer's own answer, so a list of events needs no request per card. */
   rsvp?: RsvpSummary;
   visibility: FeedPost["visibility"];
+  /** Pinned by the Hood Team: the feed's first page shows it on top until it expires. */
+  pinned?: boolean;
+  /** "team": an official Hood Team post. */
+  source?: "team";
   mediaUrls: string[];
   /** width ÷ height of each `mediaUrls` entry (same order), or null when unknown (a pasted link). Lets the feed frame media before it loads. */
   mediaAspects: (number | null)[];
@@ -90,6 +95,17 @@ export interface RsvpSummary {
   goingCount: number;
   interestedCount: number;
   myStatus: "going" | "interested" | null;
+}
+
+/** At most this many pinned posts on top of a Hood's feed. */
+export const MAX_PINNED = 2;
+
+/** Extra for official Hood Team posts (PostsService.createAsTeam). */
+export interface TeamPostOptions {
+  /** Pin it to the top of the Hood's first page until then. */
+  pinnedUntil?: Date | null;
+  /** The content bank item it came from. */
+  contentItemId?: string;
 }
 
 /** How far from the neighbourhood's centre an alert's pin may be (or twice its radius, if larger). */
@@ -224,7 +240,7 @@ export class PostsService implements OnModuleInit {
    * created the first time. A client that timed out can't know whether its post was created, and
    * without this its retry posts (and announces) an alert twice.
    */
-  async create(viewer: Viewer, dto: CreatePostDto): Promise<PostView> {
+  async create(viewer: Viewer, dto: CreatePostDto, team?: TeamPostOptions): Promise<PostView> {
     if (!viewer.hoodId) throw new ForbiddenException("Verify your address to join your neighbourhood first.");
     if (dto.neighborhoodId && dto.neighborhoodId !== viewer.hoodId) throw new ForbiddenException("You can only post in your own neighbourhood.");
     // Before any rule that the first attempt already passed (one urgent alert per six hours would refuse its own retry).
@@ -286,6 +302,7 @@ export class PostsService implements OnModuleInit {
         locationLabel: place?.label,
         mediaUrls,
         activeUntil,
+        ...(team && { source: "team" as const, pinnedUntil: team.pinnedUntil ?? null, contentItemId: team.contentItemId }),
       });
     } catch (err) {
       // Two copies of one submission arrived together and the other got there first: it created the post, and announces it.
@@ -400,10 +417,41 @@ export class PostsService implements OnModuleInit {
     if (q.since) created.$gte = new Date(q.since);
     if (Object.keys(created).length) filter.createdAt = created;
 
+    // Pinned Hood Team posts sit on top of the first page and nowhere else, so paging never repeats
+    // them. A search, a "since" refresh or a later page shows only ordinary posts in date order.
+    const now = new Date();
+    const firstPage = !q.before && !q.skip && !q.since && !re;
+    const pinnedFilter = { ...filter, pinnedUntil: { $gt: now } };
+    filter.$and = [{ $or: [{ pinnedUntil: null }, { pinnedUntil: { $lte: now } }] }];
+
     let query = this.posts.find(filter).sort({ createdAt: -1, _id: -1 });
     if (!q.before && q.skip) query = query.skip(q.skip);
-    const docs = await query.limit(q.limit).lean<FeedPost[]>().exec();
-    return this.toViews(docs, viewer);
+    const [docs, pinned] = await Promise.all([
+      query.limit(q.limit).lean<FeedPost[]>().exec(),
+      firstPage ? this.posts.find(pinnedFilter).sort({ pinnedUntil: -1, createdAt: -1 }).limit(MAX_PINNED).lean<FeedPost[]>().exec() : [],
+    ]);
+    return this.toViews([...pinned, ...docs], viewer);
+  }
+
+  /**
+   * An official post by the Hood Team in one Hood (hood-content: scheduled, activation plans, daily
+   * prompts, staff compose). The same rules as any post (text limits, polls, events, the content
+   * filter on the way in), plus an optional pin. Never reachable from POST /posts.
+   */
+  async createAsTeam(hoodId: string, dto: CreatePostDto, opts: TeamPostOptions = {}): Promise<PostView> {
+    const hood = (await this.hoods.findManyByIds([hoodId])).get(hoodId);
+    if (!hood) throw new NotFoundException("That neighbourhood doesn't exist.");
+    if (dto.category === "alert" || dto.urgent) throw new BadRequestException("Safety alerts come from neighbours, not the Hood Team.");
+    return this.create(hoodTeamViewer(hoodId), { ...dto, visibility: dto.visibility ?? "anyone" }, opts);
+  }
+
+  /** Pin or unpin a post (Hood Team posts only: neighbours' posts are never pinned over others). */
+  async setPinned(id: string, until: Date | null): Promise<void> {
+    const p = await this.findRaw(id);
+    if (!p || !p.isActive || p.removedAt) throw new NotFoundException("Post not found.");
+    if (p.source !== "team") throw new BadRequestException("Only Hood Team posts can be pinned.");
+    await this.posts.updateOne({ _id: p._id }, { $set: { pinnedUntil: until } }).exec();
+    this.changed(p);
   }
 
   /** Raw post for internal use (moderation context); no visibility rules. */
@@ -538,7 +586,14 @@ export class PostsService implements OnModuleInit {
       return {
         _id: id,
         authorUid: d.authorUid,
-        author: { uid: d.authorUid, displayName: a?.displayName ?? "Neighbour", photoURL: a?.photoURL, neighborhoodName: a?.neighborhoodId ? hoods.get(a.neighborhoodId)?.name : undefined },
+        author: {
+          uid: d.authorUid,
+          displayName: a?.displayName ?? "Neighbour",
+          photoURL: a?.photoURL,
+          neighborhoodName: a?.neighborhoodId ? hoods.get(a.neighborhoodId)?.name : undefined,
+          ...(a?.kind && { kind: a.kind }),
+          ...(a?.staff && { staff: true }),
+        },
         neighborhoodId: d.neighborhoodId,
         type: d.type,
         content: d.content,
@@ -554,6 +609,8 @@ export class PostsService implements OnModuleInit {
         pollResults: polls.get(id),
         rsvp: rsvps.get(id),
         visibility: meta.visibility ?? "neighbourhood",
+        ...(d.pinnedUntil && d.pinnedUntil.getTime() > Date.now() && { pinned: true }),
+        ...(d.source === "team" && { source: "team" as const }),
         mediaUrls: d.mediaUrls ?? [],
         mediaAspects: (d.mediaUrls ?? []).map((url) => aspects.get(url) ?? null),
         likes: [],

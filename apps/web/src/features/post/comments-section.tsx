@@ -14,6 +14,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useViewer } from "@/hooks/use-neighbourhood";
 import { addComment, deleteComment, listComments } from "@/lib/api/comments";
 import { errorMessage } from "@/lib/api/client";
+import { AuthorBadge } from "@/components/shared/author-badge";
 import { resolveAuthor } from "@/lib/api/users";
 import { ROUTES } from "@/lib/routes";
 import { timeAgo } from "@/lib/time";
@@ -128,9 +129,12 @@ export function CommentsSection({ postId, onCountChange }: CommentsSectionProps)
                 </Link>
                 <div className="min-w-0 flex-1">
                   <div className="rounded-2xl bg-muted px-3.5 py-2.5">
-                    <Link href={ROUTES.profile(c.authorUid)} className="text-sm font-bold hover:underline">
-                      {author.displayName}
-                    </Link>
+                    <span className="flex flex-wrap items-center gap-1.5">
+                      <Link href={ROUTES.profile(c.authorUid)} className="text-sm font-bold hover:underline">
+                        {author.displayName}
+                      </Link>
+                      <AuthorBadge kind={c.author?.kind} staff={c.author?.staff} />
+                    </span>
                     <p className="text-[15px] whitespace-pre-wrap text-foreground/90">{c.content}</p>
                   </div>
                   <div className="mt-1 flex items-center gap-3 px-2 text-xs text-muted-foreground">

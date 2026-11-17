@@ -57,6 +57,11 @@ interface FeedContextValue {
 
 const FeedContext = createContext<FeedContextValue | undefined>(undefined);
 
+/** Posts that count for paging: pinned posts sit on top of the first page, outside it. */
+function datedCount(posts: readonly Post[]): number {
+  return posts.filter((p) => !p.pinned).length;
+}
+
 /** Append a page without duplicating posts the skip offset re-served. */
 function mergePage(existing: Post[], page: Post[]): Post[] {
   const seen = new Set(existing.map((p) => p._id));
@@ -109,7 +114,7 @@ export function FeedProvider({ children }: { children: ReactNode }) {
     try {
       const page = await postsApi.listFeed(user, neighborhoodId, { limit: PAGE_SIZE, skip: 0 });
       setPosts(page);
-      setHasMore(page.length === PAGE_SIZE);
+      setHasMore(datedCount(page) === PAGE_SIZE);
       setStale(null);
       setLoadMoreError(null);
       const now = new Date().toISOString();
@@ -163,10 +168,11 @@ export function FeedProvider({ children }: { children: ReactNode }) {
     try {
       const page = await postsApi.listFeed(user, neighborhoodId, {
         limit: PAGE_SIZE,
-        skip: posts.length,
+        // Pinned Hood Team posts come on top of the first page, outside the paging.
+        skip: datedCount(posts),
       });
       setPosts((prev) => mergePage(prev, page));
-      setHasMore(page.length === PAGE_SIZE);
+      setHasMore(datedCount(page) === PAGE_SIZE);
     } catch (err) {
       setLoadMoreError(problemFrom(err, "Couldn't load more posts."));
     } finally {

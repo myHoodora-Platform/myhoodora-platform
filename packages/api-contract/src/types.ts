@@ -54,7 +54,7 @@ export interface ApiPost {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
-  author?: { uid: string; displayName: string; photoURL?: string; neighborhoodName?: string };
+  author?: PostAuthor;
   message?: string;
   category?: PostCategory;
   alertCategory?: AlertCategory;
@@ -68,6 +68,10 @@ export interface ApiPost {
   /** Events: RSVP counts and your own answer, sent with the post so a list needs no request per card. */
   rsvp?: EventRsvpSummary;
   visibility?: PostVisibility;
+  /** Pinned by the Hood Team: shown first on the first page of the feed until it expires. */
+  pinned?: boolean;
+  /** "team" for official Hood Team posts. Absent (or "member") for neighbours' posts. */
+  source?: "member" | "team";
   reactionCounts?: Partial<Record<ReactionType, number>>;
   reactionTotal?: number;
   myReaction?: ReactionType | null;
@@ -178,8 +182,26 @@ export interface PublicProfile {
   neighbourSince?: string;
   bio?: string;
   verified: boolean;
-  /** Organisations (estate management, agencies) get a badge. */
-  kind?: "neighbour" | "organisation";
+  /** Organisations (estate management, agencies) and the official myHoodora Hood Team get a badge. */
+  kind?: AuthorKind;
+}
+
+/**
+ * Who wrote something. "team" is the official myHoodora Hood Team account: shown as
+ * "Official · Hood Team", never as a neighbour (docs/product/hood-activation-plan.md).
+ */
+export type AuthorKind = "neighbour" | "organisation" | "team";
+
+/** The author card embedded in posts. */
+export interface PostAuthor {
+  uid: string;
+  displayName: string;
+  photoURL?: string;
+  neighborhoodName?: string;
+  /** Absent on older API builds: treat as "neighbour". */
+  kind?: AuthorKind;
+  /** A myHoodora staff member (moderator, admin, owner): shown with a "Staff" label. */
+  staff?: boolean;
 }
 
 // ── Comments (planned) ──────────────────────────────────────────────────────
@@ -189,7 +211,7 @@ export interface Comment {
   postId: string;
   authorUid: string;
   /** Embedded by the live API. */
-  author?: { uid: string; displayName: string; photoURL?: string };
+  author?: { uid: string; displayName: string; photoURL?: string; kind?: AuthorKind; staff?: boolean };
   content: string;
   createdAt: string;
   likes: string[];
