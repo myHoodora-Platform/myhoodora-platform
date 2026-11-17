@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Plus, UserPlus } from "lucide-react";
 import { cn } from "@myhoodora/ui/utils";
 import { useComposer } from "@/features/feed/composer-context";
 import { navTourId } from "@/features/tour/placement";
@@ -52,6 +52,14 @@ export function AppSidebar() {
         <Plus className="size-5" aria-hidden />
         Post
       </button>
+
+      <Link
+        href={ROUTES.invite}
+        className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-full border border-primary/40 text-[15px] font-semibold text-primary transition-colors hover:bg-primary/5"
+      >
+        <UserPlus className="size-5" aria-hidden />
+        Invite neighbours
+      </Link>
 
       <div className="mt-6 space-y-1 px-3 text-[15px] font-medium text-foreground/80">
         <Link href={ROUTES.settings} className="block py-1.5 hover:underline">

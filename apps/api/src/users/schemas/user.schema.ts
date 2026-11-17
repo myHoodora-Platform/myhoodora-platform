@@ -155,6 +155,21 @@ export class User {
   @Prop({ type: { id: String, name: String, requestedAt: Date }, _id: false, default: null })
   requestedHood?: { id: string; name: string; requestedAt: Date } | null;
 
+  /** Their personal invite code ("ADA7K"), made the first time they open Invite (InvitesService). */
+  @Prop({ type: String })
+  inviteCode?: string;
+
+  /**
+   * Who invited them, and how it reached them (WP-E). The first code wins; staff may void or reassign it
+   * (audited). `vouched`: the inviter was a verified neighbour then, so staff review them first.
+   */
+  @Prop({ type: { uid: String, code: String, via: String, at: Date, vouched: Boolean, by: String }, _id: false, default: null })
+  invitedBy?: { uid: string; code: string; via: string; at: Date; vouched?: boolean; by?: string } | null;
+
+  /** They closed the "Who invited you?" card without answering. */
+  @Prop({ type: Date, default: null })
+  inviteAskDismissedAt?: Date | null;
+
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -168,3 +183,6 @@ UserSchema.index({ email: 1 }, { unique: true });
 UserSchema.index({ blockedUids: 1 });
 // Alert fan-out also reaches people who read the Hood as a secondary one.
 UserSchema.index({ "secondaryHoods.id": 1 });
+UserSchema.index({ inviteCode: 1 }, { unique: true, sparse: true });
+// "Who joined with my code?" and the leaderboard.
+UserSchema.index({ "invitedBy.uid": 1, createdAt: -1 });

@@ -84,6 +84,8 @@ export const ENDPOINTS = {
   "admin.prompts": "live",
   // The Hood Team's content bank, official posts, activation plans and daily prompts. Live only.
   "admin.hoodContent": "live",
+  // Invite codes, "Who invited you?" and the challenge leaderboard (contract §40). Live only.
+  "invites": "live",
 } as const satisfies Record<string, "live" | "planned">;
 
 export type EndpointKey = keyof typeof ENDPOINTS;

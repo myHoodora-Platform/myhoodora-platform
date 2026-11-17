@@ -89,6 +89,16 @@ export function VerificationPage() {
                       {c.requestedHood && (
                         <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">Requested: {c.requestedHood.name}</span>
                       )}
+                      {c.invitedBy && (
+                        <Link
+                          href={`/admin/neighbours/${c.invitedBy.uid}`}
+                          className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-900 hover:underline dark:bg-amber-500/15 dark:text-amber-200"
+                          title={c.invitedBy.verified ? "Invited by a verified neighbour: reviewed first" : undefined}
+                        >
+                          Invited by {c.invitedBy.displayName}
+                          {c.invitedBy.verified ? ` · verified${c.invitedBy.hoodName ? `, ${c.invitedBy.hoodName}` : ""}` : ""}
+                        </Link>
+                      )}
                     </div>
                     <p className="flex items-start gap-1.5 text-sm">
                       <MapPin className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />

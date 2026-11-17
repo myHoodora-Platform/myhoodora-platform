@@ -40,6 +40,7 @@ export type Capability =
   /** Feedback prompts, their answers, and store-review rules. */
   | "feedback.manage"
   | "content.manage"
+  | "engagement.manage"
   /** Owner only: grant or revoke admin/owner. */
   | "team.manage.admins";
 
@@ -220,6 +221,8 @@ export interface VerificationCase {
   status: "pending_review" | "failed";
   /** The nearby Hood they asked to join (contract §16); approve into this one. */
   requestedHood?: { id: string; name: string };
+  /** Who invited them (contract §40). Invited by a verified neighbour: listed first. */
+  invitedBy?: { uid: string; displayName: string; verified: boolean; hoodName?: string };
 }
 
 // ── Hoods ───────────────────────────────────────────────────────────────────

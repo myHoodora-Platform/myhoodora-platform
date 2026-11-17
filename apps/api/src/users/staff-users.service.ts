@@ -265,9 +265,13 @@ export class StaffUsersService {
     const re = searchRegex(q.q);
     if (re) Object.assign(filter, { displayName: re });
     const [rows, total] = await Promise.all([
-      this.users.find(filter).sort({ updatedAt: 1 }).skip((q.page - 1) * q.pageSize).limit(q.pageSize).lean<User[]>().exec(),
+      // Invited by a verified neighbour first ("priority verification", plan WP-E), then the oldest.
+      this.users.find(filter).sort({ "invitedBy.vouched": -1, updatedAt: 1 }).skip((q.page - 1) * q.pageSize).limit(q.pageSize).lean<User[]>().exec(),
       this.users.countDocuments(filter).exec(),
     ]);
+    const inviterUids = [...new Set(rows.map((u) => u.invitedBy?.uid).filter(Boolean) as string[])];
+    const inviters = new Map((inviterUids.length ? await this.users.find({ uid: { $in: inviterUids } }).select({ uid: 1, displayName: 1, neighborhoodId: 1, verificationStatus: 1 }).lean<User[]>().exec() : []).map((u) => [u.uid, u]));
+    const inviterHoods = await this.hoods.findManyByIds([...new Set([...inviters.values()].map((u) => u.neighborhoodId).filter(Boolean) as string[])]);
     const items = await Promise.all(
       rows.map(async (u) => {
         const last = u.verificationAttempts?.[u.verificationAttempts.length - 1];
@@ -283,6 +287,12 @@ export class StaffUsersService {
           lastError: last && last.result !== "matched" ? last.result : undefined,
           status: u.verificationStatus === "pending_review" ? ("pending_review" as const) : ("failed" as const),
           requestedHood: u.requestedHood ? { id: u.requestedHood.id, name: u.requestedHood.name } : undefined,
+          invitedBy: (() => {
+            const by = u.invitedBy ? inviters.get(u.invitedBy.uid) : undefined;
+            if (!by) return undefined;
+            const hood = by.neighborhoodId ? inviterHoods.get(by.neighborhoodId) : undefined;
+            return { uid: by.uid, displayName: by.displayName ?? "Neighbour", verified: by.verificationStatus === "verified", hoodName: hood?.name };
+          })(),
         };
       }),
     );

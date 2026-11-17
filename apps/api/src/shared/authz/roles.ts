@@ -42,6 +42,8 @@ export type Capability =
   | "feedback.manage"
   /** The Hood Team's content: content bank, official posts, activation plans, daily prompts, pins. */
   | "content.manage"
+  /** The launch challenge: void or reassign who gets credit for an invite. */
+  | "engagement.manage"
   // Owner only: grant/revoke admin
   | "team.manage.admins";
 
@@ -61,6 +63,7 @@ const STAFF: Record<Exclude<Role, "member">, Capability[]> = {
     "ads.manage",
     "feedback.manage",
     "content.manage",
+    "engagement.manage",
   ],
   owner: [
     "admin.access",
@@ -76,6 +79,7 @@ const STAFF: Record<Exclude<Role, "member">, Capability[]> = {
     "ads.manage",
     "feedback.manage",
     "content.manage",
+    "engagement.manage",
     "team.manage.admins",
   ],
 };

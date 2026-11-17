@@ -3,12 +3,11 @@
  * can offer it back ("You came from a Lekki post"); and opening that post in the app.
  */
 
+import { readSavedInvite, rememberInviteRef } from "@/features/invites/invite-ref";
+
 const KEY = "mh-shared-from";
-const REF_KEY = "mh-invite-ref";
 /** Long enough to sign up and verify; short enough not to haunt them. */
 const KEEP_MS = 7 * 24 * 60 * 60 * 1000;
-/** The first invite code wins for 30 days (docs/product/hood-activation-plan.md §9). */
-const REF_KEEP_MS = 30 * 24 * 60 * 60 * 1000;
 
 export const ANDROID_PACKAGE = "com.myhoodora.app";
 export const PLAY_STORE_URL = `https://play.google.com/store/apps/details?id=${ANDROID_PACKAGE}`;
@@ -32,10 +31,8 @@ export function rememberSharedVisit(v: { postId: string; hoodName?: string; ref?
   if (!s) return;
   try {
     s.setItem(KEY, JSON.stringify({ postId: v.postId, hoodName: v.hoodName, at: now } satisfies SharedVisit));
-    if (v.ref && /^[A-Za-z0-9]{4,12}$/.test(v.ref)) {
-      const prev = readJson<{ code: string; at: number }>(s, REF_KEY);
-      if (!prev || now - prev.at > REF_KEEP_MS) s.setItem(REF_KEY, JSON.stringify({ code: v.ref.toUpperCase(), at: now }));
-    }
+    // The first invite code wins for 30 days (docs/product/hood-activation-plan.md §9).
+    if (v.ref) rememberInviteRef(v.ref, "post", { now });
   } catch {
     // Storage full or blocked.
   }
@@ -58,9 +55,7 @@ export function clearSharedVisit(): void {
 
 /** The invite code from a shared link, if one is still current (WP-E reads it at sign-up). */
 export function readInviteRef(now = Date.now()): string | null {
-  const s = store();
-  const v = s ? readJson<{ code: string; at: number }>(s, REF_KEY) : null;
-  return v && now - v.at <= REF_KEEP_MS ? v.code : null;
+  return readSavedInvite(now)?.code ?? null;
 }
 
 function readJson<T>(s: Storage, key: string): T | null {

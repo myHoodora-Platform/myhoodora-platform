@@ -40,6 +40,7 @@ import { PushModule } from "./push/push.module";
 import { RealtimeModule } from "./realtime/realtime.module";
 import { HoodContentModule } from "./hood-content/hood-content.module";
 import { PublicPostsModule } from "./public-posts/public-posts.module";
+import { InvitesModule } from "./invites/invites.module";
 import { SearchModule } from "./search/search.module";
 import { StorageModule } from "./storage/storage.module";
 import { UsersModule } from "./users/users.module";
@@ -90,6 +91,7 @@ import { UsersModule } from "./users/users.module";
     PromptsModule,
     HoodContentModule,
     PublicPostsModule,
+    InvitesModule,
     SearchModule,
     CommentsModule,
     ModerationModule,

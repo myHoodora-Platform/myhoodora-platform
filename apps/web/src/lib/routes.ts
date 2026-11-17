@@ -37,6 +37,8 @@ export const ROUTES = {
   settingsPrivacy: "/settings/privacy",
   settingsModeration: "/settings/moderation",
   leads: "/leads",
+  invite: "/invite",
+  inviteLink: (code: string) => `/i/${code}`,
   help: "/help",
   guidelines: "/guidelines",
 
@@ -70,7 +72,8 @@ export const PUBLIC_PATHS = [
   "/verify-email",
 ] as const;
 // "/business/claim" is under /business but needs a signed-in user; the page itself handles that.
-export const PUBLIC_PREFIXES = ["/coming-soon", "/business", "/privacy/versions", "/terms/versions", "/shared"] as const;
+// "/i/<code>": a neighbour's personal invite link (plan WP-E).
+export const PUBLIC_PREFIXES = ["/coming-soon", "/business", "/privacy/versions", "/terms/versions", "/shared", "/i"] as const;
 
 /**
  * A shared post opened by someone who isn't signed in: `/p/<id>` shows the public preview

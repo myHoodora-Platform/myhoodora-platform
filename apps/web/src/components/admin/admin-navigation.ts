@@ -19,6 +19,7 @@ import {
   Sparkles,
   UserCheck,
   UserCog,
+  UserPlus,
   Users,
   UsersRound,
 } from "lucide-react";
@@ -97,6 +98,7 @@ export const ADMIN_NAV: AdminNavSection[] = [
       { title: "Groups", href: "/admin/groups", icon: UsersRound },
       { title: "Marketplace", href: "/admin/marketplace", icon: ShoppingBag },
       { title: "Hood content", href: "/admin/hood-content", icon: Sparkles },
+      { title: "Invites", href: "/admin/invites", icon: UserPlus },
     ],
   },
   {

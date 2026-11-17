@@ -91,6 +91,12 @@ describe("shared post links", () => {
     expect(rewrittenTo(res)).toBeNull();
   });
 
+  it("open a neighbour's personal invite link to anyone; the Invite page stays behind the login", async () => {
+    expect(served(await visit("/i/ADA7K?src=qr"))).toBe(true);
+    expect(served(await visit("/i/ADA7K", "good"))).toBe(true);
+    expect(redirectedTo(await visit("/invite"))).toMatch(/\/login\?next=%2Finvite/);
+  });
+
   it("leave other app pages behind the login", async () => {
     expect(redirectedTo(await visit(`/p/${ID}/edit`))).toMatch(/\/login\?next=/);
     expect(redirectedTo(await visit("/news-feed"))).toBe("http://localhost:3000/login");

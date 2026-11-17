@@ -18,6 +18,7 @@ import { FEED_FILTERS, matchesFilter, parseFeedFilter, type FeedFilter } from ".
 import { useComposer } from "../composer-context";
 import { useFeed } from "../feed-context";
 import { CameFromCard } from "@/features/shared-post/came-from-card";
+import { WhoInvitedYouCard } from "@/features/invites/who-invited-you-card";
 import { ComposerPrompt } from "./composer-prompt";
 import { FeedSkeleton } from "./feed-skeleton";
 import { PostCard } from "./post-card";
@@ -81,6 +82,7 @@ export function NewsFeed() {
     <div className="space-y-4">
       <h1 className="sr-only">Home</h1>
       <CameFromCard />
+      <WhoInvitedYouCard />
       <ComposerPrompt />
       <div data-tour="feed-filters">
         <FilterChips

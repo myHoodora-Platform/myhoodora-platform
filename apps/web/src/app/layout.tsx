@@ -3,6 +3,7 @@ import { Outfit, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { RealtimeProvider } from "@/lib/realtime/realtime-provider";
+import { InviteBootstrap } from "@/features/invites/invite-bootstrap";
 import { AppToaster } from "@/components/shared/app-toaster";
 import { ThemeSync } from "@/components/shared/theme-sync";
 import { SITE_URL } from "@/lib/site";
@@ -87,6 +88,7 @@ export default function RootLayout({
         <AuthProvider>
           <RealtimeProvider>
             {children}
+            <InviteBootstrap />
             <AppToaster />
           </RealtimeProvider>
         </AuthProvider>

@@ -24,6 +24,8 @@ import { toast } from "sonner";
 import { BirthField, CantJoinYet, EMPTY_BIRTH, type BirthInput } from "@/features/age/age-check-form";
 import { ageCheckLocked, lockAgeCheck } from "@/features/age/age-lock";
 import { PolicyReviewDialog } from "@/components/legal/policy-review-dialog";
+import { normaliseInviteCode } from "@myhoodora/api-contract/invites";
+import { readSavedInvite, rememberInviteRef } from "@/features/invites/invite-ref";
 
 // "Continue to myHoodora AI" sends people here with ?next=/oauth/authorize?… (docs/integrations/myhoodora-ai.md §4.1).
 // Read at submit time, like the login page, so this page stays statically rendered.
@@ -45,6 +47,14 @@ export default function RegisterPage() {
   const [birthProblem, setBirthProblem] = useState<string | null>(null);
 
   const [reviewing, setReviewing] = useState(false);
+  // An invite code: from the link they came by (?ref=, kept until they've joined), or typed in.
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteCode, setInviteCode] = useState("");
+  useEffect(() => {
+    rememberInviteRef(new URLSearchParams(window.location.search).get("ref"), "link");
+    const saved = readSavedInvite();
+    if (saved) setInviteCode(saved.code);
+  }, []);
   const {
     register,
     handleSubmit,
@@ -71,6 +81,9 @@ export default function RegisterPage() {
       setLocked(true);
       return;
     }
+    // A code they typed (or changed) themselves wins over one a link brought; it's claimed once they're in.
+    const typed = normaliseInviteCode(inviteCode);
+    if (typed && typed !== readSavedInvite()?.code) rememberInviteRef(typed, "code", { replace: true });
     submittingRef.current = true;
     try {
       const user = await signUpUser(data.email, data.password);
@@ -167,6 +180,35 @@ export default function RegisterPage() {
             {...register("password")}
           />
         </div>
+
+        {inviteCode && !inviteOpen ? (
+          <p className="px-1 text-xs text-muted-foreground">
+            Invite code <span className="font-mono font-semibold text-foreground">{inviteCode}</span>{" "}
+            <button type="button" onClick={() => setInviteOpen(true)} className="font-semibold text-primary hover:underline">
+              Change
+            </button>
+          </p>
+        ) : inviteOpen ? (
+          <div className="space-y-1.5">
+            <label htmlFor="register-invite" className="text-sm font-semibold">
+              Invite code <span className="font-normal text-muted-foreground">(optional)</span>
+            </label>
+            <Input
+              id="register-invite"
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+              placeholder="e.g. ADA7K"
+              autoComplete="off"
+              maxLength={14}
+              className="font-mono tracking-widest uppercase"
+            />
+            <p className="text-xs text-muted-foreground">From the neighbour who invited you, or the poster you saw. They get the credit.</p>
+          </div>
+        ) : (
+          <button type="button" onClick={() => setInviteOpen(true)} className="px-1 text-left text-sm font-semibold text-primary hover:underline">
+            Have an invite code?
+          </button>
+        )}
 
         <BirthField
           idPrefix="register-dob"
