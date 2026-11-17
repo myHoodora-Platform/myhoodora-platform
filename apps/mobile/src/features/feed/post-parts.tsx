@@ -78,7 +78,7 @@ export function PostAuthor({ post, size = 40, compact = false, onAuthor, onAutho
   const meta = [post.author?.neighborhoodName, timeAgo(post.createdAt), post.editedAt ? "Edited" : null].filter(Boolean).join(" · ");
   const body = (
     <>
-      <Avatar name={post.author?.displayName} photoURL={post.author?.photoURL} size={size} />
+      <Avatar name={post.author?.displayName} photoURL={post.author?.photoURL} size={size} badge={post.author?.badge} />
       <View style={styles.shrink}>
         <View style={styles.row}>
           <Text variant="label" style={[compact ? undefined : styles.name, styles.shrink]} numberOfLines={1}>

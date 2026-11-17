@@ -12,7 +12,9 @@ import { ProblemState } from "@/components/shared/connection-states";
 import { isLive } from "@/lib/api/config";
 import { useNeighbourhood } from "@/hooks/use-neighbourhood";
 import { timeAgo } from "@/lib/time";
-import { loadInvites, useInviteSummary } from "./use-invites";
+import { loadInvites, useEngagement, useInviteSummary } from "./use-invites";
+import { ParticipationBadge } from "@/components/shared/user-avatar";
+import { STREAK_TIER_AT } from "@myhoodora/api-contract/engagement";
 
 /**
  * Invite neighbours (plan WP-E): their code and personal link, WhatsApp first, how many joined and
@@ -58,7 +60,6 @@ export function InvitePage() {
       }
     } else await copy("link");
   };
-  const toBuilder = Math.max(0, BUILDER_INVITES - summary.verified);
 
   return (
     <div className="space-y-4">
@@ -121,20 +122,7 @@ export function InvitePage() {
             </div>
           ))}
         </dl>
-        <div className="mt-4">
-          <div className="flex justify-between text-sm">
-            <span className="font-semibold">Hood Builder</span>
-            <span className="text-muted-foreground">
-              {Math.min(summary.verified, BUILDER_INVITES)} of {BUILDER_INVITES} verified
-            </span>
-          </div>
-          <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuemin={0} aria-valuemax={BUILDER_INVITES} aria-valuenow={Math.min(summary.verified, BUILDER_INVITES)} aria-label="Verified invites towards Hood Builder">
-            <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${(Math.min(summary.verified, BUILDER_INVITES) / BUILDER_INVITES) * 100}%` }} />
-          </div>
-          <p className="mt-1.5 text-xs text-muted-foreground">
-            {toBuilder ? `${toBuilder} more verified ${toBuilder === 1 ? "neighbour" : "neighbours"} to become a Hood Builder in the launch challenge.` : "You've reached Hood Builder. Thank you for building up your neighbourhood!"}
-          </p>
-        </div>
+        <ChallengeProgress uid={user?.uid} fallbackInvites={summary.verified} />
 
         {summary.people.length > 0 ? (
           <ul className="mt-4 divide-y divide-border">
@@ -158,6 +146,74 @@ export function InvitePage() {
         )}
         {summary.invitedBy && <p className="mt-4 border-t border-border pt-3 text-xs text-muted-foreground">You were invited by {summary.invitedBy.name}.</p>}
       </section>
+    </div>
+  );
+}
+
+function Bar({ value, max, label }: { value: number; max: number; label: string }) {
+  const v = Math.min(value, max);
+  return (
+    <div className="h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuemin={0} aria-valuemax={max} aria-valuenow={v} aria-label={label}>
+      <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${(v / max) * 100}%` }} />
+    </div>
+  );
+}
+
+/**
+ * The launch challenge (plan WP-C): Hood Builder by either path (verified invites, or active days), and
+ * the streak. Counted back to the day the challenge began.
+ */
+function ChallengeProgress({ uid, fallbackInvites }: { uid?: string; fallbackInvites: number }) {
+  const e = useEngagement(uid);
+  const c = e?.challenge;
+  const minInvites = c?.minInvites ?? BUILDER_INVITES;
+  return (
+    <div className="mt-4 space-y-4 rounded-2xl bg-muted/40 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-semibold">{c?.name ?? "myHoodora Launch Challenge"}</p>
+          <p className="text-xs text-muted-foreground">
+            {c?.builder ? "You're a Hood Builder. Thank you for building up your neighbourhood!" : c && !c.active ? "The challenge has ended." : "Become a Hood Builder: either path counts."}
+          </p>
+        </div>
+        {e?.badge && (
+          <span className="relative mt-1 size-9 shrink-0">
+            <ParticipationBadge badge={e.badge} size="xl" />
+          </span>
+        )}
+      </div>
+      <div className="space-y-1.5">
+        <div className="flex justify-between text-sm">
+          <span>Neighbours who joined and verified</span>
+          <span className="text-muted-foreground tabular-nums">
+            {Math.min(c?.invites ?? fallbackInvites, minInvites)} of {minInvites}
+          </span>
+        </div>
+        <Bar value={c?.invites ?? fallbackInvites} max={minInvites} label="Verified invites towards Hood Builder" />
+      </div>
+      {c && (
+        <div className="space-y-1.5">
+          <div className="flex justify-between text-sm">
+            <span>Days you posted, replied, voted or RSVP&apos;d</span>
+            <span className="text-muted-foreground tabular-nums">
+              {Math.min(c.activeDays, c.minActiveDays)} of {c.minActiveDays}
+            </span>
+          </div>
+          <Bar value={c.activeDays} max={c.minActiveDays} label="Active days towards Hood Builder" />
+        </div>
+      )}
+      {e?.streak && (
+        <p className="text-sm">
+          <span className="font-semibold">{e.streak.current}-day streak</span>
+          <span className="text-muted-foreground">
+            {" "}
+            · best {e.streak.best}
+            {e.streak.toNextTier ? ` · ${e.streak.toNextTier} more ${e.streak.toNextTier === 1 ? "day" : "days"} to ${e.streak.current >= STREAK_TIER_AT.silver ? "gold" : e.streak.current >= STREAK_TIER_AT.bronze ? "silver" : "bronze"}` : " · gold"}
+            {e.streak.activeToday ? " · done for today ✓" : ""}
+          </span>
+        </p>
+      )}
+      <p className="text-xs text-muted-foreground">One missed day a week doesn&apos;t break a streak. No pressure: reactions don&apos;t count, real conversations do.</p>
     </div>
   );
 }

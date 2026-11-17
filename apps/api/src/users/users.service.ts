@@ -112,6 +112,8 @@ export interface AuthorCard {
   kind?: "team";
   /** A myHoodora staff member (moderator, admin, owner). */
   staff?: boolean;
+  /** Hood Builder mascot and streak ring on their avatar (engagement.service.ts). */
+  badge?: { builder?: true; tier?: "bronze" | "silver" | "gold"; streak?: number };
 }
 
 export function toMe(u: User): MeResponse {
@@ -854,8 +856,8 @@ export class UsersService implements OnModuleInit {
   async authorCards(uids: string[], opts: { forStaff?: boolean } = {}): Promise<Map<string, AuthorCard>> {
     const rows = await this.users
       .find({ uid: { $in: [...new Set(uids)] } })
-      .select({ uid: 1, displayName: 1, photoURL: 1, neighborhoodId: 1, deactivatedAt: 1, purgedAt: 1, role: 1, accountKind: 1 })
-      .lean<Pick<User, "uid" | "displayName" | "photoURL" | "neighborhoodId" | "deactivatedAt" | "purgedAt" | "role" | "accountKind">[]>()
+      .select({ uid: 1, displayName: 1, photoURL: 1, neighborhoodId: 1, deactivatedAt: 1, purgedAt: 1, role: 1, accountKind: 1, "engagement.badge": 1 })
+      .lean<Pick<User, "uid" | "displayName" | "photoURL" | "neighborhoodId" | "deactivatedAt" | "purgedAt" | "role" | "accountKind" | "engagement">[]>()
       .exec();
     const cards = new Map<string, AuthorCard>(
       rows.map((r) => [
@@ -872,6 +874,7 @@ export class UsersService implements OnModuleInit {
                 ...(r.accountKind === "team" && { kind: "team" as const }),
                 // Staff are labelled where they speak, so neighbours know who is answering.
                 ...(r.role && r.role !== "member" && r.accountKind !== "team" && { staff: true }),
+                ...(r.engagement?.badge && { badge: r.engagement.badge }),
               },
       ]),
     );

@@ -184,6 +184,28 @@ export class User {
     reviewedBy?: string;
   } | null;
 
+  /**
+   * Streak, challenge progress and the badge on their avatar (engagement.service.ts), kept here so feeds
+   * show it without extra work. Recomputed when they open the app and nightly.
+   */
+  @Prop({ type: Object, default: null })
+  engagement?: {
+    streak: number;
+    best: number;
+    lastDay: string | null;
+    tier: "bronze" | "silver" | "gold" | null;
+    /** Days active in the launch challenge, and verified invites made in it. */
+    challengeDays: number;
+    challengeInvites: number;
+    /** Hood Builder: earned (auto) or granted by staff; `builderRevoked` keeps an automatic one off. */
+    builderAt?: Date | null;
+    builderBy?: "auto" | "staff";
+    builderRevoked?: boolean;
+    /** What avatars show. */
+    badge: { builder?: true; tier?: "bronze" | "silver" | "gold"; streak?: number } | null;
+    computedAt: Date;
+  } | null;
+
   /** One-way hash of the phone/browser they last opened Invite on: spots invites to their own second account. */
   @Prop({ type: String })
   inviteDeviceHash?: string;
@@ -208,3 +230,5 @@ UserSchema.index({ "secondaryHoods.id": 1 });
 UserSchema.index({ inviteCode: 1 }, { unique: true, sparse: true });
 // "Who joined with my code?" and the leaderboard.
 UserSchema.index({ "invitedBy.uid": 1, createdAt: -1 });
+// Builders for the challenge page and its export.
+UserSchema.index({ "engagement.builderAt": 1 }, { sparse: true });

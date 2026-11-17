@@ -3,7 +3,12 @@ import type { ClaimInviteInput, InviteSummary } from "@myhoodora/api-contract/in
 import { apiFetch } from "@/core/api/client";
 import { deviceId } from "@/core/invites/device-id";
 
-export const inviteKeys = { me: (uid: string) => ["invites", "me", uid] as const };
+export const inviteKeys = { me: (uid: string) => ["invites", "me", uid] as const, engagement: (uid: string) => ["engagement", "me", uid] as const };
+
+/** GET /engagement/me (contract §42): streak, launch challenge progress, badge. */
+export function getEngagement(user: User): Promise<import("@myhoodora/api-contract/engagement").EngagementSummary> {
+  return apiFetch(user, "/engagement/me");
+}
 
 /** GET /invites/me (contract §40). */
 export async function getInviteSummary(user: User): Promise<InviteSummary> {

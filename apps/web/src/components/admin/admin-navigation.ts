@@ -18,6 +18,7 @@ import {
   Siren,
   SlidersHorizontal,
   Sparkles,
+  Trophy,
   UserCheck,
   UserCog,
   UserPlus,
@@ -100,6 +101,7 @@ export const ADMIN_NAV: AdminNavSection[] = [
       { title: "Marketplace", href: "/admin/marketplace", icon: ShoppingBag },
       { title: "Hood content", href: "/admin/hood-content", icon: Sparkles },
       { title: "Invites", href: "/admin/invites", icon: UserPlus },
+      { title: "Launch challenge", href: "/admin/engagement", icon: Trophy },
     ],
   },
   {

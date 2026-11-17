@@ -636,6 +636,7 @@ export class PostsService implements OnModuleInit {
           neighborhoodName: a?.neighborhoodId ? hoods.get(a.neighborhoodId)?.name : undefined,
           ...(a?.kind && { kind: a.kind }),
           ...(a?.staff && { staff: true }),
+          ...(a?.badge && { badge: a.badge }),
         },
         neighborhoodId: d.neighborhoodId,
         type: d.type,

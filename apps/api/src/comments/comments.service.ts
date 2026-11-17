@@ -336,7 +336,7 @@ export class CommentsService implements OnModuleInit {
         _id: String(r._id),
         postId: r.postId,
         authorUid: gone ? "" : r.authorUid,
-        author: gone ? { uid: "", displayName: "" } : { uid: r.authorUid, displayName: a?.displayName ?? "Neighbour", photoURL: a?.photoURL, ...(a?.kind && { kind: a.kind }), ...(a?.staff && { staff: true }) },
+        author: gone ? { uid: "", displayName: "" } : { uid: r.authorUid, displayName: a?.displayName ?? "Neighbour", photoURL: a?.photoURL, ...(a?.kind && { kind: a.kind }), ...(a?.staff && { staff: true }), ...(a?.badge && { badge: a.badge }) },
         content: gone ? "" : r.content,
         createdAt: (r.createdAt ?? new Date()).toISOString(),
         likes: [],

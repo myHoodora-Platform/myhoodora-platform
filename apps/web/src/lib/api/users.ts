@@ -20,10 +20,17 @@ export function initialsFrom(name: string): string {
 /** Author cards the live API embeds in posts/comments (uid → card). */
 const knownAuthors = new Map<string, PublicProfile>();
 
-export function rememberAuthor(card: { uid: string; displayName: string; photoURL?: string; neighborhoodName?: string } | undefined): void {
+/** The signed-in person's own badge (GET /engagement/me), for their own posts and avatar. */
+let myBadge: import("@myhoodora/api-contract/engagement").AvatarBadge | undefined;
+export function rememberMyBadge(badge: typeof myBadge): void {
+  myBadge = badge;
+}
+
+export function rememberAuthor(card: { uid: string; displayName: string; photoURL?: string; neighborhoodName?: string; badge?: import("@myhoodora/api-contract/engagement").AvatarBadge } | undefined): void {
   if (!card) return;
   const prev = knownAuthors.get(card.uid);
-  knownAuthors.set(card.uid, { ...prev, verified: true, ...card, neighborhoodName: card.neighborhoodName ?? prev?.neighborhoodName });
+  // The badge follows the latest card (it can be taken away), unlike the Hood name.
+  knownAuthors.set(card.uid, { ...prev, verified: true, ...card, neighborhoodName: card.neighborhoodName ?? prev?.neighborhoodName, badge: card.badge });
 }
 
 /**
@@ -50,6 +57,7 @@ export function resolveAuthor(uid: string, viewer: Viewer): PublicProfile {
       bio: extras.bio ?? viewer.profile?.bio,
       neighborhoodName: viewer.profile?.neighborhoodName,
       verified: true,
+      ...(myBadge && { badge: myBadge }),
     };
   }
   const known = knownAuthors.get(uid);

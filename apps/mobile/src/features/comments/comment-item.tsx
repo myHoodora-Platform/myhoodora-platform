@@ -91,7 +91,7 @@ export const CommentItem = memo(function CommentItem({
       style={({ pressed }) => [styles.row, reply && styles.reply, pressed && { backgroundColor: tint(t.colors.foreground, 0.04) }]}
     >
       <Pressable onPress={() => openProfile(comment.authorUid)} accessibilityRole="link" accessibilityLabel={`${name}'s profile`} hitSlop={4}>
-        <Avatar name={comment.author?.displayName} photoURL={comment.author?.photoURL} size={size} />
+        <Avatar name={comment.author?.displayName} photoURL={comment.author?.photoURL} size={size} badge={comment.author?.badge} />
       </Pressable>
       <View style={styles.body}>
         <View style={styles.nameRow}>

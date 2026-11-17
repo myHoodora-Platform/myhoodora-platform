@@ -189,6 +189,8 @@ export interface PublicProfile {
   verified: boolean;
   /** Organisations (estate management, agencies) and the official myHoodora Hood Team get a badge. */
   kind?: AuthorKind;
+  /** Hood Builder mascot and streak ring (contract §42). */
+  badge?: import("./engagement").AvatarBadge;
 }
 
 /**
@@ -207,6 +209,8 @@ export interface PostAuthor {
   kind?: AuthorKind;
   /** A myHoodora staff member (moderator, admin, owner): shown with a "Staff" label. */
   staff?: boolean;
+  /** Hood Builder mascot and streak ring (contract §42). */
+  badge?: import("./engagement").AvatarBadge;
 }
 
 // ── Comments (planned) ──────────────────────────────────────────────────────
@@ -216,7 +220,7 @@ export interface Comment {
   postId: string;
   authorUid: string;
   /** Embedded by the live API. */
-  author?: { uid: string; displayName: string; photoURL?: string; kind?: AuthorKind; staff?: boolean };
+  author?: { uid: string; displayName: string; photoURL?: string; kind?: AuthorKind; staff?: boolean; badge?: import("./engagement").AvatarBadge };
   content: string;
   createdAt: string;
   likes: string[];

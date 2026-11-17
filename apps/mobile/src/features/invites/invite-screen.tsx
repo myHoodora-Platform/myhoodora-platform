@@ -16,7 +16,9 @@ import { Skeleton } from "@/shared/ui/skeleton";
 import { ErrorState } from "@/shared/ui/states";
 import { Text } from "@/shared/ui/text";
 import { timeAgo } from "@/shared/utils/time";
-import { getInviteSummary, inviteKeys } from "./invites-api";
+import { getEngagement, getInviteSummary, inviteKeys } from "./invites-api";
+import { ParticipationBadge } from "@/shared/ui/avatar";
+import { STREAK_TIER_AT } from "@myhoodora/api-contract/engagement";
 import { rememberMyInviteCode } from "@/core/invites/invite-ref";
 
 /**
@@ -75,8 +77,6 @@ function Body() {
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
-  const counted = Math.min(s.verified, BUILDER_INVITES);
-  const toBuilder = BUILDER_INVITES - counted;
 
   return (
     <ScrollView
@@ -140,24 +140,7 @@ function Body() {
             </View>
           ))}
         </View>
-        <View style={styles.rowBetween}>
-          <Text variant="label">Hood Builder</Text>
-          <Text variant="caption" tone="muted">
-            {counted} of {BUILDER_INVITES} verified
-          </Text>
-        </View>
-        <View
-          style={[styles.track, { backgroundColor: t.colors.muted }]}
-          accessible
-          accessibilityRole="progressbar"
-          accessibilityLabel="Verified invites towards Hood Builder"
-          accessibilityValue={{ min: 0, max: BUILDER_INVITES, now: counted }}
-        >
-          <View style={[styles.fill, { width: `${(counted / BUILDER_INVITES) * 100}%`, backgroundColor: t.colors.primary }]} />
-        </View>
-        <Text variant="caption" tone="muted">
-          {toBuilder ? `${toBuilder} more verified ${toBuilder === 1 ? "neighbour" : "neighbours"} to become a Hood Builder in the launch challenge.` : "You've reached Hood Builder. Thank you for building up your neighbourhood!"}
-        </Text>
+        <Challenge invitesFallback={s.verified} />
 
         {s.people.length ? (
           s.people.map((p, i) => (
@@ -191,7 +174,72 @@ function Body() {
   );
 }
 
+function Progress({ value, max, label }: { value: number; max: number; label: string }) {
+  const t = useTheme();
+  const v = Math.min(value, max);
+  return (
+    <View style={[styles.track, { backgroundColor: t.colors.muted }]} accessible accessibilityRole="progressbar" accessibilityLabel={label} accessibilityValue={{ min: 0, max, now: v }}>
+      <View style={[styles.fill, { width: `${(v / max) * 100}%`, backgroundColor: t.colors.primary }]} />
+    </View>
+  );
+}
+
+/** The launch challenge (plan WP-C): Hood Builder by either path, and the streak. The web's ChallengeProgress. */
+function Challenge({ invitesFallback }: { invitesFallback: number }) {
+  const t = useTheme();
+  const user = useSignedInUser();
+  const e = useQuery({ queryKey: inviteKeys.engagement(user.uid), queryFn: () => getEngagement(user), staleTime: 0 }).data;
+  const c = e?.challenge;
+  const minInvites = c?.minInvites ?? BUILDER_INVITES;
+  const invites = c?.invites ?? invitesFallback;
+  return (
+    <View style={[styles.challenge, { backgroundColor: t.colors.muted }]}>
+      <View style={styles.rowBetween}>
+        <View style={styles.flex}>
+          <Text variant="label">{c?.name ?? "myHoodora Launch Challenge"}</Text>
+          <Text variant="caption" tone="muted">
+            {c?.builder ? "You're a Hood Builder. Thank you!" : c && !c.active ? "The challenge has ended." : "Become a Hood Builder: either path counts."}
+          </Text>
+        </View>
+        {e?.badge ? <ParticipationBadge badge={e.badge} size={34} /> : null}
+      </View>
+      <View style={styles.rowBetween}>
+        <Text variant="caption">Neighbours who joined and verified</Text>
+        <Text variant="caption" tone="muted">
+          {Math.min(invites, minInvites)} of {minInvites}
+        </Text>
+      </View>
+      <Progress value={invites} max={minInvites} label="Verified invites towards Hood Builder" />
+      {c ? (
+        <>
+          <View style={styles.rowBetween}>
+            <Text variant="caption">Days you posted, replied, voted or RSVP&apos;d</Text>
+            <Text variant="caption" tone="muted">
+              {Math.min(c.activeDays, c.minActiveDays)} of {c.minActiveDays}
+            </Text>
+          </View>
+          <Progress value={c.activeDays} max={c.minActiveDays} label="Active days towards Hood Builder" />
+        </>
+      ) : null}
+      {e?.streak ? (
+        <Text variant="caption">
+          <Text variant="caption" style={{ fontFamily: t.fonts.semibold }}>
+            {e.streak.current}-day streak
+          </Text>
+          {` · best ${e.streak.best}`}
+          {e.streak.toNextTier ? ` · ${e.streak.toNextTier} more to ${e.streak.current >= STREAK_TIER_AT.silver ? "gold" : e.streak.current >= STREAK_TIER_AT.bronze ? "silver" : "bronze"}` : " · gold"}
+          {e.streak.activeToday ? " · done for today ✓" : ""}
+        </Text>
+      ) : null}
+      <Text variant="caption" tone="muted">
+        One missed day a week doesn&apos;t break a streak. Reactions don&apos;t count, real conversations do.
+      </Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  challenge: { borderRadius: 14, padding: 12, gap: 8 },
   body: { paddingHorizontal: 16, gap: 16 },
   card: { borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, padding: 16, gap: 12 },
   row: { flexDirection: "row", alignItems: "center", gap: 12 },
