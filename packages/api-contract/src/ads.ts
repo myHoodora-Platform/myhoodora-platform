@@ -50,6 +50,10 @@ export interface FeedAd {
   format: AdFormat;
   /** `official`: a notice from myHoodora itself: show "Official · myHoodora", never "Sponsored". */
   advertiser: { name: string; logoUrl?: string; official?: true };
+  /** Only when neighbours can like it (PUT/DELETE /ads/:id/like). */
+  likes?: { count: number; mine: boolean };
+  /** Liking it / tapping its button retires it for this neighbour: thank them and fold it away. */
+  retireOn?: AdRetireOn[];
   primaryText: string;
   headline?: string;
   cta: { type: AdCta; label: string; url?: string; phone?: string } | null;
@@ -64,6 +68,10 @@ export interface FeedAd {
   /** `listings` ads: how many items the seller has for sale now, shown or not. */
   listingsTotal?: number;
 }
+
+/** What a neighbour does that stops an ad showing to them ("Got it" / Hide always does). */
+export const AD_RETIRE_ON = ["like", "click"] as const;
+export type AdRetireOn = (typeof AD_RETIRE_ON)[number];
 
 /** A promoted seller's card shows at most this many items; "See all" opens the rest. */
 export const PROMOTED_ITEMS_SHOWN = 4;
@@ -120,6 +128,7 @@ export interface AdStats {
   unmutes: number;
   swipes: number;
   whyOpens: number;
+  likes: number;
 }
 
 /** An ad as admins see it (GET /admin/ads, /admin/ads/:id). */
@@ -132,6 +141,12 @@ export interface AdminAd {
   official?: boolean;
   /** Show first: the top of the feed (even a quiet one) instead of between posts. */
   pinned?: boolean;
+  /** Neighbours can like it, like a post. */
+  likeable?: boolean;
+  /** Stop showing it to a neighbour once they've liked it / tapped the button. */
+  retireOn?: AdRetireOn[];
+  /** Times one neighbour may see it in all; null = only the daily cap. */
+  totalCapPerUser?: number | null;
   format: AdFormat;
   primaryText: string;
   headline?: string;

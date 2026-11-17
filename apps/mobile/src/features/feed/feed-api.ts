@@ -110,6 +110,11 @@ export function hideAd(user: User, adId: string, sessionId?: string): Promise<{ 
   return apiFetch(user, `/ads/${adId}/hide`, { method: "POST", json: { sessionId } });
 }
 
+/** Like (or take back the like on) an ad that allows it. */
+export function likeAd(user: User, adId: string, on: boolean): Promise<{ liked: boolean; count: number }> {
+  return apiFetch(user, `/ads/${adId}/like`, { method: on ? "PUT" : "DELETE" });
+}
+
 export function reportAd(user: User, adId: string, reason: ReportReason, sessionId?: string): Promise<{ reported: true }> {
   return apiFetch(user, `/ads/${adId}/report`, { method: "POST", json: { reason, sessionId } });
 }

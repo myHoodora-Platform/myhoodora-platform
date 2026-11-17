@@ -49,8 +49,8 @@ const fromLocalInput = (v: string) => (v ? new Date(v).toISOString() : null);
 
 /** What the API takes from a loaded ad (it refuses fields it doesn't know). */
 function inputOf(ad: AdminAd): AdminAdInput {
-  const { title, advertiserName, advertiserLogoUrl, official, pinned, format, primaryText, headline, ctaType, ctaUrl, ctaPhone, media, cards, background, sellerUid, startsAt, endsAt, priority, dailyCapPerUser, hoodIds, cities, near } = ad;
-  return { title, advertiserName, advertiserLogoUrl, official, pinned, format, primaryText, headline, ctaType, ctaUrl, ctaPhone, media, cards, background, sellerUid, startsAt, endsAt, priority, dailyCapPerUser, hoodIds, cities, near };
+  const { title, advertiserName, advertiserLogoUrl, official, pinned, likeable, retireOn, totalCapPerUser, format, primaryText, headline, ctaType, ctaUrl, ctaPhone, media, cards, background, sellerUid, startsAt, endsAt, priority, dailyCapPerUser, hoodIds, cities, near } = ad;
+  return { title, advertiserName, advertiserLogoUrl, official, pinned, likeable, retireOn, totalCapPerUser, format, primaryText, headline, ctaType, ctaUrl, ctaPhone, media, cards, background, sellerUid, startsAt, endsAt, priority, dailyCapPerUser, hoodIds, cities, near };
 }
 
 /** Only what the chosen format uses, so switching formats doesn't send leftovers. */
@@ -361,6 +361,49 @@ function Editor({ ad, onSaved }: { ad?: AdminAd; onSaved: (ad: AdminAd) => void 
                   </span>
                 </span>
               </label>
+              <label className="flex items-start gap-3 rounded-xl border border-border p-3 text-sm">
+                <input type="checkbox" className="mt-0.5 size-4" checked={Boolean(form.likeable)} onChange={(e) => set({ likeable: e.target.checked, ...(!e.target.checked && { retireOn: (form.retireOn ?? []).filter((r) => r !== "like") }) })} />
+                <span>
+                  <span className="block font-semibold">Neighbours can like it</span>
+                  <span className="block text-muted-foreground">A Like button and count under it, like a post{form.official ? ", plus “Got it” to put it away" : ""}. Likes show in the results.</span>
+                </span>
+              </label>
+              <fieldset className="space-y-2 rounded-xl border border-border p-3 text-sm">
+                <legend className="px-1 font-semibold">Stop showing it to a neighbour once they…</legend>
+                <p className="text-muted-foreground">A notice that has done its job steps aside, so the feed stays fresh. “Got it” and Hide always do.</p>
+                {(
+                  [
+                    ["like", "Like it", !form.likeable ? "Turn on likes above first." : undefined],
+                    ["click", form.ctaType ? "Tap the button" : "Tap the button (add a button first)", !form.ctaType ? "There's no button." : undefined],
+                  ] as const
+                ).map(([key, label, off]) => (
+                  <label key={key} className={cn("flex items-center gap-2", off && "opacity-60")} title={off}>
+                    <input
+                      type="checkbox"
+                      className="size-4"
+                      disabled={Boolean(off)}
+                      checked={(form.retireOn ?? []).includes(key)}
+                      onChange={(e) => set({ retireOn: e.target.checked ? [...(form.retireOn ?? []), key] : (form.retireOn ?? []).filter((r) => r !== key) })}
+                    />
+                    {label}
+                  </label>
+                ))}
+                <label className="flex flex-wrap items-center gap-2">
+                  <input type="checkbox" className="size-4" checked={form.totalCapPerUser != null} onChange={(e) => set({ totalCapPerUser: e.target.checked ? 5 : null })} />
+                  Have seen it
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    aria-label="Times in total"
+                    disabled={form.totalCapPerUser == null}
+                    value={form.totalCapPerUser ?? 5}
+                    onChange={(e) => set({ totalCapPerUser: Math.min(100, Math.max(1, Number(e.target.value) || 1)) })}
+                    className={cn(fieldInputClass, "w-20")}
+                  />
+                  times in total (across days)
+                </label>
+              </fieldset>
             </div>
           </Panel>
 
@@ -629,6 +672,7 @@ function StatsPanel({ id }: { id: string }) {
                 ["Sound turned on", stats.unmutes.toLocaleString()],
                 ["Carousel swipes", stats.swipes.toLocaleString()],
                 ["“Why this ad?” opened", stats.whyOpens.toLocaleString()],
+                ["Likes", (stats.likes ?? 0).toLocaleString()],
               ] as const
             ).map(([label, value]) => (
               <div key={label} className="rounded-xl bg-muted/60 p-3">

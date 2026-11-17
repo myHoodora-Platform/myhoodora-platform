@@ -80,8 +80,11 @@ export class AdFeedService {
       next = { ...placed.state, seen: state.seen + posts.length };
       if (top) next.served = { ...next.served, [top.id]: (next.served[top.id] ?? 0) + 1 };
       const placedAds = [...(top ? [ads.get(top.id)!] : []), ...placed.items.flatMap((i) => (i.type === "ad" ? [ads.get(i.adId)!] : []))];
-      const aspects = await this.storage.aspectRatios(placedAds.flatMap((a) => a.media.map((m) => m.url)));
-      const view = (id: string, slotId: string): FeedItem => ({ type: "ad", slotId, data: this.ads.toView(ads.get(id)!, hood?.name, aspects, promoted.get(id)) });
+      const [aspects, likes] = await Promise.all([
+        this.storage.aspectRatios(placedAds.flatMap((a) => a.media.map((m) => m.url))),
+        this.ads.likesFor(viewer.uid, [...new Set(placedAds.filter((a) => a.likeable).map((a) => String(a._id)))]),
+      ]);
+      const view = (id: string, slotId: string): FeedItem => ({ type: "ad", slotId, data: this.ads.toView(ads.get(id)!, hood?.name, aspects, promoted.get(id), likes.get(id)) });
       items = [
         ...(top ? [view(top.id, `${q.session}:top`)] : []),
         ...placed.items.map((i) => (i.type === "post" ? i : view(i.adId, i.slotId))),

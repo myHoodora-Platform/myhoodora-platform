@@ -16,7 +16,10 @@ export type AdCta = (typeof AD_CTAS)[number];
 export const AD_BACKGROUNDS = ["green", "blue", "amber", "rose", "slate"] as const;
 export type AdBackground = (typeof AD_BACKGROUNDS)[number];
 
-export const AD_EVENT_TYPES = ["impression", "click", "hide", "report", "video_play", "unmute", "swipe", "why"] as const;
+export const AD_EVENT_TYPES = ["impression", "click", "hide", "report", "video_play", "unmute", "swipe", "why", "like"] as const;
+/** What a neighbour does that retires an ad for them (Ad.retireOn). "Got it" / Hide always does. */
+export const AD_RETIRE_ON = ["like", "click"] as const;
+export type AdRetireOn = (typeof AD_RETIRE_ON)[number];
 /** What the app reports in batches (hide and report have their own routes). */
 export const AD_TRACKED_TYPES = ["impression", "click", "video_play", "unmute", "swipe", "why"] as const;
 export type AdTrackedType = (typeof AD_TRACKED_TYPES)[number];
@@ -44,6 +47,15 @@ export class Ad {
    * Hood), instead of competing for slots between posts. Still at most `dailyCapPerUser` a day each.
    */
   @Prop({ default: false }) pinned!: boolean;
+  /** Neighbours can like it, as they would a post: a heart and a count under it. */
+  @Prop({ default: false }) likeable!: boolean;
+  /**
+   * Stop showing it to a neighbour once they've liked it or tapped its button: a notice that has done
+   * its job steps aside, like a post you've already seen. ("Got it" / Hide always does.)
+   */
+  @Prop({ type: [String], enum: AD_RETIRE_ON, default: [] }) retireOn!: AdRetireOn[];
+  /** Times one neighbour may see it in all, across days. Null: only the daily cap. */
+  @Prop({ type: Number, min: 1, max: 100, default: null }) totalCapPerUser?: number | null;
   @Prop({ required: true, enum: AD_FORMATS }) format!: AdFormat;
   /** Line breaks are kept: apps show it as written. */
   @Prop({ trim: true, maxlength: 1000, default: "" }) primaryText!: string;

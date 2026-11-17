@@ -295,5 +295,43 @@ describe("Sponsored items: admin, placement, targeting, caps, events", () => {
       await status(rival._id, "paused").expect(200);
       await status(notice._id, "paused").expect(200);
     });
+
+    it("can be liked like a post, and steps aside once a neighbour has liked it, tapped it or seen it enough", async () => {
+      await pauseAll();
+      const crowd = Array.from({ length: 30 }, (_, i) => `liker${i}`);
+      for (const uid of crowd) await t.member(uid, lekki);
+      const notice = (
+        await create({ title: "Likes", advertiserName: "x", official: true, pinned: true, likeable: true, retireOn: ["like"], dailyCapPerUser: 20, format: "announcement", primaryText: "Say hello to your Hood" }).expect(201)
+      ).body as { _id: string; likeable: boolean; retireOn: string[] };
+      expect(notice).toMatchObject({ likeable: true, retireOn: ["like"] });
+      await status(notice._id, "active").expect(200);
+      const top = async (uid: string, session: string) => (await feed(uid, lekki, `session=${session}&limit=10`)).items[0] as Extract<Item, { type: "ad" }> & { data: { likes?: { count: number; mine: boolean }; retireOn?: string[] } };
+
+      expect((await top("liker0", "sessionLIKE0")).data).toMatchObject({ _id: notice._id, likes: { count: 0, mine: false }, retireOn: ["like"] });
+      // Many neighbours like it; a double like counts once.
+      for (const uid of crowd.slice(0, 20)) await t.http.put(`/api/ads/${notice._id}/like`).set(t.auth(uid)).expect(200);
+      expect((await t.http.put(`/api/ads/${notice._id}/like`).set(t.auth("liker0")).expect(200)).body).toEqual({ liked: true, count: 20 });
+      // Liking retired it for them; not for the others.
+      expect((await top("liker0", "sessionLIKE1")).data?._id).not.toBe(notice._id);
+      expect((await top("liker25", "sessionLIKE2")).data).toMatchObject({ _id: notice._id, likes: { count: 20, mine: false } });
+      // Taking it back brings it back.
+      expect((await t.http.delete(`/api/ads/${notice._id}/like`).set(t.auth("liker0")).expect(200)).body).toEqual({ liked: false, count: 19 });
+      expect((await top("liker0", "sessionLIKE3")).data._id).toBe(notice._id);
+
+      // Retire on tap and a total cap, instead of liking.
+      await t.http.patch(`/api/admin/ads/${notice._id}`).set(admin()).send({ likeable: false, retireOn: ["click"], totalCapPerUser: 2 }).expect(200);
+      await t.http.put(`/api/ads/${notice._id}/like`).set(t.auth("liker26")).expect(400);
+      await t.http.post("/api/ads/events").set(t.auth("liker26")).send({ events: [{ adId: notice._id, type: "click", sessionId: "sessionCLK1" }] }).expect(200);
+      expect((await top("liker26", "sessionCLK2")).data?._id).not.toBe(notice._id);
+      const seen = (n: number) => ({ events: [{ adId: notice._id, type: "impression", sessionId: `sessionSEEN${n}` }] });
+      await t.http.post("/api/ads/events").set(t.auth("liker27")).send(seen(1)).expect(200);
+      expect((await top("liker27", "sessionSEEN9")).data._id).toBe(notice._id);
+      await t.http.post("/api/ads/events").set(t.auth("liker27")).send(seen(2)).expect(200);
+      expect((await top("liker27", "sessionSEEN8")).data?._id).not.toBe(notice._id);
+
+      const stats = (await t.http.get(`/api/admin/ads/${notice._id}/stats`).set(admin()).expect(200)).body;
+      expect(stats).toMatchObject({ likes: 19, clicks: 1 });
+      await status(notice._id, "paused").expect(200);
+    });
   });
 });

@@ -39,6 +39,10 @@ export interface AdView {
   _id: string;
   format: AdFormat;
   advertiser: { name: string; logoUrl?: string; official?: true };
+  /** Only when neighbours can like it. */
+  likes?: { count: number; mine: boolean };
+  /** What retires it for this neighbour, so the app can thank them and fold it away. */
+  retireOn?: string[];
   primaryText: string;
   headline?: string;
   cta: { type: AdCta; label: string; url?: string; phone?: string } | null;
@@ -75,6 +79,7 @@ export interface AdStats {
   unmutes: number;
   swipes: number;
   whyOpens: number;
+  likes: number;
 }
 
 export interface AdAdminView extends Omit<Ad, "startsAt" | "endsAt" | "deletedAt" | "createdAt" | "updatedAt"> {
@@ -266,27 +271,51 @@ export class AdsService implements OnModuleInit {
       .then((found) => found.filter((r) => reaches(r, hood)));
     if (!rows.length) return { candidates: [], ads: new Map() };
     const ids = rows.map((r) => String(r._id));
-    const [hidden, seen] = await Promise.all([
+    const [hidden, acted] = await Promise.all([
       this.hides.find({ uid: viewer.uid, adId: { $in: ids } }).select({ adId: 1 }).lean<Pick<AdHide, "adId">[]>().exec(),
-      this.events.aggregate<{ _id: string; n: number }>([
-        { $match: { uid: viewer.uid, type: "impression", adId: { $in: ids }, createdAt: { $gte: startOfLagosDay(now) } } },
-        { $group: { _id: "$adId", n: { $sum: 1 } } },
+      // What this neighbour has done with each: seen today (daily cap), seen ever (total cap), liked, tapped.
+      this.events.aggregate<{ _id: { adId: string; type: AdEventType }; n: number; today: number }>([
+        { $match: { uid: viewer.uid, type: { $in: ["impression", "like", "click"] }, adId: { $in: ids } } },
+        { $group: { _id: { adId: "$adId", type: "$type" }, n: { $sum: 1 }, today: { $sum: { $cond: [{ $gte: ["$createdAt", startOfLagosDay(now)] }, 1, 0] } } } },
       ]),
     ]);
     const hiddenIds = new Set(hidden.map((h) => h.adId));
-    const today = new Map(seen.map((s) => [s._id, s.n]));
-    const open = rows.filter((r) => !hiddenIds.has(String(r._id)));
+    const did = new Map(acted.map((a) => [`${a._id.adId}:${a._id.type}`, a]));
+    const retired = (r: AdRow) => {
+      const id = String(r._id);
+      if ((r.retireOn ?? []).some((t) => did.has(`${id}:${t}`))) return true;
+      return Boolean(r.totalCapPerUser) && (did.get(`${id}:impression`)?.n ?? 0) >= r.totalCapPerUser!;
+    };
+    const open = rows.filter((r) => !hiddenIds.has(String(r._id)) && !retired(r));
     return {
-      candidates: open.map((r) => ({ id: String(r._id), format: r.format, priority: r.priority, remainingToday: r.dailyCapPerUser - (today.get(String(r._id)) ?? 0), ...(r.pinned && { pinned: true }) })),
+      candidates: open.map((r) => ({ id: String(r._id), format: r.format, priority: r.priority, remainingToday: r.dailyCapPerUser - (did.get(`${String(r._id)}:impression`)?.today ?? 0), ...(r.pinned && { pinned: true }) })),
       ads: new Map(open.map((r) => [String(r._id), r])),
     };
+  }
+
+  /** Like counts for these ads, and which this neighbour liked. */
+  async likesFor(uid: string, ids: string[]): Promise<Map<string, { count: number; mine: boolean }>> {
+    if (!ids.length) return new Map();
+    const rows = await this.events.aggregate<{ _id: string; count: number; mine: number }>([
+      { $match: { type: "like", adId: { $in: ids } } },
+      { $group: { _id: "$adId", count: { $sum: 1 }, mine: { $sum: { $cond: [{ $eq: ["$uid", uid] }, 1, 0] } } } },
+    ]);
+    const out = new Map(ids.map((id) => [id, { count: 0, mine: false }]));
+    for (const r of rows) out.set(r._id, { count: r.count, mine: r.mine > 0 });
+    return out;
   }
 
   /**
    * `promoted`: for a `listings` ad, the seller and their items now. They stand in for the advertiser,
    * and the button opens all of that seller's items in the app.
    */
-  toView(r: AdRow, hoodName?: string, aspects?: Map<string, number>, promoted?: { seller: { uid: string; name: string; photoURL?: string }; listings: PromotedListing[]; total: number }): AdView {
+  toView(
+    r: AdRow,
+    hoodName?: string,
+    aspects?: Map<string, number>,
+    promoted?: { seller: { uid: string; name: string; photoURL?: string }; listings: PromotedListing[]; total: number },
+    likes?: { count: number; mine: boolean },
+  ): AdView {
     const aimed = r.hoodIds.length || r.cities.length || r.near;
     const seller = promoted?.seller;
     const official = Boolean(r.official) && !seller;
@@ -299,6 +328,8 @@ export class AdsService implements OnModuleInit {
         : seller
           ? { name: seller.name, logoUrl: seller.photoURL }
           : { name: r.advertiserName, logoUrl: r.advertiserLogoUrl },
+      ...(r.likeable && { likes: likes ?? { count: 0, mine: false } }),
+      ...(r.retireOn?.length && { retireOn: [...r.retireOn] }),
       primaryText: r.primaryText,
       headline: r.headline,
       cta: seller
@@ -333,6 +364,16 @@ export class AdsService implements OnModuleInit {
     await this.hides.updateOne({ uid: viewer.uid, adId: id }, { $setOnInsert: { uid: viewer.uid, adId: id } }, { upsert: true }).exec();
     await this.insertOnce([{ adId: id, uid: viewer.uid, type: "hide", sessionId: sessionId ?? "-", key: `${viewer.uid}:${id}:hide`, hoodId: viewer.hoodId ?? undefined }]);
     return { hidden: true };
+  }
+
+  /** Like (or unlike) an ad that allows it, as you would a post. Repeat-safe. */
+  async like(viewer: Viewer, id: string, on: boolean): Promise<{ liked: boolean; count: number }> {
+    const ad = await this.find(id);
+    if (!ad.likeable) throw new BadRequestException("This one can't be liked.");
+    const key = `${viewer.uid}:${id}:like`;
+    if (on) await this.insertOnce([{ adId: id, uid: viewer.uid, type: "like", sessionId: "-", key, hoodId: viewer.hoodId ?? undefined }]);
+    else await this.events.deleteOne({ key }).exec();
+    return { liked: on, count: await this.events.countDocuments({ adId: id, type: "like" }).exec() };
   }
 
   /** "Report ad": counted once per neighbour (shown in the ad's stats), and the ad is hidden for them. */
@@ -379,8 +420,8 @@ export class AdsService implements OnModuleInit {
   }
 
   private editable(a: Partial<Ad>): Partial<Ad> {
-    const { title, advertiserName, advertiserLogoUrl, official, pinned, format, primaryText, headline, ctaType, ctaUrl, ctaPhone, media, cards, background, sellerUid, startsAt, endsAt, priority, dailyCapPerUser, hoodIds, cities, near } = a;
-    return { title, advertiserName, advertiserLogoUrl, official, pinned, format, primaryText, headline, ctaType, ctaUrl, ctaPhone, media, cards, background, sellerUid, startsAt, endsAt, priority, dailyCapPerUser, hoodIds, cities, near: near ?? null };
+    const { title, advertiserName, advertiserLogoUrl, official, pinned, likeable, retireOn, totalCapPerUser, format, primaryText, headline, ctaType, ctaUrl, ctaPhone, media, cards, background, sellerUid, startsAt, endsAt, priority, dailyCapPerUser, hoodIds, cities, near } = a;
+    return { title, advertiserName, advertiserLogoUrl, official, pinned, likeable, retireOn, totalCapPerUser: totalCapPerUser ?? null, format, primaryText, headline, ctaType, ctaUrl, ctaPhone, media, cards, background, sellerUid, startsAt, endsAt, priority, dailyCapPerUser, hoodIds, cities, near: near ?? null };
   }
 
   /**
@@ -472,6 +513,7 @@ export class AdsService implements OnModuleInit {
       else if (r._id.type === "unmute") s.unmutes = r.n;
       else if (r._id.type === "swipe") s.swipes = r.n;
       else if (r._id.type === "why") s.whyOpens = r.n;
+      else if (r._id.type === "like") s.likes = r.n;
       out.set(r._id.adId, s);
     }
     for (const s of out.values()) s.ctr = s.impressions ? Math.round((s.clicks / s.impressions) * 10_000) / 100 : 0;
@@ -480,5 +522,5 @@ export class AdsService implements OnModuleInit {
 }
 
 function emptyStats(): AdStats {
-  return { impressions: 0, reach: 0, clicks: 0, ctr: 0, hides: 0, reports: 0, videoPlays: 0, unmutes: 0, swipes: 0, whyOpens: 0 };
+  return { impressions: 0, reach: 0, clicks: 0, ctr: 0, hides: 0, reports: 0, videoPlays: 0, unmutes: 0, swipes: 0, whyOpens: 0, likes: 0 };
 }

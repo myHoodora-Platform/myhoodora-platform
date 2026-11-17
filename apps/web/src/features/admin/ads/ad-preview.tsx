@@ -1,7 +1,7 @@
 "use client";
 
 import { AD_CTA_LABELS, type AdBackground, type AdminAdInput } from "@myhoodora/api-contract/ads";
-import { Ellipsis, Play, VolumeX } from "lucide-react";
+import { CheckCircle2, Ellipsis, Play, ThumbsUp, VolumeX } from "lucide-react";
 import { cn } from "@myhoodora/ui/utils";
 import { initials } from "@/components/admin/format";
 
@@ -112,6 +112,18 @@ export function AdPreview({ ad, sellerName }: { ad: AdminAdInput; sellerName?: s
               {cta.sub && <p className="truncate text-xs text-slate-500">{cta.sub}</p>}
             </div>
             <span className="shrink-0 rounded-lg bg-primary/15 px-3 py-2 text-sm font-semibold text-primary">{cta.label}</span>
+          </div>
+        )}
+        {ad.likeable && (
+          <div className="mx-2 flex gap-1 border-t border-slate-200 pt-1 text-sm font-semibold text-slate-500">
+            <span className="flex items-center gap-2 px-3 py-2">
+              <ThumbsUp className="size-5" aria-hidden /> Like
+            </span>
+            {official && (
+              <span className="flex items-center gap-2 px-3 py-2">
+                <CheckCircle2 className="size-5" aria-hidden /> Got it
+              </span>
+            )}
           </div>
         )}
       </div>
