@@ -1,4 +1,4 @@
-import { addDays, computeStreak, lagosDay } from "./streak";
+import { addDays, computeStreak, inReminderWindow, lagosDay } from "./streak";
 
 const run = (from: string, n: number, skip: number[] = []) => Array.from({ length: n }, (_, i) => addDays(from, i)).filter((_, i) => !skip.includes(i));
 
@@ -28,5 +28,14 @@ describe("streaks", () => {
 
   it("is empty with no activity", () => {
     expect(computeStreak([], "2026-11-17")).toMatchObject({ current: 0, best: 0, lastDay: null, tier: null, toNextTier: 3 });
+  });
+});
+
+describe("inReminderWindow", () => {
+  it("is 18:00 to 21:00 Lagos time (17:00–20:00 UTC)", () => {
+    expect(inReminderWindow(new Date("2026-11-17T16:59:00Z"))).toBe(false);
+    expect(inReminderWindow(new Date("2026-11-17T17:00:00Z"))).toBe(true);
+    expect(inReminderWindow(new Date("2026-11-17T19:59:00Z"))).toBe(true);
+    expect(inReminderWindow(new Date("2026-11-17T20:00:00Z"))).toBe(false);
   });
 });

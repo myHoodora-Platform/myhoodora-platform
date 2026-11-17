@@ -4,7 +4,7 @@ import { HydratedDocument } from "mongoose";
 export const NOTIFICATION_TYPES = ["alert", "comment", "reaction", "message", "event", "group", "verification", "moderation", "system"] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 /** Finer meaning for clients that act on a notification (e.g. the event-reminder pop-up). Optional. */
-export const NOTIFICATION_KINDS = ["event_reminder", "event_reminder_final", "event_followup"] as const;
+export const NOTIFICATION_KINDS = ["event_reminder", "event_reminder_final", "event_followup", "streak_reminder"] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
 export type NotificationDocument = HydratedDocument<Notification>;

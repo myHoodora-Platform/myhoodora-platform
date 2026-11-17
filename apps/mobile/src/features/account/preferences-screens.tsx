@@ -1,5 +1,5 @@
 import { errorMessage } from "@myhoodora/api-contract/errors";
-import { NOTIFICATION_CATEGORIES, type Preferences } from "@myhoodora/api-contract/settings";
+import { channelPrefs, NOTIFICATION_CATEGORIES, type Preferences } from "@myhoodora/api-contract/settings";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check } from "lucide-react-native";
 import { useState, type ReactNode } from "react";
@@ -61,15 +61,15 @@ export function NotificationSettingsScreen() {
                 key={c.id}
                 label={c.label}
                 description={c.description}
-                value={c.id === "urgent_alerts" ? true : prefs.notifications[c.id].push}
+                value={c.id === "urgent_alerts" ? true : channelPrefs(prefs, c.id).push}
                 disabled={c.id === "urgent_alerts"}
                 onChange={(push) => change({ notifications: { [c.id]: { push } } })}
               />
             ))}
           </SettingsGroup>
           <SettingsGroup title="Email">
-            {NOTIFICATION_CATEGORIES.map((c) => (
-              <SettingsSwitch key={c.id} label={c.label} value={prefs.notifications[c.id].email} onChange={(email) => change({ notifications: { [c.id]: { email } } })} />
+            {NOTIFICATION_CATEGORIES.filter((c) => !c.pushOnly).map((c) => (
+              <SettingsSwitch key={c.id} label={c.label} value={channelPrefs(prefs, c.id).email} onChange={(email) => change({ notifications: { [c.id]: { email } } })} />
             ))}
           </SettingsGroup>
           <SettingsGroup title="Neighbourhood digest" footer="A summary email of what happened nearby.">

@@ -101,3 +101,14 @@ function forgivenIn(sorted: string[], run: { start: string; end: string }, misse
   for (let i = 1; i < inRun.length; i++) if (daysBetween(inRun[i - 1]!, inRun[i]!) === 2 && weekOf(addDays(inRun[i - 1]!, 1)) === week) return true;
   return false;
 }
+
+/** The streak reminder goes out from 18:00 to 21:00 Lagos time (late enough to matter, never at night). */
+export const REMINDER_FROM_HOUR = 18;
+export const REMINDER_UNTIL_HOUR = 21;
+/** Only streaks worth keeping get a nudge. */
+export const REMINDER_MIN_STREAK = 3;
+
+export function inReminderWindow(now: Date): boolean {
+  const hour = (now.getUTCHours() + 1) % 24;
+  return hour >= REMINDER_FROM_HOUR && hour < REMINDER_UNTIL_HOUR;
+}

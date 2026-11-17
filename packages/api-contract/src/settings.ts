@@ -1,6 +1,6 @@
 /** Settings shared by the web and the app (contract §10). The API keeps its own copy with the merge rules. */
 
-export type NotificationCategory = "urgent_alerts" | "alerts" | "comments" | "messages" | "events" | "for_sale" | "groups";
+export type NotificationCategory = "urgent_alerts" | "alerts" | "comments" | "messages" | "events" | "for_sale" | "groups" | "streaks";
 
 export interface ChannelPrefs {
   push: boolean;
@@ -29,13 +29,14 @@ export const DEFAULT_PREFERENCES: Preferences = {
     events: { push: false, email: false },
     for_sale: { push: false, email: false },
     groups: { push: true, email: false },
+    streaks: { push: true, email: false },
   },
   digest: "daily",
   privacy: { profileVisibility: "neighbourhood", messaging: "neighbourhood", showNeighbourSince: true },
 };
 
 /** The web's wording for each category. Urgent alerts' push can't be turned off (the API keeps it on). */
-export const NOTIFICATION_CATEGORIES: { id: NotificationCategory; label: string; description: string }[] = [
+export const NOTIFICATION_CATEGORIES: { id: NotificationCategory; label: string; description: string; pushOnly?: boolean }[] = [
   { id: "urgent_alerts", label: "Urgent alerts", description: "Break-ins, fires, flooding happening now" },
   { id: "alerts", label: "Other alerts", description: "Power, water, traffic and scam warnings" },
   { id: "comments", label: "Comments on your posts", description: "Replies from neighbours" },
@@ -43,7 +44,13 @@ export const NOTIFICATION_CATEGORIES: { id: NotificationCategory; label: string;
   { id: "events", label: "Events", description: "RSVPs to your events and new events nearby" },
   { id: "for_sale", label: "For Sale & Free", description: "Messages about your listings and new free items" },
   { id: "groups", label: "Groups", description: "Activity in groups you've joined" },
+  { id: "streaks", label: "Streak reminders", description: "One nudge at 6 pm if your streak of 3+ days would break today", pushOnly: true },
 ];
+
+/** A category's setting, or its default (settings saved before the category existed don't have it). */
+export function channelPrefs(prefs: Preferences, id: NotificationCategory): ChannelPrefs {
+  return prefs.notifications[id] ?? DEFAULT_PREFERENCES.notifications[id];
+}
 
 /** Nextdoor's list, in the web's words (POST /users/me/deactivate). */
 export const DEACTIVATION_REASONS = [

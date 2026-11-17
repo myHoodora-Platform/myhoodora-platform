@@ -214,6 +214,10 @@ export class User {
   @Prop({ type: Date, default: null })
   inviteAskDismissedAt?: Date | null;
 
+  /** Lagos day ("2026-11-17") of the last 18:00 streak reminder: at most one a day, even with several API instances. */
+  @Prop({ type: String })
+  streakRemindedDay?: string;
+
   createdAt?: Date;
   updatedAt?: Date;
 }

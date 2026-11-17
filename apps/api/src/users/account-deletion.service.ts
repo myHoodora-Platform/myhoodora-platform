@@ -160,7 +160,7 @@ export class AccountDeletionService implements OnModuleInit, OnModuleDestroy {
             inviteAskDismissedAt: null,
             purgedAt: new Date(),
           },
-          $unset: { displayName: 1, photoURL: 1, bio: 1, location: 1, lastKnownLocation: 1, neighborhoodId: 1, lastNeighborhoodId: 1, verifiedAt: 1, ageAssurance: 1, inviteCode: 1, inviteDeviceHash: 1 },
+          $unset: { displayName: 1, photoURL: 1, bio: 1, location: 1, lastKnownLocation: 1, neighborhoodId: 1, lastNeighborhoodId: 1, verifiedAt: 1, ageAssurance: 1, inviteCode: 1, inviteDeviceHash: 1, streakRemindedDay: 1 },
         },
       )
       .exec();
