@@ -449,7 +449,7 @@ function defaultAudience(category: PostCategory): PostVisibility {
 const AUDIENCES: { id: PostVisibility; label: string; hint: string; icon: typeof Lock }[] = [
   { id: "neighbourhood", label: "My neighbourhood", hint: "Only verified neighbours in your neighbourhood can read it. Shared links show a preview only.", icon: Lock },
   { id: "nearby", label: "Nearby too", hint: "Your neighbourhood and the ones next to it.", icon: MapPinned },
-  { id: "anyone", label: "Anyone with the link", hint: "Anyone can read it, even without an account. Names show as initials to people who aren't signed in.", icon: Globe },
+  { id: "anyone", label: "Anyone", hint: "Anyone can read it, even without an account. Names show as initials to people who aren't signed in.", icon: Globe },
 ];
 
 /** "Who can see this?" Nextdoor's three audiences; editing later can only narrow it. */

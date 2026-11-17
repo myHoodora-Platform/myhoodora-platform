@@ -28,13 +28,18 @@ describe("Nearby fill", () => {
     await t.post("ada", { message: "Robbery near the gate", category: "alert", alertCategory: "security", visibility: "anyone" });
     await t.post("blocker", { message: "From someone who blocked Kemi", visibility: "anyone" });
     await t.post("kemi", { message: "Hello Phase 2" });
+    // The quiet Hood's own Anyone post: in its feed once, as its own (seen twice on a phone).
+    await t.post("kemi", { message: "Phase 2 for everyone", visibility: "anyone" });
   });
   afterAll(() => t.close());
   beforeEach(() => t.resetThrottle());
 
   it("fills a quiet Hood with Anyone and Nearby posts from next door, labelled; never Hood-only posts, alerts or blocked people", async () => {
     const items = await feed("kemi", quiet);
-    expect(items[0]!.message).toBe("Hello Phase 2");
+    expect(items.slice(0, 2).map((i) => i.message)).toEqual(["Phase 2 for everyone", "Hello Phase 2"]);
+    const ids = items.map((i) => i._id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(items.filter((i) => i.neighborhoodId === quiet).every((i) => !i.nearby)).toBe(true);
     const filled = items.filter((i) => i.nearby);
     expect(filled.length).toBeGreaterThanOrEqual(5);
     expect(items.length).toBeLessThan(10); // under a page: paging stays on the Hood's own posts
@@ -57,5 +62,7 @@ describe("Nearby fill", () => {
     const page = (await t.http.get(`/api/feed/hood/${quiet}?limit=10&session=nearbytest01`).set(t.auth("kemi", v)).expect(200)).body as { items: { type: string; data: Item }[]; nextCursor: string | null };
     expect(page.nextCursor).toBeNull();
     expect(page.items.some((i) => i.type === "post" && i.data.nearby)).toBe(true);
+    const ids = page.items.filter((i) => i.type === "post").map((i) => i.data._id);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });

@@ -453,7 +453,8 @@ export class PostsService implements OnModuleInit {
    */
   private async nearbyFill(viewer: Viewer, hoodId: string, hidden: string[], room: number): Promise<PostView[]> {
     if (room <= 0) return [];
-    const near = await this.hoods.nearbyHoodIds(hoodId);
+    // nearbyHoodIds includes the Hood itself: its own Anyone posts are already in the feed, once.
+    const near = (await this.hoods.nearbyHoodIds(hoodId)).filter((id) => id !== hoodId);
     if (!near.length) return [];
     const docs = await this.posts
       .find({

@@ -41,7 +41,9 @@ export function Chip({
       ]}
     >
       {Icon ? <Icon size={16} color={fg} /> : null}
-      <Text variant="label" style={{ color: fg }}>
+      {/* "simple" line breaking: Android's default ("highQuality") can measure a custom font a little short
+          and drop a chip's last word (seen on a Redmi: "Anyone with the link" drawn as "Anyone with the"). */}
+      <Text variant="label" style={{ color: fg }} textBreakStrategy="simple">
         {label}
       </Text>
     </Pressable>

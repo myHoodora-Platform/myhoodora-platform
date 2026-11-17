@@ -50,7 +50,7 @@ export interface Draft {
 export const AUDIENCES: { id: PostVisibility; label: string; hint: string }[] = [
   { id: "neighbourhood", label: "My neighbourhood", hint: "Only verified neighbours in your neighbourhood can read it. Shared links show a preview only." },
   { id: "nearby", label: "Nearby too", hint: "Your neighbourhood and the ones next to it." },
-  { id: "anyone", label: "Anyone with the link", hint: "Anyone can read it, even without an account. Names show as initials to people who aren't signed in." },
+  { id: "anyone", label: "Anyone", hint: "Anyone can read it, even without an account. Names show as initials to people who aren't signed in." },
 ];
 
 /** Events are for everyone by default; everything else for the neighbourhood. Alerts never leave it. */
