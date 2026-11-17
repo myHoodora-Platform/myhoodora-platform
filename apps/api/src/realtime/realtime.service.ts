@@ -61,6 +61,22 @@ export class RealtimeService implements OnModuleDestroy {
   }
 
   /**
+   * To staff, at most once per COALESCE_MS for a key: busy minutes (many posts and replies across Hoods)
+   * become one "refetch" for every open console, not one per post.
+   */
+  toStaffCoalesced(type: RealtimeEventType, key: string): void {
+    const k = `staff:${type}:${key}`;
+    if (this.pending.has(k)) return;
+    this.pending.set(
+      k,
+      setTimeout(() => {
+        this.pending.delete(k);
+        this.toStaff(type);
+      }, COALESCE_MS),
+    );
+  }
+
+  /**
    * true at most once per `ms` for a key: for chatty, ephemeral signals like
    * typing. Check it before any database read so fast typists cost nothing.
    * Per instance: with several instances the bound is per instance, which is fine.

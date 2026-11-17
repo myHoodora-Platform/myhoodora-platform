@@ -330,6 +330,7 @@ export class PostsService implements OnModuleInit {
         .catch((err: unknown) => this.logger.error(`Alert ${String(doc._id)} was posted but its neighbours could not be queued for notification`, err instanceof Error ? err.stack : String(err)));
     }
     this.realtime.toHood(viewer.hoodId, "post.created", { id: String(doc._id) });
+    this.realtime.toStaffCoalesced("console.changed", "needs-reply");
     return (await this.toViews([doc.toObject()], viewer))[0]!;
   }
 
@@ -592,6 +593,7 @@ export class PostsService implements OnModuleInit {
     if (p.authorUid !== viewer.uid) throw new ForbiddenException("You can only delete your own posts.");
     await this.posts.updateOne({ _id: p._id }, { $set: { isActive: false } }).exec();
     this.realtime.toHood(p.neighborhoodId, "post.deleted", { id });
+    this.realtime.toStaffCoalesced("console.changed", "needs-reply");
   }
 
   /** PATCH /posts/:id/alert — author or staff (Hood Leads in a later phase). */
@@ -633,8 +635,10 @@ export class PostsService implements OnModuleInit {
   async announce(id: string): Promise<void> {
     const p = await this.findRaw(id);
     if (!p) return;
-    if (!p.isActive || p.removedAt) this.realtime.toHood(p.neighborhoodId, "post.deleted", { id });
-    else this.changed(p);
+    if (!p.isActive || p.removedAt) {
+      this.realtime.toHood(p.neighborhoodId, "post.deleted", { id });
+      this.realtime.toStaffCoalesced("console.changed", "needs-reply");
+    } else this.changed(p);
   }
 
   incCommentCount(id: string, by: number, session?: ClientSession) {

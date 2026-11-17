@@ -1,3 +1,4 @@
+import { RealtimeService } from "../src/realtime/realtime.service";
 import { createTestApp, type TestApp } from "./helpers/app";
 jest.mock("../src/config/firebase.config", () => jest.requireActual("./helpers/firebase-mock").firebaseMock);
 
@@ -69,5 +70,18 @@ describe("Moderator console", () => {
     expect(s).toMatchObject({ posts: 43, replied: 2 });
     expect(s.medianMinutesToFirstReply).toEqual(expect.any(Number));
     expect(s.firstRepliesByStaff.map((x: { uid: string }) => x.uid).sort()).toEqual(["mod1", "myhoodora-hood-team"]);
+  });
+
+  it("open consoles hear about new posts and replies at once, one staff event per busy second", async () => {
+    const spy = jest.spyOn(t.app.get(RealtimeService), "toStaff");
+    const settle = () => new Promise((r) => setTimeout(r, 1300));
+    for (let i = 60; i < 70; i++) await t.post(`n${i}`, { message: `Burst ${i}` });
+    await settle();
+    expect(spy.mock.calls.filter(([type]) => type === "console.changed")).toHaveLength(1);
+    const burst = (await needs("mod1")).items.find((i) => i.postId);
+    await t.http.post("/api/admin/console/reply").set(t.auth("mod1", v)).send({ postId: burst!.postId, content: "On it!", as: "self" }).expect(201);
+    await settle();
+    expect(spy.mock.calls.filter(([type]) => type === "console.changed")).toHaveLength(2);
+    spy.mockRestore();
   });
 });

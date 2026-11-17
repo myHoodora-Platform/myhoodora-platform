@@ -23,6 +23,8 @@ export type RealtimeEventType =
   | "support.typing"
   | "inbox.updated"
   | "queue.changed"
+  /** Staff: the moderator console's "Needs a reply" list changed (a post, a reply, a removal). */
+  | "console.changed"
   | "session.changed";
 
 export interface RealtimeEvent {

@@ -15,6 +15,7 @@ import { listHoods } from "@/lib/api/admin/community";
 import { consoleReply, getAssignments, getConsoleStats, getNeedsReply, setAssignment, type NeedsReplyItem } from "@/lib/api/admin/console";
 import { useAdminSession } from "../session";
 import { useAdminQuery } from "../use-admin-query";
+import { useRealtime, useRealtimeResync } from "@/lib/realtime/use-realtime";
 
 const waited = (m: number) => (m < 60 ? `${m} min` : m < 1440 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${Math.floor(m / 1440)} d`);
 
@@ -30,6 +31,15 @@ export function ConsolePage() {
   const stats = useAdminQuery((u) => getConsoleStats(u), "console-stats");
   const refetch = useRef(list.refetch);
   refetch.current = list.refetch;
+  const refetchStats = useRef(stats.refetch);
+  refetchStats.current = stats.refetch;
+  // Live: a new post, a first reply or a removal anywhere updates the list within seconds (the API sends
+  // one coalesced event per busy second). The minute timer stays for "waiting" times and missed events.
+  useRealtime("console.changed", () => {
+    void refetch.current();
+    void refetchStats.current();
+  });
+  useRealtimeResync(() => void refetch.current());
   useEffect(() => {
     const id = setInterval(() => void refetch.current(), 60_000);
     return () => clearInterval(id);

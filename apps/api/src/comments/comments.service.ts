@@ -303,6 +303,8 @@ export class CommentsService implements OnModuleInit {
   /** Live update for the post's thread, and its comment count on feed cards. */
   private announce(post: { _id: unknown; neighborhoodId?: string | null }, type: "comment.created" | "comment.deleted", id: string): void {
     this.realtime.toHood(post.neighborhoodId, type, { id, postId: String(post._id) });
+    // A first reply takes a post off the moderators' "Needs a reply" list (a deleted one may put it back).
+    this.realtime.toStaffCoalesced("console.changed", "needs-reply");
     this.posts.changed(post);
   }
 
