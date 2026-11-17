@@ -70,7 +70,17 @@ export const PUBLIC_PATHS = [
   "/verify-email",
 ] as const;
 // "/business/claim" is under /business but needs a signed-in user; the page itself handles that.
-export const PUBLIC_PREFIXES = ["/coming-soon", "/business", "/privacy/versions", "/terms/versions"] as const;
+export const PUBLIC_PREFIXES = ["/coming-soon", "/business", "/privacy/versions", "/terms/versions", "/shared"] as const;
+
+/**
+ * A shared post opened by someone who isn't signed in: `/p/<id>` shows the public preview
+ * (`/shared/p/<id>`, Nextdoor-style: full for Anyone posts, a teaser otherwise) instead of the login
+ * page. The address bar keeps `/p/<id>`, so the same link works once they've joined.
+ */
+export function sharedPostRewrite(pathname: string): string | null {
+  const m = /^\/p\/([0-9a-f]{24})\/?$/i.exec(pathname);
+  return m ? `/shared/p/${m[1]!.toLowerCase()}` : null;
+}
 
 /** Auth pages a signed-in user is bounced away from. */
 export const GUEST_ONLY_PATHS = ["/login", "/register", "/forgot-password"] as const;

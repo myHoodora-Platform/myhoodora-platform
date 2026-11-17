@@ -48,7 +48,9 @@ describe("Who may read a Hood", () => {
   async function expectNoHoodContent(uid: string) {
     const as = t.auth(uid);
     await t.http.get(`/api/posts/neighborhood/${lekki}`).set(as).expect(404);
-    await t.http.get(`/api/posts/${content.postId}`).set(as).expect(404);
+    // A single post answers as its shared link would (contract §38): a teaser, none of its content.
+    const teaser = (await t.http.get(`/api/posts/${content.postId}`).set(as).expect(200)).body;
+    expect(teaser).toMatchObject({ access: "teaser", message: "", content: "", mediaUrls: [], authorUid: "" });
     await t.http.get(`/api/posts/${content.postId}/comments`).set(as).expect(404);
     await t.http.get("/api/listings").set(as).expect(404);
     await t.http.get(`/api/listings/${content.listingId}`).set(as).expect(404);

@@ -1656,3 +1656,13 @@ So nobody arrives to an empty Hood (plan: [product/hood-activation-plan.md](./pr
   - `GET daily`, `PATCH daily { enabled, hour, minNeighbours }`, `PUT daily/calendar/:date { code | null }`: one prompt a day at `hour` Lagos time in every open Hood (Hoods in their activation plan that day are skipped); chosen days override a Monday-aligned rotation of the `daily` items.
   - `PATCH posts/:id/pin { days }` (0 unpins; Hood Team posts only).
 - Every post goes out through the `hood-content.publish` job; a retried job returns the post it already made (`clientId = hc-<scheduled id>`).
+
+## 38. Post audiences and shared links (2026-11-17)
+
+Nextdoor's model ([product/hood-activation-plan.md](./product/hood-activation-plan.md) §8). Rules in one place: `apps/api/src/posts/domain/visibility.ts` (`postAccess`), tested over the whole table.
+
+- **Audience** (`visibility` on `POST /posts`): `neighbourhood` (default; "My neighbourhood"), `nearby` (also verified neighbours of Hoods within 5 km), `anyone`. Alerts are always `neighbourhood`. `PATCH /posts/:id { visibility }` (author) may only **narrow** it (400 otherwise); `message` is now optional on that route.
+- **Reading** (`GET /posts/:id`): own and followed Hoods, staff, and anyone in the audience get the post. Outside the audience it comes back with `access: "teaser"`: same shape, but `message`/`content` empty, no media, poll, place, names (`author.displayName` = "A neighbour in {Hood}", `authorUid` empty). An Anyone post read by someone not yet in a Hood has `access: "read_only"`.
+- **Taking part** (react, comment, like/delete own comment): the post's Hood, a Hood the person follows (§31; decided 2026-11-17: followers react and reply, they no longer only read), or a verified neighbour in its audience; 404 otherwise. New posts, poll votes and event RSVPs stay with the person's own Hood. Comment threads follow reading.
+- **`GET /public/posts/:id`** (no sign-in; 60/min; `Cache-Control: public, max-age=60`): `PublicPostPreview` (`packages/api-contract/src/types.ts`). `mode: "full"` for Anyone posts: text, media, poll results, event, price, first 2 replies, **initials only**. `mode: "teaser"`: Hood, category, counts, time, `author.name: "A neighbour"`. Hood Team posts show the team's name. 404 unknown, 410 deleted/removed/author gone/Hood archived.
+- **Web**: `/p/<id>` for someone without a session is rewritten to `/shared/p/<id>` (address unchanged; `lib/routes.ts` `sharedPostRewrite`), `noindex`, with a generated 1200×630 link-preview image (~50 KB, no photos).

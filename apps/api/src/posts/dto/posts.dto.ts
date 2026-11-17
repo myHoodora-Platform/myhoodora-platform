@@ -131,12 +131,15 @@ export class ResolveAlertDto {
   @IsBoolean() resolved!: boolean;
 }
 
-/** PATCH /posts/:id: the author changes the text (nothing else). */
+/** PATCH /posts/:id: the author changes the text, and/or narrows who can see it (never widens). */
 export class EditPostDto {
+  @IsOptional()
   @AllowedText()
   @IsString()
   @MaxLength(8192)
-  message!: string;
+  message?: string;
+
+  @IsOptional() @IsIn(POST_VISIBILITIES) visibility?: PostVisibility;
 }
 
 /** PUT /posts/:id/follow: hear about new comments (true) or nothing more from this post (false). */

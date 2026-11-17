@@ -83,10 +83,12 @@ describe("Security & authorization (audit findings)", () => {
   });
 
   describe("F4: feeds are scoped to the caller's own Hood", () => {
-    it("404s for another Hood's feed and a post outside it", async () => {
+    it("404s for another Hood's feed; a post outside it is only a teaser", async () => {
       const post = await t.post("tunde", { message: "Yaba only" });
       await t.http.get(`/api/posts/neighborhood/${yaba}`).set(t.auth("ada")).expect(404);
-      await t.http.get(`/api/posts/${post._id}`).set(t.auth("ada")).expect(404);
+      const teaser = (await t.http.get(`/api/posts/${post._id}`).set(t.auth("ada")).expect(200)).body;
+      expect(teaser).toMatchObject({ access: "teaser", message: "", content: "", authorUid: "" });
+      expect(JSON.stringify(teaser)).not.toContain("Yaba only");
       await t.http.get(`/api/posts/neighborhood/${yaba}`).set(t.auth("tunde")).expect(200);
     });
 

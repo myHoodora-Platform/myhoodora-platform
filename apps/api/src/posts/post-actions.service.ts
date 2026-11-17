@@ -3,7 +3,8 @@ import { InjectModel } from "@nestjs/mongoose";
 import { Model, Types } from "mongoose";
 import type { Viewer } from "../shared/auth/viewer";
 import { AccountLifecycle } from "../users/account-lifecycle";
-import { encodePostContent } from "./domain/post-meta";
+import { encodePostContent, type PostVisibility } from "./domain/post-meta";
+import { isNarrowing } from "./domain/visibility";
 import { PostsService, type PostView } from "./posts.service";
 import { FeedPost, PostFollow, PostShare, SavedPost, type PostDocument } from "./schemas/post.schema";
 
@@ -108,14 +109,19 @@ export class PostActionsService implements OnModuleInit {
    * The author changes their post's text (photos, kind and details stay as posted). Shown as "Edited";
    * the earlier text is kept for moderators. Removed posts can't be edited (they 404 like any other).
    */
-  async edit(viewer: Viewer, id: string, input: { message: string }): Promise<PostView> {
+  async edit(viewer: Viewer, id: string, input: { message?: string; visibility?: PostVisibility }): Promise<PostView> {
     const p = await this.feed.loadVisible(viewer, id);
     if (p.authorUid !== viewer.uid) throw new ForbiddenException("You can only edit your own posts.");
+    if (input.message === undefined && !input.visibility) throw new BadRequestException("Nothing to change.");
+    if (input.visibility) await this.narrow(p, input.visibility);
+    if (input.message === undefined) return this.feed.get(viewer, id);
     const message = input.message.trim();
     if (!message) throw new BadRequestException("Write something first.");
     if (message.length > POST_MAX) throw new BadRequestException("Posts can be up to 8,192 characters.");
-    const { message: before, meta } = this.feed.read(p);
-    if (message === before) return (await this.feed.toViews([p], viewer))[0]!;
+    const { message: before } = this.feed.read(p);
+    // Re-read: narrowing above may have changed the encoded meta.
+    const meta = { ...this.feed.read(p).meta, ...(input.visibility && { visibility: input.visibility }) };
+    if (message === before) return this.feed.get(viewer, id);
 
     const at = new Date();
     const updated = await this.posts
@@ -128,5 +134,15 @@ export class PostActionsService implements OnModuleInit {
       .exec();
     this.feed.changed(p);
     return (await this.feed.toViews([updated ?? p], viewer))[0]!;
+  }
+
+  /** Who can see it, narrowed only: people who already saw it more widely shared it already, so widening is a new post. */
+  private async narrow(p: FeedPost & { _id: Types.ObjectId }, to: PostVisibility): Promise<void> {
+    const from = p.visibility ?? "neighbourhood";
+    if (p.category === "alert" && to !== "neighbourhood") throw new BadRequestException("Safety alerts stay with your neighbourhood.");
+    if (!isNarrowing(from, to)) throw new BadRequestException("You can make a post more private, not more public. Post it again to share it more widely.");
+    if (from === to) return;
+    const { message, meta } = this.feed.read(p);
+    await this.posts.updateOne({ _id: p._id }, { $set: { visibility: to, content: encodePostContent(message, { ...meta, visibility: to }) } }).exec();
   }
 }

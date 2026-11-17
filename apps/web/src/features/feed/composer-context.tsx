@@ -49,7 +49,7 @@ export function ComposerProvider({ children }: { children: ReactNode }) {
         open={open}
         onOpenChange={setOpen}
         title="Post to your neighbourhood"
-        description="Visible to verified neighbours in your neighbourhood."
+        description="Your neighbours see it first. Choose who else can."
         className="sm:max-w-xl"
       >
         <PostComposer

@@ -16,6 +16,7 @@ import { DELETED_MEDIA_KEPT_MS, REMOVED_MEDIA_KEPT_MS, StorageService } from "..
 import { AccountLifecycle } from "../users/account-lifecycle";
 import { UsersService } from "../users/users.service";
 import { hoodTeamViewer } from "../hood-content/domain/hood-team";
+import { postAccess, type PostAccess } from "./domain/visibility";
 import { eventDateProblem, hasEnded } from "./domain/event-time";
 import { decodePostContent, encodePostContent, postTypeFor, type PostMeta } from "./domain/post-meta";
 import type { CreatePostDto, FeedQuery } from "./dto/posts.dto";
@@ -53,6 +54,8 @@ export interface PostView {
   pinned?: boolean;
   /** "team": an official Hood Team post. */
   source?: "team";
+  /** Absent: full and you can take part. "read_only": in the audience to read, not to take part. "teaser": outside it. */
+  access?: "read_only" | "teaser";
   mediaUrls: string[];
   /** width ÷ height of each `mediaUrls` entry (same order), or null when unknown (a pasted link). Lets the feed frame media before it loads. */
   mediaAspects: (number | null)[];
@@ -261,6 +264,8 @@ export class PostsService implements OnModuleInit {
       ...(dto.poll && { poll: dto.poll }),
       ...(dto.visibility && { visibility: dto.visibility }),
     };
+    // Safety alerts are always the Hood's own (domain/visibility.ts).
+    if (meta.category === "alert") meta.visibility = "neighbourhood";
     const message = (dto.message ?? decoded.message).trim();
     if (!message) throw new BadRequestException("Write something first.");
     if (message.length > 8192) throw new BadRequestException("Posts can be up to 8,192 characters.");
@@ -467,9 +472,40 @@ export class PostsService implements OnModuleInit {
     return this.load(viewer, id, viewer.hoodId ? [viewer.hoodId] : []);
   }
 
-  /** Load a post the viewer may read: home, or a secondary Hood (contract §31). For reading only. */
-  loadReadable(viewer: Viewer, id: string): Promise<FeedPost & { _id: Types.ObjectId }> {
-    return this.load(viewer, id, viewer.readableHoodIds);
+  /**
+   * Load a post the viewer may read in full: their own and followed Hoods (contract §31), or a post
+   * whose audience includes them (domain/visibility.ts). 404 otherwise. For reading only.
+   */
+  async loadReadable(viewer: Viewer, id: string): Promise<FeedPost & { _id: Types.ObjectId }> {
+    const p = await this.loadExisting(viewer, id);
+    if ((await this.accessFor(viewer, p)).read !== "full") throw new NotFoundException("This post isn't available.");
+    return p;
+  }
+
+  /**
+   * Load a post the viewer may take part in (react, reply, save, follow): their own Hood, or a verified
+   * neighbour in the post's audience (Anyone, or Nearby from a Hood next to it). 404 otherwise.
+   */
+  async loadForAudience(viewer: Viewer, id: string): Promise<FeedPost & { _id: Types.ObjectId }> {
+    const p = await this.loadExisting(viewer, id);
+    if (!(await this.accessFor(viewer, p)).takePart) throw new NotFoundException("This post isn't available.");
+    return p;
+  }
+
+  /** What this viewer may see and do with this post (null = signed out). */
+  async accessFor(viewer: Viewer | null, p: Pick<FeedPost, "neighborhoodId" | "visibility" | "category">): Promise<PostAccess> {
+    const v = viewer ? { hoodId: viewer.hoodId, readableHoodIds: viewer.readableHoodIds, staff: viewer.capabilities.includes("admin.access") } : null;
+    const needsNearby = p.visibility === "nearby" && Boolean(v?.hoodId) && !v?.staff && v?.hoodId !== p.neighborhoodId;
+    return postAccess(v, p, needsNearby ? await this.hoods.nearbyHoodIds(p.neighborhoodId) : []);
+  }
+
+  /** The post exists, is live, and its author hasn't hidden it from this viewer (blocks either way). */
+  private async loadExisting(viewer: Viewer, id: string): Promise<FeedPost & { _id: Types.ObjectId }> {
+    const p = Types.ObjectId.isValid(id) ? await this.posts.findById(id).lean<FeedPost & { _id: Types.ObjectId }>().exec() : null;
+    const staff = viewer.capabilities.includes("admin.access");
+    if (!p || (!staff && (!p.isActive || p.removedAt || p.authorDeactivated))) throw new NotFoundException("This post isn't available.");
+    if (!staff && (await this.users.hiddenAuthorsFor(viewer.uid)).includes(p.authorUid)) throw new NotFoundException("This post isn't available.");
+    return p;
   }
 
   private async load(viewer: Viewer, id: string, hoodIds: string[]): Promise<FeedPost & { _id: Types.ObjectId }> {
@@ -499,9 +535,16 @@ export class PostsService implements OnModuleInit {
     return { followers: rows.filter((r) => r.on).map((r) => r.uid), muted: new Set(rows.filter((r) => !r.on).map((r) => r.uid)) };
   }
 
+  /**
+   * GET /posts/:id. Outside the post's audience it comes back as a teaser (`access: "teaser"`): which
+   * Hood, the topic, the counts, and nothing a neighbour wrote (no text, photos, names or place).
+   */
   async get(viewer: Viewer, id: string): Promise<PostView> {
-    const p = await this.loadReadable(viewer, id);
-    return (await this.toViews([p], viewer))[0]!;
+    const p = await this.loadExisting(viewer, id);
+    const access = await this.accessFor(viewer, p);
+    const [view] = await this.toViews([p], viewer);
+    if (access.read === "full") return { ...view!, ...(!access.takePart && { access: "read_only" as const }) };
+    return teaserView(view!, (await this.hoods.findManyByIds([p.neighborhoodId])).get(p.neighborhoodId)?.name);
   }
 
   /** Author delete (soft). 404 if not found/visible, 403 if not the author. */
@@ -689,4 +732,28 @@ export class PostsService implements OnModuleInit {
   isUrgentLive(p: Pick<FeedPost, "urgent" | "createdAt" | "resolvedAt">): boolean {
     return Boolean(p.urgent && !p.resolvedAt && p.createdAt && Date.now() - p.createdAt.getTime() < URGENT_WINDOW_HOURS * HOUR);
   }
+}
+
+/** A post seen from outside its audience: the shape stays the same, everything a neighbour wrote is gone. */
+export function teaserView(v: PostView, hoodName: string | undefined): PostView {
+  return {
+    ...v,
+    access: "teaser",
+    author: { uid: "", displayName: hoodName ? `A neighbour in ${hoodName}` : "A neighbour", neighborhoodName: hoodName, ...(v.author.kind && { kind: v.author.kind, uid: v.author.uid, displayName: v.author.displayName, photoURL: v.author.photoURL }) },
+    authorUid: v.author.kind === "team" ? v.authorUid : "",
+    content: "",
+    message: "",
+    thankedName: undefined,
+    eventLocation: undefined,
+    priceNaira: undefined,
+    poll: undefined,
+    pollResults: undefined,
+    rsvp: undefined,
+    mediaUrls: [],
+    mediaAspects: [],
+    location: undefined,
+    myReaction: null,
+    saved: false,
+    following: false,
+  };
 }

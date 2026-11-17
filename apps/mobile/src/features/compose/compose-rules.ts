@@ -1,4 +1,4 @@
-import type { AlertCategory, PostCategory, AlertPlace } from "@myhoodora/api-contract/types";
+import type { AlertCategory, PostCategory, AlertPlace, PostVisibility } from "@myhoodora/api-contract/types";
 import type { NewPost } from "@/features/feed/feed-api";
 import { eventDateProblem } from "@/features/events/event-time";
 import { POLL_MAX_OPTIONS, POLL_MIN_OPTIONS } from "@/features/polls/polls-api";
@@ -42,6 +42,21 @@ export interface Draft {
   pollDays: number;
   /** Alerts: where it's happening, if they said (a pin, or an area found on the map). */
   place: AlertPlace | null;
+  /** Who can see it; null = the default for the kind of post (defaultAudience). */
+  audience: PostVisibility | null;
+}
+
+/** Nextdoor's audiences, narrowest first. */
+export const AUDIENCES: { id: PostVisibility; label: string; hint: string }[] = [
+  { id: "neighbourhood", label: "My neighbourhood", hint: "Only verified neighbours in your neighbourhood can read it. Shared links show a preview only." },
+  { id: "nearby", label: "Nearby too", hint: "Your neighbourhood and the ones next to it." },
+  { id: "anyone", label: "Anyone with the link", hint: "Anyone can read it, even without an account. Names show as initials to people who aren't signed in." },
+];
+
+/** Events are for everyone by default; everything else for the neighbourhood. Alerts never leave it. */
+export function audienceFor(d: Pick<Draft, "category" | "audience">): PostVisibility {
+  if (d.category === "alert") return "neighbourhood";
+  return d.audience ?? (d.category === "event" ? "anyone" : "neighbourhood");
 }
 
 export const blankDraft = (category: PostCategory = "general"): Draft => ({
@@ -55,6 +70,7 @@ export const blankDraft = (category: PostCategory = "general"): Draft => ({
   pollOptions: ["", ""],
   pollDays: 3,
   place: null,
+  audience: null,
 });
 
 /** The kinds a link can open the composer on (`/compose?kind=event`). */
@@ -95,6 +111,7 @@ export function toNewPost(d: Draft, clientId: string, now = Date.now()): NewPost
     message: d.message.trim(),
     category: d.category,
     clientId,
+    visibility: audienceFor(d),
     ...(d.category === "alert" && { alertCategory: d.alertCategory ?? "other", urgent: d.urgent, ...(d.place && { location: d.place }) }),
     ...(d.category === "thanks" && { thankedName: d.thankedName.trim() }),
     ...(d.category === "event" && d.eventDate && { type: "event" as const, eventDate: d.eventDate.toISOString(), ...(d.eventLocation.trim() && { eventLocation: d.eventLocation.trim() }) }),

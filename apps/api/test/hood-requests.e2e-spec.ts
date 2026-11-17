@@ -58,9 +58,9 @@ describe("Secondary neighbourhoods and move requests", () => {
     expect((await t.http.get(`/api/posts/neighborhood/${yaba}`).set(as("ada")).expect(200)).body).toHaveLength(1);
     await t.http.get(`/api/posts/${yabaPost}`).set(as("ada")).expect(200);
     await t.http.get(`/api/posts/${yabaPost}/comments`).set(as("ada")).expect(200);
-    // Writing stays at home.
-    await t.http.post(`/api/posts/${yabaPost}/comments`).set(as("ada")).send({ content: "Nice" }).expect(404);
-    await t.http.put(`/api/posts/${yabaPost}/reaction`).set(as("ada")).send({ type: "like" }).expect(404);
+    // Followers react and reply there (decided 2026-11-17); new posts still go to their own Hood only.
+    await t.http.post(`/api/posts/${yabaPost}/comments`).set(as("ada")).send({ content: "Nice" }).expect(201);
+    await t.http.put(`/api/posts/${yabaPost}/reaction`).set(as("ada")).send({ type: "like" }).expect(200);
     await t.http.post("/api/posts").set(as("ada")).send({ message: "Hello Yaba", neighborhoodId: yaba }).expect(403);
 
     const me = (await t.http.get("/api/users/me").set(as("ada")).expect(200)).body;

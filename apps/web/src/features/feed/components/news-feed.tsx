@@ -17,6 +17,7 @@ import type { PostCategory } from "@/lib/api/types";
 import { FEED_FILTERS, matchesFilter, parseFeedFilter, type FeedFilter } from "../categories";
 import { useComposer } from "../composer-context";
 import { useFeed } from "../feed-context";
+import { CameFromCard } from "@/features/shared-post/came-from-card";
 import { ComposerPrompt } from "./composer-prompt";
 import { FeedSkeleton } from "./feed-skeleton";
 import { PostCard } from "./post-card";
@@ -79,6 +80,7 @@ export function NewsFeed() {
   return (
     <div className="space-y-4">
       <h1 className="sr-only">Home</h1>
+      <CameFromCard />
       <ComposerPrompt />
       <div data-tour="feed-filters">
         <FilterChips

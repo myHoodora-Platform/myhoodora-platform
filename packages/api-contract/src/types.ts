@@ -72,6 +72,11 @@ export interface ApiPost {
   pinned?: boolean;
   /** "team" for official Hood Team posts. Absent (or "member") for neighbours' posts. */
   source?: "member" | "team";
+  /**
+   * Absent: you can read it in full and take part. "read_only": in its audience to read (an Anyone post
+   * before you've joined a Hood). "teaser": outside its audience: text, photos and names are empty.
+   */
+  access?: "read_only" | "teaser";
   reactionCounts?: Partial<Record<ReactionType, number>>;
   reactionTotal?: number;
   myReaction?: ReactionType | null;
@@ -655,4 +660,35 @@ export interface MyDecision {
   decidedAt: string;
   canAppeal: boolean;
   appeal?: { status: "open" | "upheld" | "overturned"; outcomeReason?: string; at: string };
+}
+
+// ── Shared links (contract §38) ─────────────────────────────────────────────
+
+/**
+ * live: GET /public/posts/:id (no sign-in). What someone who opened a shared link may see: the full
+ * post when its audience is Anyone ("full"), otherwise only which Hood, the topic and the counts
+ * ("teaser"). Names are initials only, as on Nextdoor. 410 once it's removed or deleted.
+ */
+export interface PublicPostPreview {
+  _id: string;
+  mode: "full" | "teaser";
+  hood: { id: string; name: string; city?: string };
+  category: PostCategory;
+  alertCategory?: AlertCategory;
+  createdAt: string;
+  reactionTotal: number;
+  commentCount: number;
+  /** Initials ("A. O."), or the Hood Team's name for official posts. */
+  author: { name: string; kind?: AuthorKind };
+  /** Full only. */
+  message?: string;
+  mediaUrls?: string[];
+  mediaAspects?: (number | null)[];
+  poll?: PollDefinition;
+  pollResults?: { counts: Record<string, number>; total: number; closed: boolean };
+  eventDate?: string;
+  eventLocation?: string;
+  priceNaira?: number | null;
+  /** The first replies, initials only. */
+  replies?: { name: string; text: string; createdAt: string; kind?: AuthorKind }[];
 }

@@ -5,7 +5,13 @@ const draft = (extra: Partial<Draft> = {}): Draft => ({ ...blankDraft(), message
 describe("composer rules", () => {
   it("accepts a plain post, and sends only what it uses", () => {
     expect(draftErrors(draft())).toBeNull();
-    expect(toNewPost(draft({ urgent: true, thankedName: "x" }), "client-123")).toEqual({ message: "Anyone know a good tailor in Yaba?", category: "general", clientId: "client-123" });
+    expect(toNewPost(draft({ urgent: true, thankedName: "x" }), "client-123")).toEqual({ message: "Anyone know a good tailor in Yaba?", category: "general", clientId: "client-123", visibility: "neighbourhood" });
+  });
+
+  it("sends who can see it: the neighbourhood by default, events for anyone, alerts never beyond the Hood", () => {
+    expect(toNewPost(draft({ audience: "nearby" }), "c").visibility).toBe("nearby");
+    expect(toNewPost(draft({ category: "event", eventDate: new Date(Date.now() + 86_400_000), eventLocation: "Hall" }), "c").visibility).toBe("anyone");
+    expect(toNewPost(draft({ category: "alert", alertCategory: "security", audience: "anyone" }), "c").visibility).toBe("neighbourhood");
   });
 
   it("needs something written", () => {

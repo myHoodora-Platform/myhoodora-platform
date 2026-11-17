@@ -2,7 +2,7 @@ import type { ConversationStarter } from "@myhoodora/api-contract/hood-content";
 import type { User } from "@firebase/auth";
 import { ApiError } from "@myhoodora/api-contract/errors";
 import type { AdEventInput, FeedAd, FeedPage } from "@myhoodora/api-contract/ads";
-import type { AlertCategory, AlertPlace, ApiPost, Comment, CommentSort, PostCategory, ReactionType, ReportReason } from "@myhoodora/api-contract/types";
+import type { AlertCategory, AlertPlace, ApiPost, Comment, CommentSort, PostCategory, PostVisibility, ReactionType, ReportReason } from "@myhoodora/api-contract/types";
 import type { InfiniteData, QueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/core/api/client";
 
@@ -163,6 +163,8 @@ export interface NewPost {
   eventDate?: string;
   eventLocation?: string;
   poll?: { options: { id: string; text: string }[]; closesAt: string };
+  /** Who can see it (contract §38). Alerts are always the neighbourhood's. */
+  visibility?: PostVisibility;
   /** Alerts: where it's happening (contract §1). */
   location?: AlertPlace;
   /** Uploaded photo URLs (POST /media), up to 10. */

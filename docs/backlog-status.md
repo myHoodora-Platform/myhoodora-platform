@@ -99,7 +99,7 @@ Plan: [product/hood-activation-plan.md](./product/hood-activation-plan.md). Cont
 | "Official · Hood Team", "Staff" and "Pinned" labels (web + app) | ✅ built | App change ships by OTA |
 | Ops: import the bank, fill Lagos/Ibadan versions of info items, apply activation, switch daily prompt on | ⬜ to do | Info items with `[FILL: …]` post only where a checked city version exists |
 | Starter chips in the composer (web + app) | ⬜ next | API ready: `GET /hood-content/starters` |
-| Post audiences, public link previews, "See more on myHoodora" card | ⬜ next | Plan WP-G |
+| Post audiences, public link previews, "See more on myHoodora" card | ✅ built | Contract §38. "Open in the app" on Android web; "nearby fill" in quiet feeds still to do |
 | Invite codes and referral paths | ⬜ next | Plan WP-E; no referral tracking existed before |
 | App banners / "better in the app" / app links | ⬜ planned | Plan WP-H; app links need a store build |
 | Streaks, Builder badge, challenge campaign | ⬜ planned | Plan WP-C, counted back to 17 Nov |

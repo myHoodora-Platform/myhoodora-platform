@@ -26,7 +26,7 @@ export class EngagementService {
   // ── Reactions (one per person per post; counts kept in the same transaction) ──
 
   async react(viewer: Viewer, postId: string, type: ReactionType): Promise<PostView> {
-    const post = await this.postsService.loadVisible(viewer, postId);
+    const post = await this.postsService.loadForAudience(viewer, postId);
     const previous = await withTransaction(this.connection, async (session) => {
       const before = await this.reactions.findOneAndUpdate({ postId, uid: viewer.uid }, { $set: { type } }, { upsert: true, session, returnDocument: "before" }).lean<Reaction>().exec();
       if (before?.type === type) return before.type;
@@ -51,7 +51,7 @@ export class EngagementService {
   }
 
   async unreact(viewer: Viewer, postId: string): Promise<PostView> {
-    const post = await this.postsService.loadVisible(viewer, postId);
+    const post = await this.postsService.loadForAudience(viewer, postId);
     const removed = await withTransaction(this.connection, async (session) => {
       const r = await this.reactions.findOneAndDelete({ postId, uid: viewer.uid }, { session }).lean<Reaction>().exec();
       if (r) await this.posts.updateOne({ _id: postId }, { $inc: { [`reactionCounts.${r.type}`]: -1 } }, { session }).exec();

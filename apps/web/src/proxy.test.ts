@@ -75,6 +75,28 @@ describe("the page gate", () => {
 
 // Audit B2: this server can't download Google's signing keys (a cold start during a Google outage).
 // It then knows nothing about the cookie, which must not be read as "forged".
+describe("shared post links", () => {
+  const ID = "6afc34d22644cd9c608d34dc";
+  const rewrittenTo = (res: Response) => res.headers.get("x-middleware-rewrite");
+
+  it("show someone not signed in the post's public preview, keeping the address", async () => {
+    const res = await visit(`/p/${ID}?ref=ADA7K`);
+    expect(rewrittenTo(res)).toBe(`http://localhost:3000/shared/p/${ID}?ref=ADA7K`);
+    expect(redirectedTo(res)).toBeNull();
+  });
+
+  it("give a signed-in neighbour the app's post page", async () => {
+    const res = await visit(`/p/${ID}`, "good");
+    expect(served(res)).toBe(true);
+    expect(rewrittenTo(res)).toBeNull();
+  });
+
+  it("leave other app pages behind the login", async () => {
+    expect(redirectedTo(await visit(`/p/${ID}/edit`))).toMatch(/\/login\?next=/);
+    expect(redirectedTo(await visit("/news-feed"))).toBe("http://localhost:3000/login");
+  });
+});
+
 describe("the page gate when this server can't check the cookie's signature", () => {
   beforeEach(() => {
     verifySessionCookie.mockRejectedValue(new VerifierUnavailableError());

@@ -12,7 +12,7 @@ import { useTheme } from "@/shared/theme/theme";
 import { AppScreen, useScreenInsets } from "@/shared/ui/app-screen";
 import { PhotoPager } from "@/shared/ui/photo-pager";
 import { Skeleton } from "@/shared/ui/skeleton";
-import { ErrorState } from "@/shared/ui/states";
+import { EmptyState, ErrorState } from "@/shared/ui/states";
 import { Text } from "@/shared/ui/text";
 import { cachedPost, feedKeys, getPost } from "./feed-api";
 import { PostExtras } from "./post-extras";
@@ -99,12 +99,37 @@ export function PostScreen({ id }: { id: string }) {
     );
   }
 
+  // Outside the post's audience (contract §38): which Hood and what kind, never what a neighbour wrote.
+  if (post.data.access === "teaser") {
+    const hood = post.data.author?.neighborhoodName ?? "another neighbourhood";
+    return (
+      <AppScreen title="Post" canvas={false}>
+        <EmptyState
+          title={`A post for ${hood} neighbours`}
+          body={`${post.data.author?.displayName ?? "A neighbour"} shared this with their neighbourhood${post.data.visibility === "nearby" ? " and the ones next to it" : ""}. Only they can read it.`}
+          action={{ label: "See what's happening near you", onPress: () => router.replace("/news-feed") }}
+        />
+      </AppScreen>
+    );
+  }
+  const readOnly = post.data.access === "read_only";
+
   return (
     <AppScreen
       canvas={false}
       center={<PostAuthor post={post.data} size={34} compact onAuthor={post.data.author ? () => openProfile(post.data!.authorUid) : undefined} />}
       right={<PostMenuButton post={post.data} onDeleted={() => router.back()} />}
-      footer={<ThreadComposer ref={input} post={post.data} replyTo={thread.replyTo} onCancelReply={() => thread.setReplyTo(undefined)} send={thread.send} safeBottom={safe.bottom} />}
+      footer={
+        readOnly ? (
+          <View style={[styles.readOnly, { paddingBottom: safe.bottom + 12 }]}>
+            <Text variant="caption" tone="muted">
+              Join your neighbourhood to react and reply.
+            </Text>
+          </View>
+        ) : (
+          <ThreadComposer ref={input} post={post.data} replyTo={thread.replyTo} onCancelReply={() => thread.setReplyTo(undefined)} send={thread.send} safeBottom={safe.bottom} />
+        )
+      }
     >
       <PostList post={post.data} thread={thread} onComment={() => input.current?.focus()} />
     </AppScreen>
@@ -124,6 +149,7 @@ function LoadingPost() {
 }
 
 const styles = StyleSheet.create({
+  readOnly: { alignItems: "center", paddingTop: 12, paddingHorizontal: 16 },
   extras: { paddingBottom: 12 },
   text: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 14, gap: 10, alignItems: "flex-start" },
   actions: { paddingTop: 8, paddingBottom: 4, gap: 4, borderBottomWidth: StyleSheet.hairlineWidth },
