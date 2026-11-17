@@ -25,15 +25,17 @@ export function ComposerPrompt() {
         <button
           type="button"
           onClick={() => openComposer("general")}
-          className="h-11 flex-1 rounded-full bg-muted px-4 text-left text-[15px] text-muted-foreground transition-colors hover:bg-muted/70"
+          className="h-11 min-w-0 flex-1 truncate rounded-full bg-muted px-4 text-left text-[15px] whitespace-nowrap text-muted-foreground transition-colors hover:bg-muted/70"
         >
-          What&apos;s happening, neighbour?
+          {/* Short on a phone, where the full line would be cut off. */}
+          <span className="sm:hidden">What&apos;s happening?</span>
+          <span className="hidden sm:inline">What&apos;s happening, neighbour?</span>
         </button>
         <button
           type="button"
           onClick={() => openComposer("general")}
           aria-label="Post a photo"
-          className="flex size-11 items-center justify-center rounded-full text-primary transition-colors hover:bg-primary/10"
+          className="flex size-11 shrink-0 items-center justify-center rounded-full text-primary transition-colors hover:bg-primary/10"
         >
           <ImagePlus className="size-5" />
         </button>

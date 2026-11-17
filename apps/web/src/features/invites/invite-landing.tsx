@@ -88,7 +88,7 @@ export function InviteLanding({ invite, code, fromPoster }: { invite: PublicInvi
           {shownCode && (
             <p className="mt-1 text-sm text-muted-foreground">
               When you sign up, enter {who ? `${who}'s` : "this"} invite code:
-              <span className="mt-2 block font-mono text-3xl font-bold tracking-[0.25em] text-foreground">{shownCode}</span>
+              <span className="mt-2 block pl-[0.25em] text-3xl leading-tight font-bold tracking-[0.25em] text-foreground">{shownCode}</span>
             </p>
           )}
           <a href={play} className="mt-4 inline-flex rounded-xl border border-border px-4 py-2.5 text-sm font-semibold hover:bg-muted">

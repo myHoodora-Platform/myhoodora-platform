@@ -36,13 +36,17 @@ export function SeasonGreeting() {
 
   if (!season || closed || (!season.greeting && !season.image && !counting))
     return null;
-  const edge = SEASON_PALETTES[season.accent][0];
   return (
     <section
       aria-label="Season's greetings"
-      className="relative overflow-hidden rounded-2xl border bg-card p-4"
-      style={{ borderColor: edge }}
+      className="relative overflow-hidden rounded-2xl border border-border bg-card p-4 pt-5"
     >
+      {/* A ribbon in the season's colours: festive, where a coloured outline (red at Christmas) read as an error. */}
+      <div aria-hidden className="absolute inset-x-0 top-0 flex h-1">
+        {SEASON_PALETTES[season.accent].map((c) => (
+          <span key={c} className="flex-1" style={{ backgroundColor: c }} />
+        ))}
+      </div>
       <button
         type="button"
         onClick={() => {
@@ -67,7 +71,7 @@ export function SeasonGreeting() {
           )}
           {counting && (
             <p
-              className="mt-3 font-mono text-2xl font-bold tabular-nums"
+              className="mt-3 text-2xl font-bold tabular-nums"
               aria-live="off"
             >
               {pad(counting.hours)}:{pad(counting.minutes)}:
@@ -82,8 +86,7 @@ export function SeasonGreeting() {
             onClick={() => openComposer()}
             className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline"
           >
-            <ImagePlus className="size-4" aria-hidden /> Share a festive moment
-            with your Hood
+            <ImagePlus className="size-4 shrink-0" aria-hidden /> Share a festive moment
           </button>
         </div>
       </div>

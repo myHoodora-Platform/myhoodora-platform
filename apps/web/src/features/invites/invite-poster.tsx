@@ -89,7 +89,7 @@ export function PosterSheet({ code, name, hood, svg, link, back }: { code: strin
           <div className="w-[38%] rounded-2xl border-4 border-[#0b3d2e] p-[3%]" role="img" aria-label={`QR code for ${link}`} dangerouslySetInnerHTML={{ __html: svg }} />
           <p className="text-[clamp(0.95rem,2.7vw,1.4rem)] font-bold">Scan with your phone camera to join</p>
           <p className="text-[clamp(0.75rem,2vw,1rem)]">Or get the myHoodora app and enter this invite code:</p>
-          <p className="-mt-[2%] font-mono text-[clamp(1.6rem,6vw,3rem)] font-extrabold tracking-[0.2em]">{code}</p>
+          <p className="-mt-[2%] pl-[0.2em] text-[clamp(1.6rem,6vw,3rem)] leading-tight font-extrabold tracking-[0.2em]">{code}</p>
         </div>
         <footer className="w-full shrink-0 bg-[#0b3d2e] px-[8%] py-[3.5%] text-white">
           <p className="text-[clamp(0.8rem,2.2vw,1.05rem)] font-semibold">{name ? `Invited by ${name}, your neighbour` : "Invited by a neighbour"}</p>

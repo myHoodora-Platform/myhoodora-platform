@@ -64,8 +64,8 @@ export function InvitePage() {
   return (
     <div className="space-y-4">
       <section className="rounded-2xl bg-card p-5 ring-1 ring-border sm:p-6">
-        <div className="flex items-center gap-3">
-          <span className="flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary">
+        <div className="flex items-start gap-3">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
             <UserPlus className="size-5" aria-hidden />
           </span>
           <div>
@@ -76,7 +76,7 @@ export function InvitePage() {
 
         <div className="mt-5 rounded-2xl border border-dashed border-primary/40 bg-primary/5 p-4 text-center">
           <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Your invite code</p>
-          <p className="mt-1 font-mono text-4xl font-bold tracking-[0.25em]">{summary.code}</p>
+          <p className="mt-1 pl-[0.25em] text-4xl leading-tight font-bold tracking-[0.25em]">{summary.code}</p>
           <button type="button" onClick={() => void copy("code")} className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline">
             {copied === "code" ? <Check className="size-4" aria-hidden /> : <Copy className="size-4" aria-hidden />} {copied === "code" ? "Copied" : "Copy code"}
           </button>
@@ -194,7 +194,7 @@ function ChallengeProgress({ uid, fallbackInvites }: { uid?: string; fallbackInv
       {c && (
         <div className="space-y-1.5">
           <div className="flex justify-between text-sm">
-            <span>Days you posted, replied, voted or RSVP&apos;d</span>
+            <span>Days active</span>
             <span className="text-muted-foreground tabular-nums">
               {Math.min(c.activeDays, c.minActiveDays)} of {c.minActiveDays}
             </span>
@@ -213,7 +213,7 @@ function ChallengeProgress({ uid, fallbackInvites }: { uid?: string; fallbackInv
           </span>
         </p>
       )}
-      <p className="text-xs text-muted-foreground">One missed day a week doesn&apos;t break a streak. No pressure: reactions don&apos;t count, real conversations do.</p>
+      <p className="text-xs text-muted-foreground">A day counts when you post, reply, vote or RSVP; reactions don&apos;t. One missed day a week doesn&apos;t break a streak.</p>
     </div>
   );
 }

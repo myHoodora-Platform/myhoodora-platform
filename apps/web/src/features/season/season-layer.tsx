@@ -22,7 +22,7 @@ export function SeasonLayer() {
   return (
     <div
       aria-hidden
-      className="pointer-events-none fixed inset-x-0 top-[72px] z-30 print:hidden"
+      className="pointer-events-none fixed inset-x-0 top-16 z-30 lg:top-[72px] print:hidden"
     >
       <style>{CSS}</style>
       {season.effect === "lights" && (

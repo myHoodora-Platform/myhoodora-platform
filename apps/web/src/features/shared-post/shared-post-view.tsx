@@ -257,10 +257,12 @@ const HEADLINES: Record<Ask, string> = {
  */
 function JoinSheet({ why, full, hoodName, postPath, login, join, appLink, onClose }: { why: Ask | null; full: boolean; hoodName: string; postPath: string; login: string; join: string; appLink: string | null; onClose: () => void }) {
   const [ios, setIos] = useState(false);
-  const close = useRef<HTMLButtonElement | null>(null);
+  const panel = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     setIos(/iPhone|iPad|iPod/i.test(navigator.userAgent));
-    close.current?.focus();
+    // Focus the sheet itself (screen readers start at its title): focusing the × drew a ring on it
+    // the moment the sheet opened, which looked like a pressed button.
+    panel.current?.focus();
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -269,11 +271,13 @@ function JoinSheet({ why, full, hoodName, postPath, login, join, appLink, onClos
   return (
     <div className="fixed inset-0 z-30 flex items-end justify-center bg-black/30 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="join-title" onClick={onClose}>
       <div
-        className="relative w-full max-w-md animate-fade-in rounded-t-3xl bg-card px-6 pt-3 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-center shadow-2xl sm:rounded-3xl sm:pt-6"
+        ref={panel}
+        tabIndex={-1}
+        className="relative w-full max-w-md animate-fade-in rounded-t-3xl bg-card outline-none px-6 pt-3 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-center shadow-2xl sm:rounded-3xl sm:pt-6"
         onClick={(e) => e.stopPropagation()}
       >
         <span className="mx-auto mb-3 block h-1.5 w-10 rounded-full bg-muted sm:hidden" aria-hidden />
-        <button ref={close} type="button" onClick={onClose} className="absolute top-3 right-3 rounded-full p-2 text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/40" aria-label={full ? "Keep reading" : "Not now"}>
+        <button type="button" onClick={onClose} className="absolute top-3 right-3 rounded-full p-2 text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/40" aria-label={full ? "Keep reading" : "Not now"}>
           <X className="size-5" />
         </button>
         {/* eslint-disable-next-line @next/next/no-img-element -- the small app icon */}
