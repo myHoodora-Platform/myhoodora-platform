@@ -107,6 +107,7 @@ Plan: [product/hood-activation-plan.md](./product/hood-activation-plan.md). Cont
 | Streaks, Hood Builder badge, launch challenge (WP-C): counted from posts/replies/votes/RSVPs since 17 Nov, one free day a week, mascot badge on avatars (web + app), progress on Invite, Admin → Launch challenge (rules, end/reopen, switches, builders CSV), grant/take on neighbour page | ✅ 17 Nov. To do: optional 18:00 streak reminder push, "Share my badge" image |
 | Web app prompts (WP-H): mobile-web "Open in the app" banner, "Better in the app" sheet, desktop QR card, admin App prompts, shared-link sign-in sheet with one-tap Google, anonymous funnel counts | ✅ 17 Nov. **Manual:** set `NEXT_PUBLIC_IOS_APP_ID` and the iOS store link once the iPhone app is live |
 | Nearby fill + share note: quiet Hoods show Anyone/Nearby posts from next door, labelled; sharing a Hood-only post says outsiders see a preview | ✅ 17 Nov |
+| Moderator console (WP-B): Needs a reply (newcomers first, 2-hour target), reply as me or as Hood Team, reply-time stats, Hood assignments + My Hoods | ✅ 17 Nov (refreshes every minute; live push to staff later) |
 | App banners / "better in the app" / app links | ⬜ planned | Plan WP-H; app links need a store build |
 | Streaks, Builder badge, challenge campaign | ⬜ planned | Plan WP-C, counted back to 17 Nov |
 | Christmas and New Year looks | ⬜ planned | Plan WP-D, ready by 12 Dec |

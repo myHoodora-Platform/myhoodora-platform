@@ -1726,3 +1726,12 @@ Plan WP-H / WP-F.
 ## 44. Nearby fill (2026-11-17)
 
 Plan WP-G. When the first page of someone's **home** Hood feed isn't full (no category, search or later page), it is topped up, newest first, with posts from the Hoods next door (`HoodsService.nearbyHoodIds`) from the last 21 days that their authors opened to **Nearby Hoods** or **Anyone**. Never alerts, never Hood-only posts, never from people who blocked the viewer or whom they blocked. Each carries `nearby: { hoodId, hoodName }` ("From Lekki Phase 1, nearby"). The page stays under the limit and paging ignores these posts (web `datedCount`, app `/feed/hood` cursor), so the Hood's own posts page as before.
+
+## 45. Moderator console (2026-11-17)
+
+Plan WP-B. `admin.access` + `moderation.act` (moderators and up).
+
+- `GET /admin/console/needs-reply?mine=true|false&hoodId` → `{ items[≤100] { postId, hood, author { uid, displayName, newcomer }, firstPost, category, excerpt, createdAt, waitingMinutes, overdue }, waiting, overdue, myHoods }`: active neighbours' posts from the last 3 days with no comment (not the Hood Team's or staff's); a newcomer's (joined < 14 days) first post first, then the longest waiting; `overdue` past 120 minutes. `mine`: the Hoods assigned to the caller.
+- `POST /admin/console/reply { postId, content, as: "self" | "team" }` → the comment (as yourself it shows "Staff"; as the Hood Team, "Official"). Audited `console_reply|console_reply_team`.
+- `GET /admin/console/stats` → last 7 days: `{ posts, replied, medianMinutesToFirstReply, firstRepliesByStaff[] }`.
+- `GET /admin/console/assignments`, `PUT /admin/console/assignments/:uid { hoodIds }` (`team.manage`, audited `hood_assignment`).

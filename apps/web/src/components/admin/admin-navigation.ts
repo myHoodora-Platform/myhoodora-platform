@@ -11,6 +11,7 @@ import {
   MapPin,
   MapPinned,
   Megaphone,
+  MessageCircleReply,
   MessageSquareHeart,
   PartyPopper,
   Scale,
@@ -57,6 +58,7 @@ export const ADMIN_NAV: AdminNavSection[] = [
         icon: Flag,
         badge: "openReports",
       },
+      { title: "Needs a reply", href: "/admin/console", icon: MessageCircleReply },
       {
         title: "Appeals",
         href: "/admin/moderation/appeals",
