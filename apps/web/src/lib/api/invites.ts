@@ -2,16 +2,18 @@ import type { User } from "firebase/auth";
 import type { ClaimInviteInput, InviteSummary, PublicInvite } from "@myhoodora/api-contract/invites";
 import { API_BASE_URL, isLive } from "./config";
 import { apiFetch } from "./client";
+import { deviceId } from "@/features/invites/invite-ref";
 
 /** live: GET /invites/me — my code and link, who joined with it, and whether to ask who invited me. Null without the API. */
 export async function getInviteSummary(user: User): Promise<InviteSummary | null> {
   if (!isLive("invites")) return null;
-  return apiFetch<InviteSummary>(user, "/invites/me");
+  const device = deviceId();
+  return apiFetch<InviteSummary>(user, `/invites/me${device ? `?device=${encodeURIComponent(device)}` : ""}`);
 }
 
 /** live: POST /invites/claim. Throws the API's error (404 unknown code, 409 already answered, 400 not allowed). */
 export async function claimInvite(user: User, input: ClaimInviteInput): Promise<{ invitedBy: { name: string } }> {
-  return apiFetch(user, "/invites/claim", { method: "POST", json: input });
+  return apiFetch(user, "/invites/claim", { method: "POST", json: { ...input, device: input.device ?? deviceId() } });
 }
 
 /** live: POST /invites/me/dismiss — "Who invited you?" closed without an answer. */

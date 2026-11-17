@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { InjectModel } from "@nestjs/mongoose";
@@ -7,6 +8,27 @@ import { HoodsService } from "../hoods/hoods.service";
 import type { Viewer } from "../shared/auth/viewer";
 import { User, type UserDocument } from "../users/schemas/user.schema";
 import { canStillClaim, firstName, makeInviteCode, normaliseCode, shortName, type InviteVia } from "./domain/invite-code";
+import { inviteFlags, type InviteFlagReason } from "./domain/invite-flags";
+
+/** A device id the app or browser made up for itself (random, stored on the device). */
+export const DEVICE_ID = /^[A-Za-z0-9_-]{8,64}$/;
+
+/** GET /admin/invites/flags: inviters whose invites look like one person (staff decide). */
+export interface InviteFlagGroup {
+  inviter: { uid: string; displayName: string; code?: string };
+  reasons: InviteFlagReason[];
+  invitees: { uid: string; displayName: string; joinedAt: string; verified: boolean; reasons: InviteFlagReason[] }[];
+}
+
+/** On a neighbour's staff page (contract §40). */
+export interface StaffInviteView {
+  code: string | null;
+  invitedBy: { uid: string; displayName: string; code: string; via: string; at: string; vouched: boolean; changedByStaff: boolean; reviewed: boolean } | null;
+  /** Why their invite looks off, if it does. */
+  flags: InviteFlagReason[];
+  joined: number;
+  verified: number;
+}
 
 /** GET /invites/me. */
 export interface InviteSummary {
@@ -35,7 +57,7 @@ export interface PublicInvite {
 
 export interface InviteLeaderboard {
   totals: { joined: number; verified: number };
-  people: { uid: string; displayName: string; code?: string; hood?: { id: string; name: string }; joined: number; verified: number }[];
+  people: { uid: string; displayName: string; code?: string; hood?: { id: string; name: string }; joined: number; verified: number; flagged: number }[];
   hoods: { id: string; name: string; joined: number; verified: number }[];
 }
 
@@ -64,6 +86,13 @@ export class InvitesService {
     return this.config.get<string>("appUrl") ?? "https://myhoodora.com";
   }
 
+  /** One-way, salted: equal inputs match, but the device id or address can't be read back. */
+  private hash(kind: "device" | "ip", value: string | undefined): string | undefined {
+    if (!value) return undefined;
+    const salt = process.env.INVITE_HASH_SALT || this.appUrl;
+    return createHash("sha256").update(`${salt}|${kind}|${value}`).digest("base64url").slice(0, 22);
+  }
+
   /** Their code, made the first time it's asked for. */
   async codeFor(uid: string): Promise<string> {
     const user = await this.users.findOne({ uid }).select({ inviteCode: 1, displayName: 1, accountKind: 1 }).lean<Row>().exec();
@@ -86,8 +115,11 @@ export class InvitesService {
     throw new ConflictException("Couldn't make an invite code just now. Try again.");
   }
 
-  async summary(viewer: Viewer): Promise<InviteSummary> {
+  async summary(viewer: Viewer, device?: string): Promise<InviteSummary> {
     const code = await this.codeFor(viewer.uid);
+    // Their own phone/browser: an invite claimed from it later is to themselves (invite-flags.ts).
+    const deviceHash = device && DEVICE_ID.test(device) ? this.hash("device", device) : undefined;
+    if (deviceHash) await this.users.updateOne({ uid: viewer.uid }, { $set: { inviteDeviceHash: deviceHash } }).exec();
     const me = (await this.users.findOne({ uid: viewer.uid }).lean<Row>().exec())!;
     const [people, totals, inviter] = await Promise.all([
       this.users.find({ "invitedBy.uid": viewer.uid, purgedAt: null }).sort({ createdAt: -1 }).limit(20).lean<Row[]>().exec(),
@@ -138,7 +170,7 @@ export class InvitesService {
    * "Ada invited me": by code (every path), or by picking a neighbour from their Hood ("Who invited
    * you?", `uid`). The first answer stays; repeating the same one is fine.
    */
-  async claim(viewer: Viewer, input: { code?: string; uid?: string; via: InviteVia }): Promise<{ invitedBy: { name: string } }> {
+  async claim(viewer: Viewer, input: { code?: string; uid?: string; via: InviteVia; device?: string }, ip?: string): Promise<{ invitedBy: { name: string } }> {
     const me = await this.users.findOne({ uid: viewer.uid }).lean<Row>().exec();
     if (!me) throw new NotFoundException("Account not found.");
     const code = normaliseCode(input.code);
@@ -159,7 +191,15 @@ export class InvitesService {
     // Two people can't each be the other's inviter.
     if (inviter.invitedBy?.uid === me.uid) throw new BadRequestException("You invited them, so they can't have invited you.");
 
-    const invitedBy = { uid: inviter.uid, code: inviter.inviteCode ?? (await this.codeFor(inviter.uid)), via: input.via, at: new Date(), vouched: inviter.verificationStatus === "verified" };
+    const invitedBy = {
+      uid: inviter.uid,
+      code: inviter.inviteCode ?? (await this.codeFor(inviter.uid)),
+      via: input.via,
+      at: new Date(),
+      vouched: inviter.verificationStatus === "verified",
+      deviceHash: input.device && DEVICE_ID.test(input.device) ? this.hash("device", input.device) : undefined,
+      ipHash: this.hash("ip", ip),
+    };
     const res = await this.users.updateOne({ uid: me.uid, invitedBy: null }, { $set: { invitedBy } }).exec();
     if (!res.modifiedCount) throw new ConflictException("You've already told us who invited you.");
     return { invitedBy: { name: firstName(inviter.displayName) } };
@@ -196,9 +236,10 @@ export class InvitesService {
     ]);
     const hoods = await this.hoods.findManyByIds([...new Set([...hoodsAgg.map((h) => h._id), ...(people.map((p) => p.inviter?.neighborhoodId).filter(Boolean) as string[])])]);
     const ref = (id?: string) => (id && hoods.get(id) ? { id, name: hoods.get(id)!.name } : undefined);
+    const flaggedBy = new Map((await this.flags({ inviterUids: people.map((p) => p._id) })).map((g) => [g.inviter.uid, g.invitees.length]));
     return {
       totals: { joined: totals[0]?.joined ?? 0, verified: totals[0]?.verified ?? 0 },
-      people: people.map((p) => ({ uid: p._id, displayName: p.inviter?.displayName ?? "Former neighbour", code: p.inviter?.inviteCode, hood: ref(p.inviter?.neighborhoodId), joined: p.joined, verified: p.verified })),
+      people: people.map((p) => ({ uid: p._id, displayName: p.inviter?.displayName ?? "Former neighbour", code: p.inviter?.inviteCode, hood: ref(p.inviter?.neighborhoodId), joined: p.joined, verified: p.verified, flagged: flaggedBy.get(p._id) ?? 0 })),
       hoods: hoodsAgg.map((h) => ({ id: h._id, name: hoods.get(h._id)?.name ?? "Unknown", joined: h.joined, verified: h.verified })),
     };
   }
@@ -211,7 +252,7 @@ export class InvitesService {
       // Quote everything; a leading = + - @ can't start a formula in a spreadsheet.
       return `"${(/^[=+\-@]/.test(s) ? `'${s}` : s).replace(/"/g, '""')}"`;
     };
-    const rows = [["Name", "Invite code", "Hood", "Joined", "Verified"], ...board.people.map((p) => [p.displayName, p.code, p.hood?.name, p.joined, p.verified])];
+    const rows = [["Name", "Invite code", "Hood", "Joined", "Verified", "Flagged"], ...board.people.map((p) => [p.displayName, p.code, p.hood?.name, p.joined, p.verified, p.flagged])];
     return rows.map((r) => r.map(cell).join(",")).join("\n") + "\n";
   }
 
@@ -233,5 +274,74 @@ export class InvitesService {
       .exec();
     await this.audit.record(actor, "invite_reassign", { type: "user", id: inviteeUid, label: invitee.displayName ?? "Neighbour" }, { reason, note: `Now credited to ${inviter.displayName ?? normal}` });
     return { invitedBy: { name: inviter.displayName ?? "Neighbour", code: normal! } };
+  }
+
+  /**
+   * Invites that look like one person: from the inviter's own phone, several from one phone, or a crowd
+   * from one network. Not yet reviewed, from the last 90 days. `inviterUids`: only these inviters.
+   */
+  async flags(q: { inviterUids?: string[] } = {}): Promise<InviteFlagGroup[]> {
+    const rows = await this.users
+      .find({
+        "invitedBy.uid": q.inviterUids ? { $in: q.inviterUids } : { $type: "string" },
+        "invitedBy.reviewedAt": null,
+        "invitedBy.at": { $gte: new Date(Date.now() - 90 * 86_400_000) },
+        purgedAt: null,
+        $or: [{ "invitedBy.deviceHash": { $type: "string" } }, { "invitedBy.ipHash": { $type: "string" } }],
+      })
+      .select({ uid: 1, displayName: 1, createdAt: 1, verificationStatus: 1, ageConfirmedAt: 1, invitedBy: 1 })
+      .limit(5000)
+      .lean<Row[]>()
+      .exec();
+    if (!rows.length) return [];
+    const inviterIds = [...new Set(rows.map((r) => r.invitedBy!.uid))];
+    const inviters = new Map((await this.users.find({ uid: { $in: inviterIds } }).select({ uid: 1, displayName: 1, inviteCode: 1, inviteDeviceHash: 1 }).lean<Row[]>().exec()).map((u) => [u.uid, u]));
+    const flagged = inviteFlags(
+      rows.map((r) => ({ uid: r.uid, inviterUid: r.invitedBy!.uid, deviceHash: r.invitedBy!.deviceHash, ipHash: r.invitedBy!.ipHash })),
+      new Map([...inviters].map(([uid, u]) => [uid, u.inviteDeviceHash])),
+    );
+    const groups = new Map<string, InviteFlagGroup>();
+    for (const r of rows) {
+      const reasons = flagged.get(r.uid);
+      if (!reasons) continue;
+      const by = r.invitedBy!.uid;
+      const inviter = inviters.get(by);
+      const g = groups.get(by) ?? { inviter: { uid: by, displayName: inviter?.displayName ?? "Former neighbour", code: inviter?.inviteCode }, reasons: [], invitees: [] };
+      g.invitees.push({ uid: r.uid, displayName: r.displayName ?? "Neighbour", joinedAt: (r.createdAt ?? new Date()).toISOString(), verified: countsFor(r), reasons });
+      g.reasons = [...new Set([...g.reasons, ...reasons])];
+      groups.set(by, g);
+    }
+    return [...groups.values()].sort((a, b) => b.invitees.length - a.invitees.length);
+  }
+
+  /** Staff looked at a flagged invite and it's fine (a family sharing a phone): it stops being flagged. Audited. */
+  async markReviewed(actor: Viewer, inviteeUid: string, reason: string): Promise<void> {
+    const invitee = await this.users.findOne({ uid: inviteeUid }).lean<Row>().exec();
+    if (!invitee?.invitedBy) throw new NotFoundException("This neighbour wasn't invited by anyone.");
+    await this.users.updateOne({ uid: inviteeUid }, { $set: { "invitedBy.reviewedAt": new Date(), "invitedBy.reviewedBy": actor.uid } }).exec();
+    await this.audit.record(actor, "invite_reviewed", { type: "user", id: inviteeUid, label: invitee.displayName ?? "Neighbour" }, { reason });
+  }
+
+  /** Their invite code, who invited them (and whether it looks off), and how many they brought. */
+  async staffView(uid: string): Promise<StaffInviteView> {
+    const u = await this.users.findOne({ uid }).lean<Row>().exec();
+    if (!u) throw new NotFoundException("Neighbour not found.");
+    const [inviter, totals, groups] = await Promise.all([
+      u.invitedBy ? this.users.findOne({ uid: u.invitedBy.uid }).select({ displayName: 1 }).lean<Row>().exec() : null,
+      this.users
+        .aggregate<{ joined: number; verified: number }>([{ $match: { "invitedBy.uid": uid, purgedAt: null } }, { $group: { _id: null, joined: { $sum: 1 }, verified: { $sum: { $cond: [COUNTS, 1, 0] } } } }])
+        .exec(),
+      u.invitedBy ? this.flags({ inviterUids: [u.invitedBy.uid] }) : Promise.resolve([]),
+    ]);
+    const by = u.invitedBy;
+    return {
+      code: u.inviteCode ?? null,
+      invitedBy: by
+        ? { uid: by.uid, displayName: inviter?.displayName ?? "Former neighbour", code: by.code, via: by.via, at: by.at.toISOString(), vouched: Boolean(by.vouched), changedByStaff: Boolean(by.by), reviewed: Boolean(by.reviewedAt) }
+        : null,
+      flags: groups.flatMap((g) => g.invitees).find((i) => i.uid === uid)?.reasons ?? [],
+      joined: totals[0]?.joined ?? 0,
+      verified: totals[0]?.verified ?? 0,
+    };
   }
 }

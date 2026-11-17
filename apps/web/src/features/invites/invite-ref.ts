@@ -86,3 +86,23 @@ export function forgetMyInviteCode(): void {
     // ignore
   }
 }
+
+const DEVICE_KEY = "mh-device";
+
+/**
+ * This browser's own random id, sent with invite claims so staff can spot many sign-ups from one
+ * device (the API keeps only a one-way hash). Not a fingerprint: clearing site data makes a new one.
+ */
+export function deviceId(): string | undefined {
+  try {
+    const s = store();
+    if (!s) return undefined;
+    const have = s.getItem(DEVICE_KEY);
+    if (have && /^[A-Za-z0-9_-]{8,64}$/.test(have)) return have;
+    const made = crypto.randomUUID();
+    s.setItem(DEVICE_KEY, made);
+    return made;
+  } catch {
+    return undefined;
+  }
+}

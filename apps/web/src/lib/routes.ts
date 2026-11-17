@@ -73,7 +73,8 @@ export const PUBLIC_PATHS = [
 ] as const;
 // "/business/claim" is under /business but needs a signed-in user; the page itself handles that.
 // "/i/<code>": a neighbour's personal invite link (plan WP-E).
-export const PUBLIC_PREFIXES = ["/coming-soon", "/business", "/privacy/versions", "/terms/versions", "/shared", "/i"] as const;
+// "/.well-known": app-link files Android and iOS fetch (no extension on Apple's, so never treat it as a page).
+export const PUBLIC_PREFIXES = ["/coming-soon", "/business", "/privacy/versions", "/terms/versions", "/shared", "/i", "/.well-known"] as const;
 
 /**
  * A shared post opened by someone who isn't signed in: `/p/<id>` shows the public preview

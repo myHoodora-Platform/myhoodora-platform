@@ -95,6 +95,10 @@ describe("shared post links", () => {
     expect(served(await visit("/i/ADA7K?src=qr"))).toBe(true);
     expect(served(await visit("/i/ADA7K", "good"))).toBe(true);
     expect(redirectedTo(await visit("/invite"))).toMatch(/\/login\?next=%2Finvite/);
+    expect(redirectedTo(await visit("/invite/poster"))).toMatch(/\/login\?next=/);
+    // The app-link files Android and iOS fetch: never the login page.
+    expect(served(await visit("/.well-known/apple-app-site-association"))).toBe(true);
+    expect(served(await visit("/.well-known/assetlinks.json"))).toBe(true);
   });
 
   it("leave other app pages behind the login", async () => {

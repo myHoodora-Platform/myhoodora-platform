@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Copy, MessageCircle, Share2, UserPlus } from "lucide-react";
+import { Check, Copy, MessageCircle, Printer, Share2, UserPlus } from "lucide-react";
+import Link from "next/link";
+import { ROUTES } from "@/lib/routes";
 import { toast } from "sonner";
 import { Button } from "@myhoodora/ui/button";
 import { BUILDER_INVITES } from "@myhoodora/api-contract/invites";
@@ -95,6 +97,9 @@ export function InvitePage() {
             <Share2 className="size-4" aria-hidden /> More ways
           </Button>
         </div>
+        <Link href={`${ROUTES.invite}/poster`} className="mt-3 flex items-center justify-center gap-2 rounded-xl border border-dashed border-border py-2.5 text-sm font-semibold hover:bg-muted">
+          <Printer className="size-4" aria-hidden /> Print a QR poster for your estate gate or notice board
+        </Link>
         <p className="mt-3 text-center text-xs text-muted-foreground">Posts you share carry your code too, so they count as invites.</p>
       </section>
 

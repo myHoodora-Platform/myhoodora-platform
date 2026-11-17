@@ -1,10 +1,11 @@
 import { ApiError } from "@myhoodora/api-contract/errors";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/core/auth/auth-provider";
 import { useToast } from "@/shared/ui/toast";
 import { claimInvite, getInviteSummary, inviteKeys } from "./invites-api";
 import { clearSavedInvite, loadMyInviteCode, readSavedInvite, rememberMyInviteCode } from "@/core/invites/invite-ref";
+import { readInstallReferrerOnce } from "@/core/invites/install-referrer";
 
 /** Past the age check: the account is real, so the invite can be claimed (and the API allows it). */
 const CLAIMABLE = new Set(["needsTerms", "needsOnboarding", "ready"]);
@@ -19,8 +20,11 @@ export function useClaimSavedInvite() {
   const toast = useToast();
   const done = useRef<string | null>(null);
 
+  // At launch, signed in or not: the code a Play Store install carried, ready for the sign-up form.
+  const [referrerRead, setReferrerRead] = useState(false);
   useEffect(() => {
     void loadMyInviteCode();
+    void readInstallReferrerOnce().finally(() => setReferrerRead(true));
   }, []);
 
   useEffect(() => {
@@ -29,7 +33,7 @@ export function useClaimSavedInvite() {
       done.current = null;
       return;
     }
-    if (!CLAIMABLE.has(phase) || done.current === user.uid) return;
+    if (!referrerRead || !CLAIMABLE.has(phase) || done.current === user.uid) return;
     done.current = user.uid;
     void (async () => {
       const saved = await readSavedInvite();
@@ -51,5 +55,5 @@ export function useClaimSavedInvite() {
         // Tried again when the Invite screen or the feed card asks.
       }
     })();
-  }, [user, phase, client, toast]);
+  }, [user, phase, client, toast, referrerRead]);
 }

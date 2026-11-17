@@ -163,8 +163,30 @@ export class User {
    * Who invited them, and how it reached them (WP-E). The first code wins; staff may void or reassign it
    * (audited). `vouched`: the inviter was a verified neighbour then, so staff review them first.
    */
-  @Prop({ type: { uid: String, code: String, via: String, at: Date, vouched: Boolean, by: String }, _id: false, default: null })
-  invitedBy?: { uid: string; code: string; via: string; at: Date; vouched?: boolean; by?: string } | null;
+  @Prop({
+    type: { uid: String, code: String, via: String, at: Date, vouched: Boolean, by: String, deviceHash: String, ipHash: String, reviewedAt: Date, reviewedBy: String },
+    _id: false,
+    default: null,
+  })
+  invitedBy?: {
+    uid: string;
+    code: string;
+    via: string;
+    at: Date;
+    vouched?: boolean;
+    /** Staff who reassigned it. */
+    by?: string;
+    /** One-way hashes of the phone/browser and network it was claimed from (invite-flags.ts). Never the raw values. */
+    deviceHash?: string;
+    ipHash?: string;
+    /** Staff looked at a flag and kept it. */
+    reviewedAt?: Date;
+    reviewedBy?: string;
+  } | null;
+
+  /** One-way hash of the phone/browser they last opened Invite on: spots invites to their own second account. */
+  @Prop({ type: String })
+  inviteDeviceHash?: string;
 
   /** They closed the "Who invited you?" card without answering. */
   @Prop({ type: Date, default: null })

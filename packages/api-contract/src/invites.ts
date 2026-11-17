@@ -64,11 +64,42 @@ export interface ClaimInviteInput {
   code?: string;
   uid?: string;
   via: InviteVia;
+  /** This phone's or browser's own random id (only a hash is kept, to spot invite farming). */
+  device?: string;
 }
 
 /** GET /admin/invites (staff). */
 export interface InviteLeaderboard {
   totals: { joined: number; verified: number };
-  people: { uid: string; displayName: string; code?: string; hood?: { id: string; name: string }; joined: number; verified: number }[];
+  /** `flagged`: their invitees that look like one person and haven't been reviewed (GET /admin/invites/flags). */
+  people: { uid: string; displayName: string; code?: string; hood?: { id: string; name: string }; joined: number; verified: number; flagged: number }[];
   hoods: { id: string; name: string; joined: number; verified: number }[];
+}
+
+/**
+ * Why an invite looks like one person: claimed on the inviter's own phone, several from one phone, or a
+ * crowd from one network (an estate's Wi-Fi can be fine). Only hashes are compared.
+ */
+export type InviteFlagReason = "same_device_as_inviter" | "shared_device" | "shared_network";
+
+export const INVITE_FLAG_LABELS: Record<InviteFlagReason, string> = {
+  same_device_as_inviter: "Same phone as the inviter",
+  shared_device: "Several sign-ups from one phone",
+  shared_network: "Many sign-ups from one network",
+};
+
+/** GET /admin/invites/flags. */
+export interface InviteFlagGroup {
+  inviter: { uid: string; displayName: string; code?: string };
+  reasons: InviteFlagReason[];
+  invitees: { uid: string; displayName: string; joinedAt: string; verified: boolean; reasons: InviteFlagReason[] }[];
+}
+
+/** GET /admin/invites/people/:uid. */
+export interface StaffInviteView {
+  code: string | null;
+  invitedBy: { uid: string; displayName: string; code: string; via: InviteVia; at: string; vouched: boolean; changedByStaff: boolean; reviewed: boolean } | null;
+  flags: InviteFlagReason[];
+  joined: number;
+  verified: number;
 }

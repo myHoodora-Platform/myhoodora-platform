@@ -105,7 +105,7 @@ describe("Invite codes and referral paths", () => {
     await t.users.updateOne({ uid: "ada" }, { $set: { displayName: "=HYPERLINK(\"x\")" } });
     const csv = await t.http.get("/api/admin/invites?format=csv").set(t.auth("mod1")).expect(200);
     expect(csv.headers["content-type"]).toMatch(/text\/csv/);
-    expect(csv.text.split("\n")[0]).toBe('"Name","Invite code","Hood","Joined","Verified"');
+    expect(csv.text.split("\n")[0]).toBe('"Name","Invite code","Hood","Joined","Verified","Flagged"');
     expect(csv.text).toContain(`"'=HYPERLINK(""x"")","${adaCode}"`);
 
     await t.http.put("/api/admin/invites/new0").set(t.auth("mod1")).send({ code: null, reason: "Same device as Ada" }).expect(403);
@@ -123,5 +123,35 @@ describe("Invite codes and referral paths", () => {
     const q = (await t.http.get("/api/admin/verification?status=pending_review").set(t.auth("mod1")).expect(200)).body;
     expect(q.items[0]).toMatchObject({ uid: "wait7", invitedBy: { uid: "ada", verified: true, hoodName: "Lekki Phase 1" } });
     expect(q.items.slice(1).every((i: { invitedBy?: unknown }) => !i.invitedBy)).toBe(true);
+  });
+
+  it("flags invites from the inviter's own phone or one shared phone; staff review them", async () => {
+    await t.http.get("/api/invites/me?device=ada-phone-0001").set(t.auth("ada")).expect(200);
+    await t.user("sock1");
+    await claim("sock1", { code: adaCode, via: "code", device: "ada-phone-0001" }).expect(201);
+    for (const uid of ["twin1", "twin2"]) {
+      await t.user(uid);
+      await claim(uid, { code: adaCode, via: "link", device: "shared-phone-77" }).expect(201);
+    }
+    await claim("late", { code: adaCode, via: "code", device: "bad id!" }).expect(400);
+
+    const flags = (await t.http.get("/api/admin/invites/flags").set(t.auth("mod1")).expect(200)).body as { inviter: { uid: string }; reasons: string[]; invitees: { uid: string; reasons: string[] }[] }[];
+    const ada = flags.find((g) => g.inviter.uid === "ada")!;
+    expect(ada.reasons).toEqual(expect.arrayContaining(["same_device_as_inviter", "shared_device"]));
+    expect(ada.invitees.find((i) => i.uid === "sock1")!.reasons).toContain("same_device_as_inviter");
+    expect(ada.invitees.find((i) => i.uid === "twin2")!.reasons).toContain("shared_device");
+    // Nothing raw is ever stored or shown.
+    const stored = await t.users.findOne({ uid: "sock1" }).lean();
+    expect(JSON.stringify(stored)).not.toMatch(/ada-phone-0001|127\.0\.0\.1|::1/);
+    expect(JSON.stringify(flags)).not.toMatch(/ada-phone|shared-phone/);
+
+    expect((await t.http.get("/api/admin/invites/people/sock1").set(t.auth("mod1")).expect(200)).body).toMatchObject({ invitedBy: { uid: "ada", code: adaCode, reviewed: false }, flags: expect.arrayContaining(["same_device_as_inviter"]) });
+    expect((await t.http.get("/api/admin/invites").set(t.auth("mod1")).expect(200)).body.people[0].flagged).toBeGreaterThanOrEqual(3);
+
+    await t.http.post("/api/admin/invites/twin1/reviewed").set(t.auth("mod1")).send({ reason: "Twins, one phone" }).expect(403);
+    await t.http.post("/api/admin/invites/twin1/reviewed").set(t.auth("admin1")).send({ reason: "Twins, one phone" }).expect(204);
+    const after = (await t.http.get("/api/admin/invites/flags").set(t.auth("mod1")).expect(200)).body as typeof flags;
+    expect(after.find((g) => g.inviter.uid === "ada")!.invitees.some((i) => i.uid === "twin1")).toBe(false);
+    expect((await t.http.get("/api/admin/invites/people/twin1").set(t.auth("mod1")).expect(200)).body.invitedBy.reviewed).toBe(true);
   });
 });

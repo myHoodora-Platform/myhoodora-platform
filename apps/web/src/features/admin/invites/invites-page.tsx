@@ -2,17 +2,18 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { BadgeCheck, Download, UserPlus } from "lucide-react";
+import { AlertTriangle, BadgeCheck, Download, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@myhoodora/ui/button";
-import { BUILDER_INVITES } from "@myhoodora/api-contract/invites";
+import { BUILDER_INVITES, INVITE_FLAG_LABELS } from "@myhoodora/api-contract/invites";
 import { AdminPageHeader } from "@/components/admin/page-header";
 import { AdminProblem, EmptyBody } from "@/components/admin/admin-states";
 import { Panel } from "@/components/admin/detail";
 import { Field, fieldInputClass } from "@/components/shared/field";
 import { useAuth } from "@/context/AuthContext";
 import { errorMessage } from "@/lib/api/client";
-import { downloadInviteCsv, getInviteLeaderboard } from "@/lib/api/admin/invites";
+import { downloadInviteCsv, getInviteFlags, getInviteLeaderboard } from "@/lib/api/admin/invites";
+import { dateLabel } from "@/components/admin/format";
 import { useAdminQuery } from "../use-admin-query";
 
 /** When the launch challenge began (17 Nov 2026, WAT): the board counts from here unless changed. */
@@ -28,6 +29,7 @@ export function InvitesLeaderboardPage() {
   const [since, setSince] = useState(CHALLENGE_START);
   const query = { from: toIso(since) };
   const board = useAdminQuery((u) => getInviteLeaderboard(u, query), `invites:${since}`);
+  const flags = useAdminQuery((u) => getInviteFlags(u), "invite-flags");
   const [downloading, setDownloading] = useState(false);
 
   const download = async () => {
@@ -72,6 +74,42 @@ export function InvitesLeaderboardPage() {
         )}
       </div>
 
+      {flags.data && flags.data.length > 0 && (
+        <Panel title={`Needs a look (${flags.data.reduce((n, g) => n + g.invitees.length, 0)})`}>
+          <p className="mb-3 text-sm text-muted-foreground">
+            Invites that look like one person. They still count until you remove the credit; open a neighbour to decide. An estate&apos;s shared Wi-Fi can be fine.
+          </p>
+          <ul className="space-y-3">
+            {flags.data.map((g) => (
+              <li key={g.inviter.uid} className="rounded-xl border border-amber-300/60 bg-amber-50/60 p-3 text-sm dark:border-amber-500/30 dark:bg-amber-500/5">
+                <p className="flex flex-wrap items-center gap-2">
+                  <AlertTriangle className="size-4 text-amber-700 dark:text-amber-300" aria-hidden />
+                  <Link href={`/admin/neighbours/${g.inviter.uid}`} className="font-semibold hover:underline">
+                    {g.inviter.displayName}
+                  </Link>
+                  <span className="font-mono text-xs text-muted-foreground">{g.inviter.code}</span>
+                  <span className="text-xs text-muted-foreground">{g.reasons.map((r) => INVITE_FLAG_LABELS[r]).join(" · ")}</span>
+                </p>
+                <ul className="mt-2 flex flex-wrap gap-2">
+                  {g.invitees.map((i) => (
+                    <li key={i.uid}>
+                      <Link
+                        href={`/admin/neighbours/${i.uid}`}
+                        title={i.reasons.map((r) => INVITE_FLAG_LABELS[r]).join(", ")}
+                        className="inline-flex items-center gap-1 rounded-full bg-background px-2.5 py-1 text-xs ring-1 ring-border hover:ring-primary"
+                      >
+                        {i.displayName} <span className="text-muted-foreground">· {dateLabel(i.joinedAt)}</span>
+                        {i.verified && <BadgeCheck className="size-3 text-primary" aria-label="verified" />}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
+
       {board.error && !board.data ? (
         <AdminProblem error={board.error} onRetry={() => void board.refetch()} />
       ) : !board.data ? (
@@ -90,7 +128,8 @@ export function InvitesLeaderboardPage() {
                     <th className="py-2 pr-3 font-medium">Code</th>
                     <th className="py-2 pr-3 font-medium">Hood</th>
                     <th className="py-2 pr-3 text-right font-medium">Joined</th>
-                    <th className="py-2 text-right font-medium">Verified</th>
+                    <th className="py-2 pr-3 text-right font-medium">Verified</th>
+                    <th className="py-2 text-right font-medium">Flagged</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -110,7 +149,8 @@ export function InvitesLeaderboardPage() {
                       <td className="py-2.5 pr-3 font-mono">{p.code ?? "—"}</td>
                       <td className="py-2.5 pr-3">{p.hood?.name ?? "—"}</td>
                       <td className="py-2.5 pr-3 text-right tabular-nums">{p.joined}</td>
-                      <td className="py-2.5 text-right font-semibold tabular-nums">{p.verified}</td>
+                      <td className="py-2.5 pr-3 text-right font-semibold tabular-nums">{p.verified}</td>
+                      <td className={p.flagged ? "py-2.5 text-right font-semibold text-amber-700 tabular-nums dark:text-amber-300" : "py-2.5 text-right text-muted-foreground tabular-nums"}>{p.flagged || "—"}</td>
                     </tr>
                   ))}
                 </tbody>

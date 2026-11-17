@@ -25,8 +25,8 @@ export function InviteLanding({ invite, code, fromPoster }: { invite: PublicInvi
   }, [shownCode, fromPoster]);
 
   const join = `/register${shownCode ? `?ref=${shownCode}` : ""}`;
-  // The Play Store passes this on to the app once it's installed (read there in a later build).
-  const play = `${PLAY_STORE_URL}${shownCode ? `&referrer=${encodeURIComponent(`ref=${shownCode}`)}` : ""}`;
+  // The Play Store hands this to the app on its first launch (core/invites/install-referrer.ts there).
+  const play = `${PLAY_STORE_URL}${shownCode ? `&referrer=${encodeURIComponent(`ref=${shownCode}${fromPoster ? "&src=qr" : ""}`)}` : ""}`;
   const who = invite?.inviter.firstName;
 
   return (

@@ -9,6 +9,16 @@ export class ClaimInviteDto {
   @IsOptional() @Matches(CODE_INPUT, { message: "Invite codes are letters and numbers, like ADA7K." }) code?: string;
   @IsOptional() @IsString() @Length(1, 128) uid?: string;
   @IsIn(INVITE_VIAS) via!: InviteVia;
+  /** A random id the app or browser keeps for itself. Only a one-way hash is stored (spotting invite farming). */
+  @IsOptional() @Matches(/^[A-Za-z0-9_-]{8,64}$/) device?: string;
+}
+
+export class InviteMeQuery {
+  @IsOptional() @Matches(/^[A-Za-z0-9_-]{8,64}$/) device?: string;
+}
+
+export class ReviewInviteDto {
+  @IsString() @Length(3, 300) reason!: string;
 }
 
 export class InviteLeaderboardQuery {

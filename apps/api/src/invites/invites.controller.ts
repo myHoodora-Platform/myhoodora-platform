@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Header, HttpCode, HttpStatus, Param, Post, Put, Query, Res } from "@nestjs/common";
+import { Body, Controller, Get, Header, HttpCode, HttpStatus, Ip, Param, Post, Put, Query, Res } from "@nestjs/common";
 import { ApiBearerAuth, ApiNoContentResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import type { Response } from "express";
@@ -6,7 +6,7 @@ import { Public } from "../shared/auth/public.decorator";
 import { CurrentViewer, type Viewer } from "../shared/auth/viewer";
 import { Can } from "../shared/authz/can.decorator";
 import { ApiNotFound, ApiStandardErrors } from "../shared/http/api-docs";
-import { ClaimInviteDto, InviteLeaderboardQuery, SetInviterDto } from "./invites.dto";
+import { ClaimInviteDto, InviteLeaderboardQuery, InviteMeQuery, ReviewInviteDto, SetInviterDto } from "./invites.dto";
 import { InvitesService } from "./invites.service";
 
 /** Your invite code, and who you brought (contract §40). */
@@ -19,16 +19,16 @@ export class InvitesController {
 
   @Get("me")
   @ApiOperation({ summary: "My invite code and link, who joined with it, who invited me, and whether to ask 'Who invited you?'" })
-  me(@CurrentViewer() viewer: Viewer) {
-    return this.invites.summary(viewer);
+  me(@CurrentViewer() viewer: Viewer, @Query() q: InviteMeQuery) {
+    return this.invites.summary(viewer, q.device);
   }
 
   @Post("claim")
   @Throttle({ medium: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: "Say who invited me (by code, or a neighbour in my Hood). First answer stays → { invitedBy: { name } }" })
   @ApiNotFound("Invite code")
-  claim(@CurrentViewer() viewer: Viewer, @Body() body: ClaimInviteDto) {
-    return this.invites.claim(viewer, body);
+  claim(@CurrentViewer() viewer: Viewer, @Body() body: ClaimInviteDto, @Ip() ip: string) {
+    return this.invites.claim(viewer, body, ip);
   }
 
   @Post("me/dismiss")
@@ -73,6 +73,28 @@ export class AdminInvitesController {
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", 'attachment; filename="invites.csv"');
     return this.invites.leaderboardCsv(q);
+  }
+
+  @Get("flags")
+  @ApiOperation({ summary: "Invites that look like one person (own phone, one phone, one network), not yet reviewed" })
+  flags() {
+    return this.invites.flags();
+  }
+
+  @Get("people/:uid")
+  @ApiOperation({ summary: "A neighbour's invite code, who invited them (and any flag), and how many they brought" })
+  @ApiNotFound("Neighbour")
+  person(@Param("uid") uid: string) {
+    return this.invites.staffView(uid);
+  }
+
+  @Post(":uid/reviewed")
+  @Can("admin.access", "engagement.manage")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse()
+  @ApiOperation({ summary: "A flagged invite was checked and is fine: stop flagging it (audited)" })
+  async reviewed(@CurrentViewer() viewer: Viewer, @Param("uid") uid: string, @Body() body: ReviewInviteDto) {
+    await this.invites.markReviewed(viewer, uid, body.reason.trim());
   }
 
   @Put(":uid")

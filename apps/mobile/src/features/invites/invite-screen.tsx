@@ -1,6 +1,8 @@
 import { BUILDER_INVITES } from "@myhoodora/api-contract/invites";
 import { useQuery } from "@tanstack/react-query";
 import * as Clipboard from "expo-clipboard";
+import * as WebBrowser from "expo-web-browser";
+import { config } from "@/core/config/env";
 import { Check, Copy, UserPlus } from "lucide-react-native";
 import { useState } from "react";
 import { Linking, Pressable, RefreshControl, ScrollView, Share, StyleSheet, View } from "react-native";
@@ -109,6 +111,12 @@ function Body() {
 
         <Button label="Invite on WhatsApp" onPress={() => void whatsapp()} />
         <Button label="More ways to share" variant="secondary" onPress={() => void Share.share({ message }).catch(() => undefined)} />
+        <Button
+          label="Print a QR poster"
+          variant="ghost"
+          accessibilityHint="Opens your poster in the browser, to print or save as PDF for the estate gate or a notice board"
+          onPress={() => void WebBrowser.openBrowserAsync(`${config().webUrl}/i/${s.code}/poster`).catch(() => undefined)}
+        />
         <Text variant="caption" tone="muted" style={styles.center}>
           Posts you share carry your code too, so they count as invites.
         </Text>

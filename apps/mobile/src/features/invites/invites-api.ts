@@ -1,17 +1,19 @@
 import type { User } from "firebase/auth";
 import type { ClaimInviteInput, InviteSummary } from "@myhoodora/api-contract/invites";
 import { apiFetch } from "@/core/api/client";
+import { deviceId } from "@/core/invites/device-id";
 
 export const inviteKeys = { me: (uid: string) => ["invites", "me", uid] as const };
 
 /** GET /invites/me (contract §40). */
-export function getInviteSummary(user: User): Promise<InviteSummary> {
-  return apiFetch<InviteSummary>(user, "/invites/me");
+export async function getInviteSummary(user: User): Promise<InviteSummary> {
+  const device = await deviceId();
+  return apiFetch<InviteSummary>(user, `/invites/me${device ? `?device=${encodeURIComponent(device)}` : ""}`);
 }
 
 /** POST /invites/claim: 404 unknown code, 409 already answered, 400 not allowed. */
-export function claimInvite(user: User, input: ClaimInviteInput): Promise<{ invitedBy: { name: string } }> {
-  return apiFetch(user, "/invites/claim", { method: "POST", json: input });
+export async function claimInvite(user: User, input: ClaimInviteInput): Promise<{ invitedBy: { name: string } }> {
+  return apiFetch(user, "/invites/claim", { method: "POST", json: { ...input, device: input.device ?? (await deviceId()) } });
 }
 
 /** POST /invites/me/dismiss: "Who invited you?" closed without answering. */
