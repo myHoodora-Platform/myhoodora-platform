@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Application from "expo-application";
-import * as Crypto from "expo-crypto";
 import { Platform } from "react-native";
+import { randomId } from "@/core/crypto/optional-crypto";
 
 const KEY = "invite.device";
 let cached: string | null = null;
@@ -20,7 +20,7 @@ export async function deviceId(): Promise<string | undefined> {
     if (!id) {
       id = await AsyncStorage.getItem(KEY);
       if (!id) {
-        id = Crypto.randomUUID();
+        id = randomId();
         await AsyncStorage.setItem(KEY, id);
       }
     }
