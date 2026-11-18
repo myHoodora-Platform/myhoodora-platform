@@ -1,6 +1,7 @@
-import { errorMessage } from "@myhoodora/api-contract/errors";
+import { ApiError, errorMessage } from "@myhoodora/api-contract/errors";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSignedInUser } from "@/core/auth/auth-provider";
+import { reportError } from "@/core/monitoring/monitoring";
 import { deleteMedia, preparePhoto, uploadDocument, uploadPhoto, uploadWithRetry, type MediaPurpose, type PickedDocument, type PickedPhoto } from "./media";
 
 export interface PhotoItem {
@@ -56,6 +57,10 @@ export function usePhotoUploads(purpose: MediaPurpose, max: number) {
       } catch (err) {
         // In the developer log too: an upload that fails on one phone is otherwise hard to explain.
         console.warn(`Upload (${purpose}) failed:`, err);
+        // And to Sentry, unless the phone was offline or the API refused on purpose (not allowed, too big):
+        // the photo failing to shrink on the phone, timeouts and server errors are ours to see.
+        const expected = err instanceof ApiError && (err.kind === "offline" || err.kind === "client" || err.kind === "forbidden");
+        if (!expected) reportError(err, `upload.${purpose}`);
         patch(key, { status: "failed", error: errorMessage(err) });
       }
     },
