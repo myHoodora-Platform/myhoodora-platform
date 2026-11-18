@@ -125,6 +125,7 @@ Agreed 17 Nov: these go with the next release, not the Hood activation PR.
 
 ## Known issues left open
 
+- `test/security.e2e-spec.ts` now and then drops a connection ("socket hang up" / ECONNRESET in the web-session-cookie tests), roughly 1 run in 3–6 even on its own; on a busy machine the rest of that suite then times out. Seen 17 Nov; not from the Hood activation work (it touches neither session cookies nor the outage simulation). Run the suite on its own to confirm a failure there before suspecting a change.
 - The page gate remembers "live" per server instance for 60 seconds.
 - Revocations made directly in Firebase (password reset, disabling a user in the console) take up to 30 seconds to reach the API, in exchange for not calling Google on every request. "Sign out everywhere" and admin suspensions are immediate (`authentication.md`).
 - The Google OAuth client is missing `http://localhost:3000` (and the production origin) under Authorised JavaScript origins, so Google One Tap fails with `origin_mismatch` until they are added.
