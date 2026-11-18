@@ -178,12 +178,17 @@ describe("Hood Team: content bank, official posts, pins, activation and daily pr
     // Only Lekki: the other three are in their activation plan today.
     expect(scheduled).toBe(1);
     expect(await service().dailyTick(new Date(nine.getTime() + 3600_000))).toBe(0);
+    // The job is due at 09:00 Lagos time today; the queue runs on the real clock, so bring it forward
+    // (otherwise this fails whenever the suite runs before 09:00 in Lagos, as CI did at 04:00).
+    const daily = (await t.model<{ _id: unknown }>("ScheduledPost").find({ source: "daily" }).lean().exec()).map((r) => String(r._id));
+    await t.model("ScheduledPost").updateMany({ _id: { $in: daily } }, { $set: { runAt: new Date() } });
+    await t.model("Job").updateMany({ "payload.id": { $in: daily } }, { $set: { runAt: new Date() } });
     await drain();
     const rows = (await t.http.get(`/api/admin/hood-content/scheduled?source=daily`).set(admin()).expect(200)).body as Scheduled[];
     expect(rows).toEqual([expect.objectContaining({ hoodId: lekki, status: "published" })]);
     // A chosen day overrides the rotation.
-    const daily = (await t.http.put(`/api/admin/hood-content/daily/calendar/${today}`).set(admin()).send({ code: "D31" }).expect(200)).body;
-    expect(daily.upcoming[0]).toMatchObject({ date: today, code: "D31", chosen: true });
+    const calendar = (await t.http.put(`/api/admin/hood-content/daily/calendar/${today}`).set(admin()).send({ code: "D31" }).expect(200)).body;
+    expect(calendar.upcoming[0]).toMatchObject({ date: today, code: "D31", chosen: true });
   });
 
   it("starters: filled in for your Hood, 'Introduce yourself' first; none before you join", async () => {
