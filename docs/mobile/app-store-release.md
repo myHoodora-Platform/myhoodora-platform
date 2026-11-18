@@ -132,6 +132,7 @@ App Information:
 ## 9. Review information, availability and release (you)
 
 - [ ] **App Review Information** → Sign-in required: **yes**. Username `myhoodora+play-review@gmail.com` and its password (the Play reviewer account; it's linked to the demo Hoods). Make sure it can sign in on the day.
+  - Demo content refreshed in the **production** database (`myhoodora_production`) on 18 Nov 2026. The 14 Nov move had copied accounts only, so the demo Hoods had no posts. It now has 19 posts (with the Hood Team's pinned welcome), 6 listings, 3 groups, 4 chats and 5 notifications for the reviewer. Re-run `apps/mobile/store/src/review-seed.js` with `REVIEWER_EMAIL` if a review drags past early December (the welcome stops being pinned on 2 Dec, and sanitation day is 28 Nov). The undo command is in `store-listing.md`.
 - [ ] **Notes for the reviewer** (paste and adjust):
 
   ```text
