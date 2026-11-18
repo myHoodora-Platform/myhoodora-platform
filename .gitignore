@@ -82,3 +82,6 @@ playwright-report-seo/
 # Google Cloud service-account keys (e.g. the Play upload key): never commit
 myhoodora-e9ba5-*.json
 *-service-account*.json
+
+# Personal-data exports (Firebase user lists etc.): never commit
+exports/
