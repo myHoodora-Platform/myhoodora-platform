@@ -120,8 +120,12 @@ Agreed 17 Nov: these go with the next release, not the Hood activation PR.
 | Followed Hoods: post, vote in polls and RSVP there (not only react and reply) | ⬜ next release (asked 17 Nov) | API: let `POST /posts` take a followed Hood's `neighborhoodId`, polls and RSVPs load by own + followed Hoods; web and app composers get a "Post to" choice; update the hood-requests e2e |
 | iPhone check of everything above, and the app in light mode | ⬜ next release | So far one Android phone (Redmi) and phone-width web |
 | Apple sign-in on the web | ⬜ next release | Needs an Apple Service ID and the Apple provider in Firebase, then `APPLE_SIGN_IN_ENABLED=true` |
-| App links from WhatsApp straight into the app | ⬜ next release | Config is ready; works from the next store build (bump `version`) |
-| `NEXT_PUBLIC_IOS_APP_ID` and the iOS store link | ⬜ next release | Once the iPhone app is live |
+| App links from WhatsApp straight into the app | 🟡 building (18 Nov) | Version 1.0.1 (PR #91): Android version code 4 to the internal track; iOS rebuilt after enabling Associated Domains on the App ID (the 16 Nov profile didn't have it) |
+| `NEXT_PUBLIC_IOS_APP_ID` and the iOS store link | ⬜ next release | Once the iPhone app is live (Apple ID `6835366892`) |
+| Smaller EAS build upload (`.easignore`) | ⬜ todo (18 Nov) | Every build uploads the whole repo, 272 MB: web, API, docs, and 72 MB of store screenshots in `apps/mobile/store`. Add an `.easignore` that leaves out what the app build doesn't need, then check the archive size and that a build still passes. Note that `.easignore` replaces `.gitignore` for EAS, so copy those rules in too |
+| App links on the bare domain | ⬜ todo (18 Nov) | `myhoodora.com/.well-known/*` redirects (308) to `www`, and Apple and Android don't follow redirects for these files, so `myhoodora.com/p/...` links open in the browser. `www` links work. Serve `/.well-known/*` on the bare domain without the redirect (Vercel domain settings) |
+| App Store listing and review | ⬜ in progress (18 Nov) | Build 1.0.1 to TestFlight, then test on a real iPhone. In App Store Connect: screenshots (`apps/mobile/store`), description, keywords, support and privacy links, the App Privacy answers. A **reviewer account that is already verified with a Hood** (reviewers can't confirm a Lagos address). Then submit for review |
+| Two app versions in the wild | ⬜ ongoing | Updates follow the app version. Until most people have 1.0.1, a quick fix is published twice: from a 1.0.0 checkout and from 1.0.1 |
 
 ## Known issues left open
 
