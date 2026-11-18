@@ -100,6 +100,8 @@ export interface PublicProfile {
   bio?: string;
   verified: boolean;
   kind?: "neighbour" | "organisation" | "team";
+  /** Hood Builder mascot and streak ring (contract §42); already empty when badges are switched off. */
+  badge?: { builder?: true; tier?: "bronze" | "silver" | "gold"; streak?: number };
 }
 
 /** Who wrote a post or comment, as neighbours see them (UsersService.authorCards). */
@@ -608,6 +610,7 @@ export class UsersService implements OnModuleInit {
       bio: target.bio,
       verified: target.verificationStatus === "verified",
       kind: "neighbour",
+      ...(target.engagement?.badge && { badge: target.engagement.badge }),
     };
   }
 

@@ -239,7 +239,8 @@ interface PublicProfile {
   neighbourSince?;        // ISO date verified in this neighbourhood
   bio?;
   verified: boolean;
-  kind?: "neighbour" | "organisation";  // e.g. residents' association, gets a badge
+  kind?: "neighbour" | "organisation" | "team";  // organisation: e.g. residents' association; team: the Hood Team (§37)
+  badge?: AvatarBadge;    // Hood Builder mascot + streak ring (§42); absent when badges are switched off
 }
 ```
 

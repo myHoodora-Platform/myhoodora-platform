@@ -63,10 +63,15 @@ describe("Streaks, Hood Builders and badges", () => {
     expect((await me("chidi")).challenge).toMatchObject({ activeDays: 2, builder: false });
   });
 
-  it("shows the badge on their posts and replies in the feed", async () => {
+  it("shows the badge on their posts and replies in the feed, and on their profile", async () => {
     await t.post("ada", { message: "Hello from a builder" });
     const feed = (await t.http.get(`/api/posts/neighborhood/${hood}`).set(t.auth("n10", { emailVerified: true })).expect(200)).body as { author: { uid: string; badge?: Me["badge"] } }[];
     expect(feed.find((p) => p.author.uid === "ada")?.author.badge).toEqual({ builder: true, tier: "bronze", streak: 6 });
+    // Their own profile and a neighbour's view of it.
+    for (const viewer of ["ada", "n10"]) {
+      expect((await t.http.get("/api/users/ada/public").set(t.auth(viewer, { emailVerified: true })).expect(200)).body.badge).toEqual({ builder: true, tier: "bronze", streak: 6 });
+    }
+    expect((await t.http.get("/api/users/n10/public").set(t.auth("ada", { emailVerified: true })).expect(200)).body.badge).toBeUndefined();
   });
 
   it("staff grant and take away the badge (audited); a taken one doesn't come back by itself", async () => {
@@ -95,6 +100,7 @@ describe("Streaks, Hood Builders and badges", () => {
     expect((await me("bisi")).badge).toBeNull();
     const card = (await t.http.get(`/api/posts/neighborhood/${hood}`).set(t.auth("n10", { emailVerified: true })).expect(200)).body as { author: { badge?: unknown } }[];
     expect(card.every((p) => !p.author.badge)).toBe(true);
+    expect((await t.http.get("/api/users/bisi/public").set(t.auth("n10", { emailVerified: true })).expect(200)).body.badge).toBeUndefined();
     await t.http.patch("/api/admin/engagement").set(admin()).send({ badgesOn: true, challengeEndsAt: null }).expect(200);
   });
 

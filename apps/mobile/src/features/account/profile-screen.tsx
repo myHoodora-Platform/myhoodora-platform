@@ -1,15 +1,17 @@
+import { badgeLabel } from "@myhoodora/api-contract/engagement";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "@/core/navigation/use-router";
-import { Bookmark, Calendar, Camera, Mail, MapPin, Settings, ShieldCheck } from "lucide-react-native";
+import { Bookmark, Calendar, Camera, ChevronRight, Mail, MapPin, Settings, ShieldCheck } from "lucide-react-native";
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useAuth, useSignedInUser } from "@/core/auth/auth-provider";
 import { hasHood } from "@/core/auth/session-phase";
+import { useMyBadge } from "@/features/invites/use-my-badge";
 import { ListingCard } from "@/features/listings/listing-card";
 import { listBySeller, listingKeys } from "@/features/listings/listings-api";
 import { tint, useTheme } from "@/shared/theme/theme";
 import { AppScreen, useScreenInsets } from "@/shared/ui/app-screen";
-import { Avatar } from "@/shared/ui/avatar";
+import { Avatar, ParticipationBadge } from "@/shared/ui/avatar";
 import { Button } from "@/shared/ui/button";
 import { IconButton } from "@/shared/ui/icon-button";
 import { Segmented, SettingsGroup, SettingsRow } from "@/shared/ui/settings";
@@ -78,6 +80,9 @@ function ProfileContent() {
   const hood = pub.data?.neighborhoodName;
   const since = monthYear(pub.data?.neighbourSince);
   const edit = () => router.push("/settings/profile");
+  // Your badge as neighbours see it on your posts (the same query as the menu and settings).
+  const badge = useMyBadge(hasHood(profile));
+  const badgeText = badgeLabel(badge);
 
   return (
     <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 32 }]} scrollIndicatorInsets={{ top: insets.top }}>
@@ -89,6 +94,12 @@ function ProfileContent() {
           <View style={[styles.camera, { backgroundColor: t.colors.primary, borderColor: t.colors.background }]}>
             <Camera size={16} color={t.colors.primaryForeground} />
           </View>
+          {/* The camera has the bottom-right corner; the badge sits top-left. */}
+          {badge ? (
+            <View style={[styles.badge, { backgroundColor: t.colors.background }]}>
+              <ParticipationBadge badge={badge} size={28} />
+            </View>
+          ) : null}
         </Pressable>
         <View style={styles.nameRow}>
           <Text variant="title" numberOfLines={1} accessibilityRole="header">
@@ -99,6 +110,14 @@ function ProfileContent() {
         <Text tone="muted" style={styles.centre}>
           {[hood, verified ? "Verified neighbour" : "Not verified yet"].filter(Boolean).join(" · ")}
         </Text>
+        {badge && badgeText ? (
+          <Pressable onPress={() => router.push("/invite")} accessibilityRole="button" accessibilityLabel={`${badgeText}. Open Invite neighbours`} hitSlop={8} style={({ pressed }) => [styles.badgeRow, pressed && { opacity: 0.6 }]}>
+            <Text variant="label" tone="primary">
+              {badgeText}
+            </Text>
+            <ChevronRight size={16} color={t.colors.primary} />
+          </Pressable>
+        ) : null}
         {profile?.bio ? (
           <Text style={[styles.centre, styles.bio]}>{profile.bio}</Text>
         ) : (
@@ -150,6 +169,9 @@ const styles = StyleSheet.create({
   hero: { alignItems: "center", gap: 8 },
   ring: { borderRadius: 60, borderWidth: 3, padding: 3 },
   camera: { position: "absolute", right: 0, bottom: 2, width: 34, height: 34, borderRadius: 17, borderWidth: 3, alignItems: "center", justifyContent: "center" },
+  // Same size and background-coloured gap as the camera button.
+  badge: { position: "absolute", left: 0, top: 2, padding: 3, borderRadius: 17 },
+  badgeRow: { flexDirection: "row", alignItems: "center", gap: 2 },
   nameRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6, maxWidth: "90%" },
   centre: { textAlign: "center" },
   bio: { paddingHorizontal: 12 },
