@@ -11,6 +11,10 @@ import { OfflineBanner, ProblemState } from "@/components/shared/connection-stat
 import { ComposerProvider } from "@/features/feed/composer-context";
 import { hasSkippedOnboarding } from "@/features/onboarding/draft";
 import { FirstRunTour } from "@/features/tour/first-run-tour";
+import { SeasonLayer } from "@/features/season/season-layer";
+import { useSeason } from "@/features/season/use-season";
+import { cn } from "@myhoodora/ui/utils";
+import { BetterInAppSheet } from "@/features/app-prompts/better-in-app-sheet";
 import { prefetchUnreadMessages } from "@/features/chat/use-unread-messages";
 import { prefetchNotifications } from "@/features/notifications/use-notifications";
 import { ROUTES } from "@/lib/routes";
@@ -33,6 +37,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const handleLogout = useLogout();
   const [loadingTooLong, setLoadingTooLong] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  // Festive lights hang from the header's foot: give the page room so they never sit on its first card.
+  const { season, effects } = useSeason();
+  const lightsOn = Boolean(season && effects && season.effect !== "none");
   // Full-height screens (chat) size themselves with --banners-h, since the
   // urgent/verification banners come and go. A ref callback (not an effect)
   // so it attaches when the banners mount, after the loading skeleton.
@@ -178,13 +185,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
           <div className="mx-auto flex max-w-[1280px] gap-6 px-4 lg:px-6">
             <AppSidebar />
-            <main id="main" className="min-w-0 flex-1 pt-4 pb-24 sm:pt-6 lg:pb-10">
+            <main id="main" className={cn("min-w-0 flex-1 pb-24 lg:pb-10", lightsOn ? "pt-8 sm:pt-9" : "pt-4 sm:pt-6")}>
               {children}
             </main>
           </div>
           <MobileTabBar />
           <OnboardingGatingModal />
           <FirstRunTour />
+          <SeasonLayer />
+          <BetterInAppSheet />
         </div>
       </ComposerProvider>
     </TooltipProvider>

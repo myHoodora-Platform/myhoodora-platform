@@ -3,6 +3,8 @@ import { Outfit, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { RealtimeProvider } from "@/lib/realtime/realtime-provider";
+import { InviteBootstrap } from "@/features/invites/invite-bootstrap";
+import { AppBanner } from "@/features/app-prompts/app-banner";
 import { AppToaster } from "@/components/shared/app-toaster";
 import { ThemeSync } from "@/components/shared/theme-sync";
 import { SITE_URL } from "@/lib/site";
@@ -28,6 +30,8 @@ export const metadata: Metadata = {
   // Each page is its own canonical URL (no query strings, no duplicate hosts).
   alternates: { canonical: "./" },
   title: "myHoodora",
+  // iPhone Safari's own "Open / Get" banner (plan WP-H), once the iOS app is in the App Store.
+  ...(process.env.NEXT_PUBLIC_IOS_APP_ID && { itunes: { appId: process.env.NEXT_PUBLIC_IOS_APP_ID } }),
   description:
     "myHoodora connects neighbours to share updates, stay informed, and support local businesses in their community.",
   icons: {
@@ -86,7 +90,9 @@ export default function RootLayout({
         <ThemeSync />
         <AuthProvider>
           <RealtimeProvider>
+            <AppBanner />
             {children}
+            <InviteBootstrap />
             <AppToaster />
           </RealtimeProvider>
         </AuthProvider>

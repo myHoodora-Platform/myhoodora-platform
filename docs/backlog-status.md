@@ -88,11 +88,47 @@ _As of 2 October 2026. Each line was checked against the code or by running it; 
 | Web pages in place of the API | 🟡 watch | Seen 29 Oct: Cloudflare's "Just a moment…" check and Render's restart page reached the app. The app now says it can't reach myHoodora instead of showing the page, and reports each one to Sentry (warning "A web page instead of the API", tag `where:api-edge-page`, at most one per phone every 10 minutes) with the status, host, route, `server` and `cf-mitigated` headers and the `cf-ray` id. `cf_mitigated:challenge` is Cloudflare's bot check: if those keep coming, ask why API requests from the app are being challenged |
 | Connect Sentry in the Expo dashboard | ⏳ suggestion | Optional: shows Sentry errors next to builds in Expo. Not needed for reporting |
 
+## Hood activation and the Launch Challenge (from 17 November 2026)
+
+Plan: [product/hood-activation-plan.md](./product/hood-activation-plan.md). Content: [product/hood-content-bank.md](./product/hood-content-bank.md) (180 items).
+
+| Item | Status | Notes |
+| --- | --- | --- |
+| Hood Team account, official posts, pins, scheduling, content bank, activation plan, daily prompt (API) | ✅ built | Contract §37. `test/hood-content.e2e-spec.ts` (120 neighbours, 120 posts, 4 Hoods) |
+| Admin → Hood content (web) | ✅ built | Activation · Post as Hood Team · Content bank (import, city versions) · Daily prompt · Scheduled |
+| "Official · Hood Team", "Staff" and "Pinned" labels (web + app) | ✅ built | App change ships by OTA |
+| Ops: import the bank, fill Lagos/Ibadan versions of info items, apply activation, switch daily prompt on | ⬜ to do | Info items with `[FILL: …]` post only where a checked city version exists |
+| Starter chips in the composer (web + app) | ✅ built | From `GET /hood-content/starters`, shown in quiet feeds |
+| Post audiences, public link previews, "See more on myHoodora" card | ✅ built | Contract §38. "Open in the app" on Android web; nearby fill done 17 Nov |
+| Invite codes + referral paths (WP-E): personal code/link, `ref` on every share, `/i/<code>` landing, sign-up code field, "Who invited you?", Invite page with Builder progress, admin leaderboard + CSV, void/reassign API, priority verification | ✅ API + web + app (17 Nov). Also done: QR poster, admin void/reassign/"It's fine", flagged devices, Play install referrer (OTA), app links (config ready). **Manual:** set `ANDROID_SHA256_CERT_FINGERPRINTS` (web) and `INVITE_HASH_SALT` (API); app links work from the next store build (bump `version`) |
+| Festive seasons (WP-D): admin Seasons page (Lagos-time dates, look, greeting, illustration + credit, preview), `season` in /app-config, web + app lights/sparkles/fireworks, greeting card with hatted mascot, New Year countdown, Festive effects switch | ✅ 17 Nov (Christmas 15–27 Dec, New Year 31 Dec 18:00 – 2 Jan pre-made) |
+| Streaks, Hood Builder badge, launch challenge (WP-C): counted from posts/replies/votes/RSVPs since 17 Nov, one free day a week, mascot badge on avatars (web + app), progress on Invite, Admin → Launch challenge (rules, end/reopen, switches, builders CSV), grant/take on neighbour page | ✅ 17 Nov. Builder = **5** verified invites (raised from 3) or 5 active days; a challenge strip at the top of the feed (web + app) opens Invite. 18:00 streak reminder push (Settings → Streak reminders) and "Share my badge" (WhatsApp card + saved image) done 17 Nov |
+| Web app prompts (WP-H): mobile-web "Open in the app" banner, "Better in the app" sheet, desktop QR card, admin App prompts, shared-link sign-in sheet with one-tap Google, anonymous funnel counts | ✅ 17 Nov. **Manual:** set `NEXT_PUBLIC_IOS_APP_ID` and the iOS store link once the iPhone app is live |
+| Nearby fill + share note: quiet Hoods show Anyone/Nearby posts from next door, labelled; sharing a Hood-only post says outsiders see a preview | ✅ 17 Nov |
+| Moderator console (WP-B): Needs a reply (newcomers first, 2-hour target), reply as me or as Hood Team, reply-time stats, Hood assignments + My Hoods | ✅ 17 Nov (live: `console.changed` on the staff channel, plus a minute refresh) |
+| Dashboards (WP-F): Admin → Activation (every Hood red/amber/green with what it still needs, Hood Team share), challenge weekly invite sign-ups, funnel, Builders, keep/push/end advice | ✅ 17 Nov |
+| Photo uploads from the app (iOS + Android) | ✅ fixed 17 Nov | Expo 57's global fetch can't send React Native file parts, so every upload failed on the phone ("can't reach myHoodora"). Uploads now use XMLHttpRequest; the API retries a Cloudinary timeout once and answers 503, not "try a different file". Verified on a Redmi (1 and 5 photos). **Ships by OTA** |
+| UI review on a real phone (Redmi) and at phone width (web) | ✅ 17 Nov | Lights under the header, ribbon not red outline on the greeting, invite-code spacing and font, progress tracks, "Anyone" chip label, own badge on Menu/Settings, composer prompt, sign-in sheet focus. Not yet: iPhone, app light mode |
+| Flaky end-to-end suites (`upload-limits`, `invites`) under the full parallel run | ✅ fixed 17 Nov | Each Jest worker gets its own upload temp folder (`UPLOAD_TMP_DIR`); see the commit for the invites crowd fix |
+
+## Next release (after PR #90)
+
+Agreed 17 Nov: these go with the next release, not the Hood activation PR.
+
+| Item | Status | Notes |
+| --- | --- | --- |
+| Followed Hoods: post, vote in polls and RSVP there (not only react and reply) | ⬜ next release (asked 17 Nov) | API: let `POST /posts` take a followed Hood's `neighborhoodId`, polls and RSVPs load by own + followed Hoods; web and app composers get a "Post to" choice; update the hood-requests e2e |
+| iPhone check of everything above, and the app in light mode | ⬜ next release | So far one Android phone (Redmi) and phone-width web |
+| Apple sign-in on the web | ⬜ next release | Needs an Apple Service ID and the Apple provider in Firebase, then `APPLE_SIGN_IN_ENABLED=true` |
+| App links from WhatsApp straight into the app | ⬜ next release | Config is ready; works from the next store build (bump `version`) |
+| `NEXT_PUBLIC_IOS_APP_ID` and the iOS store link | ⬜ next release | Once the iPhone app is live |
+
 ## Known issues left open
 
+- `test/security.e2e-spec.ts` now and then drops a connection ("socket hang up" / ECONNRESET in the web-session-cookie tests), roughly 1 run in 3–6 even on its own; on a busy machine the rest of that suite then times out. Seen 17 Nov; not from the Hood activation work (it touches neither session cookies nor the outage simulation). Run the suite on its own to confirm a failure there before suspecting a change.
 - The page gate remembers "live" per server instance for 60 seconds.
 - Revocations made directly in Firebase (password reset, disabling a user in the console) take up to 30 seconds to reach the API, in exchange for not calling Google on every request. "Sign out everywhere" and admin suspensions are immediate (`authentication.md`).
 - The Google OAuth client is missing `http://localhost:3000` (and the production origin) under Authorised JavaScript origins, so Google One Tap fails with `origin_mismatch` until they are added.
 - `@nestjs/swagger` 11 is installed against NestJS 10 (a peer-dependency warning on install; it works).
 - `turbo build` prints "IO error: No such file or directory" after a successful build (a cache-output warning; the build is fine).
-- No Safari, Firefox or real-device testing.
+- No Safari or Firefox testing; real-device testing so far is one Android phone (Redmi, Android 16, 17 Nov), no iPhone yet.

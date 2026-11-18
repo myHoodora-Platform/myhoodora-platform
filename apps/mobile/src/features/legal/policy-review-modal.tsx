@@ -14,7 +14,7 @@ import { useTheme } from "@/shared/theme/theme";
 import { Button } from "@/shared/ui/button";
 import { ErrorState } from "@/shared/ui/states";
 import { Text } from "@/shared/ui/text";
-import { isSamePage, webPageUrl } from "../web/web-urls";
+import { isSamePage, loadInApp, webPageUrl } from "../web/web-urls";
 
 const STEPS: { doc: LegalDocument; path: string }[] = [
   { doc: "terms", path: "/terms" },
@@ -199,11 +199,9 @@ function Sheet({ onClose, onAgree, busy = false }: Omit<Props, "visible">) {
             onLoadProgress={(e) => setProgress(e.nativeEvent.progress)}
             onError={() => setFailed(true)}
             // Links inside the text (another policy, a mail address) open outside, so this stays on the page being read.
-            onShouldStartLoadWithRequest={(req) => {
-              if (isSamePage(req.url, site, path)) return true;
-              void Linking.openURL(req.url).catch(() => undefined);
-              return false;
-            }}
+            onShouldStartLoadWithRequest={(req) =>
+              loadInApp(req, (u) => isSamePage(u, site, path), (u) => void Linking.openURL(u).catch(() => undefined))
+            }
             setSupportMultipleWindows={false}
             sharedCookiesEnabled={false}
           />

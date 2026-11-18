@@ -1,6 +1,7 @@
 import * as AppleAuthentication from "expo-apple-authentication";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Platform, StyleSheet, View } from "react-native";
+import { reportError } from "@/core/monitoring/monitoring";
 import { MIN_TOUCH, useTheme } from "@/shared/theme/theme";
 import { signInWithApple } from "./auth-api";
 import { signInFailure } from "./form-errors";
@@ -36,6 +37,8 @@ export function AppleButton({ onError, signUp = false }: { onError: (message: st
       // On success the root layout moves on when Firebase reports the session; closing Apple's sheet is no error.
       await signInWithApple();
     } catch (err) {
+      // Apple's sheet and Firebase fail out of sight ("Sign-Up Not Completed"): the code and message go to Sentry.
+      reportError(err, "auth.apple");
       onError(signInFailure(err));
     } finally {
       setBusy(false);

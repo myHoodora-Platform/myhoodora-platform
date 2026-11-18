@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Gavel, HelpCircle, LogOut, Settings, Shield, User } from "lucide-react";
+import { ChevronDown, Gavel, HelpCircle, LogOut, Settings, Shield, User, UserPlus } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -65,6 +65,11 @@ export function UserMenu() {
         <DropdownMenuItem asChild>
           <Link href={ROUTES.profile(user.uid)}>
             <User className="size-4" /> View profile
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href={ROUTES.invite}>
+            <UserPlus className="size-4" /> Invite neighbours
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>

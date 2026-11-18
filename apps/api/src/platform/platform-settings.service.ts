@@ -3,7 +3,7 @@ import { MAX_BLOCKED_TERM_LENGTH, MAX_BLOCKED_TERMS, setAdminBlockedTerms } from
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import { DEFAULT_APP_UPDATES_AUTO, type AppUpdatesAuto } from "./app-version-rules";
-import { ALERT_CATEGORIES, APP_PLATFORMS, DEFAULT_ALERT_WINDOWS, DEFAULT_ANALYTICS_REASK_DAYS, DEFAULT_APP_UPDATES, DEFAULT_HOODORA_AI, DEFAULT_REPORT_REASONS, PlatformSettings, PlatformSettingsDocument, type AlertCategory, type AppPlatform, type AppStoreStatus, type AppUpdates, type HoodoraAiLink, type ReportReasonSetting } from "./platform-settings.schema";
+import { ALERT_CATEGORIES, APP_PLATFORMS, DEFAULT_ALERT_WINDOWS, DEFAULT_ANALYTICS_REASK_DAYS, DEFAULT_APP_PROMPTS, type AppPrompts, DEFAULT_APP_UPDATES, DEFAULT_HOODORA_AI, DEFAULT_REPORT_REASONS, PlatformSettings, PlatformSettingsDocument, type AlertCategory, type AppPlatform, type AppStoreStatus, type AppUpdates, type HoodoraAiLink, type ReportReasonSetting } from "./platform-settings.schema";
 
 export interface SettingsView {
   alertWindows: Record<AlertCategory, number>;
@@ -16,6 +16,7 @@ export interface SettingsView {
   appStoreStatus: Record<AppPlatform, AppStoreStatus>;
   /** Admins' extra blocked words (the built-in ones aren't listed here). */
   blockedTerms: string[];
+  appPrompts: AppPrompts;
 }
 
 /** Trimmed, lower case, single spaces, no duplicates, within the limits. */
@@ -70,13 +71,14 @@ export class PlatformSettingsService implements OnModuleInit, OnModuleDestroy {
       appUpdatesAuto: { ...DEFAULT_APP_UPDATES_AUTO, ...(doc?.appUpdatesAuto ?? {}) },
       appStoreStatus: { android: { ...NO_CHECK, ...(doc?.appStoreStatus?.android ?? {}) }, ios: { ...NO_CHECK, ...(doc?.appStoreStatus?.ios ?? {}) } },
       blockedTerms: doc?.blockedTerms ?? [],
+      appPrompts: { ...DEFAULT_APP_PROMPTS, ...(doc?.appPrompts ?? {}) },
     };
     setAdminBlockedTerms(value.blockedTerms);
     this.cache = { at: Date.now(), value };
     return value;
   }
 
-  async update(patch: { alertWindows?: Partial<Record<AlertCategory, number>>; reportReasons?: Pick<ReportReasonSetting, "id" | "severity" | "staffOnly">[]; analyticsReaskDays?: number; hoodoraAi?: HoodoraAiLink; appUpdates?: Record<AppPlatform, { latest: string; minimum: string; storeUrl: string }>; appUpdatesAuto?: AppUpdatesAuto; blockedTerms?: string[] }): Promise<SettingsView> {
+  async update(patch: { alertWindows?: Partial<Record<AlertCategory, number>>; reportReasons?: Pick<ReportReasonSetting, "id" | "severity" | "staffOnly">[]; analyticsReaskDays?: number; hoodoraAi?: HoodoraAiLink; appUpdates?: Record<AppPlatform, { latest: string; minimum: string; storeUrl: string }>; appUpdatesAuto?: AppUpdatesAuto; blockedTerms?: string[]; appPrompts?: AppPrompts }): Promise<SettingsView> {
     const current = await this.get();
     const alertWindows = { ...current.alertWindows };
     for (const k of ALERT_CATEGORIES) {
@@ -101,7 +103,8 @@ export class PlatformSettingsService implements OnModuleInit, OnModuleDestroy {
       : current.appUpdates;
     const blockedTerms = patch.blockedTerms ? normaliseBlockedTerms(patch.blockedTerms) : current.blockedTerms;
     const appUpdatesAuto = patch.appUpdatesAuto ? { fromStores: patch.appUpdatesAuto.fromStores, requireAfterDays: patch.appUpdatesAuto.requireAfterDays } : current.appUpdatesAuto;
-    await this.settings.updateOne({ key: "platform" }, { $set: { alertWindows, reportReasons, analyticsReaskDays, hoodoraAi, appUpdates, appUpdatesAuto, blockedTerms } }, { upsert: true }).exec();
+    const appPrompts = patch.appPrompts ? { banner: patch.appPrompts.banner, sheet: patch.appPrompts.sheet, sheetEveryDays: patch.appPrompts.sheetEveryDays } : current.appPrompts;
+    await this.settings.updateOne({ key: "platform" }, { $set: { alertWindows, reportReasons, analyticsReaskDays, hoodoraAi, appUpdates, appUpdatesAuto, blockedTerms, appPrompts } }, { upsert: true }).exec();
     this.cache = null;
     return this.get();
   }

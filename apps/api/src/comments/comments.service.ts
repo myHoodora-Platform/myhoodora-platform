@@ -18,7 +18,7 @@ export interface CommentView {
   _id: string;
   postId: string;
   authorUid: string;
-  author: { uid: string; displayName: string; photoURL?: string };
+  author: { uid: string; displayName: string; photoURL?: string; kind?: "team"; staff?: boolean };
   content: string;
   createdAt: string;
   likes: string[];
@@ -108,7 +108,7 @@ export class CommentsService implements OnModuleInit {
    * comments were stored and never shown.)
    */
   async list(viewer: Viewer, postId: string, q: ThreadQuery = {}): Promise<CommentView[]> {
-    // Reading a thread is open to secondary Hoods too; writing in it isn't (create uses loadVisible).
+    // Reading a thread: anyone who may read the post in full (followed Hoods, its audience).
     await this.posts.loadReadable(viewer, postId);
     if (q.thread) return this.listThread(viewer, postId, q);
     const hidden = await this.users.hiddenAuthorsFor(viewer.uid);
@@ -166,7 +166,8 @@ export class CommentsService implements OnModuleInit {
     const earlier = clientId ? await this.findByClientId(viewer.uid, clientId) : null;
     if (earlier) return (await this.toViews([earlier], viewer.uid))[0]!;
 
-    const post = await this.posts.loadVisible(viewer, postId);
+    // Its own Hood, or a verified neighbour in the post's audience (Anyone, Nearby): domain/visibility.ts.
+    const post = await this.posts.loadForAudience(viewer, postId);
     if (post.commentsDisabled) throw new ForbiddenException("Comments are turned off for this post.");
     const text = content.trim();
     if (!text) throw new BadRequestException("Write a comment first.");
@@ -216,7 +217,7 @@ export class CommentsService implements OnModuleInit {
   async setLiked(viewer: Viewer, id: string, liked: boolean): Promise<{ likeCount: number; liked: boolean }> {
     const c = Types.ObjectId.isValid(id) ? await this.comments.findOne({ _id: id, deletedAt: null, removedAt: null }).lean<Row>().exec() : null;
     if (!c) throw new NotFoundException("Comment not found.");
-    await this.posts.loadVisible(viewer, c.postId);
+    await this.posts.loadForAudience(viewer, c.postId);
     const changed = await withTransaction(this.connection, async (session) => {
       if (liked) {
         const res = await this.likes.updateOne({ commentId: id, uid: viewer.uid }, { $setOnInsert: { commentId: id, uid: viewer.uid } }, { upsert: true, session }).exec();
@@ -256,7 +257,7 @@ export class CommentsService implements OnModuleInit {
   async delete(viewer: Viewer, id: string): Promise<void> {
     const c = Types.ObjectId.isValid(id) ? await this.comments.findById(id).exec() : null;
     if (!c || c.deletedAt) throw new NotFoundException("Comment not found.");
-    const post = await this.posts.loadVisible(viewer, c.postId);
+    const post = await this.posts.loadForAudience(viewer, c.postId);
     if (c.authorUid !== viewer.uid && !viewer.capabilities.includes("moderation.act")) throw new ForbiddenException("You can only delete your own comments.");
     await withTransaction(this.connection, async (session) => {
       c.deletedAt = new Date();
@@ -302,7 +303,20 @@ export class CommentsService implements OnModuleInit {
   /** Live update for the post's thread, and its comment count on feed cards. */
   private announce(post: { _id: unknown; neighborhoodId?: string | null }, type: "comment.created" | "comment.deleted", id: string): void {
     this.realtime.toHood(post.neighborhoodId, type, { id, postId: String(post._id) });
+    // A first reply takes a post off the moderators' "Needs a reply" list (a deleted one may put it back).
+    this.realtime.toStaffCoalesced("console.changed", "needs-reply");
     this.posts.changed(post);
+  }
+
+  /** The first top-level replies, for the public preview of a shared post (initials are applied by the caller). */
+  async firstReplies(postId: string, limit = 2): Promise<{ authorUid: string; content: string; createdAt: Date }[]> {
+    return this.comments
+      .find({ postId, parentId: null, deletedAt: null, removedAt: null })
+      .sort({ createdAt: 1 })
+      .limit(limit)
+      .select({ authorUid: 1, content: 1, createdAt: 1 })
+      .lean<{ authorUid: string; content: string; createdAt: Date }[]>()
+      .exec();
   }
 
   /** For admin post detail (includes removed). */
@@ -324,7 +338,7 @@ export class CommentsService implements OnModuleInit {
         _id: String(r._id),
         postId: r.postId,
         authorUid: gone ? "" : r.authorUid,
-        author: gone ? { uid: "", displayName: "" } : { uid: r.authorUid, displayName: a?.displayName ?? "Neighbour", photoURL: a?.photoURL },
+        author: gone ? { uid: "", displayName: "" } : { uid: r.authorUid, displayName: a?.displayName ?? "Neighbour", photoURL: a?.photoURL, ...(a?.kind && { kind: a.kind }), ...(a?.staff && { staff: true }), ...(a?.badge && { badge: a.badge }) },
         content: gone ? "" : r.content,
         createdAt: (r.createdAt ?? new Date()).toISOString(),
         likes: [],

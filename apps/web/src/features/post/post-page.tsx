@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { FileQuestion } from "lucide-react";
+import { FileQuestion, Lock } from "lucide-react";
 import { Button } from "@myhoodora/ui/button";
 import { BackLink } from "@/components/shared/back-link";
 import { EmptyState, ErrorState } from "@/components/shared/states";
@@ -32,11 +32,12 @@ export function PostPage({ postId }: { postId: string }) {
   const post = fromFeed ?? fetched;
 
   useEffect(() => {
-    if (fromFeed || !user || !profile?.neighborhoodId) return;
+    // Not only your own Hood: Anyone posts and teasers from elsewhere load too (contract §38).
+    if (fromFeed || !user) return;
     let cancelled = false;
     setStatus("loading");
     postsApi
-      .getPost(user, profile.neighborhoodId, postId)
+      .getPost(user, profile?.neighborhoodId ?? "", postId)
       .then((p) => {
         if (cancelled) return;
         setFetched(p);
@@ -88,9 +89,19 @@ export function PostPage({ postId }: { postId: string }) {
             </Button>
           }
         />
+      ) : post.access === "teaser" ? (
+        <TeaserNotice post={post} />
       ) : (
         <>
           <h1 className="sr-only">Post</h1>
+          {post.access === "read_only" && (
+            <p className="rounded-2xl border border-border bg-card px-4 py-3 text-sm">
+              <span className="font-semibold">Join your neighbourhood to react and reply.</span>{" "}
+              <Link href={ROUTES.onboarding} className="font-semibold text-primary hover:underline">
+                Finish joining
+              </Link>
+            </p>
+          )}
           <PostCard post={post} onReact={react} onDelete={feed.deletePost} variant="detail" />
           {post.meta.category === "event" && (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4">
@@ -117,5 +128,22 @@ export function PostPage({ postId }: { postId: string }) {
         </>
       )}
     </div>
+  );
+}
+
+/** A post from outside its audience: which Hood and what kind, never what a neighbour wrote (Nextdoor's "subject only"). */
+function TeaserNotice({ post }: { post: Post }) {
+  const hood = post.author?.neighborhoodName ?? "another neighbourhood";
+  return (
+    <EmptyState
+      icon={Lock}
+      title={`A post for ${hood} neighbours`}
+      description={`${post.author?.displayName ?? "A neighbour"} shared this with their neighbourhood${post.visibility === "nearby" ? " and the ones next to it" : ""}. Only they can read it.${post.commentCount ? ` ${post.commentCount} ${post.commentCount === 1 ? "neighbour has" : "neighbours have"} replied.` : ""}`}
+      action={
+        <Button size="sm" onClick={() => (window.location.href = ROUTES.newsFeed)}>
+          See what&apos;s happening near you
+        </Button>
+      }
+    />
   );
 }

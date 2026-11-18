@@ -62,6 +62,11 @@ const sentryPlugin: [string, Record<string, string>] = [
   },
 ];
 
+
+/** The website the app opens links for, and which of its pages (the same paths exist in the app; +native-intent maps the rest). */
+const APP_LINK_HOSTS = ["myhoodora.com", "www.myhoodora.com"];
+const APP_LINK_PATHS = ["/p/", "/i/", "/for-sale/", "/g/", "/profile/"];
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "myHoodora",
@@ -81,6 +86,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     supportsTablet: false,
     // Sign in with Apple (App Store guideline 4.8: offered next to Google sign-in). Adds the entitlement.
     usesAppleSignIn: true,
+    // Universal Links: myhoodora.com/p/…, /i/… etc. open here when the app is installed (plan WP-H). The web
+    // serves /.well-known/apple-app-site-association naming this app. Takes effect from the next store build.
+    associatedDomains: APP_LINK_HOSTS.map((h) => `applinks:${h}`),
     infoPlist: {
       NSLocationWhenInUseUsageDescription: "myHoodora uses your location once, to find the neighbourhood you live in.",
       // Only standard HTTPS encryption, so App Store Connect asks no export-compliance questions.
@@ -89,6 +97,16 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     package: "com.myhoodora.app",
+    // App Links: the same web paths open here when installed (verified by the web's /.well-known/assetlinks.json).
+    // Takes effect from the next store build.
+    intentFilters: [
+      {
+        action: "VIEW",
+        autoVerify: true,
+        data: APP_LINK_HOSTS.flatMap((host) => APP_LINK_PATHS.map((pathPrefix) => ({ scheme: "https", host, pathPrefix }))),
+        category: ["BROWSABLE", "DEFAULT"],
+      },
+    ],
     ...(androidGoogleServices && { googleServicesFile: androidGoogleServices }),
     adaptiveIcon: {
       backgroundColor: LIGHT_BG,

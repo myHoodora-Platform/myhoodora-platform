@@ -102,7 +102,8 @@ export class NotificationsService implements OnModuleInit {
     const uids = [...new Set(input.uids)].filter((u) => u && u !== input.actorUid);
     if (!uids.length) return 0;
     const recipients = await this.users
-      .find({ uid: { $in: uids }, deactivatedAt: null, ...(input.actorUid ? { blockedUids: { $ne: input.actorUid } } : {}) })
+      // The Hood Team is a system account: replies to its posts go to the moderators' list, not to it.
+      .find({ uid: { $in: uids }, deactivatedAt: null, accountKind: { $ne: "team" }, ...(input.actorUid ? { blockedUids: { $ne: input.actorUid } } : {}) })
       .select({ uid: 1, email: 1, displayName: 1, preferences: 1 })
       .lean<Pick<User, "uid" | "email" | "displayName" | "preferences">[]>()
       .exec();

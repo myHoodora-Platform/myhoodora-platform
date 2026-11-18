@@ -1,5 +1,5 @@
 import { errorMessage } from "@myhoodora/api-contract/errors";
-import type { Preferences } from "@myhoodora/api-contract/settings";
+import { channelPrefs, type Preferences } from "@myhoodora/api-contract/settings";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSignedInUser } from "@/core/auth/auth-provider";
 import { useToast } from "@/shared/ui/toast";
@@ -10,7 +10,7 @@ export function mergePrefs(current: Preferences, patch: DeepPartial<Preferences>
   const notifications = { ...current.notifications };
   for (const [k, v] of Object.entries(patch.notifications ?? {})) {
     const key = k as keyof Preferences["notifications"];
-    notifications[key] = { ...notifications[key], ...v };
+    notifications[key] = { ...channelPrefs(current, key), ...v };
   }
   return { notifications, digest: patch.digest ?? current.digest, privacy: { ...current.privacy, ...patch.privacy } };
 }

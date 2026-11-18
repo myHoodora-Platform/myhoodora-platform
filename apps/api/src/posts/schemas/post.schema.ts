@@ -98,6 +98,18 @@ export class FeedPost {
 
   @Prop() removedBy?: string;
 
+  /**
+   * Pinned to the top of the Hood's feed (first page) until this moment. Only the Hood Team pins
+   * (hood-content). Null or past: an ordinary post in date order.
+   */
+  @Prop({ type: Date, default: null }) pinnedUntil?: Date | null;
+
+  /** "team": posted by the official Hood Team account. Absent for neighbours' posts. */
+  @Prop({ type: String, enum: ["team"] }) source?: "team";
+
+  /** The content bank item it came from (Hood Team posts), for reports on which items work. */
+  @Prop() contentItemId?: string;
+
   /** The author has deactivated their account: hidden from neighbours until they come back (AccountLifecycle). */
   @Prop() authorDeactivated?: boolean;
 
@@ -118,6 +130,8 @@ PostSchema.index({ neighborhoodId: 1, category: 1, createdAt: -1 });
 PostSchema.index({ category: 1, eventDate: 1 });
 // "Is this stored file still used by a post?" (StorageService.sweepUnreferenced).
 PostSchema.index({ mediaUrls: 1 });
+// The pinned posts at the top of a Hood's feed.
+PostSchema.index({ neighborhoodId: 1, pinnedUntil: -1 }, { partialFilterExpression: { pinnedUntil: { $type: "date" } } });
 // One post per author per client-made id. Partial: posts without an id (older clients) are not constrained.
 PostSchema.index({ authorUid: 1, clientId: 1 }, { unique: true, partialFilterExpression: { clientId: { $type: "string" } } });
 

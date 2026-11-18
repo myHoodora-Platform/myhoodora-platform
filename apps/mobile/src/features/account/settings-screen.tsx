@@ -2,9 +2,9 @@ import { DEACTIVATION_REASONS, DELETION_GRACE_DAYS, type CloseMode, type Deactiv
 import { errorMessage } from "@myhoodora/api-contract/errors";
 import Constants from "expo-constants";
 import { useRouter } from "@/core/navigation/use-router";
-import { BellRing, BookOpen, FileText, HelpCircle, LayoutList, LifeBuoy, LogOut, Lock, MapPinned, MonitorSmartphone, PauseCircle, ShieldCheck, SlidersHorizontal, UserX, Scale, Compass } from "lucide-react-native";
+import { BellRing, BookOpen, Compass, FileText, HelpCircle, LayoutList, LifeBuoy, Lock, LogOut, MapPinned, MonitorSmartphone, PartyPopper, PauseCircle, Scale, ShieldCheck, SlidersHorizontal, UserX } from "lucide-react-native";
 import { useState } from "react";
-import {ScrollView, StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet, Switch, View } from "react-native";
 import { useAuth, useSignedInUser } from "@/core/auth/auth-provider";
 import { config } from "@/core/config/env";
 import { openWeb } from "@/shared/utils/open-web";
@@ -20,6 +20,7 @@ import { deactivate } from "./account-api";
 import { DiagnosticsGroup } from "./diagnostics-group";
 import { replayHomeTour } from "@/features/tour/home-tour";
 import { showDialog } from "@/shared/ui/dialog";
+import { useMyBadge } from "@/features/invites/use-my-badge";
 
 const PUSH_LABEL = { granted: "On", denied: "Off", undetermined: "Off", unsupported: "Not available" } as const;
 
@@ -38,8 +39,9 @@ function SettingsContent() {
   const user = useSignedInUser();
   const toast = useToast();
   const { profile, logout, logoutEverywhere } = useAuth();
+  const badge = useMyBadge(profile?.verificationStatus === "verified");
   const push = usePushSetting();
-  const { surface, setSurface, theme, setTheme } = useAppearance();
+  const { surface, setSurface, theme, setTheme, festive, setFestive } = useAppearance();
   const [leaving, setLeaving] = useState<CloseMode | null>(null);
   const web = (path: string) => void openWeb(path);
 
@@ -86,7 +88,7 @@ function SettingsContent() {
     <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 }]} scrollIndicatorInsets={{ top: insets.top }}>
       <SettingsGroup>
         <SettingsRow
-          leading={<Avatar name={profile?.displayName} photoURL={profile?.photoURL} size={52} />}
+          leading={<Avatar name={profile?.displayName} photoURL={profile?.photoURL} size={52} badge={badge} />}
           label={profile?.displayName ?? "Your profile"}
           description={profile?.email ?? user.email ?? undefined}
           onPress={() => router.push("/settings/profile")}
@@ -133,6 +135,13 @@ function SettingsContent() {
             Glass lets what you scroll show through, softly blurred.
           </Text>
         </View>
+        <SettingsRow
+          Icon={PartyPopper}
+          label="Festive effects"
+          description="Lights, sparkles and fireworks at Christmas and New Year. Off: just the greeting card."
+          right={<Switch value={festive} onValueChange={setFestive} accessibilityLabel="Festive effects" />}
+          onPress={() => setFestive(!festive)}
+        />
       </SettingsGroup>
 
       <SettingsGroup title="Neighbourhoods">

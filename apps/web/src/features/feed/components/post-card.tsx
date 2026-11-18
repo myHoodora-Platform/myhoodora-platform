@@ -1,10 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
+import { shareNote } from "@myhoodora/api-contract/invites";
 import Link from "next/link";
-import { BadgeCheck, CalendarDays, CheckCircle2, HandHeart, MapPin, MessageCircle, Share2 } from "lucide-react";
+import { CalendarDays, CheckCircle2, HandHeart, MapPin, MessageCircle, Pin, Share2 } from "lucide-react";
 import { cn } from "@myhoodora/ui/utils";
 import { PhotoGallery } from "@/components/shared/photo-gallery";
+import { AuthorBadge } from "@/components/shared/author-badge";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { useAuth } from "@/context/AuthContext";
 import { useViewer } from "@/hooks/use-neighbourhood";
@@ -76,6 +79,16 @@ export function PostCard({ post, onReact, onDelete, variant = "feed" }: PostCard
       )}
 
       <div className="space-y-3 px-4 pt-4 pb-3 sm:px-5 sm:pt-5">
+        {post.pinned && (
+          <p className="-mb-1 flex items-center gap-1 text-xs font-semibold text-primary">
+            <Pin className="size-3.5" aria-hidden /> Pinned
+          </p>
+        )}
+        {post.nearby && (
+          <p className="-mb-1 flex items-center gap-1 text-xs font-semibold text-primary">
+            <MapPin className="size-3.5" aria-hidden /> From {post.nearby.hoodName}, nearby
+          </p>
+        )}
         {/* Header */}
         <div className="flex items-start gap-3">
           <Link href={ROUTES.profile(post.authorUid)} className="shrink-0" tabIndex={-1} aria-hidden>
@@ -86,9 +99,7 @@ export function PostCard({ post, onReact, onDelete, variant = "feed" }: PostCard
               <Link href={ROUTES.profile(post.authorUid)} className="truncate hover:underline">
                 {author.displayName}
               </Link>
-              {author.kind === "organisation" && (
-                <BadgeCheck className="size-4 shrink-0 text-primary" aria-label="Official organisation" />
-              )}
+              <AuthorBadge kind={post.author?.kind ?? author.kind} staff={post.author?.staff} />
             </p>
             <p className="truncate text-[13px] text-muted-foreground">
               {[author.neighborhoodName, timeAgo(post.createdAt)].filter(Boolean).join(" · ")}
@@ -187,7 +198,12 @@ export function PostCard({ post, onReact, onDelete, variant = "feed" }: PostCard
         </Link>
         <button
           type="button"
-          onClick={() => void shareLink(postHref, post.message)}
+          onClick={() =>
+            void shareLink(postHref, post.message).then(() => {
+              const note = shareNote(post, author.neighborhoodName);
+              if (note) toast(note);
+            })
+          }
           className="ml-auto flex h-10 items-center gap-2 rounded-full px-3 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted"
         >
           <Share2 className="size-[18px]" aria-hidden />

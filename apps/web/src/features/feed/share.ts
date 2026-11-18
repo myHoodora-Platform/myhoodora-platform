@@ -1,7 +1,10 @@
 import { toast } from "sonner";
+import { withInviteRef } from "@myhoodora/api-contract/invites";
+import { myInviteCode } from "@/features/invites/invite-ref";
 
+/** Every link a neighbour shares carries their invite code, so a share is an invite (plan WP-E). */
 export function absoluteUrl(path: string): string {
-  return `${window.location.origin}${path}`;
+  return `${window.location.origin}${withInviteRef(path, myInviteCode())}`;
 }
 
 export async function copyLink(path: string) {

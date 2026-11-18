@@ -19,11 +19,12 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateIf,
   ValidateNested,
 } from "class-validator";
 import { POST_CATEGORIES, type PostCategory } from "../posts/domain/post-meta";
 import { REPORT_REASONS } from "../platform/platform-settings.schema";
-import { AD_BACKGROUNDS, AD_CTAS, AD_FORMATS, AD_STATUSES, AD_TRACKED_TYPES, type AdTrackedType, type AdBackground, type AdCta, type AdFormat, type AdStatus } from "./ad.schema";
+import { AD_BACKGROUNDS, AD_CTAS, AD_FORMATS, AD_RETIRE_ON, AD_STATUSES, type AdRetireOn, AD_TRACKED_TYPES, type AdTrackedType, type AdBackground, type AdCta, type AdFormat, type AdStatus } from "./ad.schema";
 
 const HTTPS = { protocols: ["https"], require_protocol: true };
 /** A feed session id the app makes up when the feed opens or refreshes. */
@@ -55,8 +56,18 @@ export class AdInputDto {
   @IsOptional() @IsString() @Length(1, 80) title?: string;
   @IsOptional() @IsString() @Length(1, 60) advertiserName?: string;
   @IsOptional() @IsUrl(HTTPS) advertiserLogoUrl?: string;
+  /** From myHoodora itself: shown with our name and logo, labelled "Official · myHoodora". */
+  @IsOptional() @IsBoolean() official?: boolean;
+  /** Show first: at the top of the feed instead of between posts. */
+  @IsOptional() @IsBoolean() pinned?: boolean;
+  /** Neighbours can like it, like a post. */
+  @IsOptional() @IsBoolean() likeable?: boolean;
+  /** Stop showing it to a neighbour once they've liked it / tapped the button. */
+  @IsOptional() @IsArray() @ArrayMaxSize(AD_RETIRE_ON.length) @IsIn(AD_RETIRE_ON, { each: true }) retireOn?: AdRetireOn[];
+  /** Times one neighbour may see it in all; null: no limit beyond the daily cap. */
+  @IsOptional() @ValidateIf((_, v) => v !== null) @Type(() => Number) @IsInt() @Min(1) @Max(100) totalCapPerUser?: number | null;
   @IsOptional() @IsIn(AD_FORMATS) format?: AdFormat;
-  @IsOptional() @IsString() @MaxLength(500) primaryText?: string;
+  @IsOptional() @IsString() @MaxLength(1000) primaryText?: string;
   @IsOptional() @IsString() @MaxLength(60) headline?: string;
   @IsOptional() @IsIn(AD_CTAS) ctaType?: AdCta;
   @IsOptional() @IsUrl(HTTPS) ctaUrl?: string;

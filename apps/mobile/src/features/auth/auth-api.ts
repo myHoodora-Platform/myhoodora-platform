@@ -1,9 +1,9 @@
 import { createUserWithEmailAndPassword, GoogleAuthProvider, OAuthProvider, sendPasswordResetEmail, signInWithCredential, signInWithEmailAndPassword, updateProfile } from "@firebase/auth";
 import * as AppleAuthentication from "expo-apple-authentication";
-import * as Crypto from "expo-crypto";
 import { GoogleSignin, isErrorWithCode, isSuccessResponse, statusCodes } from "@react-native-google-signin/google-signin";
 import { Platform } from "react-native";
 import { config } from "@/core/config/env";
+import { optionalCrypto } from "@/core/crypto/optional-crypto";
 import { firebaseAuth } from "@/core/firebase/auth";
 
 /**
@@ -66,6 +66,9 @@ export async function signInWithGoogle(): Promise<boolean> {
  * Returns false when the person closes Apple's sheet.
  */
 export async function signInWithApple(): Promise<boolean> {
+  // Loaded only here: builds made before Apple sign-in don't have it (see optional-crypto).
+  const Crypto = optionalCrypto();
+  if (!Crypto) throw new Error("Sign in with Apple needs the latest version of the app.");
   const rawNonce = Crypto.randomUUID();
   const hashedNonce = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, rawNonce);
   let apple: AppleAuthentication.AppleAuthenticationCredential;

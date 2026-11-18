@@ -36,6 +36,8 @@ export async function createTestApp(customise?: (builder: TestingModuleBuilder) 
   process.env.CLOUDINARY_URL = "";
   process.env.PUSH_PROVIDER = "log";
   process.env.APP_UPDATES_WATCH = "false";
+  // Tests run the 18:00 streak reminder themselves, at a fixed time (never by the clock).
+  process.env.STREAK_REMINDERS_ENABLED = "false";
 
   const builder = Test.createTestingModule({ imports: [AppModule], controllers });
   const moduleRef = await (customise ? customise(builder) : builder).compile();

@@ -1,0 +1,26 @@
+<!doctype html>
+<!--
+  Second App Store header, 3840 × 1646, the photo version: real Lagos rooftops (the website's hero-skyline
+  photo, no people) with the wordmark big in Apple's art safe area (1646 × 661 at x 1097, y 493). Same layout
+  as app-store-header.html, so the two can be A/B tested with product page optimization.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 3840px; height: 1646px; overflow: hidden; background: #0a4741; }
+  body { position: relative; }
+  .photo { position: absolute; inset: 0; background: url("../../../web/public/images/hero-skyline.webp") center 30% / cover; filter: saturate(1.08) contrast(1.04); }
+  /* Brand teal sky above, the rooftops left warm and clear below. */
+  .tint { position: absolute; inset: 0; background:
+    linear-gradient(180deg, rgba(10,71,65,.88) 0%, rgba(17,112,106,.62) 38%, rgba(17,112,106,.18) 62%, rgba(10,71,65,.10) 82%, rgba(10,71,65,.45) 100%); }
+  .mark { position: absolute; left: 50%; top: 735px; transform: translate(-50%, -50%); width: 1380px; filter: drop-shadow(0 16px 44px rgba(0,0,0,.35)); }
+</style>
+</head>
+<body>
+  <div class="photo"></div>
+  <div class="tint"></div>
+  <img class="mark" src="../../../web/public/logo/mascot-wordmark-reversed.svg" alt="myHoodora" />
+</body>
+</html>

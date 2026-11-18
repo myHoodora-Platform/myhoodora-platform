@@ -8,6 +8,7 @@ import { sessionVerdict, staffVerdict } from "@/lib/auth/session-gate";
 import {
   DEFAULT_APP_ROUTE,
   isGuestOnlyPath,
+  sharedPostRewrite,
   isPublicPath,
   legacyRedirectFor,
 } from "@/lib/routes";
@@ -90,6 +91,10 @@ export async function proxy(request: NextRequest) {
     const target = isLanding ? DEFAULT_APP_ROUTE : safeNextPath(searchParams.get("next"));
     return noStoreRedirect(new URL(target, request.url));
   }
+
+  // A shared post, opened by someone not signed in: its public preview, not the login page.
+  const shared = session !== "valid" ? sharedPostRewrite(pathname) : null;
+  if (shared) return settle(NextResponse.rewrite(new URL(`${shared}${request.nextUrl.search}`, request.url)));
 
   // Default-deny: everything else is part of the signed-in app.
   if (session !== "valid") {

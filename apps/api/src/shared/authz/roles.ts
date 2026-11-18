@@ -40,6 +40,10 @@ export type Capability =
   | "ads.manage"
   /** Feedback prompts to neighbours, their answers, and when the app asks for store reviews. */
   | "feedback.manage"
+  /** The Hood Team's content: content bank, official posts, activation plans, daily prompts, pins. */
+  | "content.manage"
+  /** The launch challenge: void or reassign who gets credit for an invite. */
+  | "engagement.manage"
   // Owner only: grant/revoke admin
   | "team.manage.admins";
 
@@ -58,6 +62,8 @@ const STAFF: Record<Exclude<Role, "member">, Capability[]> = {
     "settings.manage",
     "ads.manage",
     "feedback.manage",
+    "content.manage",
+    "engagement.manage",
   ],
   owner: [
     "admin.access",
@@ -72,6 +78,8 @@ const STAFF: Record<Exclude<Role, "member">, Capability[]> = {
     "settings.manage",
     "ads.manage",
     "feedback.manage",
+    "content.manage",
+    "engagement.manage",
     "team.manage.admins",
   ],
 };

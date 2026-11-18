@@ -17,9 +17,17 @@ import type { PostCategory } from "@/lib/api/types";
 import { FEED_FILTERS, matchesFilter, parseFeedFilter, type FeedFilter } from "../categories";
 import { useComposer } from "../composer-context";
 import { useFeed } from "../feed-context";
+import { CameFromCard } from "@/features/shared-post/came-from-card";
+import { WhoInvitedYouCard } from "@/features/invites/who-invited-you-card";
+import { SeasonGreeting } from "@/features/season/season-greeting";
+import { ChallengeStrip } from "@/features/invites/challenge-strip";
 import { ComposerPrompt } from "./composer-prompt";
 import { FeedSkeleton } from "./feed-skeleton";
 import { PostCard } from "./post-card";
+import { StarterChips } from "./starter-chips";
+
+/** Below this many posts a Hood still feels quiet: show conversation starters above the feed. */
+const QUIET_HOOD_POSTS = 10;
 
 const EMPTY_COPY: Record<FeedFilter, { title: string; description: string; category: PostCategory }> = {
   all: { title: "Your neighbourhood is quiet", description: "Be the first to say hello, ask a question or share an update.", category: "general" },
@@ -75,6 +83,10 @@ export function NewsFeed() {
   return (
     <div className="space-y-4">
       <h1 className="sr-only">Home</h1>
+      <ChallengeStrip />
+      <SeasonGreeting />
+      <CameFromCard />
+      <WhoInvitedYouCard />
       <ComposerPrompt />
       <div data-tour="feed-filters">
         <FilterChips
@@ -128,18 +140,23 @@ export function NewsFeed() {
           That&apos;s everything for now. Active alerts are summarised above.
         </p>
       ) : visible.length === 0 ? (
-        <EmptyState
-          icon={Newspaper}
-          title={empty.title}
-          description={empty.description}
-          action={
-            <Button size="sm" onClick={() => openComposer(empty.category)}>
-              {filter === "for-sale" ? "Sell or give away" : "Create a post"}
-            </Button>
-          }
-        />
+        <div className="space-y-4">
+          <EmptyState
+            icon={Newspaper}
+            title={empty.title}
+            description={empty.description}
+            action={
+              <Button size="sm" onClick={() => openComposer(empty.category)}>
+                {filter === "for-sale" ? "Sell or give away" : "Create a post"}
+              </Button>
+            }
+          />
+          {filter === "all" && <StarterChips className="px-1" />}
+        </div>
       ) : (
         <div className="space-y-4">
+          {/* A quiet Hood: help neighbours start talking (docs/product/hood-activation-plan.md). */}
+          {filter === "all" && !hasMore && visible.length < QUIET_HOOD_POSTS && <StarterChips className="rounded-2xl border border-border bg-card p-4" />}
           {visible.map((post) => (
             <PostCard key={post._id} post={post} onReact={react} onDelete={deletePost} />
           ))}

@@ -1,7 +1,8 @@
+import type { ConversationStarter } from "@myhoodora/api-contract/hood-content";
 import type { User } from "@firebase/auth";
 import { ApiError } from "@myhoodora/api-contract/errors";
 import type { AdEventInput, FeedAd, FeedPage } from "@myhoodora/api-contract/ads";
-import type { AlertCategory, AlertPlace, ApiPost, Comment, CommentSort, PostCategory, ReactionType, ReportReason } from "@myhoodora/api-contract/types";
+import type { AlertCategory, AlertPlace, ApiPost, Comment, CommentSort, PostCategory, PostVisibility, ReactionType, ReportReason } from "@myhoodora/api-contract/types";
 import type { InfiniteData, QueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/core/api/client";
 
@@ -109,6 +110,11 @@ export function hideAd(user: User, adId: string, sessionId?: string): Promise<{ 
   return apiFetch(user, `/ads/${adId}/hide`, { method: "POST", json: { sessionId } });
 }
 
+/** Like (or take back the like on) an ad that allows it. */
+export function likeAd(user: User, adId: string, on: boolean): Promise<{ liked: boolean; count: number }> {
+  return apiFetch(user, `/ads/${adId}/like`, { method: on ? "PUT" : "DELETE" });
+}
+
 export function reportAd(user: User, adId: string, reason: ReportReason, sessionId?: string): Promise<{ reported: true }> {
   return apiFetch(user, `/ads/${adId}/report`, { method: "POST", json: { reason, sessionId } });
 }
@@ -162,6 +168,8 @@ export interface NewPost {
   eventDate?: string;
   eventLocation?: string;
   poll?: { options: { id: string; text: string }[]; closesAt: string };
+  /** Who can see it (contract §38). Alerts are always the neighbourhood's. */
+  visibility?: PostVisibility;
   /** Alerts: where it's happening (contract §1). */
   location?: AlertPlace;
   /** Uploaded photo URLs (POST /media), up to 10. */
@@ -257,4 +265,9 @@ export function recordShare(user: User, postId: string): Promise<{ shareCount: n
 /** The author changes the text; returns the post. */
 export function editPost(user: User, postId: string, message: string): Promise<ApiPost> {
   return apiFetch(user, `/posts/${postId}`, { method: "PATCH", json: { message } });
+}
+
+/** `GET /hood-content/starters`: conversation starters filled in for the viewer's Hood (contract §37). */
+export function getStarters(user: User): Promise<ConversationStarter[]> {
+  return apiFetch(user, "/hood-content/starters");
 }

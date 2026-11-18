@@ -10,13 +10,13 @@ import { monthYear } from "@/shared/utils/time";
  * Who someone is, from their public profile only (contract §3): face, name with the verified badge,
  * "Ikeja · Neighbour since October 2026" (when they show it), and their bio. Never an address.
  */
-export function NeighbourCard({ profile, size = 88, centred = true }: { profile: Pick<PublicProfile, "displayName" | "photoURL" | "verified" | "neighborhoodName" | "neighbourSince" | "bio" | "kind">; size?: number; centred?: boolean }) {
+export function NeighbourCard({ profile, size = 88, centred = true }: { profile: Pick<PublicProfile, "displayName" | "photoURL" | "verified" | "neighborhoodName" | "neighbourSince" | "bio" | "kind" | "badge">; size?: number; centred?: boolean }) {
   const t = useTheme();
   const since = monthYear(profile.neighbourSince);
   const meta = [profile.neighborhoodName, since && `Neighbour since ${since}`].filter(Boolean).join(" · ");
   return (
     <View style={[styles.card, centred && styles.centred]}>
-      <Avatar name={profile.displayName} photoURL={profile.photoURL} size={size} />
+      <Avatar name={profile.displayName} photoURL={profile.photoURL} size={size} badge={profile.badge} />
       <View style={[styles.nameRow, centred && styles.centredRow]}>
         <Text variant="title" style={centred ? styles.centredText : undefined} numberOfLines={2}>
           {profile.displayName}

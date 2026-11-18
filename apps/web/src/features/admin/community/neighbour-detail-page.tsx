@@ -38,6 +38,8 @@ import { ActionDialog } from "@/components/admin/action-dialog";
 import { useAuth } from "@/context/AuthContext";
 import { removeSecondaryHood } from "@/lib/api/admin/hood-requests";
 import { toast } from "sonner";
+import { InvitePanel } from "../invites/invite-panel";
+import { BuilderPanel } from "../engagement/builder-panel";
 
 type Tab = "activity" | "reports" | "verification" | "history";
 
@@ -422,6 +424,8 @@ export function NeighbourDetailPage({ uid }: { uid: string }) {
                 Hood.
               </p>
             </Panel>
+            <InvitePanel uid={n.uid} name={n.displayName} />
+            <BuilderPanel uid={n.uid} name={n.displayName} />
           </>
         }
       />

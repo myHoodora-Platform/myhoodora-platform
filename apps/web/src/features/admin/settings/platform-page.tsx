@@ -1,5 +1,7 @@
 "use client";
 
+import { DEFAULT_APP_PROMPTS, type AppPrompts } from "@myhoodora/api-contract/app-config";
+
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@myhoodora/ui/button";
@@ -178,6 +180,8 @@ export function PlatformPage() {
             />
 
             <BlockedWordsPanel value={draft.blockedTerms ?? []} onChange={(blockedTerms) => setDraft({ ...draft, blockedTerms })} />
+
+            <AppPromptsPanel value={draft.appPrompts ?? DEFAULT_APP_PROMPTS} onChange={(appPrompts) => setDraft({ ...draft, appPrompts })} />
 
             <Panel title="App analytics question">
               <p className="mb-3 text-sm text-muted-foreground">
@@ -450,6 +454,43 @@ function BlockedWordsPanel({ value, onChange }: { value: string[]; onChange: (ne
           ? `"${tooLong.slice(0, 20)}…" is longer than ${MAX_BLOCKED_TERM_LENGTH} characters.`
           : `${terms.length} of ${MAX_BLOCKED_TERMS}. Whole words only, so "ode" won't catch "code". End with * to cover longer words too (olosho* also catches oloshos). Spelling tricks such as p0rn or f.u.c.k are caught. Changes apply within a minute.`}
       </p>
+    </Panel>
+  );
+}
+
+/** "Get the app" on the mobile website (plan WP-H): a slim banner, and a sheet at good moments only. */
+function AppPromptsPanel({ value, onChange }: { value: AppPrompts; onChange: (next: AppPrompts) => void }) {
+  return (
+    <Panel title="App prompts">
+      <p className="mb-3 text-sm text-muted-foreground">
+        People using myHoodora in a phone&apos;s browser are invited to the app. Opens the same page in the app when it&apos;s installed, the store when it isn&apos;t. Never a full-screen block when they arrive.
+      </p>
+      <div className="space-y-3 text-sm">
+        <label className="flex items-center gap-2">
+          <input type="checkbox" className="size-4" checked={value.banner} onChange={(e) => onChange({ ...value, banner: e.target.checked })} />
+          <span>
+            <span className="font-medium">Banner</span> <span className="text-muted-foreground">: a slim “Open in the app” bar, dismissible (it stays away for two weeks)</span>
+          </span>
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="checkbox" className="size-4" checked={value.sheet} onChange={(e) => onChange({ ...value, sheet: e.target.checked })} />
+          <span>
+            <span className="font-medium">“Better in the app” sheet</span> <span className="text-muted-foreground">: after signing in, or on a second visit; never on the first page they land on</span>
+          </span>
+        </label>
+        <label className="flex flex-wrap items-center gap-3">
+          <span className="font-medium">After it&apos;s closed, show the sheet again after</span>
+          <input
+            type="number"
+            min={1}
+            max={90}
+            value={value.sheetEveryDays}
+            onChange={(e) => onChange({ ...value, sheetEveryDays: Math.max(1, Math.min(90, Math.round(Number(e.target.value) || 7))) })}
+            className="h-9 w-20 rounded-lg border border-border bg-card px-2"
+          />
+          <span>days</span>
+        </label>
+      </div>
     </Panel>
   );
 }

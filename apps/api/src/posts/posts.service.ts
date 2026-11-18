@@ -15,6 +15,8 @@ import { mediaMixProblem } from "../storage/media-kind";
 import { DELETED_MEDIA_KEPT_MS, REMOVED_MEDIA_KEPT_MS, StorageService } from "../storage/storage.service";
 import { AccountLifecycle } from "../users/account-lifecycle";
 import { UsersService } from "../users/users.service";
+import { hoodTeamViewer } from "../hood-content/domain/hood-team";
+import { postAccess, type PostAccess } from "./domain/visibility";
 import { eventDateProblem, hasEnded } from "./domain/event-time";
 import { decodePostContent, encodePostContent, postTypeFor, type PostMeta } from "./domain/post-meta";
 import type { CreatePostDto, FeedQuery } from "./dto/posts.dto";
@@ -27,10 +29,13 @@ const ALERT_FANOUT = "alert.fanout";
 /** Neighbours told per step of that job. */
 const FANOUT_PAGE = 1_000;
 
+/** How far back nearby fill looks. */
+const NEARBY_FILL_DAYS = 21;
+
 export interface PostView {
   _id: string;
   authorUid: string;
-  author: { uid: string; displayName: string; photoURL?: string; neighborhoodName?: string };
+  author: { uid: string; displayName: string; photoURL?: string; neighborhoodName?: string; kind?: "team"; staff?: boolean };
   neighborhoodId: string;
   type: FeedPost["type"];
   /** Legacy encoded form, for clients that still decode it. */
@@ -48,6 +53,14 @@ export interface PostView {
   /** Events only: the counts and the viewer's own answer, so a list of events needs no request per card. */
   rsvp?: RsvpSummary;
   visibility: FeedPost["visibility"];
+  /** Pinned by the Hood Team: the feed's first page shows it on top until it expires. */
+  pinned?: boolean;
+  /** Nearby fill (plan WP-G): an Anyone/Nearby post from the Hood next door, in a quiet Hood's feed. */
+  nearby?: { hoodId: string; hoodName: string };
+  /** "team": an official Hood Team post. */
+  source?: "team";
+  /** Absent: full and you can take part. "read_only": in the audience to read, not to take part. "teaser": outside it. */
+  access?: "read_only" | "teaser";
   mediaUrls: string[];
   /** width ÷ height of each `mediaUrls` entry (same order), or null when unknown (a pasted link). Lets the feed frame media before it loads. */
   mediaAspects: (number | null)[];
@@ -90,6 +103,17 @@ export interface RsvpSummary {
   goingCount: number;
   interestedCount: number;
   myStatus: "going" | "interested" | null;
+}
+
+/** At most this many pinned posts on top of a Hood's feed. */
+export const MAX_PINNED = 2;
+
+/** Extra for official Hood Team posts (PostsService.createAsTeam). */
+export interface TeamPostOptions {
+  /** Pin it to the top of the Hood's first page until then. */
+  pinnedUntil?: Date | null;
+  /** The content bank item it came from. */
+  contentItemId?: string;
 }
 
 /** How far from the neighbourhood's centre an alert's pin may be (or twice its radius, if larger). */
@@ -224,7 +248,7 @@ export class PostsService implements OnModuleInit {
    * created the first time. A client that timed out can't know whether its post was created, and
    * without this its retry posts (and announces) an alert twice.
    */
-  async create(viewer: Viewer, dto: CreatePostDto): Promise<PostView> {
+  async create(viewer: Viewer, dto: CreatePostDto, team?: TeamPostOptions): Promise<PostView> {
     if (!viewer.hoodId) throw new ForbiddenException("Verify your address to join your neighbourhood first.");
     if (dto.neighborhoodId && dto.neighborhoodId !== viewer.hoodId) throw new ForbiddenException("You can only post in your own neighbourhood.");
     // Before any rule that the first attempt already passed (one urgent alert per six hours would refuse its own retry).
@@ -245,6 +269,8 @@ export class PostsService implements OnModuleInit {
       ...(dto.poll && { poll: dto.poll }),
       ...(dto.visibility && { visibility: dto.visibility }),
     };
+    // Safety alerts are always the Hood's own (domain/visibility.ts).
+    if (meta.category === "alert") meta.visibility = "neighbourhood";
     const message = (dto.message ?? decoded.message).trim();
     if (!message) throw new BadRequestException("Write something first.");
     if (message.length > 8192) throw new BadRequestException("Posts can be up to 8,192 characters.");
@@ -286,6 +312,7 @@ export class PostsService implements OnModuleInit {
         locationLabel: place?.label,
         mediaUrls,
         activeUntil,
+        ...(team && { source: "team" as const, pinnedUntil: team.pinnedUntil ?? null, contentItemId: team.contentItemId }),
       });
     } catch (err) {
       // Two copies of one submission arrived together and the other got there first: it created the post, and announces it.
@@ -303,6 +330,7 @@ export class PostsService implements OnModuleInit {
         .catch((err: unknown) => this.logger.error(`Alert ${String(doc._id)} was posted but its neighbours could not be queued for notification`, err instanceof Error ? err.stack : String(err)));
     }
     this.realtime.toHood(viewer.hoodId, "post.created", { id: String(doc._id) });
+    this.realtime.toStaffCoalesced("console.changed", "needs-reply");
     return (await this.toViews([doc.toObject()], viewer))[0]!;
   }
 
@@ -400,10 +428,75 @@ export class PostsService implements OnModuleInit {
     if (q.since) created.$gte = new Date(q.since);
     if (Object.keys(created).length) filter.createdAt = created;
 
+    // Pinned Hood Team posts sit on top of the first page and nowhere else, so paging never repeats
+    // them. A search, a "since" refresh or a later page shows only ordinary posts in date order.
+    const now = new Date();
+    const firstPage = !q.before && !q.skip && !q.since && !re;
+    const pinnedFilter = { ...filter, pinnedUntil: { $gt: now } };
+    filter.$and = [{ $or: [{ pinnedUntil: null }, { pinnedUntil: { $lte: now } }] }];
+
     let query = this.posts.find(filter).sort({ createdAt: -1, _id: -1 });
     if (!q.before && q.skip) query = query.skip(q.skip);
-    const docs = await query.limit(q.limit).lean<FeedPost[]>().exec();
-    return this.toViews(docs, viewer);
+    const [docs, pinned] = await Promise.all([
+      query.limit(q.limit).lean<FeedPost[]>().exec(),
+      firstPage ? this.posts.find(pinnedFilter).sort({ pinnedUntil: -1, createdAt: -1 }).limit(MAX_PINNED).lean<FeedPost[]>().exec() : [],
+    ]);
+    const own = await this.toViews([...pinned, ...docs], viewer);
+    // A quiet Hood (its first page isn't full): what neighbours next door shared with Nearby Hoods or Anyone.
+    if (!firstPage || q.category || hoodId !== viewer.hoodId || docs.length >= q.limit - 1) return own;
+    return [...own, ...(await this.nearbyFill(viewer, hoodId, hidden, q.limit - 1 - docs.length))];
+  }
+
+  /**
+   * Up to `room` recent posts from the Hoods around this one that their authors opened to Nearby Hoods or
+   * Anyone (never alerts), newest first, marked with where they're from. Kept under a page so paging, which
+   * follows the Hood's own posts, ends where it should.
+   */
+  private async nearbyFill(viewer: Viewer, hoodId: string, hidden: string[], room: number): Promise<PostView[]> {
+    if (room <= 0) return [];
+    // nearbyHoodIds includes the Hood itself: its own Anyone posts are already in the feed, once.
+    const near = (await this.hoods.nearbyHoodIds(hoodId)).filter((id) => id !== hoodId);
+    if (!near.length) return [];
+    const docs = await this.posts
+      .find({
+        neighborhoodId: { $in: near },
+        visibility: { $in: ["anyone", "nearby"] },
+        category: { $ne: "alert" },
+        isActive: true,
+        removedAt: null,
+        authorDeactivated: { $ne: true },
+        createdAt: { $gte: new Date(Date.now() - NEARBY_FILL_DAYS * 86_400_000) },
+        ...(hidden.length && { authorUid: { $nin: hidden } }),
+      })
+      .sort({ createdAt: -1 })
+      .limit(room)
+      .lean<FeedPost[]>()
+      .exec();
+    if (!docs.length) return [];
+    const names = await this.hoods.findManyByIds([...new Set(docs.map((d) => d.neighborhoodId))]);
+    const views = await this.toViews(docs, viewer);
+    return views.map((v) => ({ ...v, pinned: undefined, nearby: { hoodId: v.neighborhoodId, hoodName: names.get(v.neighborhoodId)?.name ?? "a nearby neighbourhood" } }));
+  }
+
+  /**
+   * An official post by the Hood Team in one Hood (hood-content: scheduled, activation plans, daily
+   * prompts, staff compose). The same rules as any post (text limits, polls, events, the content
+   * filter on the way in), plus an optional pin. Never reachable from POST /posts.
+   */
+  async createAsTeam(hoodId: string, dto: CreatePostDto, opts: TeamPostOptions = {}): Promise<PostView> {
+    const hood = (await this.hoods.findManyByIds([hoodId])).get(hoodId);
+    if (!hood) throw new NotFoundException("That neighbourhood doesn't exist.");
+    if (dto.category === "alert" || dto.urgent) throw new BadRequestException("Safety alerts come from neighbours, not the Hood Team.");
+    return this.create(hoodTeamViewer(hoodId), { ...dto, visibility: dto.visibility ?? "anyone" }, opts);
+  }
+
+  /** Pin or unpin a post (Hood Team posts only: neighbours' posts are never pinned over others). */
+  async setPinned(id: string, until: Date | null): Promise<void> {
+    const p = await this.findRaw(id);
+    if (!p || !p.isActive || p.removedAt) throw new NotFoundException("Post not found.");
+    if (p.source !== "team") throw new BadRequestException("Only Hood Team posts can be pinned.");
+    await this.posts.updateOne({ _id: p._id }, { $set: { pinnedUntil: until } }).exec();
+    this.changed(p);
   }
 
   /** Raw post for internal use (moderation context); no visibility rules. */
@@ -419,9 +512,40 @@ export class PostsService implements OnModuleInit {
     return this.load(viewer, id, viewer.hoodId ? [viewer.hoodId] : []);
   }
 
-  /** Load a post the viewer may read: home, or a secondary Hood (contract §31). For reading only. */
-  loadReadable(viewer: Viewer, id: string): Promise<FeedPost & { _id: Types.ObjectId }> {
-    return this.load(viewer, id, viewer.readableHoodIds);
+  /**
+   * Load a post the viewer may read in full: their own and followed Hoods (contract §31), or a post
+   * whose audience includes them (domain/visibility.ts). 404 otherwise. For reading only.
+   */
+  async loadReadable(viewer: Viewer, id: string): Promise<FeedPost & { _id: Types.ObjectId }> {
+    const p = await this.loadExisting(viewer, id);
+    if ((await this.accessFor(viewer, p)).read !== "full") throw new NotFoundException("This post isn't available.");
+    return p;
+  }
+
+  /**
+   * Load a post the viewer may take part in (react, reply, save, follow): their own Hood, or a verified
+   * neighbour in the post's audience (Anyone, or Nearby from a Hood next to it). 404 otherwise.
+   */
+  async loadForAudience(viewer: Viewer, id: string): Promise<FeedPost & { _id: Types.ObjectId }> {
+    const p = await this.loadExisting(viewer, id);
+    if (!(await this.accessFor(viewer, p)).takePart) throw new NotFoundException("This post isn't available.");
+    return p;
+  }
+
+  /** What this viewer may see and do with this post (null = signed out). */
+  async accessFor(viewer: Viewer | null, p: Pick<FeedPost, "neighborhoodId" | "visibility" | "category">): Promise<PostAccess> {
+    const v = viewer ? { hoodId: viewer.hoodId, readableHoodIds: viewer.readableHoodIds, staff: viewer.capabilities.includes("admin.access") } : null;
+    const needsNearby = p.visibility === "nearby" && Boolean(v?.hoodId) && !v?.staff && v?.hoodId !== p.neighborhoodId;
+    return postAccess(v, p, needsNearby ? await this.hoods.nearbyHoodIds(p.neighborhoodId) : []);
+  }
+
+  /** The post exists, is live, and its author hasn't hidden it from this viewer (blocks either way). */
+  private async loadExisting(viewer: Viewer, id: string): Promise<FeedPost & { _id: Types.ObjectId }> {
+    const p = Types.ObjectId.isValid(id) ? await this.posts.findById(id).lean<FeedPost & { _id: Types.ObjectId }>().exec() : null;
+    const staff = viewer.capabilities.includes("admin.access");
+    if (!p || (!staff && (!p.isActive || p.removedAt || p.authorDeactivated))) throw new NotFoundException("This post isn't available.");
+    if (!staff && (await this.users.hiddenAuthorsFor(viewer.uid)).includes(p.authorUid)) throw new NotFoundException("This post isn't available.");
+    return p;
   }
 
   private async load(viewer: Viewer, id: string, hoodIds: string[]): Promise<FeedPost & { _id: Types.ObjectId }> {
@@ -451,9 +575,16 @@ export class PostsService implements OnModuleInit {
     return { followers: rows.filter((r) => r.on).map((r) => r.uid), muted: new Set(rows.filter((r) => !r.on).map((r) => r.uid)) };
   }
 
+  /**
+   * GET /posts/:id. Outside the post's audience it comes back as a teaser (`access: "teaser"`): which
+   * Hood, the topic, the counts, and nothing a neighbour wrote (no text, photos, names or place).
+   */
   async get(viewer: Viewer, id: string): Promise<PostView> {
-    const p = await this.loadReadable(viewer, id);
-    return (await this.toViews([p], viewer))[0]!;
+    const p = await this.loadExisting(viewer, id);
+    const access = await this.accessFor(viewer, p);
+    const [view] = await this.toViews([p], viewer);
+    if (access.read === "full") return { ...view!, ...(!access.takePart && { access: "read_only" as const }) };
+    return teaserView(view!, (await this.hoods.findManyByIds([p.neighborhoodId])).get(p.neighborhoodId)?.name);
   }
 
   /** Author delete (soft). 404 if not found/visible, 403 if not the author. */
@@ -462,6 +593,7 @@ export class PostsService implements OnModuleInit {
     if (p.authorUid !== viewer.uid) throw new ForbiddenException("You can only delete your own posts.");
     await this.posts.updateOne({ _id: p._id }, { $set: { isActive: false } }).exec();
     this.realtime.toHood(p.neighborhoodId, "post.deleted", { id });
+    this.realtime.toStaffCoalesced("console.changed", "needs-reply");
   }
 
   /** PATCH /posts/:id/alert — author or staff (Hood Leads in a later phase). */
@@ -503,8 +635,10 @@ export class PostsService implements OnModuleInit {
   async announce(id: string): Promise<void> {
     const p = await this.findRaw(id);
     if (!p) return;
-    if (!p.isActive || p.removedAt) this.realtime.toHood(p.neighborhoodId, "post.deleted", { id });
-    else this.changed(p);
+    if (!p.isActive || p.removedAt) {
+      this.realtime.toHood(p.neighborhoodId, "post.deleted", { id });
+      this.realtime.toStaffCoalesced("console.changed", "needs-reply");
+    } else this.changed(p);
   }
 
   incCommentCount(id: string, by: number, session?: ClientSession) {
@@ -538,7 +672,15 @@ export class PostsService implements OnModuleInit {
       return {
         _id: id,
         authorUid: d.authorUid,
-        author: { uid: d.authorUid, displayName: a?.displayName ?? "Neighbour", photoURL: a?.photoURL, neighborhoodName: a?.neighborhoodId ? hoods.get(a.neighborhoodId)?.name : undefined },
+        author: {
+          uid: d.authorUid,
+          displayName: a?.displayName ?? "Neighbour",
+          photoURL: a?.photoURL,
+          neighborhoodName: a?.neighborhoodId ? hoods.get(a.neighborhoodId)?.name : undefined,
+          ...(a?.kind && { kind: a.kind }),
+          ...(a?.staff && { staff: true }),
+          ...(a?.badge && { badge: a.badge }),
+        },
         neighborhoodId: d.neighborhoodId,
         type: d.type,
         content: d.content,
@@ -554,6 +696,8 @@ export class PostsService implements OnModuleInit {
         pollResults: polls.get(id),
         rsvp: rsvps.get(id),
         visibility: meta.visibility ?? "neighbourhood",
+        ...(d.pinnedUntil && d.pinnedUntil.getTime() > Date.now() && { pinned: true }),
+        ...(d.source === "team" && { source: "team" as const }),
         mediaUrls: d.mediaUrls ?? [],
         mediaAspects: (d.mediaUrls ?? []).map((url) => aspects.get(url) ?? null),
         likes: [],
@@ -632,4 +776,28 @@ export class PostsService implements OnModuleInit {
   isUrgentLive(p: Pick<FeedPost, "urgent" | "createdAt" | "resolvedAt">): boolean {
     return Boolean(p.urgent && !p.resolvedAt && p.createdAt && Date.now() - p.createdAt.getTime() < URGENT_WINDOW_HOURS * HOUR);
   }
+}
+
+/** A post seen from outside its audience: the shape stays the same, everything a neighbour wrote is gone. */
+export function teaserView(v: PostView, hoodName: string | undefined): PostView {
+  return {
+    ...v,
+    access: "teaser",
+    author: { uid: "", displayName: hoodName ? `A neighbour in ${hoodName}` : "A neighbour", neighborhoodName: hoodName, ...(v.author.kind && { kind: v.author.kind, uid: v.author.uid, displayName: v.author.displayName, photoURL: v.author.photoURL }) },
+    authorUid: v.author.kind === "team" ? v.authorUid : "",
+    content: "",
+    message: "",
+    thankedName: undefined,
+    eventLocation: undefined,
+    priceNaira: undefined,
+    poll: undefined,
+    pollResults: undefined,
+    rsvp: undefined,
+    mediaUrls: [],
+    mediaAspects: [],
+    location: undefined,
+    myReaction: null,
+    saved: false,
+    following: false,
+  };
 }

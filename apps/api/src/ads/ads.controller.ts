@@ -43,6 +43,20 @@ export class AdsController {
     return this.ads.hide(viewer, id, body.sessionId);
   }
 
+  @Put("ads/:id/like")
+  @ApiOperation({ summary: "Like an ad that allows it → { liked, count }" })
+  @ApiNotFound("Ad")
+  like(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string) {
+    return this.ads.like(viewer, id, true);
+  }
+
+  @Delete("ads/:id/like")
+  @ApiOperation({ summary: "Take the like back → { liked, count }" })
+  @ApiNotFound("Ad")
+  unlike(@CurrentViewer() viewer: Viewer, @Param("id", ParseObjectIdPipe) id: string) {
+    return this.ads.like(viewer, id, false);
+  }
+
   @Post("ads/:id/report")
   @ApiOperation({ summary: "Report an ad (also hides it for you) → { reported }" })
   @Can("report.create")

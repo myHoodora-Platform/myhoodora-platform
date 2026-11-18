@@ -90,6 +90,17 @@ export function compareVersions(a: string, b: string): number {
   return 0;
 }
 
+/**
+ * "Get the app" prompts on the mobile website (plan WP-H): a slim banner, and a one-off sheet at good
+ * moments (after signing in, a second visit), at most every `sheetEveryDays` after someone closes it.
+ */
+export interface AppPrompts {
+  banner: boolean;
+  sheet: boolean;
+  sheetEveryDays: number;
+}
+export const DEFAULT_APP_PROMPTS: AppPrompts = { banner: true, sheet: true, sheetEveryDays: 7 };
+
 export type PlatformSettingsDocument = HydratedDocument<PlatformSettings>;
 
 /** Singleton document (key = "platform"). */
@@ -112,6 +123,9 @@ export class PlatformSettings {
 
   @Prop({ type: Object, default: () => structuredClone(DEFAULT_APP_UPDATES) })
   appUpdates!: AppUpdates;
+
+  @Prop({ type: Object })
+  appPrompts?: AppPrompts;
 
   /** Admins' extra blocked words and phrases (moderation/content-filter.ts adds the built-in ones). */
   @Prop({ type: [String], default: [] })

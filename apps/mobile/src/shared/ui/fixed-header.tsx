@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/shared/theme/theme";
 import { ConnectionStrip } from "./connection-strip";
 import { GlassSurface } from "./glass-surface";
+import { reportHeaderHeight } from "./header-height";
 
 /**
  * A header fixed to the top while the screen's content scrolls underneath it (through it, in Glass
@@ -14,7 +15,14 @@ export function FixedHeader({ children, onHeight, compact = false }: { children:
   const insets = useSafeAreaInsets();
   const t = useTheme();
   return (
-    <View style={styles.wrap} onLayout={(e) => onHeight(Math.round(e.nativeEvent.layout.height))}>
+    <View
+      style={styles.wrap}
+      onLayout={(e) => {
+        const height = Math.round(e.nativeEvent.layout.height);
+        onHeight(height);
+        reportHeaderHeight(height);
+      }}
+    >
       <GlassSurface style={[styles.bar, compact && styles.compact, { paddingTop: insets.top + 4, borderBottomColor: t.colors.border }]}>
         {children}
         <ConnectionStrip />

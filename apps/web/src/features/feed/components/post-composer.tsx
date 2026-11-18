@@ -5,7 +5,7 @@ import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { AlertCircle, ArrowLeft, HeartHandshake, Plus, WifiOff, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, Globe, HeartHandshake, Lock, MapPinned, Plus, WifiOff, X } from "lucide-react";
 import { Button } from "@myhoodora/ui/button";
 import { cn } from "@myhoodora/ui/utils";
 import { EmojiPickerButton, insertAtCaret } from "@/components/shared/emoji-picker-button";
@@ -14,7 +14,7 @@ import { PhotoPicker } from "@/components/shared/image-picker";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { errorMessage } from "@/lib/api/client";
 import { submissionIds } from "@/lib/api/submission-id";
-import type { AlertCategory, Post, PostCategory } from "@/lib/api/types";
+import type { AlertCategory, Post, PostCategory, PostVisibility } from "@/lib/api/types";
 import { ALERT_CATEGORIES, POST_CATEGORIES, categoryDef } from "../categories";
 import { checkKindness, kindnessHint, type KindnessReason } from "@/lib/api/kindness";
 import { reportKindness } from "@/lib/api/telemetry";
@@ -85,13 +85,15 @@ const PLACEHOLDERS: Record<PostCategory, string> = {
 
 interface PostComposerProps {
   initialCategory?: PostCategory;
+  /** Text to start from (a conversation starter the neighbour tapped). */
+  initialMessage?: string;
   onDone: (post: Post) => void;
   onCancel: () => void;
   /** "Sell or give away" is a listing, not a post — hand off to that flow. */
   onSell: () => void;
 }
 
-export function PostComposer({ initialCategory, onDone, onCancel, onSell }: PostComposerProps) {
+export function PostComposer({ initialCategory, initialMessage, onDone, onCancel, onSell }: PostComposerProps) {
   const { createPost } = useFeed();
   const { user } = useAuth();
   const online = useOnlineStatus();
@@ -104,6 +106,8 @@ export function PostComposer({ initialCategory, onDone, onCancel, onSell }: Post
   // An alert's place (optional): a pin, or a street or area found on the map.
   const [place, setPlace] = useState<AlertPlace | null>(null);
   const messageEl = useRef<HTMLTextAreaElement | null>(null);
+  // Who can see it (Nextdoor's audiences). Null until they choose: events default to Anyone, the rest to the Hood.
+  const [audience, setAudience] = useState<PostVisibility | null>(null);
   // A failed "Post" may still have reached the server (a timeout on a slow connection). Pressing it
   // again with the same draft sends the same id, so that is one post, and one alert to the Hood.
   const submissions = useRef(submissionIds());
@@ -112,7 +116,7 @@ export function PostComposer({ initialCategory, onDone, onCancel, onSell }: Post
     resolver: zodResolver(schema),
     defaultValues: {
       category: initialCategory ?? "general",
-      message: "",
+      message: initialMessage ?? "",
       urgent: false,
       pollOptions: [{ text: "" }, { text: "" }],
       pollDays: 3,
@@ -159,6 +163,7 @@ export function PostComposer({ initialCategory, onDone, onCancel, onSell }: Post
           eventDate: values.category === "event" ? values.eventDate : undefined,
           eventLocation: values.category === "event" ? values.eventLocation : undefined,
           thankedName: values.category === "thanks" ? values.thankedName : undefined,
+          visibility: values.category === "alert" ? "neighbourhood" : (audience ?? defaultAudience(values.category)),
           poll:
             values.category === "poll"
               ? { options, closesAt: new Date(Date.now() + values.pollDays * 86_400_000).toISOString() }
@@ -367,6 +372,14 @@ export function PostComposer({ initialCategory, onDone, onCancel, onSell }: Post
         <PhotoPicker value={mediaUrls} onChange={setMediaUrls} onUploadingChange={setUploading} purpose="post" allowVideo disabled={isSubmitting} />
       )}
 
+      {category === "alert" ? (
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Lock className="size-3.5" aria-hidden /> Safety alerts are only for your neighbourhood.
+        </p>
+      ) : (
+        <AudiencePicker value={audience ?? defaultAudience(category)} onChange={setAudience} disabled={isSubmitting} />
+      )}
+
       {kindnessShown && (
         <div role="alert" className="flex gap-3 rounded-xl bg-warning-soft p-3 text-sm text-warning">
           <HeartHandshake className="mt-0.5 size-5 shrink-0" aria-hidden />
@@ -426,5 +439,43 @@ export function PostComposer({ initialCategory, onDone, onCancel, onSell }: Post
         </div>
       </div>
     </form>
+  );
+}
+
+function defaultAudience(category: PostCategory): PostVisibility {
+  return category === "event" ? "anyone" : "neighbourhood";
+}
+
+const AUDIENCES: { id: PostVisibility; label: string; hint: string; icon: typeof Lock }[] = [
+  { id: "neighbourhood", label: "My neighbourhood", hint: "Only verified neighbours in your neighbourhood can read it. Shared links show a preview only.", icon: Lock },
+  { id: "nearby", label: "Nearby too", hint: "Your neighbourhood and the ones next to it.", icon: MapPinned },
+  { id: "anyone", label: "Anyone", hint: "Anyone can read it, even without an account. Names show as initials to people who aren't signed in.", icon: Globe },
+];
+
+/** "Who can see this?" Nextdoor's three audiences; editing later can only narrow it. */
+function AudiencePicker({ value, onChange, disabled }: { value: PostVisibility; onChange: (v: PostVisibility) => void; disabled?: boolean }) {
+  const current = AUDIENCES.find((a) => a.id === value) ?? AUDIENCES[0]!;
+  return (
+    <fieldset className="space-y-1.5" disabled={disabled}>
+      <legend className="text-sm font-semibold">Who can see this?</legend>
+      <div role="radiogroup" className="flex flex-wrap gap-2">
+        {AUDIENCES.map((a) => (
+          <button
+            key={a.id}
+            type="button"
+            role="radio"
+            aria-checked={value === a.id}
+            onClick={() => onChange(a.id)}
+            className={cn(
+              "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-colors",
+              value === a.id ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-muted",
+            )}
+          >
+            <a.icon className="size-3.5" aria-hidden /> {a.label}
+          </button>
+        ))}
+      </div>
+      <p className="text-xs text-muted-foreground">{current.hint}</p>
+    </fieldset>
   );
 }

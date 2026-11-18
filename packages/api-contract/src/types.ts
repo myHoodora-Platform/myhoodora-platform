@@ -54,7 +54,7 @@ export interface ApiPost {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
-  author?: { uid: string; displayName: string; photoURL?: string; neighborhoodName?: string };
+  author?: PostAuthor;
   message?: string;
   category?: PostCategory;
   alertCategory?: AlertCategory;
@@ -68,6 +68,17 @@ export interface ApiPost {
   /** Events: RSVP counts and your own answer, sent with the post so a list needs no request per card. */
   rsvp?: EventRsvpSummary;
   visibility?: PostVisibility;
+  /** Pinned by the Hood Team: shown first on the first page of the feed until it expires. */
+  pinned?: boolean;
+  /** Nearby fill (contract §44): from the Hood next door, shown in a quiet Hood's feed. */
+  nearby?: { hoodId: string; hoodName: string };
+  /** "team" for official Hood Team posts. Absent (or "member") for neighbours' posts. */
+  source?: "member" | "team";
+  /**
+   * Absent: you can read it in full and take part. "read_only": in its audience to read (an Anyone post
+   * before you've joined a Hood). "teaser": outside its audience: text, photos and names are empty.
+   */
+  access?: "read_only" | "teaser";
   reactionCounts?: Partial<Record<ReactionType, number>>;
   reactionTotal?: number;
   myReaction?: ReactionType | null;
@@ -178,8 +189,30 @@ export interface PublicProfile {
   neighbourSince?: string;
   bio?: string;
   verified: boolean;
-  /** Organisations (estate management, agencies) get a badge. */
-  kind?: "neighbour" | "organisation";
+  /** Organisations (estate management, agencies) and the official myHoodora Hood Team get a badge. */
+  kind?: AuthorKind;
+  /** Hood Builder mascot and streak ring (contract §42). */
+  badge?: import("./engagement").AvatarBadge;
+}
+
+/**
+ * Who wrote something. "team" is the official myHoodora Hood Team account: shown as
+ * "Official · Hood Team", never as a neighbour (docs/product/hood-activation-plan.md).
+ */
+export type AuthorKind = "neighbour" | "organisation" | "team";
+
+/** The author card embedded in posts. */
+export interface PostAuthor {
+  uid: string;
+  displayName: string;
+  photoURL?: string;
+  neighborhoodName?: string;
+  /** Absent on older API builds: treat as "neighbour". */
+  kind?: AuthorKind;
+  /** A myHoodora staff member (moderator, admin, owner): shown with a "Staff" label. */
+  staff?: boolean;
+  /** Hood Builder mascot and streak ring (contract §42). */
+  badge?: import("./engagement").AvatarBadge;
 }
 
 // ── Comments (planned) ──────────────────────────────────────────────────────
@@ -189,7 +222,7 @@ export interface Comment {
   postId: string;
   authorUid: string;
   /** Embedded by the live API. */
-  author?: { uid: string; displayName: string; photoURL?: string };
+  author?: { uid: string; displayName: string; photoURL?: string; kind?: AuthorKind; staff?: boolean; badge?: import("./engagement").AvatarBadge };
   content: string;
   createdAt: string;
   likes: string[];
@@ -633,4 +666,35 @@ export interface MyDecision {
   decidedAt: string;
   canAppeal: boolean;
   appeal?: { status: "open" | "upheld" | "overturned"; outcomeReason?: string; at: string };
+}
+
+// ── Shared links (contract §38) ─────────────────────────────────────────────
+
+/**
+ * live: GET /public/posts/:id (no sign-in). What someone who opened a shared link may see: the full
+ * post when its audience is Anyone ("full"), otherwise only which Hood, the topic and the counts
+ * ("teaser"). Names are initials only, as on Nextdoor. 410 once it's removed or deleted.
+ */
+export interface PublicPostPreview {
+  _id: string;
+  mode: "full" | "teaser";
+  hood: { id: string; name: string; city?: string };
+  category: PostCategory;
+  alertCategory?: AlertCategory;
+  createdAt: string;
+  reactionTotal: number;
+  commentCount: number;
+  /** Initials ("A. O."), or the Hood Team's name for official posts. */
+  author: { name: string; kind?: AuthorKind };
+  /** Full only. */
+  message?: string;
+  mediaUrls?: string[];
+  mediaAspects?: (number | null)[];
+  poll?: PollDefinition;
+  pollResults?: { counts: Record<string, number>; total: number; closed: boolean };
+  eventDate?: string;
+  eventLocation?: string;
+  priceNaira?: number | null;
+  /** The first replies, initials only. */
+  replies?: { name: string; text: string; createdAt: string; kind?: AuthorKind }[];
 }

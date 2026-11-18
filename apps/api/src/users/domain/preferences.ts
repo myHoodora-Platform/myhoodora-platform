@@ -1,5 +1,5 @@
 /** Contract §10 Preferences. Deep-merged on PATCH; defaults mirror the web. */
-export const NOTIFICATION_CATEGORIES = ["urgent_alerts", "alerts", "comments", "messages", "events", "for_sale", "groups"] as const;
+export const NOTIFICATION_CATEGORIES = ["urgent_alerts", "alerts", "comments", "messages", "events", "for_sale", "groups", "streaks"] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
 export interface Preferences {
@@ -21,6 +21,8 @@ export const DEFAULT_PREFERENCES: Preferences = {
     events: { push: false, email: false },
     for_sale: { push: false, email: false },
     groups: { push: true, email: false },
+    // The 18:00 nudge when a streak of 3+ days would break today; push only, never email.
+    streaks: { push: true, email: false },
   },
   digest: "daily",
   privacy: { profileVisibility: "neighbourhood", messaging: "neighbourhood", showNeighbourSince: true },

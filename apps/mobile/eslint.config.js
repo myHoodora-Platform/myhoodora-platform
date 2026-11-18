@@ -16,6 +16,15 @@ const keyboardSafe = [
   { name: "react-native", importNames: ["KeyboardAvoidingView"], message: "Use FormScrollView (@/shared/ui/form-scroll-view) for forms; footers ride the keyboard through AppScreen or useKeyboardHeight." },
   { name: "react-native-reanimated", importNames: ["useAnimatedKeyboard"], message: "Use useKeyboardHeight (@/shared/hooks/use-keyboard-height): it also works inside a Modal." },
 ];
+/**
+ * Native modules newer than the oldest store build (Android 1.0.0, version codes 2 and 3): loading their
+ * JS in a build without them throws, so an OTA update would crash those phones at launch. Check with
+ * requireOptionalNativeModule first, then require() them where they're used.
+ */
+const optionalNative = [
+  { name: "expo-crypto", message: "Use optionalCrypto() / randomId() from @/core/crypto/optional-crypto: Android builds 2 and 3 don't have it." },
+  { name: "expo-calendar/legacy", message: "Check requireOptionalNativeModule(\"ExpoCalendar\") first, then require() it (see add-to-calendar.ts)." },
+];
 
 module.exports = defineConfig([
   expoConfig,
@@ -24,7 +33,7 @@ module.exports = defineConfig([
   },
   {
     rules: {
-      "no-restricted-imports": ["error", { paths: [oneScreenPerTap, ...keyboardSafe], patterns: [noWebApp] }],
+      "no-restricted-imports": ["error", { paths: [oneScreenPerTap, ...keyboardSafe, ...optionalNative], patterns: [noWebApp] }],
       "import/no-cycle": "error",
     },
   },
@@ -34,7 +43,7 @@ module.exports = defineConfig([
     rules: {
       "no-restricted-imports": [
         "error",
-        { paths: [oneScreenPerTap, ...keyboardSafe], patterns: [noWebApp, { group: ["@/app/*", "@/features/*"], message: "core/ and shared/ must not depend on routes or features." }] },
+        { paths: [oneScreenPerTap, ...keyboardSafe, ...optionalNative], patterns: [noWebApp, { group: ["@/app/*", "@/features/*"], message: "core/ and shared/ must not depend on routes or features." }] },
       ],
     },
   },

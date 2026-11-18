@@ -54,6 +54,9 @@ export function usePushNotifications() {
     if (handledResponse.current === id) return;
     handledResponse.current = id;
     const data = lastResponse.notification.request.content.data as Partial<PushData> | undefined;
-    router.push(routeForHref(data?.href) as Href);
+    const route = routeForHref(data?.href);
+    // The notifications list is one screen: go back to it rather than stacking another copy.
+    if (route === "/notifications") router.navigate(route as Href);
+    else router.push(route as Href);
   }, [phase, lastResponse, router]);
 }

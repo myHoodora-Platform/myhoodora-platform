@@ -1,7 +1,7 @@
 import { readBirthInput } from "@myhoodora/api-contract/age";
 import { registerSchema } from "@myhoodora/api-contract/auth-validation";
 import { useEffect, useRef, useState } from "react";
-import { StyleSheet, Switch, View, type TextInput } from "react-native";
+import { Pressable, StyleSheet, Switch, View, type TextInput } from "react-native";
 import { useTheme } from "@/shared/theme/theme";
 import { Button } from "@/shared/ui/button";
 import { InlineAlert } from "@/shared/ui/inline-alert";
@@ -18,6 +18,8 @@ import { rememberLegalAcceptance } from "@/core/legal/pending-acceptance";
 import { BirthFields, EMPTY_BIRTH, type BirthInput } from "@/features/age/birth-fields";
 import { CantJoinYet } from "@/features/age/cant-join";
 import { PolicyReviewModal } from "@/features/legal/policy-review-modal";
+import { normaliseInviteCode } from "@myhoodora/api-contract/invites";
+import { readSavedInvite, rememberInviteRef } from "@/core/invites/invite-ref";
 
 type Errors = { email?: string; password?: string; confirm?: string; birth?: string; agreeToTerms?: string };
 
@@ -41,6 +43,17 @@ export function RegisterScreen() {
   useEffect(() => {
     void ageCheckLocked().then(setLocked);
   }, []);
+  // An invite code: from the link they came by (kept until they've joined), or typed in here.
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteCode, setInviteCode] = useState("");
+  const [linkedCode, setLinkedCode] = useState<string | null>(null);
+  useEffect(() => {
+    void readSavedInvite().then((saved) => {
+      if (!saved) return;
+      setLinkedCode(saved.code);
+      setInviteCode(saved.code);
+    });
+  }, []);
 
   const submit = async () => {
     // One account request at a time: a second tap before the first re-render would ask Firebase twice
@@ -63,6 +76,9 @@ export function RegisterScreen() {
     }
     // Sent by the age check screen as soon as the account exists (the server has the final say).
     rememberAgeAnswer(age.value);
+    // A code they typed (or changed) wins over one a link brought; claimed once they're in.
+    const typed = normaliseInviteCode(inviteCode);
+    if (typed && typed !== linkedCode) await rememberInviteRef(typed, "code", { replace: true });
     // They ticked "I agree": recorded as a sign-up agreement once the account exists.
     rememberLegalAcceptance();
     setBusy(true);
@@ -134,6 +150,24 @@ export function RegisterScreen() {
         returnKeyType="next"
         error={errors?.confirm}
       />
+      {inviteOpen ? (
+        <TextField
+          label="Invite code (optional)"
+          hint="From the neighbour who invited you, or the poster you saw. They get the credit."
+          placeholder="e.g. ADA7K"
+          value={inviteCode}
+          onChangeText={(v) => setInviteCode(v.toUpperCase())}
+          autoCapitalize="characters"
+          autoCorrect={false}
+          maxLength={14}
+        />
+      ) : (
+        <Pressable onPress={() => setInviteOpen(true)} accessibilityRole="button" hitSlop={8} style={styles.inviteLink}>
+          <Text variant="label" tone="primary">
+            {inviteCode ? `Invite code ${inviteCode} · Change` : "Have an invite code?"}
+          </Text>
+        </Pressable>
+      )}
       <BirthFields
         value={birth}
         onChange={(next) => {
@@ -184,6 +218,7 @@ export function RegisterScreen() {
 }
 
 const styles = StyleSheet.create({
+  inviteLink: { alignSelf: "flex-start", paddingVertical: 4 },
   row: { flexDirection: "row", alignItems: "center", gap: 12 },
   flex: { flex: 1 },
 });

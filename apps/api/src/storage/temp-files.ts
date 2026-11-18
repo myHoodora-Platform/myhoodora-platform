@@ -3,8 +3,11 @@ import { readdir, stat, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-/** Where uploads and downloaded links wait (on disk, not in memory) until they're sent to storage. */
-export const UPLOAD_TMP_DIR = join(tmpdir(), "myhoodora-uploads");
+/**
+ * Where uploads and downloaded links wait (on disk, not in memory) until they're sent to storage.
+ * UPLOAD_TMP_DIR moves it (tests give each worker its own, so parallel suites don't see each other's files).
+ */
+export const UPLOAD_TMP_DIR = process.env.UPLOAD_TMP_DIR || join(tmpdir(), "myhoodora-uploads");
 mkdirSync(UPLOAD_TMP_DIR, { recursive: true });
 
 /** Always called once a temp file has been used; a missing file is fine. */

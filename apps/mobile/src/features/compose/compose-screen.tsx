@@ -21,7 +21,7 @@ import { EmptyState } from "@/shared/ui/states";
 import { Text } from "@/shared/ui/text";
 import { TextField } from "@/shared/ui/text-field";
 import { useToast } from "@/shared/ui/toast";
-import { ALERT_KINDS, blankDraft, COMPOSE_KINDS, draftErrors, kindFromParam, MESSAGE_MAX, newClientId, toNewPost, type Draft, type DraftErrors } from "./compose-rules";
+import { ALERT_KINDS, AUDIENCES, audienceFor, blankDraft, COMPOSE_KINDS, draftErrors, kindFromParam, MESSAGE_MAX, newClientId, toNewPost, type Draft, type DraftErrors } from "./compose-rules";
 import { EventFields, PlaceRow, PollFields } from "./compose-extras";
 import { useHoodArea } from "@/features/alerts/alerts-data";
 import { PlacePicker } from "@/features/alerts/place-picker";
@@ -44,14 +44,15 @@ const REASON_TEXT: Record<string, string> = {
  * Writing a post (Nextdoor's "Post" button): pick what it is, write it, post. One tap posts once: the
  * draft carries a clientId, so even a retry after a lost response can't make a second post.
  */
-export function ComposeScreen({ kind: startKind }: { kind?: string }) {
+export function ComposeScreen({ kind: startKind, text: startText }: { kind?: string; text?: string }) {
   const t = useTheme();
   const router = useRouter();
   const user = useSignedInUser();
   const { profile } = useAuth();
   const client = useQueryClient();
   const toast = useToast();
-  const [draft, setDraft] = useState<Draft>(() => blankDraft(kindFromParam(startKind)));
+  // A conversation starter the neighbour tapped arrives as the text to start from.
+  const [draft, setDraft] = useState<Draft>(() => ({ ...blankDraft(kindFromParam(startKind)), message: (startText ?? "").slice(0, MESSAGE_MAX) }));
   const [errors, setErrors] = useState<DraftErrors | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -198,6 +199,23 @@ export function ComposeScreen({ kind: startKind }: { kind?: string }) {
           {errors?.message ? <InlineAlert>{errors.message}</InlineAlert> : null}
           {draft.category === "poll" ? <PollFields draft={draft} errors={errors} edit={edit} /> : null}
           <PhotoStrip uploads={photos} />
+          {draft.category === "alert" ? (
+            <Text variant="caption" tone="muted">
+              Safety alerts are only for your neighbourhood.
+            </Text>
+          ) : (
+            <View style={styles.audience}>
+              <Text variant="label">Who can see this?</Text>
+              <View style={styles.audienceChips}>
+                {AUDIENCES.map((a) => (
+                  <Chip key={a.id} label={a.label} selected={audienceFor(draft) === a.id} onPress={() => edit({ audience: a.id })} />
+                ))}
+              </View>
+              <Text variant="caption" tone="muted">
+                {AUDIENCES.find((a) => a.id === audienceFor(draft))?.hint}
+              </Text>
+            </View>
+          )}
       </FormScrollView>
       {area ? (
         <PlacePicker
@@ -228,4 +246,6 @@ const styles = StyleSheet.create({
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   urgent: { flexDirection: "row", alignItems: "center", gap: 12, padding: 12, borderWidth: 1 },
   message: { fontSize: 18, lineHeight: 26, minHeight: 160 },
+  audience: { gap: 8, paddingTop: 8 },
+  audienceChips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
 });

@@ -8,7 +8,7 @@ import { useTheme } from "@/shared/theme/theme";
 import { AppScreen, useScreenInsets } from "@/shared/ui/app-screen";
 import { IconButton } from "@/shared/ui/icon-button";
 import { ErrorState } from "@/shared/ui/states";
-import { webPageUrl, isSameSite, pageTitle } from "./web-urls";
+import { isOurSite, loadInApp, pageTitle, webPageUrl } from "./web-urls";
 
 /**
  * Marks the page as shown inside the app before it draws, so the site hides its own header and
@@ -82,11 +82,9 @@ function Page({ start, onPage }: { start: string; onPage: (url: string, title: s
         onLoadProgress={(e) => setProgress(e.nativeEvent.progress)}
         onError={() => setFailed(true)}
         // Our pages stay here; anywhere else (a partner's site, a mail link) opens outside the app.
-        onShouldStartLoadWithRequest={(req) => {
-          if (isSameSite(req.url, site)) return true;
-          void Linking.openURL(req.url).catch(() => undefined);
-          return false;
-        }}
+        onShouldStartLoadWithRequest={(req) =>
+          loadInApp(req, (url) => isOurSite(url, site), (url) => void Linking.openURL(url).catch(() => undefined))
+        }
         setSupportMultipleWindows={false}
         allowsBackForwardNavigationGestures
         pullToRefreshEnabled

@@ -10,6 +10,8 @@ jest.mock("expo-apple-authentication", () => ({
   formatFullName: (n: { givenName?: string; familyName?: string }) => [n.givenName, n.familyName].filter(Boolean).join(" "),
   AppleAuthenticationScope: { FULL_NAME: 0, EMAIL: 1 },
 }));
+// The build has expo-crypto (iPhone builds from 16 Nov on).
+jest.mock("expo", () => ({ requireOptionalNativeModule: (name: string) => (name === "ExpoCrypto" ? {} : null) }));
 jest.mock("expo-crypto", () => ({
   randomUUID: () => "raw-nonce",
   digestStringAsync: async (_alg: string, data: string) => `sha256(${data})`,
@@ -61,5 +63,15 @@ describe("signInWithApple", () => {
   it("fails clearly when Apple returns no token", async () => {
     mockAppleSignIn.mockResolvedValue({ identityToken: null, fullName: null });
     await expect(signInWithApple()).rejects.toThrow("Apple didn't return a sign-in token.");
+  });
+});
+
+describe("signInWithApple in a build without expo-crypto", () => {
+  it("says to update, before opening Apple's sheet", async () => {
+    jest.resetModules();
+    jest.doMock("expo", () => ({ requireOptionalNativeModule: () => null }));
+    const { signInWithApple: signIn } = jest.requireActual<typeof import("../auth-api")>("../auth-api");
+    await expect(signIn()).rejects.toThrow("Sign in with Apple needs the latest version of the app.");
+    expect(mockAppleSignIn).not.toHaveBeenCalled();
   });
 });

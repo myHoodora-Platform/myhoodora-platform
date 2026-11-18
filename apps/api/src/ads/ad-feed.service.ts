@@ -7,7 +7,7 @@ import { UsersService } from "../users/users.service";
 import type { Viewer } from "../shared/auth/viewer";
 import type { AdFeedQuery } from "./ads.dto";
 import { AdsService, type AdView, type PromotedListing } from "./ads.service";
-import { initialState, placeAds, type PlacementState } from "./domain/placement";
+import { initialState, pickTop, placeAds, type PlacementState } from "./domain/placement";
 
 export type FeedItem = { type: "post"; data: PostView } | { type: "ad"; slotId: string; data: AdView };
 
@@ -55,13 +55,17 @@ export class AdFeedService {
     const cursor = q.cursor ? decodeCursor(q.cursor) : null;
     // Access, blocks and order are the plain feed's (404 outside your neighbourhoods).
     const posts = await this.posts.feed(viewer, hoodId, { limit: q.limit, before: cursor?.before, category: q.category });
-    const more = posts.length === q.limit;
+    // Pinned posts come on top of the first page, beyond the limit: paging follows the dated ones.
+    // Paging follows the Hood's own dated posts: not pinned ones, not nearby fill.
+    const dated = posts.filter((p) => !p.pinned && !p.nearby);
+    const more = dated.length === q.limit;
     const rules = await this.ads.settings();
     const state = cursor?.state ?? initialState(rules);
 
     let items: FeedItem[] = posts.map((p) => ({ type: "post", data: p }));
     let next = { ...state, seen: state.seen + posts.length };
-    if (rules.enabled && !q.category && posts.length) {
+    // The first page of the full feed always asks: a "Show first" ad goes on top even in a quiet Hood.
+    if (rules.enabled && !q.category && (posts.length || !cursor)) {
       const hood = (await this.hoods.findManyByIds([hoodId])).get(hoodId);
       const [lng, lat] = hood?.location?.coordinates ?? [];
       const found = await this.ads.candidatesFor(viewer, { id: hoodId, city: hood?.city, lat, lng });
@@ -70,13 +74,24 @@ export class AdFeedService {
       const promoted = showsListings ? await this.promotedItems(viewer, [...ads.values()]) : new Map<string, never>();
       // A seller's ad with nothing for sale now (or a seller this neighbour hid) isn't shown.
       const candidates = found.candidates.filter((c) => ads.get(c.id)!.format !== "listings" || (showsListings && promoted.has(c.id)));
-      const placed = placeAds(posts, candidates, state, { session: q.session, rules, more });
-      next = placed.state;
-      const placedAds = placed.items.flatMap((i) => (i.type === "ad" ? [ads.get(i.adId)!] : []));
-      const aspects = await this.storage.aspectRatios(placedAds.flatMap((a) => a.media.map((m) => m.url)));
-      items = placed.items.map((i) => (i.type === "post" ? i : { type: "ad", slotId: i.slotId, data: this.ads.toView(ads.get(i.adId)!, hood?.name, aspects, promoted.get(i.adId)) }));
+      const top = cursor ? null : pickTop(candidates);
+      // "Show first" ads only ever go on top; the slots between posts are for the rest.
+      // A page with too few posts gets no slots (placeAds), so a quiet Hood shows only the one on top.
+      const placed = placeAds(posts, candidates.filter((c) => !c.pinned), state, { session: q.session, rules, more });
+      next = { ...placed.state, seen: state.seen + posts.length };
+      if (top) next.served = { ...next.served, [top.id]: (next.served[top.id] ?? 0) + 1 };
+      const placedAds = [...(top ? [ads.get(top.id)!] : []), ...placed.items.flatMap((i) => (i.type === "ad" ? [ads.get(i.adId)!] : []))];
+      const [aspects, likes] = await Promise.all([
+        this.storage.aspectRatios(placedAds.flatMap((a) => a.media.map((m) => m.url))),
+        this.ads.likesFor(viewer.uid, [...new Set(placedAds.filter((a) => a.likeable).map((a) => String(a._id)))]),
+      ]);
+      const view = (id: string, slotId: string): FeedItem => ({ type: "ad", slotId, data: this.ads.toView(ads.get(id)!, hood?.name, aspects, promoted.get(id), likes.get(id)) });
+      items = [
+        ...(top ? [view(top.id, `${q.session}:top`)] : []),
+        ...placed.items.map((i) => (i.type === "post" ? i : view(i.adId, i.slotId))),
+      ];
     }
-    const last = posts[posts.length - 1];
+    const last = dated[dated.length - 1];
     return { items, nextCursor: more && last ? encodeCursor({ v: 1, before: last.createdAt, state: next }) : null };
   }
 

@@ -3,5 +3,6 @@
   "rootDir": "src",
   "testEnvironment": "node",
   "testRegex": ".*\\.spec\\.ts$",
+  "setupFiles": ["<rootDir>/../test/setup/per-worker-env.ts"],
   "transform": { "^.+\\.(t|j)s$": ["ts-jest", { "tsconfig": "<rootDir>/../test/tsconfig.json" }] }
 }

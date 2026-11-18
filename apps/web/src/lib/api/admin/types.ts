@@ -39,6 +39,8 @@ export type Capability =
   | "ads.manage"
   /** Feedback prompts, their answers, and store-review rules. */
   | "feedback.manage"
+  | "content.manage"
+  | "engagement.manage"
   /** Owner only: grant or revoke admin/owner. */
   | "team.manage.admins";
 
@@ -219,6 +221,8 @@ export interface VerificationCase {
   status: "pending_review" | "failed";
   /** The nearby Hood they asked to join (contract §16); approve into this one. */
   requestedHood?: { id: string; name: string };
+  /** Who invited them (contract §40). Invited by a verified neighbour: listed first. */
+  invitedBy?: { uid: string; displayName: string; verified: boolean; hoodName?: string };
 }
 
 // ── Hoods ───────────────────────────────────────────────────────────────────
@@ -423,6 +427,8 @@ export interface PlatformSettings {
   appStoreStatus: Record<"android" | "ios", AppStoreStatus>;
   /** Admins' extra words and phrases the content filter refuses (the built-in ones aren't listed). "word*" also covers longer words starting with it. */
   blockedTerms: string[];
+  /** "Get the app" prompts on the mobile website (contract §43). */
+  appPrompts?: import("@myhoodora/api-contract/app-config").AppPrompts;
 }
 
 export interface SignupEntry {

@@ -2,7 +2,7 @@
 
 import { Skeleton } from "@myhoodora/ui/skeleton";
 import { ErrorState, PreviewNotice } from "@/components/shared/states";
-import { NOTIFICATION_CATEGORIES } from "@myhoodora/api-contract/settings";
+import { channelPrefs, NOTIFICATION_CATEGORIES } from "@myhoodora/api-contract/settings";
 import type { NotificationCategory, Preferences } from "@/lib/api/settings";
 import { Segmented, SettingsSection, Switch } from "./ui";
 import { usePreferences } from "./use-preferences";
@@ -25,7 +25,7 @@ export function NotificationSettings() {
   const setChannel = (id: NotificationCategory, channel: "push" | "email", value: boolean) =>
     void change({
       ...prefs,
-      notifications: { ...prefs.notifications, [id]: { ...prefs.notifications[id], [channel]: value } },
+      notifications: { ...prefs.notifications, [id]: { ...channelPrefs(prefs, id), [channel]: value } },
     });
 
   return (
@@ -48,18 +48,19 @@ export function NotificationSettings() {
                 <span className="text-[11px] font-semibold text-muted-foreground sm:hidden">Push</span>
                 <Switch
                   label={`${c.label} push notifications`}
-                  checked={prefs.notifications[c.id].push}
+                  checked={channelPrefs(prefs, c.id).push}
                   onChange={(v) => setChannel(c.id, "push", v)}
                 />
               </div>
-              <div className="flex flex-col items-center gap-1 sm:justify-self-center">
-                <span className="text-[11px] font-semibold text-muted-foreground sm:hidden">Email</span>
-                <Switch
-                  label={`${c.label} emails`}
-                  checked={prefs.notifications[c.id].email}
-                  onChange={(v) => setChannel(c.id, "email", v)}
-                />
-              </div>
+              {c.pushOnly ? (
+                // Push only (a streak nudge by email would arrive too late to help): keeps the column lined up.
+                <span className="hidden w-11 sm:block sm:justify-self-center" aria-hidden />
+              ) : (
+                <div className="flex flex-col items-center gap-1 sm:justify-self-center">
+                  <span className="text-[11px] font-semibold text-muted-foreground sm:hidden">Email</span>
+                  <Switch label={`${c.label} emails`} checked={channelPrefs(prefs, c.id).email} onChange={(v) => setChannel(c.id, "email", v)} />
+                </div>
+              )}
             </div>
           </div>
         ))}

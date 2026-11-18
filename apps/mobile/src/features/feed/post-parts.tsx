@@ -1,9 +1,10 @@
 import type { ApiPost, PostCategory, ReactionType } from "@myhoodora/api-contract/types";
-import { CheckCircle2, MapPin, MessageCircle, Share2, ThumbsUp } from "lucide-react-native";
+import { CheckCircle2, MapPin, MessageCircle, Pin, Share2, ThumbsUp } from "lucide-react-native";
 import { useRef, useState } from "react";
 import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { fonts, MIN_TOUCH, tint, useTheme, type Theme } from "@/shared/theme/theme";
+import { AuthorBadge } from "@/shared/ui/author-badge";
 import { Avatar } from "@/shared/ui/avatar";
 import { Text } from "@/shared/ui/text";
 import { timeAgo } from "@/shared/utils/time";
@@ -77,11 +78,30 @@ export function PostAuthor({ post, size = 40, compact = false, onAuthor, onAutho
   const meta = [post.author?.neighborhoodName, timeAgo(post.createdAt), post.editedAt ? "Edited" : null].filter(Boolean).join(" · ");
   const body = (
     <>
-      <Avatar name={post.author?.displayName} photoURL={post.author?.photoURL} size={size} />
+      <Avatar name={post.author?.displayName} photoURL={post.author?.photoURL} size={size} badge={post.author?.badge} />
       <View style={styles.shrink}>
-        <Text variant="label" style={compact ? undefined : styles.name} numberOfLines={1}>
-          {name}
-        </Text>
+        <View style={styles.row}>
+          <Text variant="label" style={[compact ? undefined : styles.name, styles.shrink]} numberOfLines={1}>
+            {name}
+          </Text>
+          <AuthorBadge kind={post.author?.kind} staff={post.author?.staff} />
+        </View>
+        {post.pinned ? (
+          <View style={styles.row}>
+            <Pin size={11} color={t.colors.primary} />
+            <Text variant="caption" style={{ color: t.colors.primary }}>
+              Pinned
+            </Text>
+          </View>
+        ) : null}
+        {post.nearby ? (
+          <View style={styles.row}>
+            <MapPin size={11} color={t.colors.primary} />
+            <Text variant="caption" style={{ color: t.colors.primary }} numberOfLines={1}>
+              From {post.nearby.hoodName}, nearby
+            </Text>
+          </View>
+        ) : null}
         <View style={styles.row}>
           <Text variant="caption" tone="muted" numberOfLines={1} style={styles.shrink}>
             {meta}

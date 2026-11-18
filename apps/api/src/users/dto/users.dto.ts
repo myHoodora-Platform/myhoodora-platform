@@ -130,6 +130,7 @@ class NotificationPrefsDto {
   @IsOptional() @ValidateNested() @Type(() => NotificationChannelDto) events?: NotificationChannelDto;
   @IsOptional() @ValidateNested() @Type(() => NotificationChannelDto) for_sale?: NotificationChannelDto;
   @IsOptional() @ValidateNested() @Type(() => NotificationChannelDto) groups?: NotificationChannelDto;
+  @IsOptional() @ValidateNested() @Type(() => NotificationChannelDto) streaks?: NotificationChannelDto;
 }
 
 class PrivacyDto {

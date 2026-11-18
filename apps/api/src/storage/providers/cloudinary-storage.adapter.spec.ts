@@ -102,7 +102,7 @@ describe("CloudinaryStorageAdapter", () => {
     refused.sdk.uploader.upload.mockRejectedValueOnce({ error: { http_code: 400, message: "Invalid video file" } });
     await expect(new CloudinaryStorageAdapter(URL, refused.sdk as never).upload({ ...upload, resourceType: "video", source: { path: "/tmp/x.mp4" } })).rejects.toMatchObject({ reason: "rejected" });
     const down = fakeSdk(() => undefined);
-    down.sdk.uploader.upload.mockRejectedValueOnce(new Error("ENOENT"));
+    down.sdk.uploader.upload.mockRejectedValue(new Error("ENOENT"));
     await expect(new CloudinaryStorageAdapter(URL, down.sdk as never).upload({ ...upload, source: { path: "/tmp/gone.jpg" } })).rejects.toMatchObject({ reason: "unavailable" });
   });
 
@@ -127,6 +127,32 @@ describe("CloudinaryStorageAdapter", () => {
     await expect(auth.upload(upload)).rejects.toMatchObject({ reason: "unavailable" });
     const down = new CloudinaryStorageAdapter(URL, fakeSdk((cb) => cb({ http_code: 500, message: "boom" })).sdk as never);
     await expect(down.upload(upload)).rejects.toBeInstanceOf(StorageError);
+  });
+
+  // Seen on a 5-photo post from a phone: two uploads got the SDK's 499 "Request Timeout" seconds in, and the
+  // phone was told "try a different file" (a 400), so it didn't retry either.
+  it("tries a timed-out or failed upload once more, and a timeout is never blamed on the file", async () => {
+    let n = 0;
+    const blip = fakeSdk((cb) => (n++ === 0 ? cb({ http_code: 499, message: "Request Timeout" }) : cb(undefined, { public_id: "p/ok", format: "jpg", bytes: 5 })));
+    await expect(new CloudinaryStorageAdapter(URL, blip.sdk as never).upload(upload)).resolves.toMatchObject({ providerId: "p/ok" });
+    expect(blip.sdk.uploader.upload_stream).toHaveBeenCalledTimes(2);
+
+    const stuck = fakeSdk((cb) => cb({ http_code: 499, message: "Request Timeout" }));
+    await expect(new CloudinaryStorageAdapter(URL, stuck.sdk as never).upload(upload)).rejects.toMatchObject({ reason: "unavailable" });
+    expect(stuck.sdk.uploader.upload_stream).toHaveBeenCalledTimes(2);
+
+    const disk = fakeSdk(() => undefined);
+    disk.sdk.uploader.upload.mockRejectedValueOnce({ error: { http_code: 502, message: "Bad Gateway" } });
+    await expect(new CloudinaryStorageAdapter(URL, disk.sdk as never).upload({ ...upload, source: { path: "/tmp/p.jpg" } })).resolves.toMatchObject({ providerId: "from-disk:/tmp/p.jpg" });
+    expect(disk.sdk.uploader.upload).toHaveBeenCalledTimes(2);
+  });
+
+  it("never retries a refused file or bad credentials", async () => {
+    for (const http_code of [400, 401]) {
+      const once = fakeSdk((cb) => cb({ http_code, message: "no" }));
+      await expect(new CloudinaryStorageAdapter(URL, once.sdk as never).upload(upload)).rejects.toBeInstanceOf(StorageError);
+      expect(once.sdk.uploader.upload_stream).toHaveBeenCalledTimes(1);
+    }
   });
 
   it("deletes by public id with CDN invalidation; 'not found' counts as done", async () => {

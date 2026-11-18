@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react-native";
-import { Bookmark, CalendarDays, ChevronRight, Gavel, HelpCircle, Info, LifeBuoy, Settings, ShieldCheck, ShoppingBag, Siren, Sparkles, Store, Users } from "lucide-react-native";
+import { Bookmark, CalendarDays, ChevronRight, Gavel, UserPlus, HelpCircle, Info, LifeBuoy, Settings, ShieldCheck, ShoppingBag, Siren, Sparkles, Store, Users } from "lucide-react-native";
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
@@ -18,6 +18,7 @@ import { Text } from "@/shared/ui/text";
 import { openWeb } from "@/shared/utils/open-web";
 import { getLeadStatus, moderationKeys } from "@/features/moderation/moderation-api";
 import { accountKeys, getAppConfig } from "@/features/account/account-api";
+import { useMyBadge } from "@/features/invites/use-my-badge";
 import { TabHeader } from "./top-actions";
 
 export interface Shortcut {
@@ -56,6 +57,7 @@ export function MenuScreen() {
   const openAi = () => void (aiStudio?.startsWith("https://") ? WebBrowser.openBrowserAsync(aiStudio) : openWeb("/ai"));
   // Hood Leads see their review queue here (the web's user menu); nobody else sees the row.
   const lead = useQuery({ queryKey: moderationKeys.leadStatus, queryFn: () => getLeadStatus(user), enabled: verified, staleTime: 5 * 60_000 });
+  const badge = useMyBadge(verified);
 
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: t.colors.canvas }]} edges={["top"]}>
@@ -63,7 +65,7 @@ export function MenuScreen() {
       <TabHeader title="Menu" />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottom }]} scrollIndicatorInsets={{ bottom }}>
         <Card onPress={() => router.push("/more")} label={`${profile?.displayName ?? "Your profile"}. View your profile`}>
-          <Avatar name={profile?.displayName} photoURL={profile?.photoURL} size={52} />
+          <Avatar name={profile?.displayName} photoURL={profile?.photoURL} size={52} badge={badge} />
           <View style={styles.flex}>
             <View style={styles.inline}>
               <Text variant="heading" numberOfLines={1} style={styles.shrink}>
@@ -83,6 +85,10 @@ export function MenuScreen() {
             <Tile key={s.label} shortcut={s} onPress={() => router.push(s.href)} />
           ))}
         </View>
+
+        <SettingsGroup>
+          <SettingsRow Icon={UserPlus} label="Invite neighbours" description="Your invite code, and who joined with it" onPress={() => router.push("/invite")} />
+        </SettingsGroup>
 
         {lead.data?.isLead ? (
           <SettingsGroup>

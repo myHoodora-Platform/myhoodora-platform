@@ -154,9 +154,13 @@ export class AccountDeletionService implements OnModuleInit, OnModuleDestroy {
             legalAcceptances: [],
             emailVerifiedAt: null,
             restrictedUntil: null,
+            // Who invited them (and the hashed device and network), their streak and badge (contract §40, §42).
+            invitedBy: null,
+            engagement: null,
+            inviteAskDismissedAt: null,
             purgedAt: new Date(),
           },
-          $unset: { displayName: 1, photoURL: 1, bio: 1, location: 1, lastKnownLocation: 1, neighborhoodId: 1, lastNeighborhoodId: 1, verifiedAt: 1, ageAssurance: 1 },
+          $unset: { displayName: 1, photoURL: 1, bio: 1, location: 1, lastKnownLocation: 1, neighborhoodId: 1, lastNeighborhoodId: 1, verifiedAt: 1, ageAssurance: 1, inviteCode: 1, inviteDeviceHash: 1, streakRemindedDay: 1 },
         },
       )
       .exec();

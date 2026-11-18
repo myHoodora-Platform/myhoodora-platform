@@ -15,6 +15,7 @@ import { initMonitoring, monitoringActive } from "@/core/monitoring/monitoring";
 import { AppearanceProvider } from "@/core/preferences/appearance";
 import { usePushNotifications } from "@/core/push/use-push-notifications";
 import { AppUpdatePrompts } from "@/features/updates/app-update-prompts";
+import { useClaimSavedInvite } from "@/features/invites/use-claim-saved-invite";
 import { useTheme } from "@/shared/theme/theme";
 import { CrashScreen } from "@/shared/ui/crash-screen";
 import { Text } from "@/shared/ui/text";
@@ -38,6 +39,7 @@ function RootNavigator() {
   const { phase } = useAuth();
   const t = useTheme();
   usePushNotifications();
+  useClaimSavedInvite();
   const settled = phase !== "bootstrapping" && phase !== "profileLoading";
   const segments = useSegments();
   const screen = segments.join("/");
@@ -57,6 +59,8 @@ function RootNavigator() {
         <Stack.Screen name="index" />
         {/* The website's public pages, for everyone (terms on the sign-up screen too). */}
         <Stack.Screen name="web" />
+        {/* A neighbour's invite link (myhoodora://i/<code>): remembers the code, then on as usual. */}
+        <Stack.Screen name="i/[code]" options={{ animation: "none" }} />
         <Stack.Protected guard={phase === "intro"}>
           <Stack.Screen name="intro" options={{ animation: "fade" }} />
         </Stack.Protected>

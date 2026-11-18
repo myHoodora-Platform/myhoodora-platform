@@ -239,7 +239,8 @@ interface PublicProfile {
   neighbourSince?;        // ISO date verified in this neighbourhood
   bio?;
   verified: boolean;
-  kind?: "neighbour" | "organisation";  // e.g. residents' association, gets a badge
+  kind?: "neighbour" | "organisation" | "team";  // organisation: e.g. residents' association; team: the Hood Team (§37)
+  badge?: AvatarBadge;    // Hood Builder mascot + streak ring (§42); absent when badges are switched off
 }
 ```
 
@@ -1639,3 +1640,110 @@ Objectionable text is refused wherever people write something others see (App St
 - **Where** (`@AllowedText()` in `apps/api/src/moderation/allowed-text.decorator.ts`): posts (`message`, `content`, poll option text, event location, thanked name, alert place label), post edits, comments, chat messages and edits, group chat titles, listings (title, description), groups (name, description), business applications (description), profile `displayName` and `bio` (also in onboarding). Not on text only staff read: reports, appeals, Hood requests, support.
 - **What** (`apps/api/src/moderation/content-filter.ts`): a short built-in list (sexual content and solicitation, slurs, the worst swear words) plus first-person threats to kill ("I will kill you", "we go kill am"), plus admins' words. Whole words only, so innocent words that contain a term pass ("Scunthorpe", "Essex", "Nigeria"). Text and terms are folded the same way first: lower case, no accents, look-alikes inside words (`p0rn`, `sh!t`), letters repeated three or more times (`fuuuck`), and spelled-out letters (`f.u.c.k`). Doubled letters are kept, so a slur can't fold into "Niger". `word*` also matches longer words starting with it.
 - **Admins** (`settings.manage`): `GET /admin/settings` includes `blockedTerms` (the admins' words; built-ins aren't listed). `PATCH /admin/settings` takes it, up to 500 terms of at most 60 characters, stored trimmed, lower case and without duplicates. They apply at once on the instance that saved them and within a minute on the others. Audited as `settings_update`.
+
+## 37. Hood Team: official posts, content bank, activation, daily prompts (2026-11-17)
+
+So nobody arrives to an empty Hood (plan: [product/hood-activation-plan.md](./product/hood-activation-plan.md); content: [product/hood-content-bank.md](./product/hood-content-bank.md)). Code: `apps/api/src/hood-content/`, types `packages/api-contract/src/hood-content.ts`.
+
+- **The Hood Team account** (uid `myhoodora-hood-team`, created on start, nobody can sign in). Its posts and comments carry `author.kind: "team"`; apps show "Official · Hood Team". `GET /users/myhoodora-hood-team/public` works from any Hood (`kind: "team"`). Notifications are never written to it.
+- **Authors** (posts and comments): `author.kind` (`"team"`, absent for neighbours) and `author.staff: true` for moderators, admins and owners ("Staff" label).
+- **Posts**: `source: "team"` and `pinned: true` (Hood Team posts pinned until a date). `GET /feed/hood/:id` and `GET /posts/neighborhood/:id` put up to 2 pinned posts on top of the **first page only** (no cursor/`skip`, `since` or `q`), outside `limit`, and leave them out of every other page. Clients page by the non-pinned posts (`nextCursor` already does; `skip` must count only non-pinned posts).
+- **`GET /hood-content/starters`** (any signed-in person): up to 6 `{ code, category, text }` conversation starters filled in for the caller's Hood, "Introduce yourself" (S01) first; `[]` before joining a Hood.
+- **Admin** (`/admin/hood-content`, `admin.access` to read; writes need `content.manage`, admins and owner; all audited):
+  - `GET items?tag&q&active`, `POST items`, `PATCH items/:id` (text, poll, pin days, `cityVariants: [{ city, body }]`, `active`), `DELETE items/:id`, `POST items/import { markdown, overwrite? }` → `{ added, updated, unchanged, problems }`.
+  - `POST compose` `{ hoodIds | cities | allHoods, itemId?, message?, category?, pollOptions?, pollDays?, eventDate?, eventLocation?, pinDays?, runAt? }` → `{ batchId, hoods, scheduled, alreadyScheduled, needsLocalDetails }`. `{hood}`/`{city}` are filled per Hood. Text still containing `[FILL: …]` is never posted (the Hood's city version is used when there is one). No alerts.
+  - `POST activation` `{ target, startDate?, skipIfPostsAtLeast? (15) }`: the ten-day plan (`domain/schedule.ts`) in Hoods with fewer posts than the threshold; once per Hood and item, however often it is applied.
+  - `GET scheduled?status&source&hoodId&batchId&limit`, `POST scheduled/:id/cancel`, `POST batches/:batchId/cancel`.
+  - `GET daily`, `PATCH daily { enabled, hour, minNeighbours }`, `PUT daily/calendar/:date { code | null }`: one prompt a day at `hour` Lagos time in every open Hood (Hoods in their activation plan that day are skipped); chosen days override a Monday-aligned rotation of the `daily` items.
+  - `PATCH posts/:id/pin { days }` (0 unpins; Hood Team posts only).
+- Every post goes out through the `hood-content.publish` job; a retried job returns the post it already made (`clientId = hc-<scheduled id>`).
+
+## 38. Post audiences and shared links (2026-11-17)
+
+Nextdoor's model ([product/hood-activation-plan.md](./product/hood-activation-plan.md) §8). Rules in one place: `apps/api/src/posts/domain/visibility.ts` (`postAccess`), tested over the whole table.
+
+- **Audience** (`visibility` on `POST /posts`): `neighbourhood` (default; "My neighbourhood"), `nearby` (also verified neighbours of Hoods within 5 km), `anyone`. Alerts are always `neighbourhood`. `PATCH /posts/:id { visibility }` (author) may only **narrow** it (400 otherwise); `message` is now optional on that route.
+- **Reading** (`GET /posts/:id`): own and followed Hoods, staff, and anyone in the audience get the post. Outside the audience it comes back with `access: "teaser"`: same shape, but `message`/`content` empty, no media, poll, place, names (`author.displayName` = "A neighbour in {Hood}", `authorUid` empty). An Anyone post read by someone not yet in a Hood has `access: "read_only"`.
+- **Taking part** (react, comment, like/delete own comment): the post's Hood, a Hood the person follows (§31; decided 2026-11-17: followers react and reply, they no longer only read), or a verified neighbour in its audience; 404 otherwise. New posts, poll votes and event RSVPs stay with the person's own Hood. Comment threads follow reading.
+- **`GET /public/posts/:id`** (no sign-in; 60/min; `Cache-Control: public, max-age=60`): `PublicPostPreview` (`packages/api-contract/src/types.ts`). `mode: "full"` for Anyone posts: text, media, poll results, event, price, first 2 replies, **initials only**. `mode: "teaser"`: Hood, category, counts, time, `author.name: "A neighbour"`. Hood Team posts show the team's name. 404 unknown, 410 deleted/removed/author gone/Hood archived.
+- **Web**: `/p/<id>` for someone without a session is rewritten to `/shared/p/<id>` (address unchanged; `lib/routes.ts` `sharedPostRewrite`), `noindex`, with a generated 1200×630 link-preview image (~50 KB, no photos).
+
+## 39. Official notices, "Show first", broadcasts in full (2026-11-17)
+
+- **Ads** (`/admin/ads`, §32): `official: true` = a notice from myHoodora itself. The feed shows `advertiser: { name: "myHoodora", logoUrl: <app icon>, official: true }` and apps label it "Official · myHoodora", never "Sponsored"; "Why am I seeing this?" says it's a team notice. `pinned: true` ("Show first") = the first item of the **first page** of every feed it reaches (`slotId: "<session>:top"`), even when the Hood has no posts; it never takes a slot between posts and doesn't compete on priority (highest priority wins if several). Daily cap still applies. The button is now optional for every format (with one, it still needs its link or phone). `primaryText` up to 1,000 characters; line breaks are kept and shown.
+- **Likes and "stop showing it once…"** (any ad): `likeable: true` puts a Like button and count under it; the feed sends `likes: { count, mine }`. `PUT /ads/:id/like` / `DELETE /ads/:id/like` → `{ liked, count }` (400 if the ad doesn't allow likes; repeat-safe). `retireOn: ("like" | "click")[]` stops showing it to a neighbour once they've liked it / tapped its button (sent to the app as `retireOn` so it can thank them; the card stays until the next refresh). `totalCapPerUser` (1–100, null = off) stops it after that many impressions in all, across days. "Got it" (official notices) = Hide. Stats gain `likes`.
+- **Broadcasts** (`POST /admin/broadcasts`): `body` up to 1,000 characters, line breaks kept. They link to `/notifications`: apps open such notifications **in place, in full** (no new screen), and a push tap returns to the existing list instead of stacking another.
+- **Hood Team** photo: the app icon (`apps/web/public/logo/app-icon.png`).
+
+## 40. Invite codes and referral paths (2026-11-17)
+
+Plan: docs/product/hood-activation-plan.md WP-E. Types: `@myhoodora/api-contract/invites`.
+
+- **Codes.** Every neighbour has a short personal code (`ADA7K`: three letters of their name + characters nobody misreads; made the first time it's asked for; unique). Links: `https://myhoodora.com/i/<code>` (personal), `?src=qr` (printed poster). Every link a neighbour shares carries `?ref=<code>` (posts, listings), so shares count as invites.
+- `GET /invites/me` → `InviteSummary { code, link, joined, verified, verifiedInMyHood, people[≤20] { name: "Ada O.", hoodName?, verified, joinedAt }, invitedBy: { name } | null, askWhoInvited }`. **Only invitees who verified their address and passed the age check count** (`verified`).
+- `POST /invites/claim { code? | uid?, via }` → 201 `{ invitedBy: { name } }` (first name). `via`: `link | post | badge | group | qr | code | asked`. `uid` (from "Who invited you?") must be a verified neighbour in the claimant's Hood. Rules: the first answer stays (same again: 201; different: 409); own code 400; Hood Team 400; two people can't invite each other (400); unknown code 404; only for accounts made since 17 Nov 2026 and within 30 days of joining (400). Throttled 10/min.
+- `POST /invites/me/dismiss` → 204: close "Who invited you?" without answering. `askWhoInvited` is true for people who joined since 17 Nov, haven't answered and haven't closed it.
+- `GET /public/invites/:code` (no sign-in, cached 5 min) → `{ code, inviter: { firstName }, hood: { name, city } | null, badge }`; 404 unknown/closed. `badge` is the one their avatar already shows (null while badges are switched off). Never the full name or anything else.
+- Staff: `GET /admin/invites?from&hoodId&limit` (`admin.access`) → `{ totals, people[] { uid, displayName, code, hood, joined, verified }, hoods[] }`, sorted by verified; `&format=csv` downloads it (formula-safe). `PUT /admin/invites/:uid { code | null, reason }` (`engagement.manage`, admins and owner) reassigns or voids the credit; audited (`invite_reassign`, `invite_void`).
+- **Priority verification:** `GET /admin/verification` lists newcomers invited by a then-verified neighbour first, with `invitedBy { uid, displayName, verified, hoodName }`. Their address is still checked.
+- Clients keep the code someone arrived with (first wins for 30 days; one typed at sign-up replaces it) and claim it once they're signed in and past the age check.
+
+### 40.1 Flagged invites, staff controls, posters and app links (2026-11-17)
+
+- **Device and network:** `POST /invites/claim` takes an optional `device` (the app's Android ID / iOS vendor id, or the browser's own random id; 8–64 of `A–Z a–z 0–9 _ -`), and `GET /invites/me?device=` records the inviter's own. The API keeps only salted one-way hashes (`INVITE_HASH_SALT`) of the device and the request's IP address, never the values.
+- **Flags** (`GET /admin/invites/flags`, `admin.access`) → `InviteFlagGroup[]`: invites from the last 90 days, not yet reviewed, that look like one person: `same_device_as_inviter`, `shared_device` (2+ from one phone), `shared_network` (5+ from one network; an estate's Wi-Fi can be fine). Flagged invites still count until staff remove the credit. The leaderboard and CSV gain `flagged`.
+- `GET /admin/invites/people/:uid` (`admin.access`) → `StaffInviteView { code, invitedBy { uid, displayName, code, via, at, vouched, changedByStaff, reviewed } | null, flags, joined, verified }`; shown on the neighbour's admin page with **Credit someone else** / **Remove credit** (`PUT /admin/invites/:uid`) and **It's fine** (`POST /admin/invites/:uid/reviewed { reason }` → 204), all `engagement.manage` and audited (`invite_reviewed`).
+- **QR poster:** `/i/<code>/poster` (public, noindex, the same first name and Hood as `/i/<code>`) and `/invite/poster` (your own, signed in): A4, the app icon, a QR to `/i/<code>?src=qr` and the code. The app's Invite screen opens it in the browser to print or save as PDF.
+- **Play Store installs:** the invite page's Play link carries `referrer=ref=<code>[&src=qr]`; the Android app reads it once on first launch (`expo-application` `getInstallReferrerAsync`) and keeps the code for sign-up.
+- **App links:** `/.well-known/assetlinks.json` (from `ANDROID_SHA256_CERT_FINGERPRINTS`, the Play App Signing key's SHA-256; empty until set) and `/.well-known/apple-app-site-association` (team `P8TFVK9UYF`, override `APPLE_TEAM_ID`) cover `/p/ /i/ /for-sale/ /g/ /profile/`. The app declares the same hosts and paths (`intentFilters` autoVerify, `associatedDomains`); `+native-intent` maps `/profile/<uid>` to `/u/<uid>` and keeps a link's `?ref=`. Takes effect with the next store build.
+
+## 41. Festive seasons (2026-11-17)
+
+Plan WP-D. Types: `@myhoodora/api-contract/seasons`.
+
+- `GET /app-config` gains `season: Season | null`: the season on now, or the next one starting within 24 h (so apps switch on at the minute without asking again); overlaps go to the one that started last. `Season { key, startsAt, endsAt, effect: lights|sparkle|fireworks|none, intensity: subtle|normal|festive, mascot: santa_hat|party_hat|none, accent: red|green|gold|blue, greeting {title, body} | null, image {url, credit?} | null, countdownTo | null }`. Cached a minute on the API.
+- Admin (`settings.manage`, audited `season_create|update|delete`): `GET /admin/seasons` (with `live`), `POST /admin/seasons` (key, label, startsAt, endsAt + look), `PATCH /admin/seasons/:id`, `DELETE /admin/seasons/:id`. 400: end before start, longer than two months, countdown outside the season, an image not uploaded through myHoodora; 409: duplicate key. Christmas (15–27 Dec) and New Year (31 Dec 18:00 – 2 Jan, countdown to midnight) are created once a year, Lagos time.
+- Apps: lights under the header, sparkles or fireworks for a few seconds after opening (≤ 24 particles), a greeting card at the top of the feed (closed once per season) with the mascot in a hat, the countdown and the admins' illustration/GIF with its licence credit. "Festive effects" can be turned off in settings; "reduce motion" keeps them still. Never blocks a tap. OTA-safe (Reanimated + SVG).
+
+## 42. Streaks, the launch challenge and avatar badges (2026-11-17)
+
+Plan WP-C. Types: `@myhoodora/api-contract/engagement`.
+
+- **Activity** = a post, a reply, a poll vote or an RSVP (reactions don't count), by Lagos day, read from those collections, so it counts back to the challenge start with no backfill. **Streak**: consecutive days; one missed day per Monday–Sunday week is forgiven; today counts until midnight. Tiers bronze 3 / silver 7 / gold 30; after a break the tier shows one level lower for 7 days.
+- **Hood Builder** (launch challenge, began 17 Nov 2026 00:00 WAT, open until an admin ends it): `minInvites` (5) verified invites made during the challenge **or** `minActiveDays` (5) active days in it. Earned once, kept after the challenge ends; staff can give or take it (a taken badge never comes back by itself).
+- **Feed strip** (web and app): a slim line at the top of the feed from `challengeStrip(summary)` in `@myhoodora/api-contract/engagement` ("Become a Hood Builder · 0 of 5 invites · 1 of 5 days", "You're a Hood Builder · 4-day streak", or just the streak after the challenge); it opens Invite neighbours, and its × hides it until tomorrow (Lagos day).
+- **Streak reminder** (18:00–21:00 WAT): one push a day to people with a streak of 3+ days who haven't been active today, recomputed just before sending; category `streaks` (Settings → Notifications → Streak reminders, push only, on by default), kind `streak_reminder`, opens `/news-feed`. At most once a day per person (`users.streakRemindedDay`), never after 21:00, off when `streaksOn` is off. `STREAK_REMINDERS_ENABLED=false` pauses it.
+- **Share my badge**: `myhoodora.com/i/<code>/badge` is the same invite as `/i/<code>`, with the badge card (mascot ringed in the tier colour, the badge, the Hood, the code; 1200×630, under 200 KB) as its link preview at `/i/<code>/badge/opengraph-image`. The Invite page (web and app) shares it on WhatsApp; the web also saves the image for a Status. Arrivals count as `via: "badge"` and funnel `badge_view`. In the app, `/i/<code>/badge` and `/i/<code>/poster` open the invite.
+- `GET /engagement/me` → `EngagementSummary { streak | null, challenge | null, badge | null }` (worked out fresh, saved on the user). Everyone recently active is refreshed every 6 hours.
+- **Badges on avatars**: post, comment and profile authors carry `badge?: { builder?, tier?, streak? }`; apps show the mascot ringed in the tier colour (green for a Builder without one), never like the verified tick.
+- Admin: `GET /admin/engagement` (settings, counts), `PATCH /admin/engagement` (`engagement.manage`: name, start, end (null reopens), thresholds, `streaksOn`, `badgesOn` kill switches), `POST /admin/engagement/end-challenge`, `GET /admin/engagement/builders` (`?format=csv`), `GET /admin/engagement/people/:uid`, `PUT /admin/engagement/builders/:uid { on, reason }` (audited `builder_grant|builder_revoke`). Account deletion clears invites and engagement data.
+
+## 43. "Get the app" prompts and the funnel (2026-11-17)
+
+Plan WP-H / WP-F.
+
+- `GET /app-config` gains `appPrompts { banner, sheet, sheetEveryDays }` (Admin → Settings → Platform → App prompts; `PATCH /admin/settings { appPrompts }`, 1–90 days).
+- Mobile web: a slim, dismissible "Open in the app" bar (two weeks away once closed) that opens **the same page** in the app on Android (an `intent://` link whose fallback is the Play Store with `referrer=ref=<code>`), and "Get" on iPhone once the App Store link is set; the "Better in the app" sheet only from the second visit, 4 s in, at most every `sheetEveryDays` after closing; desktop: a "Get the app" QR card in the sidebar. iPhone Safari's own Smart App Banner turns on with `NEXT_PUBLIC_IOS_APP_ID`.
+- Shared posts: a sign-in sheet that names what the visitor tried (like, reply, vote, more replies), Google in one tap (Apple first on iPhone once enabled), email, log in, open in the app; always closable; returns to the post.
+- `POST /public/funnel { event }` (no sign-in, 120/min per address) counts anonymous steps by Lagos day: `shared_view, shared_join_tap, invite_view, poster_view, banner_shown|open|dismiss, sheet_shown|open|dismiss`. Nothing about the person is stored. `GET /admin/funnel?from` (staff) → `{ days, totals, daily }`.
+
+## 44. Nearby fill (2026-11-17)
+
+Plan WP-G. When the first page of someone's **home** Hood feed isn't full (no category, search or later page), it is topped up, newest first, with posts from the Hoods next door (`HoodsService.nearbyHoodIds`) from the last 21 days that their authors opened to **Nearby Hoods** or **Anyone**. Never alerts, never Hood-only posts, never from people who blocked the viewer or whom they blocked. Each carries `nearby: { hoodId, hoodName }` ("From Lekki Phase 1, nearby"). The page stays under the limit and paging ignores these posts (web `datedCount`, app `/feed/hood` cursor), so the Hood's own posts page as before.
+
+## 45. Moderator console (2026-11-17)
+
+Plan WP-B. `admin.access` + `moderation.act` (moderators and up).
+
+- `GET /admin/console/needs-reply?mine=true|false&hoodId` → `{ items[≤100] { postId, hood, author { uid, displayName, newcomer }, firstPost, category, excerpt, createdAt, waitingMinutes, overdue }, waiting, overdue, myHoods }`: active neighbours' posts from the last 3 days with no comment (not the Hood Team's or staff's); a newcomer's (joined < 14 days) first post first, then the longest waiting; `overdue` past 120 minutes. `mine`: the Hoods assigned to the caller.
+- `POST /admin/console/reply { postId, content, as: "self" | "team" }` → the comment (as yourself it shows "Staff"; as the Hood Team, "Official"). Audited `console_reply|console_reply_team`.
+- `GET /admin/console/stats` → last 7 days: `{ posts, replied, medianMinutesToFirstReply, firstRepliesByStaff[] }`.
+- `GET /admin/console/assignments`, `PUT /admin/console/assignments/:uid { hoodIds }` (`team.manage`, audited `hood_assignment`).
+- **Live**: a new post, a reply, a deleted or removed post sends `console.changed` on the staff channel (§19), at most one per second for any burst; the web console refetches on it (and still every minute for waiting times and missed events).
+
+## 46. Activation and challenge dashboards (2026-11-17)
+
+Plan WP-F. `admin.access`.
+
+- `GET /admin/dashboards/activation` → `{ rows[] { hood, light: green|amber|red, missing[], neighbours, items (30 d), teamItems, leads, welcome, moderator }, counts }`. Green = 15+ posts in 30 days, 5+ verified neighbours, a Hood Lead, a Hood Team welcome post and an assigned moderator; amber = people and some life; red = nearly empty. Reddest first.
+- `GET /admin/dashboards/challenge` → `{ startedAt, weekly[] { week, signups, invited, invitedVerified }, funnel (since the start, §43), builders, hoods (light counts), advice: keep_going|push_harder|consider_ending, why }`. Advice follows the plan: end when ≥ 80% of Hoods are activated or invite sign-ups haven't grown two weeks running; push when ≥ 30% are red; otherwise keep going.

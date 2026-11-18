@@ -3,12 +3,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEvent } from "expo";
 import { Image } from "expo-image";
 import { useVideoPlayer, VideoView, type VideoPlayer } from "expo-video";
-import { ArrowRight, Ellipsis, EyeOff, Flag, Info, Package, Volume2, VolumeX } from "lucide-react-native";
+import { ArrowRight, CheckCircle2, Ellipsis, EyeOff, Flag, Info, Package, ThumbsUp, Volume2, VolumeX } from "lucide-react-native";
 import { memo, useEffect, useState } from "react";
 import {FlatList, Linking, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import { useSignedInUser } from "@/core/auth/auth-provider";
 import { useRouter } from "@/core/navigation/use-router";
-import { hideAd, isAd, reportAd, updateFeedEntries, type AdEntry } from "@/features/feed/feed-api";
+import { hideAd, isAd, likeAd, reportAd, updateFeedEntries, type AdEntry } from "@/features/feed/feed-api";
 import { ReportSheet } from "@/features/feed/report-sheet";
 import { SeeMoreText } from "@/features/feed/see-more-text";
 import { accent } from "@/shared/theme/accents";
@@ -66,15 +66,33 @@ export const AdCard = memo(function AdCard({ entry, session, active }: { entry: 
   };
   // Gone from every feed at once; the API makes it permanent.
   const removeHere = () => updateFeedEntries(client, (entries) => entries.filter((e) => !(isAd(e) && e.ad._id === ad._id)));
+  // A notice from myHoodora itself (campaigns, the challenge): ours, never "Sponsored".
+  const official = Boolean(ad.advertiser.official);
   const hide = () => {
     removeHere();
-    toast("Ad hidden. You won't see it again.");
+    toast(official ? "Got it. You won't see this notice again." : "Ad hidden. You won't see it again.");
     void hideAd(user, ad._id, session).catch(() => undefined);
+  };
+  /** This card in every feed cache: the like shows at once, and stays if the feed re-renders. */
+  const setLikes = (likes: { count: number; mine: boolean }) =>
+    updateFeedEntries(client, (entries) => entries.map((e) => (isAd(e) && e.ad._id === ad._id ? { ...e, ad: { ...e.ad, likes } } : e)));
+  const toggleLike = () => {
+    const before = ad.likes ?? { count: 0, mine: false };
+    const on = !before.mine;
+    setLikes({ count: Math.max(0, before.count + (on ? 1 : -1)), mine: on });
+    // It stays on screen now; it just won't come back once it has done its job.
+    if (on && ad.retireOn?.includes("like")) toast("Thanks! This one will step aside next time.");
+    likeAd(user, ad._id, on)
+      .then((r) => setLikes({ count: r.count, mine: r.liked }))
+      .catch(() => {
+        setLikes(before);
+        toast("That didn't go through. Try again.", "error");
+      });
   };
 
   const announcement = ad.format === "announcement";
   return (
-    <View style={[styles.card, { backgroundColor: t.colors.card }]} accessibilityLabel={`Sponsored by ${ad.advertiser.name}`}>
+    <View style={[styles.card, { backgroundColor: t.colors.card }]} accessibilityLabel={official ? "Official notice from myHoodora" : `Sponsored by ${ad.advertiser.name}`}>
       <View style={styles.header}>
         <Pressable onPress={() => open()} accessibilityRole="link" accessibilityHint={ad.seller ? "Shows everything they're selling" : "Opens the advertiser's link"} style={({ pressed }) => [styles.who, { opacity: pressed ? 0.7 : 1 }]}>
           {ad.seller ? (
@@ -88,9 +106,15 @@ export const AdCard = memo(function AdCard({ entry, session, active }: { entry: 
             <Text variant="label" style={styles.name} numberOfLines={1}>
               {ad.advertiser.name}
             </Text>
-            <Text variant="caption" tone="muted">
-              Sponsored
-            </Text>
+            {official ? (
+              <Text variant="caption" style={{ color: t.colors.primary, fontFamily: t.fonts.semibold }}>
+                Official · myHoodora
+              </Text>
+            ) : (
+              <Text variant="caption" tone="muted">
+                Sponsored
+              </Text>
+            )}
           </View>
         </Pressable>
         <Pressable onPress={() => setMenu(true)} accessibilityRole="button" accessibilityLabel="Ad options" hitSlop={8} style={({ pressed }) => [styles.iconAction, pressed && { backgroundColor: t.colors.muted }]}>
@@ -143,13 +167,40 @@ export const AdCard = memo(function AdCard({ entry, session, active }: { entry: 
         </View>
       ) : null}
 
+      {ad.likes ? (
+        <View style={[styles.likeBar, { borderTopColor: t.colors.border }]}>
+          <Pressable
+            onPress={toggleLike}
+            accessibilityRole="button"
+            accessibilityState={{ selected: ad.likes.mine }}
+            accessibilityLabel={ad.likes.mine ? "Liked. Tap to take it back" : "Like"}
+            style={({ pressed }) => [styles.likeButton, pressed && { backgroundColor: t.colors.muted }]}
+          >
+            <ThumbsUp size={20} color={ad.likes.mine ? t.colors.primary : t.colors.mutedForeground} fill={ad.likes.mine ? tint(t.colors.primary, 0.2) : "transparent"} />
+            <Text variant="label" style={{ color: ad.likes.mine ? t.colors.primary : t.colors.mutedForeground }}>
+              {ad.likes.count > 0 ? `Like · ${ad.likes.count}` : "Like"}
+            </Text>
+          </Pressable>
+          {official ? (
+            <Pressable onPress={hide} accessibilityRole="button" accessibilityHint="You won't see this notice again" style={({ pressed }) => [styles.likeButton, pressed && { backgroundColor: t.colors.muted }]}>
+              <CheckCircle2 size={20} color={t.colors.mutedForeground} />
+              <Text variant="label" tone="muted">
+                Got it
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+
       <ActionSheet
         visible={menu}
         onClose={() => setMenu(false)}
         label="Ad options"
         groups={[
           [
-            { key: "hide", label: "Hide ad", hint: "You won't see this ad again", Icon: EyeOff, onPress: hide },
+            official
+              ? { key: "hide", label: "Got it, hide this", hint: "You won't see this notice again", Icon: EyeOff, onPress: hide }
+              : { key: "hide", label: "Hide ad", hint: "You won't see this ad again", Icon: EyeOff, onPress: hide },
             {
               key: "why",
               label: "Why am I seeing this?",
@@ -418,6 +469,8 @@ const styles = StyleSheet.create({
   announcementText: { fontSize: 18, lineHeight: 26 },
   ctaBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingHorizontal: 16, paddingVertical: 10, marginTop: -10 },
   ctaButton: { borderRadius: 10, paddingHorizontal: 14, minHeight: 38, alignItems: "center", justifyContent: "center" },
+  likeBar: { flexDirection: "row", alignItems: "center", gap: 4, marginHorizontal: 8, paddingTop: 4, borderTopWidth: StyleSheet.hairlineWidth },
+  likeButton: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: MIN_TOUCH, paddingHorizontal: 12, borderRadius: 10 },
   mute: { position: "absolute", right: 12, bottom: 12, width: 34, height: 34, borderRadius: 17, backgroundColor: "rgba(0,0,0,0.55)", alignItems: "center", justifyContent: "center" },
   carousel: { paddingHorizontal: 16, gap: 8 },
   carouselCard: { borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, overflow: "hidden" },

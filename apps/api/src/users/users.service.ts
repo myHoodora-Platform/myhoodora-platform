@@ -99,7 +99,23 @@ export interface PublicProfile {
   neighbourSince?: string;
   bio?: string;
   verified: boolean;
-  kind?: "neighbour" | "organisation";
+  kind?: "neighbour" | "organisation" | "team";
+  /** Hood Builder mascot and streak ring (contract §42); already empty when badges are switched off. */
+  badge?: { builder?: true; tier?: "bronze" | "silver" | "gold"; streak?: number };
+}
+
+/** Who wrote a post or comment, as neighbours see them (UsersService.authorCards). */
+export interface AuthorCard {
+  uid: string;
+  displayName: string;
+  photoURL?: string;
+  neighborhoodId?: string;
+  /** "team": the official Hood Team account (hood-content/domain/hood-team.ts). */
+  kind?: "team";
+  /** A myHoodora staff member (moderator, admin, owner). */
+  staff?: boolean;
+  /** Hood Builder mascot and streak ring on their avatar (engagement.service.ts). */
+  badge?: { builder?: true; tier?: "bronze" | "silver" | "gold"; streak?: number };
 }
 
 export function toMe(u: User): MeResponse {
@@ -560,6 +576,10 @@ export class UsersService implements OnModuleInit {
     const staff = viewer.capabilities.includes("admin.access");
     if (!target) throw new NotFoundException("This neighbour isn't available.");
     if (target.deactivatedAt || target.purgedAt) throw new GoneException("This account has been deactivated.");
+    // The official Hood Team account posts in every Hood, so anyone can see who it is.
+    if (target.accountKind === "team") {
+      return { uid: target.uid, displayName: target.displayName ?? "myHoodora Hood Team", photoURL: target.photoURL, bio: target.bio, verified: true, kind: "team" };
+    }
     if (!staff && uid !== viewer.uid) {
       // `viewer.hoodId` is only set for a verified neighbour, so nobody else gets past here.
       const sameHood = Boolean(viewer.hoodId) && target.neighborhoodId === viewer.hoodId;
@@ -590,6 +610,7 @@ export class UsersService implements OnModuleInit {
       bio: target.bio,
       verified: target.verificationStatus === "verified",
       kind: "neighbour",
+      ...(target.engagement?.badge && { badge: target.engagement.badge }),
     };
   }
 
@@ -835,20 +856,29 @@ export class UsersService implements OnModuleInit {
    * `forStaff` keeps the real name, for admin screens where moderation has to know who it is.
    * Someone whose account has been deleted is "Deleted User" to everyone: there is no name left.
    */
-  async authorCards(uids: string[], opts: { forStaff?: boolean } = {}): Promise<Map<string, { uid: string; displayName: string; photoURL?: string; neighborhoodId?: string }>> {
+  async authorCards(uids: string[], opts: { forStaff?: boolean } = {}): Promise<Map<string, AuthorCard>> {
     const rows = await this.users
       .find({ uid: { $in: [...new Set(uids)] } })
-      .select({ uid: 1, displayName: 1, photoURL: 1, neighborhoodId: 1, deactivatedAt: 1, purgedAt: 1 })
-      .lean<Pick<User, "uid" | "displayName" | "photoURL" | "neighborhoodId" | "deactivatedAt" | "purgedAt">[]>()
+      .select({ uid: 1, displayName: 1, photoURL: 1, neighborhoodId: 1, deactivatedAt: 1, purgedAt: 1, role: 1, accountKind: 1, "engagement.badge": 1 })
+      .lean<Pick<User, "uid" | "displayName" | "photoURL" | "neighborhoodId" | "deactivatedAt" | "purgedAt" | "role" | "accountKind" | "engagement">[]>()
       .exec();
-    const cards = new Map<string, { uid: string; displayName: string; photoURL?: string; neighborhoodId?: string }>(
+    const cards = new Map<string, AuthorCard>(
       rows.map((r) => [
         r.uid,
         r.purgedAt
           ? { uid: r.uid, displayName: DELETED_USER_NAME }
           : r.deactivatedAt && !opts.forStaff
             ? { uid: r.uid, displayName: FORMER_NEIGHBOUR }
-            : { uid: r.uid, displayName: r.displayName ?? "Neighbour", photoURL: r.photoURL, neighborhoodId: r.neighborhoodId },
+            : {
+                uid: r.uid,
+                displayName: r.displayName ?? "Neighbour",
+                photoURL: r.photoURL,
+                neighborhoodId: r.neighborhoodId,
+                ...(r.accountKind === "team" && { kind: "team" as const }),
+                // Staff are labelled where they speak, so neighbours know who is answering.
+                ...(r.role && r.role !== "member" && r.accountKind !== "team" && { staff: true }),
+                ...(r.engagement?.badge && { badge: r.engagement.badge }),
+              },
       ]),
     );
     // The stand-in left in a conversation where a deleted person's uid used to be.

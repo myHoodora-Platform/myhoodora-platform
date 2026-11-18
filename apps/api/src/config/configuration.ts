@@ -129,6 +129,10 @@ export default () => ({
   eventReminders: {
     enabled: process.env.EVENT_REMINDERS_ENABLED !== "false",
   },
+  /** The 18:00 WAT "keep your streak going" push (contract §42). On unless STREAK_REMINDERS_ENABLED=false. */
+  streakReminders: {
+    enabled: process.env.STREAK_REMINDERS_ENABLED !== "false",
+  },
 
   /**
    * Store versions for the app's update prompts (docs/api-contract.md §34). The watcher checks the stores

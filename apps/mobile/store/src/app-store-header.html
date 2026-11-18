@@ -1,0 +1,38 @@
+<!doctype html>
+<!--
+  App Store product page header, 3840 × 1646 (21:9). Rendered to ../app-store-header.png by render.mjs.
+  Apple's art safe area: 1646 × 661 at x 1097, y 493 (creative-assets-specifications). On an iPhone only about
+  that middle shows, so it holds one thing, the wordmark, big, like Apple's own "Airline" example. Wider
+  screens (iPad, Mac) also see the sides: Apple's official iPhone 17 Pro Max bezels (bezels/) with our real
+  screens, the feed and a listing. Same cream-to-mint ground, coral and teal as app-store-search.html, so the
+  two read as one family (Apple: "similar colour palette, iconography, fonts").
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 3840px; height: 1646px; overflow: hidden; }
+  body { position: relative; background:
+    radial-gradient(28% 50% at 50% 48%, rgba(253,95,70,.10) 0%, rgba(253,95,70,0) 100%),
+    radial-gradient(30% 70% at 8% 100%, rgba(17,112,106,.12) 0%, rgba(17,112,106,0) 100%),
+    radial-gradient(30% 70% at 92% 100%, rgba(17,112,106,.12) 0%, rgba(17,112,106,0) 100%),
+    linear-gradient(135deg, #fffaf5 0%, #f6fbf9 55%, #e6f5f1 100%); }
+  .mark { position: absolute; left: 50%; top: 823px; transform: translate(-50%, -50%); width: 1500px; }
+
+  /* Apple's bezel over our screenshot; the screen opening is 1320 × 2868 at (75, 66) of 1470 × 3000. */
+  .phone { position: absolute; width: 760px; height: 1551px; filter: drop-shadow(0 50px 70px rgba(11,63,58,.24)) drop-shadow(0 14px 24px rgba(11,63,58,.10)); }
+  .phone .screen { position: absolute; left: 38.78px; top: 34.12px; width: 682.45px; height: 1482.78px; border-radius: 92px; overflow: hidden; background: #fff 0 0 / 100% 100% no-repeat; }
+  .phone .bezel { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .left { left: 70px; top: 500px; transform: rotate(-7deg); }
+  .left .screen { background-image: url("../screenshots-ios/1-feed.png"); }
+  .right { left: 3010px; top: 500px; transform: rotate(7deg); }
+  .right .screen { background-image: url("../screenshots-ios/3-listing.png"); }
+</style>
+</head>
+<body>
+  <div class="phone left"><div class="screen"></div><img class="bezel" src="bezels/iphone-17-pro-max-cosmic-orange-portrait.png" alt="" /></div>
+  <div class="phone right"><div class="screen"></div><img class="bezel" src="bezels/iphone-17-pro-max-cosmic-orange-portrait.png" alt="" /></div>
+  <img class="mark" src="../../../web/public/logo/mascot-wordmark.svg" alt="myHoodora" />
+</body>
+</html>
