@@ -13,8 +13,13 @@
 //   mongosh "<MONGODB_URI>" --quiet --eval 'var REVIEWER_EMAIL = "reviewer@example.com"; load("apps/mobile/store/src/review-seed.js")'
 //
 // Local facts in the posts were checked on 7 November 2026: the monthly sanitation exercise (last
-// Saturday, 6:30 to 8:30 am, no movement restriction), the power shortfall blamed on gas supply, and
-// Ikorodu's Fanti Carnival on 14 November. Photos: Pexels (free licence) and myhoodora.com's own.
+// Saturday, 6:30 to 8:30 am, no movement restriction) and the power shortfall blamed on gas supply.
+// Photos: Pexels (free licence) and myhoodora.com's own.
+//
+// 18 November 2026 (App Store review, after the move to the myhoodora_production database, which
+// copied accounts only): the Fanti Carnival event became a December street party, the poll closes in
+// December, and the Hood Team's pinned welcome opens the reviewer's feed, as in a real Hood. No demo
+// neighbour gets a Builder badge: those count in the real challenge's numbers and Builders export.
 const TAG = { reviewDemo: true };
 const NOW = Date.now();
 const ago = (min) => new Date(NOW - min * 60000);
@@ -42,6 +47,7 @@ const NOTE = "A demo neighbourhood for app review. The people and posts here are
 const AGEGE = hood("Agege (Demo)", 6.1, 3.3, NOTE);
 const IKORODU = hood("Ikorodu (Demo)", 6.1, 3.33, NOTE);
 const YABA = hood("Yaba (Demo)", 6.125, 3.315, NOTE);
+const HOOD_TEAM_UID = "myhoodora-hood-team"; // apps/api/src/hood-content/domain/hood-team.ts
 const follow = (h, days) => ({ id: h.id, name: h.name, city: "Lagos", since: ago(days * D) });
 
 // ---- demo neighbours: example.invalid addresses, no emails ever sent, initials instead of photos ----
@@ -120,7 +126,16 @@ function post(key, { by, h = AGEGE, at, category, text, meta = {}, photos = [], 
   return id;
 }
 
-// Agege (Demo): the reviewer's home
+// Agege (Demo): the reviewer's home. First, the Hood Team's pinned welcome (content bank W01).
+if (db.users.findOne({ uid: HOOD_TEAM_UID })) {
+  post("teamWelcome", {
+    by: HOOD_TEAM_UID, at: ago(4 * D), category: "general",
+    text: "👋 Welcome to Agege (Demo) on myHoodora!\nThis is a space just for people who live around here: ask for a good plumber, warn neighbours about a power cut, sell what you no longer need, or just say hello.\nStart by introducing yourself below: which street are you on, and how long have you lived in Agege (Demo)?",
+    reactions: { like: 33 },
+    comments: [[U.Halima, "Hello all! Orile Agege, five years now."], [U.Victor, "Capitol Road. Welcome to the new people 👋🏾"]],
+    extra: { source: "team", pinnedUntil: ago(-14 * D) },
+  });
+}
 post("power", {
   by: U.Chukwudi, at: ago(40), category: "alert", meta: { alertCategory: "power" }, place: ["Oko-Oba", 0.004, -0.003],
   text: "Power update for Oko-Oba and Dopemu: we've been getting 3 to 4 hours a day since Tuesday. The Ministry of Power says it's a gas shortage at the power stations, and they're working on restoring supply across Lagos. Keep your inverters charged and switch off heavy loads when it comes back, so the transformer doesn't trip.",
@@ -167,7 +182,7 @@ post("phone", {
 });
 post("meeting", {
   by: U.Musa, at: ago(1 * D + 2 * H), category: "poll",
-  meta: { poll: { options: [{ id: "o1", text: "Saturday 10 am" }, { id: "o2", text: "Sunday after service" }, { id: "o3", text: "Wednesday 7 pm" }], closesAt: "2026-11-20T18:00:00.000Z" } },
+  meta: { poll: { options: [{ id: "o1", text: "Saturday 10 am" }, { id: "o2", text: "Sunday after service" }, { id: "o3", text: "Wednesday 7 pm" }], closesAt: "2026-12-05T18:00:00.000Z" } },
   text: "Residents' meeting for December: we need to agree the security levy and the Christmas street party. Which time works for you?",
   reactions: { like: 18 },
   comments: [[U.Halima, "Saturday please, I work Sundays."], [U.Kehinde, "Sunday is easiest for most families."]],
@@ -201,11 +216,11 @@ post("welcome", {
 // Ikorodu (Demo)
 post("fanti", {
   by: U.Adewale, h: IKORODU, at: ago(2 * H), category: "event",
-  meta: { eventDate: "2026-11-14T09:00:00.000Z", eventLocation: "Ikorodu town, around the palace" },
-  text: "Ikorodu-Oga Fanti Carnival is on Saturday 14 November 🥁 The council chairman says it'll be bigger this year, with the youths' all-white party too. Check the council's programme for exact times, and expect traffic around town from the morning.",
+  meta: { eventDate: "2026-12-19T15:00:00.000Z", eventLocation: "Ikorodu town hall field" },
+  text: "End-of-year street party on Saturday 19 December, from 4 pm 🥁 Music, games for the children, and every street brings one dish. Wear something bright, and expect traffic around the town hall from the afternoon.",
   photos: [PX(16114749)],
   reactions: { like: 63, agree: 12 },
-  comments: [[U.Obinna, "Best day of the year in Ikorodu!"], [U.Mariam, "I'm making all-white outfits this week, message me 😉"], [U.Kehinde, "Coming from Agege for this 🙌🏾"]],
+  comments: [[U.Obinna, "Best day of the year in Ikorodu!"], [U.Mariam, "I'm making party outfits this month, message me 😉"], [U.Kehinde, "Coming from Agege for this 🙌🏾"]],
 });
 post("brt", {
   by: U.Titilayo, h: IKORODU, at: ago(6 * H), category: "alert", meta: { alertCategory: "traffic" }, place: ["Ikorodu Road, Agric", -0.003, 0.002],
@@ -223,7 +238,7 @@ post("sanitationIkorodu", {
 });
 post("tailor", {
   by: U.Nkechi, h: IKORODU, at: ago(2 * D), category: "recommendation",
-  text: "Need an outfit for the carnival or a wedding? Mariam in Igbogbo sewed my Ankara in three days, perfect fit and fair price.",
+  text: "Need an outfit for the street party or a wedding? Mariam in Igbogbo sewed my Ankara in three days, perfect fit and fair price.",
   reactions: { like: 22, helpful: 10 },
   comments: [[U.Mariam, "Thank you so much Nkechi 🥰"]],
 });
@@ -285,7 +300,7 @@ const safety = group({ name: "Agege Safety Watch 🛡️", description: "Alerts,
   posts: [[U.Musa, "Night patrol rota for next week is ready. Thank you to the volunteers 🙏🏾", 300], [U.Chukwudi, "Two new solar street lights went up on Mulero Street today!", 1500]] });
 group({ name: "Agege Foodies 🍲", description: "Bread, bukas, boli spots and recipes.", category: "hobbies", cover: PX(17952748), memberCount: 7, by: U.Folake, members: inAgege.slice(0, 6), joined: true,
   posts: [[U.Folake, "Weekend challenge: show us your Sunday rice 📸", 200]] });
-group({ name: "Ikorodu Carnival Crew 🥁", description: "Planning our street's outing for the Fanti Carnival.", category: "hobbies", cover: PX(16114749), memberCount: 8, by: U.Adewale, members: inIkorodu, h: IKORODU });
+group({ name: "Ikorodu Party Crew 🥁", description: "Planning our street's outing for the end-of-year street party.", category: "hobbies", cover: PX(16114749), memberCount: 8, by: U.Adewale, members: inIkorodu, h: IKORODU });
 
 // ---- the reviewer ----
 if (ME) {

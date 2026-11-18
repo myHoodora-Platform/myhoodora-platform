@@ -19,6 +19,11 @@ export default async function Image({ params }: { params: Promise<{ code: string
   const res = await getPublicInvite(code);
   const invite = res.status === "ok" ? res.invite : null;
   const label = badgeLabel(invite?.badge) ?? "myHoodora neighbour";
+  // "Hood Builder · 4-day streak": the title alone on the big line and the streak under it, so the
+  // renderer never breaks "4-day" across lines.
+  const [headline, ...more] = label.split(" · ");
+  const streakOnly = Boolean(invite?.badge) && !invite?.badge?.builder;
+  const intro = invite ? `${invite.inviter.firstName} ${streakOnly ? "is on a" : "is a"}` : streakOnly ? "On a" : "Proud to be a";
   const ring = TIER_RING[invite?.badge?.tier ?? "builder"];
   const hood = invite?.hood ? `${invite.hood.name}${invite.hood.city ? `, ${invite.hood.city}` : ""}` : "My neighbourhood";
   // Read from disk: the image renderer won't fetch from our own (or any private) address.
@@ -31,8 +36,9 @@ export default async function Image({ params }: { params: Promise<{ code: string
           <img src={mascot} width={344} height={344} alt="" />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 18, flex: 1 }}>
-          <span style={{ fontSize: 30, color: "#147c73", fontWeight: 700 }}>{invite ? `${invite.inviter.firstName} is a` : "Proud to be a"}</span>
-          <span style={{ fontSize: 66, color: "#0f2b29", fontWeight: 800, lineHeight: 1.1 }}>{label}</span>
+          <span style={{ fontSize: 30, color: "#147c73", fontWeight: 700 }}>{intro}</span>
+          <span style={{ fontSize: 66, color: "#0f2b29", fontWeight: 800, lineHeight: 1.1 }}>{headline}</span>
+          {more.length ? <span style={{ fontSize: 40, color: "#147c73", fontWeight: 700 }}>{more.join(" · ")}</span> : null}
           <span style={{ fontSize: 34, color: "#4b5f5d" }}>{hood}</span>
           <div style={{ display: "flex", marginTop: 26 }}>
             <span style={{ fontSize: 30, color: "white", background: "#147c73", padding: "16px 32px", borderRadius: 999, fontWeight: 700 }}>

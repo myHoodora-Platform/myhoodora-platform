@@ -127,10 +127,12 @@ App Information:
 | User ID | App functionality |
 | Product interaction (usage analytics, only after opt-in) | Analytics |
 | Crash data, performance data (Sentry) | App functionality |
+| Device ID (since 1.0.1: the vendor ID sent with an invite claim, kept only as a salted one-way hash, to spot many sign-ups from one phone) | App functionality (Apple counts fraud prevention and security here) |
 
 ## 9. Review information, availability and release (you)
 
 - [ ] **App Review Information** → Sign-in required: **yes**. Username `myhoodora+play-review@gmail.com` and its password (the Play reviewer account; it's linked to the demo Hoods). Make sure it can sign in on the day.
+  - Demo content refreshed in the **production** database (`myhoodora_production`) on 18 Nov 2026. The 14 Nov move had copied accounts only, so the demo Hoods had no posts. It now has 19 posts (with the Hood Team's pinned welcome), 6 listings, 3 groups, 4 chats and 5 notifications for the reviewer. Re-run `apps/mobile/store/src/review-seed.js` with `REVIEWER_EMAIL` if a review drags past early December (the welcome stops being pinned on 2 Dec, and sanitation day is 28 Nov). The undo command is in `store-listing.md`.
 - [ ] **Notes for the reviewer** (paste and adjust):
 
   ```text
@@ -145,7 +147,8 @@ App Information:
 - [ ] Contact information for Apple: your name, a phone number Apple can call, and an email.
 - [ ] **Pricing and Availability**: Free. Countries: **Nigeria** only, like Play (add more later).
 - [ ] **Version Release**: choose **Manually release this version**, so approval doesn't publish it before you're ready (Play's managed publishing). Phased release only applies to updates.
-- [ ] **Build**: select the TestFlight build from step 6.
+- [ ] **Version number**: the version on the App Store tab must match the build. The app record started as **1.0**, but the first build sent for review is **1.0.1 (5)**. Rename the version to **1.0.1**, or the build won't be offered.
+- [ ] **Build**: select the TestFlight build from step 6 (1.0.1, build 5 on 18 Nov 2026).
 - [ ] **Add for Review → Submit to App Review.** Most reviews finish within 24 to 48 hours. After approval, click **Release**; it can take up to 24 hours to appear in search.
 
 ## 10. After approval (you, then code)
