@@ -148,7 +148,7 @@ Every answer must match what the app and its libraries actually do, and the priv
 | Other user-generated content (posts, comments) | Yes | App functionality | No |
 | App interactions (screens viewed, ad impressions and clicks) | Yes. Ad views and clicks: our API, required. Screens and features: Firebase Analytics, production builds, **optional** (only after the person opts in) | Analytics, advertising | No |
 | Crash logs, diagnostics | Yes (Sentry, with personal data filtered) | App functionality, analytics | No |
-| Device or other IDs (push token; Firebase Analytics' app instance ID) | Yes | Notifications, analytics | No |
+| Device or other IDs (push token; Firebase Analytics' app instance ID; since 1.0.1 the Android ID sent with an invite claim, kept only as a salted one-way hash) | Yes | Notifications, analytics, **fraud prevention and security** (spotting many sign-ups from one phone) | No |
 
 - Encrypted in transit: **Yes**.
 - Users can request deletion: **Yes**, with the link https://www.myhoodora.com/delete-account.
@@ -176,6 +176,65 @@ eas build --platform android --profile production --auto-submit
   - Review takes up to 7 days, often longer for a new account.
 
 Later releases: build with the same command (the versionCode rises by itself), raise `version` in `app.config.ts` when the release is user-visible, and add `--auto-submit`. With `expo-updates` installed, JavaScript-only fixes can go out as an update instead (`eas update --channel production --environment production`): phones download it at launch (or when the app comes back after 30 minutes) and show "Restart to update". An update reaches only builds with the same `version` (runtime policy `appVersion`), so a release that changes native code needs a new `version`, a store build, and then Admin → Settings → Platform → App updates: Latest rises by itself once the release reaches everyone in Google Play (the API checks every 6 hours, with `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` set on the API host: the `myhoodora-play-api` key EAS Submit uses works, as long as it can view the app in Play Console → Users and permissions), and Minimum follows 30 days later (Admin → Settings → Platform → App updates changes the days, or 0 to set Minimum by hand). Release names must contain the version, e.g. `4 (1.1.0)`, which is Play Console's default.
+
+## 5a. Releasing an update (worked example: 1.0.1, 18 November 2026)
+
+1.0.1 is version code 4. EAS built it and uploaded it to the **internal testing** track as a **draft**, so nobody gets it until you act.
+
+### Step 1: Update the Data safety form (once, before this release)
+
+1.0.1 sends the phone's Android ID with an invite claim, so staff can spot many sign-ups from one phone. Our server keeps only a salted one-way hash of it, but Play still counts it as a collected device ID.
+
+1. Play Console → myHoodora → **Policy → App content → Data safety → Manage**.
+2. Go to **Data types → Device or other IDs** (already ticked). Open its questions and add the purpose **Fraud prevention, security, and compliance**. Keep "Collected", "Not shared" and "Required".
+3. **Save**. The change goes to Google with the next release you send for review.
+
+### Step 2: Test it on the internal track (no Google review)
+
+1. **Test and release → Testing → Internal testing**. Open the draft release **4 (1.0.1)** and choose **Edit release**.
+2. Add the release notes (the text is in Step 3), then **Next → Save → Start rollout to Internal testing**.
+3. On the **Testers** tab, check that your Google account is on the list, and copy the **Join on the web** link.
+4. On the Redmi (signed in to Play with that account), open the link and accept. Then update myHoodora in the Play Store. Version code 4 installs over the store version and you stay signed in.
+5. Check on the phone:
+   - [ ] The app opens and you're still signed in. The small text at the bottom of Settings reads "myHoodora 1.0.1 · production".
+   - [ ] The feed, the challenge strip and Invite neighbours all work.
+   - [ ] Photos upload, both one and several.
+   - [ ] Your profile shows the Builder badge (top-left on the photo).
+   - [ ] Share a post to WhatsApp, then tap the link in WhatsApp. **It opens in the app**, not the browser. This is the main new thing in 1.0.1.
+   - [ ] An invite link `www.myhoodora.com/i/<code>` opens the app too.
+6. **Grow users → Deep links** (in some accounts it's under **Test and release → App integrity**). `www.myhoodora.com` should show as verified. Bare `myhoodora.com` won't yet, which is expected: it's in the backlog.
+
+If something is wrong, stop here and tell the developer. A JavaScript fix can go out as an update to 1.0.1 without a new store build.
+
+### Step 3: Release to production
+
+1. **Internal testing → Promote release → Production**. Or **Production → Create new release → Add from library → 4 (1.0.1)**.
+2. Keep the release name **4 (1.0.1)**.
+3. Release notes (en-GB, under 500 characters):
+
+   ```
+   What's new
+   • Links to posts and invites now open straight in the app
+   • Invite neighbours with your own code and link. Posts you share count too
+   • Streaks and the Hood Builder badge for the launch challenge
+   • Photo uploads fixed
+   • Christmas and New Year touches
+   • Lots of small fixes
+   ```
+4. Countries stay **Nigeria**.
+5. **Staged rollout: 20%.** Then **Next → Save**.
+6. **Publishing overview → Send changes for review.** Google usually reviews an update within a day or two.
+7. **Managed publishing is on**, so approval doesn't publish anything by itself. When Publishing overview says it's approved, click **Publish changes**.
+
+### Step 4: Widen the rollout, then the update popup
+
+1. Watch **Sentry** (`myhoodora-mobile`, release 1.0.1) and **Android vitals** (crashes and ANRs) for a day or two.
+2. **Production → Manage rollout → Update rollout**: 50%, then a day later **100%**. If crashes rise, use **Halt rollout** instead.
+3. At 100%, within 6 hours the API sees 1.0.1 in Play and raises **Latest** to 1.0.1 (Admin → Settings → Platform → App updates).
+   - If it hasn't moved after 6 hours, set Latest to 1.0.1 by hand.
+   - From then on, phones on 1.0.0 get the skippable "New version available" sheet.
+4. **Minimum** follows 30 days later by default, and then 1.0.0 phones must update. Change the days in the same panel.
+5. Once Minimum is 1.0.1, updates are published once, from 1.0.1. Until then, a quick fix needs publishing for both 1.0.0 and 1.0.1 (`docs/backlog-status.md`).
 
 ## 6. After launch
 
