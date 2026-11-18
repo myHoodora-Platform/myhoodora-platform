@@ -1,4 +1,4 @@
-import { isSamePage, isSameSite, pageTitle, webPageUrl } from "../web-urls";
+import { isOurSite, isSamePage, isSameSite, loadInApp, pageTitle, webPageUrl } from "../web-urls";
 
 const SITE = "https://myhoodora.com";
 
@@ -32,5 +32,27 @@ describe("in-app web pages", () => {
     expect(isSamePage("http://myhoodora.com/terms", SITE, "/terms")).toBe(false);
     expect(isSamePage("https://myhoodora.com.evil.example/terms", SITE, "/terms")).toBe(false);
     expect(isSamePage("mailto:privacy@myhoodora.com", SITE, "/terms")).toBe(false);
+  });
+
+  it("counts www and the bare domain as our site, nothing else", () => {
+    expect(isOurSite("https://www.myhoodora.com/privacy", SITE)).toBe(true);
+    expect(isOurSite("https://myhoodora.com/privacy", "https://www.myhoodora.com")).toBe(true);
+    expect(isOurSite("https://myhoodora.com.evil.example/", SITE)).toBe(false);
+    expect(isOurSite("http://myhoodora.com/", SITE)).toBe(false);
+  });
+
+  it("keeps the page's own frames in the app on iOS; only tapped links to other places leave", () => {
+    const opened: string[] = [];
+    const keep = (u: string) => isSamePage(u, SITE, "/privacy");
+    const load = (url: string, isTopFrame?: boolean) => loadInApp({ url, isTopFrame }, keep, (u) => opened.push(u));
+    expect(load("https://www.myhoodora.com/privacy", true)).toBe(true);
+    // iOS asks about analytics and embedded frames inside the page: they load there, Safari never opens.
+    expect(load("https://www.googletagmanager.com/ns.html?id=X", false)).toBe(true);
+    expect(load("about:blank", true)).toBe(true);
+    expect(opened).toEqual([]);
+    // A link to another policy or a mail address goes to the browser or mail app.
+    expect(load("https://www.myhoodora.com/terms", true)).toBe(false);
+    expect(load("mailto:privacy@myhoodora.com", undefined)).toBe(false);
+    expect(opened).toEqual(["https://www.myhoodora.com/terms", "mailto:privacy@myhoodora.com"]);
   });
 });
