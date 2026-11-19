@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Map, Marker, NavigationControl } from "maplibre-gl";
+import { Map, Marker, NavigationControl } from "@/lib/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 type Point = { lat: number; lng: number };
