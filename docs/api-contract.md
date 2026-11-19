@@ -1423,7 +1423,7 @@ See §10. `author` / `seller` / `participants[]` cards for someone who has deact
 `GET /conversations/:id/messages` and `GET /posts/:id/comments` return the **newest** page (they returned the oldest 500 and nothing after). Query: `limit` (1 to 500, default 500) and `before` (the id of the oldest item you have). Items are oldest-first within a page. A full page means there may be earlier ones.
 
 ### Web server lookup routes (B14)
-`/api/geocode`, `/api/reverse-geocode` and `/api/ip-location` need a valid session cookie (`401` without), allow 20 calls a minute per person (`429` with `Retry-After`), and answer `504` when the third party is too slow.
+`/api/geocode`, `/api/geocode/place` (`?q=Abuja` → `{ lat, lng }`: admins finding a new city on the map when creating its first Hood), `/api/reverse-geocode` and `/api/ip-location` need a valid session cookie (`401` without), allow 20 calls a minute per person (`429` with `Retry-After`), and answer `504` when the third party is too slow.
 
 **Mobile (2026-10-20):** they also accept `Authorization: Bearer <Firebase ID token>`, which is how the mobile app calls them (it has no cookie). The token is checked locally, as the cookie is, and both count against the same per-person allowance. A Bearer header takes precedence over a cookie.
 
