@@ -38,6 +38,7 @@ import {
   updateDailySettings,
 } from "@/lib/api/admin/hood-content";
 import type { AdminHood } from "@/lib/api/admin/types";
+import { cityOptions } from "@/lib/cities";
 import { useAdminSession } from "../session";
 import { useAdminQuery } from "../use-admin-query";
 import { EMPTY_CHOICE, HoodPicker, hoodsFor, toTarget, type HoodChoice } from "./hood-picker";
@@ -91,7 +92,7 @@ export function HoodContentPage() {
       ) : tab === "compose" ? (
         <ComposeTab hoods={hoods.data} items={bank.data} editable={editable} />
       ) : tab === "bank" ? (
-        <BankTab items={bank.data} editable={editable} onChanged={() => void bank.refetch()} />
+        <BankTab items={bank.data} cities={cityOptions(hoods.data ?? []).map((c) => c.city)} editable={editable} onChanged={() => void bank.refetch()} />
       ) : tab === "daily" ? (
         <DailyTab items={bank.data} editable={editable} />
       ) : (
@@ -363,7 +364,7 @@ function ComposeTab({ hoods, items, editable }: { hoods: AdminHood[] | null; ite
 
 // ── Content bank ──────────────────────────────────────────────────────────
 
-function BankTab({ items, editable, onChanged }: { items: ContentItem[] | null; editable: boolean; onChanged: () => void }) {
+function BankTab({ items, cities, editable, onChanged }: { items: ContentItem[] | null; cities: string[]; editable: boolean; onChanged: () => void }) {
   const { user } = useAuth();
   const [tag, setTag] = useState<ContentTag | "all">("all");
   const [q, setQ] = useState("");
@@ -468,6 +469,7 @@ function BankTab({ items, editable, onChanged }: { items: ContentItem[] | null; 
       {editing && (
         <ItemEditor
           item={editing}
+          cities={cities}
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null);
@@ -479,13 +481,12 @@ function BankTab({ items, editable, onChanged }: { items: ContentItem[] | null; 
   );
 }
 
-const CITIES = ["Lagos", "Ibadan"];
-
-function ItemEditor({ item, onClose, onSaved }: { item: ContentItem; onClose: () => void; onSaved: () => void }) {
+/** Every city with an open Hood gets a local version to fill in, with any the item already has. */
+function ItemEditor({ item, cities, onClose, onSaved }: { item: ContentItem; cities: string[]; onClose: () => void; onSaved: () => void }) {
   const { user } = useAuth();
   const [body, setBody] = useState(item.body);
   const [pinDays, setPinDays] = useState(item.pinDays ?? 0);
-  const [variants, setVariants] = useState<Record<string, string>>(() => Object.fromEntries([...new Set([...CITIES, ...item.cityVariants.map((v) => v.city)])].map((c) => [c, item.cityVariants.find((v) => v.city === c)?.body ?? ""])));
+  const [variants, setVariants] = useState<Record<string, string>>(() => Object.fromEntries([...new Set([...cities, ...item.cityVariants.map((v) => v.city)])].map((c) => [c, item.cityVariants.find((v) => v.city === c)?.body ?? ""])));
   const [saving, setSaving] = useState(false);
 
   const save = async () => {

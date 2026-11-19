@@ -49,6 +49,11 @@ export class MapsCoGeocodingProvider implements GeocodingProvider {
     return { address: result.display_name, parts: partsOf(result.address ?? {}) };
   }
 
+  /** The best match only: an admin moves the map from there. */
+  async locatePlace(name: string): Promise<Point | null> {
+    return (await this.search(name, 1))[0] ?? null;
+  }
+
   private async search(query: string, limit = 5): Promise<Point[]> {
     const url = this.url("search");
     url.searchParams.set("q", query);

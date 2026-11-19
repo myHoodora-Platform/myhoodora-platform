@@ -27,6 +27,7 @@ vi.mock("@/lib/api/config", () => ({ API_BASE_URL: "http://api.test/api", USE_MO
 
 const { GET: geocode } = await import("./geocode/route");
 const { GET: reverseGeocode } = await import("./reverse-geocode/route");
+const { GET: locatePlace } = await import("./geocode/place/route");
 const { GET: ipLocation } = await import("./ip-location/route");
 const { resetLookupLimits } = await import("@/lib/auth/lookup-guard");
 
@@ -35,6 +36,7 @@ const get = (path: string, opts: { as?: string; headers?: Record<string, string>
 
 const routes = [
   { name: "geocode", call: (o?: Parameters<typeof get>[1]) => geocode(get("/api/geocode?street=Admiralty%20Way&area=Lekki%20Phase%201&city=Lagos", o)) },
+  { name: "geocode-place", call: (o?: Parameters<typeof get>[1]) => locatePlace(get("/api/geocode/place?q=Abuja", o)) },
   { name: "reverse-geocode", call: (o?: Parameters<typeof get>[1]) => reverseGeocode(get("/api/reverse-geocode?lat=6.4478&lng=3.4746", o)) },
   { name: "ip-location", call: (o?: Parameters<typeof get>[1]) => ipLocation(get("/api/ip-location", { ...o, headers: { "x-forwarded-for": "102.89.1.1", ...o?.headers } })) },
 ] as const;

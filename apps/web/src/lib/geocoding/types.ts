@@ -8,4 +8,6 @@ export interface GeocodingProvider {
   geocode(address: AddressParts): Promise<GeocodeResult | null>;
   /** Resolves coordinates to an address, or null if no match is found. */
   reverseGeocode(lat: number, lng: number): Promise<ReverseGeocodeResult | null>;
+  /** A place in Nigeria by its name (a city, for a new Hood's starting point), or null if it can't be found. */
+  locatePlace(name: string): Promise<{ lat: number; lng: number } | null>;
 }

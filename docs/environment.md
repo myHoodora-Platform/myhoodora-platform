@@ -67,7 +67,7 @@ Removed: `JWT_SECRET`, `JWT_EXPIRES_IN`. The API never issued its own tokens; no
 | `SITE_ENV` | off Vercel | `production` makes this deployment indexable by search engines. Anything else (or unset) serves `Disallow: /` and `X-Robots-Tag: noindex`. On Vercel, `VERCEL_ENV` is used when this is unset |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | optional | OAuth web client ID of the Firebase Google provider. Enables the One Tap prompt. Public |
 | `NEXT_PUBLIC_USE_MOCKS` | no (default off) | `true` runs on in-browser sample data. Never in production |
-| `GEOCODE_MAPS_CO_API_KEY` | for address search | Server-side key for onboarding's address lookup (`/api/geocode`) |
+| `GEOCODE_MAPS_CO_API_KEY` | for address search | Server-side key for onboarding's address lookup (`/api/geocode`) and admins' city lookup when creating a Hood in a new city (`/api/geocode/place`) |
 
 `NEXT_PUBLIC_*` values are fixed at **build** time: changing one means rebuilding the web app.
 
