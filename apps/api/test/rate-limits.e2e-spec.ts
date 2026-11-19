@@ -1,3 +1,4 @@
+import type { AddressInfo } from "node:net";
 import { createTestApp, type TestApp } from "./helpers/app";
 jest.mock("../src/config/firebase.config", () => jest.requireActual("./helpers/firebase-mock").firebaseMock);
 
@@ -65,6 +66,37 @@ describe("Rate limits: per person once signed in, per address before that", () =
     // A second person starts from a full allowance, though the address is the same.
     const other = await t.http.get("/api/users/me").set(t.auth("bola")).expect(200);
     expect(header(other, "X-RateLimit-Remaining-medium")).toBe("59");
+  });
+
+  /** Every limit that counted a request names itself in an X-RateLimit-* header. */
+  const countedBy = (res: { headers: Record<string, string> }) => Object.keys(res.headers).filter((h) => h.startsWith("x-ratelimit"));
+
+  it("the host's health checks are never limited: Render polls every few seconds from one address", async () => {
+    // Past the 10-a-second burst at once; the hourly 500 used to take the instance down ~40 minutes in.
+    for (let i = 0; i < 25; i++) {
+      const res = await t.http.get("/api/health").expect(200);
+      expect(countedBy(res)).toEqual([]);
+    }
+    expect(countedBy(await t.http.get("/api/version").expect(200))).toEqual([]);
+  });
+
+  it("Resend's delivery webhooks, which come from a few addresses in bursts, are never limited", async () => {
+    // Unsigned, so refused, but by the signature check, not a limit.
+    for (let i = 0; i < 15; i++) {
+      const res = await t.http.post("/api/webhooks/resend").send({ type: "email.sent", data: {} });
+      expect(res.status).toBe(400);
+      expect(countedBy(res)).toEqual([]);
+    }
+  });
+
+  it("the live-update stream is not counted (one long-lived connection per tab)", async () => {
+    await t.app.listen(0);
+    const base = `http://127.0.0.1:${(t.app.getHttpServer().address() as AddressInfo).port}`;
+    const abort = new AbortController();
+    const res = await fetch(`${base}/api/realtime/stream`, { headers: { ...t.auth("ada"), Accept: "text/event-stream" }, signal: abort.signal });
+    abort.abort();
+    expect(res.status).toBe(200);
+    expect([...res.headers.keys()].filter((h) => h.startsWith("x-ratelimit"))).toEqual([]);
   });
 
   it("the web server's session checks, which all come from one address, are outside the flood limit", async () => {

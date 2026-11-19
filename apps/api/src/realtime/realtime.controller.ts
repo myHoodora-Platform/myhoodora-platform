@@ -1,8 +1,8 @@
 import { Controller, Header, type MessageEvent, Sse } from "@nestjs/common";
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiProduces, ApiTags } from "@nestjs/swagger";
-import { SkipThrottle } from "@nestjs/throttler";
 import { interval, map, merge, of, type Observable } from "rxjs";
 import { CurrentViewer, type Viewer } from "../shared/auth/viewer";
+import { NoRateLimit } from "../shared/throttle/throttle.guards";
 import { RealtimeService } from "./realtime.service";
 
 /** Keeps proxies (and Render) from closing a quiet connection. */
@@ -19,7 +19,7 @@ export class RealtimeController {
    * hints; the client refetches through the normal endpoints.
    */
   @Sse("stream")
-  @SkipThrottle()
+  @NoRateLimit()
   @Header("Cache-Control", "no-cache, no-transform")
   @Header("X-Accel-Buffering", "no")
   @ApiOperation({

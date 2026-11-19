@@ -17,7 +17,7 @@ import { AccountGuard } from "./shared/auth/account.guard";
 import { FirebaseAuthGuard } from "./shared/auth/firebase-auth.guard";
 import { CapabilityGuard } from "./shared/authz/can.decorator";
 import { AllExceptionsFilter } from "./shared/http/all-exceptions.filter";
-import { AccountThrottlerGuard, FLOOD, FloodGuard } from "./shared/throttle/throttle.guards";
+import { AccountThrottlerGuard, FloodGuard, THROTTLERS } from "./shared/throttle/throttle.guards";
 
 import { AdminModule } from "./admin/admin.module";
 import { AppController } from "./app.controller";
@@ -60,18 +60,8 @@ import { UsersModule } from "./users/users.module";
       // set MONGO_AUTO_INDEX=false once indexes are managed in Atlas.
       useFactory: (config: ConfigService) => ({ uri: config.get<string>("mongodb.uri"), autoIndex: process.env.MONGO_AUTO_INDEX !== "false" }),
     }),
-    // Two stages (shared/throttle/throttle.guards.ts).
-    // Before sign-in is checked, per address: only a flood ceiling, because one address can be a whole
-    // estate or mobile carrier. 100 requests a second, counted over 10 s.
-    // After it, per person (per address on public routes): short 10/s burst · medium 60/min · long 500/h,
-    // stricter per route where needed.
-    // Counters are in this instance's memory: with several instances each enforces its own.
-    ThrottlerModule.forRoot([
-      { name: FLOOD, ttl: 10_000, limit: 1_000 },
-      { name: "short", ttl: 1_000, limit: 10 },
-      { name: "medium", ttl: 60_000, limit: 60 },
-      { name: "long", ttl: 3_600_000, limit: 500 },
-    ]),
+    // Two stages, per route: a flood ceiling per address, then per person (shared/throttle/throttle.guards.ts).
+    ThrottlerModule.forRoot([...THROTTLERS]),
     TerminusModule,
 
     // Cross-cutting (global) modules
