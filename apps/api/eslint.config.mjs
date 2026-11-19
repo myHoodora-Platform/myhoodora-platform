@@ -7,6 +7,11 @@ export default [
     files: ["**/*.ts"],
     rules: {
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
+      // A bare @SkipThrottle() only skips a limit named "default", and none of ours is (shared/throttle/throttle.guards.ts).
+      "no-restricted-syntax": [
+        "error",
+        { selector: "Decorator > CallExpression[callee.name='SkipThrottle'][arguments.length=0]", message: "@SkipThrottle() skips nothing here: use @NoRateLimit(), or name the limits to skip." },
+      ],
     },
   },
 ];

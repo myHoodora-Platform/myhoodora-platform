@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Map, Marker, NavigationControl, Popup } from "maplibre-gl";
+import { Map, Marker, NavigationControl, Popup } from "@/lib/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { ALERT_CATEGORIES } from "@/features/feed/categories";
 import { ROUTES } from "@/lib/routes";

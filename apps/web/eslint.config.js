@@ -13,4 +13,12 @@ export default [
       },
     },
   },
+  {
+    // Maps built from "maplibre-gl" directly get no Web Worker and draw blank at street level (src/lib/maplibre.ts).
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/lib/maplibre.ts", "src/**/*.test.ts"],
+    rules: {
+      "no-restricted-imports": ["error", { paths: [{ name: "maplibre-gl", message: 'Import from "@/lib/maplibre", which sets up the map\'s Web Worker.' }] }],
+    },
+  },
 ];

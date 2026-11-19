@@ -2,9 +2,13 @@ import { Controller, Get } from '@nestjs/common';
 import { HealthCheck, HealthCheckService, MongooseHealthIndicator } from '@nestjs/terminus';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Public } from './shared/auth/public.decorator';
+import { NoRateLimit } from './shared/throttle/throttle.guards';
 import { API_VERSION, SUPPORTED_API_VERSIONS } from './shared/http/versioning';
 
 @ApiTags('health')
+// The host checks /health every few seconds from one address: under the hourly limit it was refused (429)
+// about 40 minutes in, and the host restarted the instance as unhealthy.
+@NoRateLimit()
 @Controller()
 export class AppController {
   constructor(

@@ -1,10 +1,10 @@
 import { BadRequestException, Controller, HttpCode, Logger, Post, Req, ServiceUnavailableException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { ApiExcludeController } from "@nestjs/swagger";
-import { SkipThrottle } from "@nestjs/throttler";
 import type { RawBodyRequest } from "@nestjs/common";
 import type { Request } from "express";
 import { Public } from "../shared/auth/public.decorator";
+import { NoRateLimit } from "../shared/throttle/throttle.guards";
 import { CommunicationsService } from "./communications.service";
 import { verifyWebhookSignature } from "./webhook-signature";
 
@@ -30,7 +30,7 @@ export class ResendWebhookController {
   ) {}
 
   @Public()
-  @SkipThrottle()
+  @NoRateLimit()
   @Post("resend")
   @HttpCode(200)
   async handle(@Req() req: RawBodyRequest<Request>) {

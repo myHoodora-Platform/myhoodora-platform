@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Map as MapLibre, Marker, NavigationControl } from "maplibre-gl";
+import { Map as MapLibre, Marker, NavigationControl } from "@/lib/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { HoodStatus } from "@/lib/api/admin/types";
 import { metersPerPixel } from "@/lib/geo";
