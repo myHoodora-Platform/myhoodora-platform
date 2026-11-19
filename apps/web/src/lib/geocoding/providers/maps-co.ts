@@ -1,10 +1,5 @@
 import { distanceMeters } from "@/lib/geo";
-import type {
-  AddressParts,
-  GeocodeResult,
-  GeocodingProvider,
-  ReverseGeocodeResult,
-} from "../types";
+import type { AddressParts, GeocodeResult, GeocodingProvider, ReverseGeocodeResult } from "../types";
 
 // https://geocode.maps.co — free tier, Nominatim-compatible search API.
 // Requires a free API key (sign up at https://geocode.maps.co) set as
@@ -30,42 +25,28 @@ export class MapsCoGeocodingProvider implements GeocodingProvider {
    * alone, nor a street from elsewhere: when the street can't be placed, the middle of the area, marked
    * so the neighbour places their home on the map.
    */
-  async geocode({
-    street,
-    area,
-    city,
-  }: AddressParts): Promise<GeocodeResult | null> {
+  async geocode({ street, area, city }: AddressParts): Promise<GeocodeResult | null> {
     const road = withoutHouseNumber(street);
     const full = await this.search(`${street}, ${area}, ${city}`);
     const areaPoint = (await this.search(`${area}, ${city}`, 1))[0];
     if (!areaPoint) return full[0] ? { ...full[0], precision: "street" } : null;
 
-    const queries = [
-      ...new Set([`${road}, ${area}, ${city}`, `${road}, ${city}`]),
-    ].filter((q) => q !== `${street}, ${area}, ${city}`);
+    const queries = [...new Set([`${road}, ${area}, ${city}`, `${road}, ${city}`])].filter((q) => q !== `${street}, ${area}, ${city}`);
     let match = nearest(full, areaPoint);
     for (const query of queries) {
       if (match) break;
       match = nearest(await this.search(query), areaPoint);
     }
-    return match
-      ? { ...match, precision: "street" }
-      : { ...areaPoint, precision: "area" };
+    return match ? { ...match, precision: "street" } : { ...areaPoint, precision: "area" };
   }
 
-  async reverseGeocode(
-    lat: number,
-    lng: number,
-  ): Promise<ReverseGeocodeResult | null> {
+  async reverseGeocode(lat: number, lng: number): Promise<ReverseGeocodeResult | null> {
     const url = this.url("reverse");
     url.searchParams.set("lat", String(lat));
     url.searchParams.set("lon", String(lng));
     const result = await this.get(url);
     if (typeof result?.display_name !== "string") return null;
-    return {
-      address: result.display_name,
-      parts: partsOf(result.address ?? {}),
-    };
+    return { address: result.display_name, parts: partsOf(result.address ?? {}) };
   }
 
   /** The best match only: an admin moves the map from there. */
@@ -80,12 +61,7 @@ export class MapsCoGeocodingProvider implements GeocodingProvider {
     url.searchParams.set("countrycodes", "ng");
     const results = await this.get(url);
     if (!Array.isArray(results)) return [];
-    return results
-      .map((r: { lat: string; lon: string }) => ({
-        lat: parseFloat(r.lat),
-        lng: parseFloat(r.lon),
-      }))
-      .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
+    return results.map((r: { lat: string; lon: string }) => ({ lat: parseFloat(r.lat), lng: parseFloat(r.lon) })).filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
   }
 
   private url(path: "search" | "reverse") {
@@ -98,19 +74,12 @@ export class MapsCoGeocodingProvider implements GeocodingProvider {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the geocoder's JSON, checked by each caller
   private async get(url: URL): Promise<any> {
-    let response = await fetch(url, {
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
+    let response = await fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
     if (response.status === 429) {
       await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_WAIT_MS));
-      response = await fetch(url, {
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      });
+      response = await fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
     }
-    if (!response.ok)
-      throw new Error(
-        `geocode.maps.co ${url.pathname} request failed: ${response.status}`,
-      );
+    if (!response.ok) throw new Error(`geocode.maps.co ${url.pathname} request failed: ${response.status}`);
     return response.json();
   }
 }
@@ -125,24 +94,14 @@ function nearest(candidates: Point[], area: Point): Point | undefined {
 
 /** "12 Admiralty Way" → "Admiralty Way": house numbers are rarely in the map data, and can make a street unfindable. */
 export function withoutHouseNumber(street: string): string {
-  return (
-    street.replace(/^\s*(no\.?\s*)?\d+[a-z]?\b[\s,]*/i, "").trim() ||
-    street.trim()
-  );
+  return street.replace(/^\s*(no\.?\s*)?\d+[a-z]?\b[\s,]*/i, "").trim() || street.trim();
 }
 
 /** A Nominatim `address` object in onboarding's fields. */
 export function partsOf(a: Record<string, string | undefined>): AddressParts {
   return {
     street: [a.house_number, a.road].filter(Boolean).join(" "),
-    area:
-      a.suburb ??
-      a.neighbourhood ??
-      a.quarter ??
-      a.city_district ??
-      a.residential ??
-      "",
-    city:
-      a.city ?? a.town ?? a.village ?? a.state?.replace(/\s+State$/i, "") ?? "",
+    area: a.suburb ?? a.neighbourhood ?? a.quarter ?? a.city_district ?? a.residential ?? "",
+    city: a.city ?? a.town ?? a.village ?? a.state?.replace(/\s+State$/i, "") ?? "",
   };
 }
