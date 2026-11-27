@@ -125,4 +125,32 @@ export const MIGRATIONS: Migration[] = [
       ]);
     },
   },
+  {
+    id: "006-hoods-state",
+    description: "neighborhoods: set state from city (Lagos → Lagos, Ibadan/Ogbomoso → Oyo, Ogun towns → Ogun)",
+    async up({ db, dryRun, log }) {
+      const hoods = db.collection("neighborhoods");
+      // Every city with a Hood when the state field arrived, and the state it's in. "Ogun" was used as a
+      // city for Ogun Hoods before there was a state field; staff give those their real city in admin.
+      const stateOf: Record<string, string> = {
+        Lagos: "Lagos",
+        Ibadan: "Oyo",
+        Ogbomoso: "Oyo",
+        Ogun: "Ogun",
+        Abeokuta: "Ogun",
+        Ota: "Ogun",
+        Ifo: "Ogun",
+        Mowe: "Ogun",
+        Sagamu: "Ogun",
+      };
+      const missing = { $or: [{ state: { $exists: false } }, { state: null }] };
+      for (const [city, state] of Object.entries(stateOf)) {
+        const where = { ...missing, city };
+        log(`${city} → ${state}: ${await hoods.countDocuments(where)}`);
+        if (!dryRun) await hoods.updateMany(where, { $set: { state } });
+      }
+      const left = await hoods.distinct("city", missing);
+      log(left.length ? `no state yet (set in admin): ${left.join(", ")}` : "every Hood has a state");
+    },
+  },
 ];

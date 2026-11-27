@@ -241,6 +241,13 @@ export class AdminController {
     return this.read.listHoods(q);
   }
 
+  // Before hoods/:id, which would otherwise take "places" for an id.
+  @Get("hoods/places")
+  @ApiOperation({ summary: "Every state and city with a Hood that isn't archived, and how many Hoods each has" })
+  hoodPlaces() {
+    return this.hoods.placesInUse();
+  }
+
   // Before hoods/:id, which would otherwise take "near" for an id.
   @Get("hoods/near")
   @ApiOperation({ summary: "Every Hood a Hood centred at this point could overlap, nearest first (admin map)" })

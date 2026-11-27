@@ -24,6 +24,8 @@ export interface AdminHood {
   id: string;
   name: string;
   city: string;
+  /** Null until migration 006 has run on an older Hood. */
+  state: string | null;
   country: string;
   description?: string;
   center: { lat: number; lng: number };
@@ -112,6 +114,7 @@ export class AdminReadService {
       id: String(h._id),
       name: h.name,
       city: h.city,
+      state: h.state ?? null,
       country: h.country,
       description: h.description,
       center: { lat, lng },
@@ -122,12 +125,13 @@ export class AdminReadService {
     };
   }
 
-  async listHoods(q: PageQuery & { city?: string; status?: HoodStatus }): Promise<Page<AdminHood>> {
+  async listHoods(q: PageQuery & { state?: string; city?: string; status?: HoodStatus }): Promise<Page<AdminHood>> {
     const re = searchRegex(q.q);
     const filter: QueryFilter<Neighborhood> = {
+      ...(q.state && { state: q.state as Neighborhood["state"] }),
       ...(q.city && { city: q.city }),
       ...(q.status ? { status: q.status } : { status: { $ne: "archived" } }),
-      ...(re && { $or: [{ name: re }, { city: re }] }),
+      ...(re && { $or: [{ name: re }, { city: re }, { state: re }] }),
     };
     // Hoods number in the tens: compute stats for all matches, sort, then page.
     const docs = await this.hoods.find(filter).lean<(Neighborhood & { _id: Types.ObjectId })[]>().exec();

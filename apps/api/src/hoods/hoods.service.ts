@@ -4,11 +4,12 @@ import { Connection, Model, Types, type ClientSession, type QueryFilter } from "
 import { AuditService } from "../audit/audit.service";
 import type { Viewer } from "../shared/auth/viewer";
 import { withTransaction } from "../shared/db/transaction";
-import { MAX_HOOD_RADIUS_METERS, Neighborhood, NeighborhoodDocument, type HoodStatus } from "./schemas/hood.schema";
+import { MAX_HOOD_RADIUS_METERS, Neighborhood, NeighborhoodDocument, type HoodStatus, type NigerianState } from "./schemas/hood.schema";
 
 export interface HoodInput {
   name: string;
   city: string;
+  state: NigerianState;
   country?: string;
   description?: string;
   center: { lat: number; lng: number };
@@ -16,7 +17,14 @@ export interface HoodInput {
 }
 
 /** A staff change to a Hood. `center` moves it. */
-export type HoodPatch = Partial<Pick<Neighborhood, "name" | "description" | "radiusMeters" | "status">> & { center?: { lat: number; lng: number } };
+export type HoodPatch = Partial<Pick<Neighborhood, "name" | "description" | "city" | "state" | "radiusMeters" | "status">> & { center?: { lat: number; lng: number } };
+
+/** Where Hoods are: each state's cities and how many Hoods each has. */
+export interface HoodPlace {
+  state: string | null;
+  city: string;
+  hoods: number;
+}
 
 /** A Hood close to (but not covering) an address, offered as "ask to join" (contract §16). */
 export interface NearbyHood {
@@ -63,10 +71,21 @@ export class HoodsService {
     return this.hoods.find(OPEN).sort({ city: 1, name: 1 }).exec();
   }
 
-  /** Open Hoods per city, for the admin settings page (contract §13.9). */
-  async coverageCities(): Promise<{ city: string; hoods: number }[]> {
-    const rows = await this.hoods.aggregate<{ _id: string; hoods: number }>([{ $match: OPEN }, { $group: { _id: "$city", hoods: { $sum: 1 } } }, { $sort: { hoods: -1, _id: 1 } }]).exec();
-    return rows.map((r) => ({ city: r._id, hoods: r.hoods }));
+  /** Open Hoods per city, with each city's state, for the admin settings page (contract §13.9). */
+  async coverageCities(): Promise<HoodPlace[]> {
+    return this.places(OPEN, { hoods: -1, "_id.city": 1 });
+  }
+
+  /** Every state and city with a Hood that isn't archived, for the admin filters and the New Hood form. */
+  async placesInUse(): Promise<HoodPlace[]> {
+    return this.places({ status: { $ne: "archived" } }, { "_id.state": 1, "_id.city": 1 });
+  }
+
+  private async places(match: QueryFilter<Neighborhood>, sort: Record<string, 1 | -1>): Promise<HoodPlace[]> {
+    const rows = await this.hoods
+      .aggregate<{ _id: { state?: string; city: string }; hoods: number }>([{ $match: match }, { $group: { _id: { state: "$state", city: "$city" }, hoods: { $sum: 1 } } }, { $sort: sort }])
+      .exec();
+    return rows.map((r) => ({ state: r._id.state ?? null, city: r._id.city, hoods: r.hoods }));
   }
 
   async findById(id: string): Promise<NeighborhoodDocument> {
@@ -104,6 +123,7 @@ export class HoodsService {
         {
           name: input.name,
           city: input.city,
+          state: input.state,
           country: input.country ?? "Nigeria",
           description: input.description,
           radiusMeters: input.radiusMeters,
@@ -136,9 +156,21 @@ export class HoodsService {
         if (covered.length) throw new ConflictException(`That radius would cover the centre of ${names(covered)}. Hoods can overlap, but not over another Hood's centre: choose a smaller one.`);
       }
     }
+    const before = patch.city !== undefined ? await this.hoods.findById(id).select({ city: 1 }).session(session ?? null).exec() : null;
     const hood = await this.hoods.findByIdAndUpdate(id, { $set }, { returnDocument: "after", runValidators: true, session }).exec();
     if (!hood) throw new NotFoundException("That neighbourhood doesn't exist.");
+    if (before && before.city !== hood.city) await this.syncCityCopies(id, hood.city, session);
     return hood;
+  }
+
+  /**
+   * Groups and neighbours' other Hoods keep a copy of a Hood's city, so they follow it when it changes.
+   * Raw collections: the Hoods module doesn't depend on the users or groups modules.
+   */
+  private async syncCityCopies(hoodId: string, city: string, session?: ClientSession) {
+    const db = this.connection.db!;
+    await db.collection("groups").updateMany({ neighborhoodId: hoodId }, { $set: { city } }, { session });
+    await db.collection("users").updateMany({ "secondaryHoods.id": hoodId }, { $set: { "secondaryHoods.$[h].city": city } }, { arrayFilters: [{ "h.id": hoodId }], session });
   }
 
   /** Never hard-delete: members, posts and history depend on the Hood (admin decision #4). */

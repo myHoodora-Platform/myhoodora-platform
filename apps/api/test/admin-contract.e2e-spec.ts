@@ -68,7 +68,7 @@ describe("admin API ↔ web contract (§13)", () => {
     expectShape(await get("/insights"), "Insights");
     const settings = await get("/settings");
     expectShape(settings, "PlatformSettings");
-    expect(settings.coverageCities).toEqual([{ city: "Lagos", hoods: 1 }]);
+    expect(settings.coverageCities).toEqual([{ state: "Lagos", city: "Lagos", hoods: 1 }]);
     // The web form PATCHes the whole object back, labels and coverage included.
     const saved = await t.http.patch("/api/admin/settings").set(t.auth("boss")).send(settings).expect(200);
     expectShape(saved.body, "PlatformSettings");

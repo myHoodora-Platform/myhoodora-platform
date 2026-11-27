@@ -27,7 +27,7 @@ import { ACCOUNT_STATUSES, ROLES, VERIFICATION_STATUSES } from "../shared/authz/
 import { PageQuery } from "../shared/http/pagination";
 import { MAX_REQUIRE_AFTER_DAYS } from "../platform/app-version-rules";
 import { MAX_BLOCKED_TERM_LENGTH, MAX_BLOCKED_TERMS } from "../moderation/content-filter";
-import { HOOD_STATUSES } from "../hoods/schemas/hood.schema";
+import { HOOD_STATUSES, NIGERIAN_STATES } from "../hoods/schemas/hood.schema";
 import { TARGET_TYPES } from "../moderation/moderation-registry";
 import { CASE_STATUSES, MODERATION_ACTIONS } from "../moderation/moderation.schemas";
 
@@ -81,6 +81,7 @@ export class VerificationQueryDto extends PageQuery {
 }
 
 export class HoodQueryDto extends PageQuery {
+  @IsOptional() @IsIn(NIGERIAN_STATES) state?: (typeof NIGERIAN_STATES)[number];
   @IsOptional() @IsString() @MaxLength(60) city?: string;
   @IsOptional() @IsIn(HOOD_STATUSES) status?: (typeof HOOD_STATUSES)[number];
 }

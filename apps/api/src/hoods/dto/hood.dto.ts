@@ -1,6 +1,6 @@
 import { Type } from "class-transformer";
 import { IsIn, IsInt, IsLatitude, IsLongitude, IsOptional, IsString, Length, Max, Min, ValidateNested } from "class-validator";
-import { HOOD_STATUSES, type HoodStatus } from "../schemas/hood.schema";
+import { HOOD_STATUSES, NIGERIAN_STATES, type HoodStatus, type NigerianState } from "../schemas/hood.schema";
 
 export class PointDto {
   @IsLatitude()
@@ -18,6 +18,9 @@ export class CreateHoodDto {
   @IsString()
   @Length(2, 60)
   city!: string;
+
+  @IsIn(NIGERIAN_STATES)
+  state!: NigerianState;
 
   @IsOptional()
   @IsString()
@@ -49,6 +52,16 @@ export class UpdateHoodDto {
   @IsString()
   @Length(0, 280)
   description?: string;
+
+  /** Moves the Hood to another city: ad, prompt and content targeting by city follow it. */
+  @IsOptional()
+  @IsString()
+  @Length(2, 60)
+  city?: string;
+
+  @IsOptional()
+  @IsIn(NIGERIAN_STATES)
+  state?: NigerianState;
 
   /** Moves the Hood. Checked like a new Hood's centre and radius. */
   @IsOptional()

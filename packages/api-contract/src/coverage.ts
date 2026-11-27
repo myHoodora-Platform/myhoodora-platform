@@ -6,10 +6,12 @@
 export const COVERAGE = [
   {
     city: "Lagos",
+    state: "Lagos",
     areas: ["Ikeja", "Victoria Island", "Ikoyi", "Lekki Phase 1", "Ajah", "Yaba", "Surulere", "Gbagada", "Magodo", "Apapa", "Festac Town", "Ikorodu"],
   },
   {
     city: "Ibadan",
+    state: "Oyo",
     areas: ["Bodija", "Dugbe", "Mokola", "Agodi", "Jericho", "Challenge", "Iwo Road", "Eleyele", "Apata", "Ring Road"],
   },
 ] as const;

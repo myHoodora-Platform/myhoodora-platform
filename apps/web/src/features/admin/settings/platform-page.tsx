@@ -156,8 +156,11 @@ export function PlatformPage() {
               <Panel title="Coverage">
                 <ul className="space-y-2 text-sm">
                   {draft.coverageCities.map((c) => (
-                    <li key={c.city} className="flex justify-between rounded-lg bg-muted/60 px-3 py-2">
-                      <span className="font-semibold">{c.city}</span>
+                    <li key={`${c.state ?? ""}|${c.city}`} className="flex justify-between rounded-lg bg-muted/60 px-3 py-2">
+                      <span>
+                        <span className="font-semibold">{c.city}</span>
+                        {c.state && <span className="text-muted-foreground">, {c.state}</span>}
+                      </span>
                       <span>{c.hoods} Hoods</span>
                     </li>
                   ))}
