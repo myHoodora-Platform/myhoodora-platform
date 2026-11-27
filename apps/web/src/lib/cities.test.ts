@@ -33,13 +33,16 @@ describe("city names", () => {
 describe("city options", () => {
   it("lists the defaults and every city with a Hood, once each, starting at its Hoods' middle", () => {
     const options = cityOptions([
-      { city: "Abuja", center: { lat: 9.0, lng: 7.4 } },
+      { city: "Abuja", state: "FCT", center: { lat: 9.0, lng: 7.4 } },
       { city: "Abuja", center: { lat: 9.1, lng: 7.5 } },
       { city: "lagos", center: { lat: 6.4, lng: 3.4 } },
+      { city: "Abeokuta", center: { lat: 7.16, lng: 3.35 } },
     ]);
-    expect(options.map((o) => o.city)).toEqual(["Abuja", "Ibadan", "Lagos"]);
-    expect(options[0]).toEqual({ city: "Abuja", lat: 9.05, lng: 7.45 });
-    // A default city keeps its own starting point.
-    expect(options[2]).toEqual({ city: "Lagos", lat: 6.5244, lng: 3.3792 });
+    expect(options.map((o) => o.city)).toEqual(["Abeokuta", "Abuja", "Ibadan", "Lagos"]);
+    // A city's state is the one its Hoods give; none yet is null, for the admin to choose.
+    expect(options[0]!.state).toBeNull();
+    expect(options[1]).toEqual({ city: "Abuja", state: "FCT", lat: 9.05, lng: 7.45 });
+    // A default city keeps its own starting point and state.
+    expect(options[3]).toEqual({ city: "Lagos", state: "Lagos", lat: 6.5244, lng: 3.3792 });
   });
 });

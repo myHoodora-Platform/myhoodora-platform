@@ -243,6 +243,8 @@ export interface AdminHood {
   id: string;
   name: string;
   city: string;
+  /** The state the city is in. Null on an older Hood until its state is set. */
+  state: string | null;
   country: string;
   description?: string;
   center: { lat: number; lng: number };
@@ -250,6 +252,13 @@ export interface AdminHood {
   status: HoodStatus;
   stats: { members: number; verifiedPct: number; posts7d: number; openReports: number; growth7d: number };
   createdAt: string;
+}
+
+/** A state and city with Hoods that aren't archived (GET /admin/hoods/places). */
+export interface HoodPlace {
+  state: string | null;
+  city: string;
+  hoods: number;
 }
 
 export interface HoodDetail extends AdminHood {
@@ -260,6 +269,7 @@ export interface HoodDetail extends AdminHood {
 export interface CreateHoodInput {
   name: string;
   city: string;
+  state: string;
   country: string;
   center: { lat: number; lng: number };
   radiusMeters: number;
@@ -414,7 +424,7 @@ export interface AdminOverview {
 
 export interface PlatformSettings {
   reportReasons: { id: string; label: string; severity: ReportSeverity; staffOnly: boolean }[];
-  coverageCities: { city: string; hoods: number }[];
+  coverageCities: { state?: string | null; city: string; hoods: number }[];
   /** Days before the app asks again someone who said no to usage analytics; 0 never asks again. */
   analyticsReaskDays: number;
   /** Where "myHoodora AI" links go: our /ai page, or the AI Studio site (studioUrl is kept while the page is chosen). */

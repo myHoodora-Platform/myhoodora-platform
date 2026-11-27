@@ -795,12 +795,13 @@ interface AdminHood {
 
 | Method & path | Notes |
 | --- | --- |
-| `GET /admin/hoods?q&city&status` | |
+| `GET /admin/hoods?q&state&city&status` | Each Hood has `city` and `state` (one of Nigeria's 36 states or `FCT`; `null` on an older Hood until migration 006 or staff set it). `state` filters by state; `q` also matches the state |
+| `GET /admin/hoods/places` | `{ state, city, hoods }[]`: every state and city with a Hood that isn't archived, by state then city. For the State and City filters and the New Hood form |
 | `GET /admin/hoods/near?lat&lng` | `HoodFootprint[]` (`{ id, name, city, status, center, radiusMeters }`): every Hood, in any city and of any status, that a Hood centred at the point could overlap at the largest allowed radius (its circle comes within 20 km of the point). Nearest first, at most 200. Archived Hoods are included so staff can keep clear of one that may be reopened; the placement rules ignore them. For the admin map (§28) |
 | `GET /admin/hoods/:id` | Adds `timeline` and a `members7d` series for the chart |
 | `GET /admin/hoods/:id/members` · `/posts` · `/reports` | Paged |
-| `POST /admin/hoods` **A** | `{ name, city, country, center, radiusMeters, description? }`. `409` when its centre is inside another Hood or its radius covers another Hood's centre. Overlapping is allowed (§28) |
-| `PATCH /admin/hoods/:id` **A** | Name, `center`, radius, status, description. `409` when a moved centre is inside another Hood or its radius covers another Hood's centre, or when a larger radius would cover another Hood's centre (§28) |
+| `POST /admin/hoods` **A** | `{ name, city, state, country, center, radiusMeters, description? }`. `state` is required and must be a Nigerian state (`400` otherwise). `409` when its centre is inside another Hood or its radius covers another Hood's centre. Overlapping is allowed (§28) |
+| `PATCH /admin/hoods/:id` **A** | Name, `city`, `state`, `center`, radius, status, description. A new `city` is copied to the Hood's groups and to neighbours' other Hoods (`secondaryHoods`), and targeting by city (ads, prompts, Hood content) follows it. `409` when a moved centre is inside another Hood or its radius covers another Hood's centre, or when a larger radius would cover another Hood's centre (§28) |
 
 ### 13.6 Content
 
@@ -852,7 +853,7 @@ interface InboxThread {
 | --- | --- |
 | `GET /admin/insights?from&to&hoodId` | `{ signups[], verifiedFunnel{started,verified,failed}, activeByHood[], reportsByReason[], medianResolveHours[], kindnessPrompts }` (daily series) |
 | `GET /admin/team` · `PATCH /admin/team/:uid` **A** | Staff list; `{ role: "member" \| "moderator" \| "admin" \| "owner" }`. Granting or revoking admin/owner needs an **owner** (`team.manage.admins`). The last owner can't step down (409). You can't change your own role (400) |
-| `GET /admin/settings` · `PATCH /admin/settings` **A** | `{ reportReasons[], alertWindows{category: hours}, coverageCities[] }`. `coverageCities` is derived from open Hoods (read-only; ignored on PATCH), and so are reason `label`s. `alertWindows` are 1 h–30 days and apply to new alerts |
+| `GET /admin/settings` · `PATCH /admin/settings` **A** | `{ reportReasons[], alertWindows{category: hours}, coverageCities[] }` (`coverageCities`: `{ state, city, hoods }[]`). `coverageCities` is derived from open Hoods (read-only; ignored on PATCH), and so are reason `label`s. `alertWindows` are 1 h–30 days and apply to new alerts |
 | `GET /admin/signups?type=ai_pilot\|talent\|business_ads` | Read-only lists from §11b and §11c |
 
 ## 14. Pass-1 additions and changes (2026-09-29)

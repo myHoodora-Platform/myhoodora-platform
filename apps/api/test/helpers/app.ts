@@ -88,7 +88,7 @@ export class TestApp {
   }
 
   async hood(name = "Lekki Phase 1", lng = 3.4746, lat = 6.4478, radiusMeters = 2000): Promise<string> {
-    const h = await this.hoods.create({ name, city: "Lagos", country: "Nigeria", location: { type: "Point", coordinates: [lng, lat] }, radiusMeters, status: "active" });
+    const h = await this.hoods.create({ name, city: "Lagos", state: "Lagos", country: "Nigeria", location: { type: "Point", coordinates: [lng, lat] }, radiusMeters, status: "active" });
     return String(h._id);
   }
 

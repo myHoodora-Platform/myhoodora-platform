@@ -16,6 +16,7 @@ import { createHood, listHoods } from "@/lib/api/admin/community";
 import type { AdminHood } from "@/lib/api/admin/types";
 import { cityNameProblem, cityOptions, DEFAULT_CITIES, matchingCity, tidyCityName } from "@/lib/cities";
 import { createProblem, hoodPlacement } from "@/lib/hood-placement";
+import { NIGERIAN_STATES, stateLabel } from "@myhoodora/api-contract/states";
 import { useAdminSession } from "../session";
 import { CentreFields, parseCentre } from "./centre-fields";
 import { useHoodsAround } from "./use-hoods-around";
@@ -44,6 +45,8 @@ export function NewHoodPage() {
   const [name, setName] = useState("");
   const [cityChoice, setCityChoice] = useState("Lagos");
   const [newCity, setNewCity] = useState("");
+  /** Only for a city whose Hoods have no state yet, or a new city: otherwise the city's own state. */
+  const [stateChoice, setStateChoice] = useState("");
   const [finding, setFinding] = useState(false);
   const [findNote, setFindNote] = useState<string | null>(null);
   const [centre, setCentre] = useState({ lat: "6.5244", lng: "3.3792" });
@@ -61,6 +64,9 @@ export function NewHoodPage() {
   const sameAs = adding ? matchingCity(newCity, cities) : null;
   const cityProblem = adding && !sameAs ? cityNameProblem(newCity) : null;
   const city = adding ? (sameAs ?? typed) : cityChoice;
+  // A city is in one state: an existing city's state comes with it, and only a new one is chosen.
+  const cityState = cities.find((c) => c.city === city)?.state ?? null;
+  const state = cityState ?? stateChoice;
 
   if (!can("hoods.manage")) return <Unauthorized message="Only admins can create Hoods." />;
 
@@ -68,7 +74,7 @@ export function NewHoodPage() {
   // API, it ignores archived Hoods: the map still draws them, to keep clear of in case they reopen.
   const placement = point ? hoodPlacement({ name, center: point, radiusMeters: radius }, around.filter((h) => h.status !== "archived")) : null;
   const problem = placement && createProblem(placement);
-  const valid = name.trim().length >= 2 && point !== null && !problem && !cityProblem;
+  const valid = name.trim().length >= 2 && point !== null && !problem && !cityProblem && state !== "";
 
   /** Moves the map to the new city, which the admin then fine-tunes. */
   const findCity = async () => {
@@ -99,7 +105,7 @@ export function NewHoodPage() {
     setBusy(true);
     setError(null);
     try {
-      const hood = await createHood(user, { name: name.trim(), city, country: "Nigeria", center: point, radiusMeters: radius, description: description.trim() || undefined }, role);
+      const hood = await createHood(user, { name: name.trim(), city, state, country: "Nigeria", center: point, radiusMeters: radius, description: description.trim() || undefined }, role);
       toast.success(`${hood.name} is live`);
       router.replace(`/admin/hoods/${hood.id}`);
     } catch (err) {
@@ -170,6 +176,20 @@ export function NewHoodPage() {
                 </div>
               </Field>
             )}
+            <Field
+              label="State"
+              htmlFor="h-state"
+              hint={cityState ? `${city} is in ${stateLabel(cityState)}.` : "The state this city is in, e.g. Ogun for Abeokuta."}
+            >
+              <select id="h-state" value={state} disabled={Boolean(cityState)} onChange={(e) => setStateChoice(e.target.value)} className={fieldInputClass}>
+                <option value="">Choose a state…</option>
+                {NIGERIAN_STATES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </Field>
             {adding && findNote && (
               <p role="status" className="text-sm text-muted-foreground">
                 {findNote}

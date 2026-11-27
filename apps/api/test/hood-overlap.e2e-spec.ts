@@ -24,7 +24,7 @@ describe("Overlapping Hoods", () => {
   beforeEach(() => t.resetThrottle());
 
   const create = (name: string, center: { lng: number; lat: number }, radiusMeters: number) =>
-    t.http.post("/api/admin/hoods").set(t.auth("admin1")).send({ name, city: "Ibadan", center, radiusMeters });
+    t.http.post("/api/admin/hoods").set(t.auth("admin1")).send({ name, city: "Ibadan", state: "Oyo", center, radiusMeters });
   const verify = (uid: string, at: { lng: number; lat: number }) => t.http.post("/api/users/me/verify-location").set(t.auth(uid)).send({ ...at, address: "4 Test Close" });
 
   it("a Hood may overlap another, as long as neither holds the other's centre", async () => {

@@ -30,21 +30,21 @@ describe("Security & authorization (audit findings)", () => {
 
   describe("F1: neighbourhood create/delete need hoods.manage", () => {
     it("members and moderators get 403", async () => {
-      const body = { name: "Ikoyi", city: "Lagos", center: { lat: 6.4541, lng: 3.4336 }, radiusMeters: 1000 };
+      const body = { name: "Ikoyi", city: "Lagos", state: "Lagos", center: { lat: 6.4541, lng: 3.4336 }, radiusMeters: 1000 };
       await t.http.post("/api/neighborhoods").set(t.auth("ada")).send(body).expect(403);
       await t.http.post("/api/neighborhoods").set(t.auth("mod1")).send(body).expect(403);
       await t.http.delete(`/api/neighborhoods/${yaba}`).set(t.auth("ada")).expect(403);
     });
 
     it("admins can create; DELETE archives instead of hard-deleting", async () => {
-      const res = await t.http.post("/api/neighborhoods").set(t.auth("admin1")).send({ name: "Ikoyi", city: "Lagos", center: { lat: 6.4541, lng: 3.4336 }, radiusMeters: 1000 }).expect(201);
+      const res = await t.http.post("/api/neighborhoods").set(t.auth("admin1")).send({ name: "Ikoyi", city: "Lagos", state: "Lagos", center: { lat: 6.4541, lng: 3.4336 }, radiusMeters: 1000 }).expect(201);
       await t.http.delete(`/api/neighborhoods/${res.body._id}`).set(t.auth("admin1")).expect(204);
       const doc = await t.hoods.findById(res.body._id).lean();
       expect(doc?.status).toBe("archived");
     });
 
     it("refuses a Hood centred inside another (409)", async () => {
-      const res = await t.http.post("/api/neighborhoods").set(t.auth("admin1")).send({ name: "Lekki Central", city: "Lagos", center: { lat: 6.448, lng: 3.475 }, radiusMeters: 1000 }).expect(409);
+      const res = await t.http.post("/api/neighborhoods").set(t.auth("admin1")).send({ name: "Lekki Central", city: "Lagos", state: "Lagos", center: { lat: 6.448, lng: 3.475 }, radiusMeters: 1000 }).expect(409);
       expect(res.body.message).toMatch(/inside Lekki Phase 1/);
     });
   });

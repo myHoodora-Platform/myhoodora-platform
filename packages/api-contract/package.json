@@ -18,6 +18,7 @@
     "./auth-errors": "./src/auth-errors.ts",
     "./auth-validation": "./src/auth-validation.ts",
     "./coverage": "./src/coverage.ts",
+    "./states": "./src/states.ts",
     "./roles": "./src/roles.ts",
     "./settings": "./src/settings.ts",
     "./support": "./src/support.ts",

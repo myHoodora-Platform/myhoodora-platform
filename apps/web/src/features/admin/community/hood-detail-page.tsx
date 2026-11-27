@@ -19,6 +19,8 @@ import { getHood, listNeighbours, updateHood } from "@/lib/api/admin/community";
 import { listPosts } from "@/lib/api/admin/content";
 import { listReports } from "@/lib/api/admin/moderation";
 import type { HoodStatus } from "@/lib/api/admin/types";
+import { cityNameProblem, tidyCityName } from "@/lib/cities";
+import { NIGERIAN_STATES } from "@myhoodora/api-contract/states";
 import { useAdminSession } from "../session";
 import { useAdminQuery } from "../use-admin-query";
 import { reportHref } from "../moderation/queue-page";
@@ -52,7 +54,7 @@ export function HoodDetailPage({ id }: { id: string }) {
   const reports = useAdminQuery((u) => listReports(u, { hoodId: id, status: "active", pageSize: 10 }), `r-${id}`);
   const [tab, setTab] = useState<Tab>("members");
   const [dialog, setDialog] = useState<null | "edit" | "boundary" | HoodStatus>(null);
-  const [form, setForm] = useState({ name: "", description: "" });
+  const [form, setForm] = useState({ name: "", description: "", city: "", state: "" });
   const around = useHoodsAround(hood.data?.center, id);
 
   if (hood.loading && !hood.data) return <DetailSkeleton />;
@@ -76,7 +78,7 @@ export function HoodDetailPage({ id }: { id: string }) {
           <>
             <StatusBadge status={h.status} />
             <span className="text-xs text-muted-foreground">
-              {h.city}, {h.country} · live since {dateLabel(h.createdAt)}
+              {h.city}, {h.state ? `${h.state} State` : "no state yet"} · live since {dateLabel(h.createdAt)}
             </span>
           </>
         }
@@ -87,7 +89,7 @@ export function HoodDetailPage({ id }: { id: string }) {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  setForm({ name: h.name, description: h.description ?? "" });
+                  setForm({ name: h.name, description: h.description ?? "", city: h.city, state: h.state ?? "" });
                   setDialog("edit");
                 }}
               >
@@ -237,11 +239,24 @@ export function HoodDetailPage({ id }: { id: string }) {
           open
           onOpenChange={(o) => !o && setDialog(null)}
           title={`Edit ${h.name}`}
-          consequence="Changes apply straight away. To move the Hood or change its radius, use Edit boundary."
+          consequence={
+            tidyCityName(form.city) !== h.city
+              ? `Changes apply straight away. Ads, prompts and Hood content aimed at ${h.city} stop reaching this Hood; anything aimed at ${tidyCityName(form.city) || "the new city"} starts to.`
+              : "Changes apply straight away. To move the Hood or change its radius, use Edit boundary."
+          }
           confirmLabel="Save changes"
           requireReason={false}
-          ready={form.name.trim().length >= 2}
-          onConfirm={({ note }) => save({ name: form.name.trim(), description: form.description.trim() || undefined, reason: note })}
+          ready={form.name.trim().length >= 2 && !cityNameProblem(form.city) && form.state !== ""}
+          onConfirm={({ note }) => {
+            const city = tidyCityName(form.city);
+            return save({
+              name: form.name.trim(),
+              description: form.description.trim() || undefined,
+              ...(city !== h.city && { city }),
+              ...(form.state !== (h.state ?? "") && { state: form.state }),
+              reason: note,
+            });
+          }}
         >
           <label className="block space-y-1.5">
             <span className="text-sm font-semibold">Name</span>
@@ -251,6 +266,24 @@ export function HoodDetailPage({ id }: { id: string }) {
             <span className="text-sm font-semibold">Description</span>
             <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} className={fieldInputClass} />
           </label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block space-y-1.5">
+              <span className="text-sm font-semibold">City</span>
+              <input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} maxLength={60} className={fieldInputClass} />
+              {form.city.trim() && cityNameProblem(form.city) && <span className="block text-xs text-destructive">{cityNameProblem(form.city)}</span>}
+            </label>
+            <label className="block space-y-1.5">
+              <span className="text-sm font-semibold">State</span>
+              <select value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} className={fieldInputClass}>
+                <option value="">Choose a state…</option>
+                {NIGERIAN_STATES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
         </ActionDialog>
       )}
       {dialog === "boundary" && <HoodBoundaryDialog hood={h} onClose={() => setDialog(null)} onSave={save} />}

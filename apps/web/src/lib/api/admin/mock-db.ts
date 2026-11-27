@@ -81,6 +81,7 @@ function seedHoods(): AdminHood[] {
         id: hoodIdFor(name),
         name,
         city: c.city,
+        state: c.state,
         country: "Nigeria",
         center: { lat, lng },
         radiusMeters: 1500 + ((i * 131) % 1500),
@@ -581,7 +582,7 @@ const storedPlatformSettings = () =>
       { id: "spam", label: "Spam or advertising", severity: "low", staffOnly: false },
       { id: "not_local", label: "Not about the neighbourhood", severity: "low", staffOnly: false },
     ],
-    coverageCities: COVERAGE.map((c) => ({ city: c.city, hoods: c.areas.length })),
+    coverageCities: COVERAGE.map((c) => ({ state: c.state, city: c.city, hoods: c.areas.length })),
     analyticsReaskDays: 180,
   }));
 export const savePlatformSettings = (s: PlatformSettings) => save("admin-settings", s);

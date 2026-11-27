@@ -127,7 +127,7 @@ describe("Groups and staff actions finish what they start", () => {
     });
 
     it("the older /neighborhoods write routes leave an audit record too", async () => {
-      const created = await t.http.post("/api/neighborhoods").set(t.auth("admin1")).send({ name: "Ikoyi", city: "Lagos", center: { lat: 6.4541, lng: 3.4336 }, radiusMeters: 1000 }).expect(201);
+      const created = await t.http.post("/api/neighborhoods").set(t.auth("admin1")).send({ name: "Ikoyi", city: "Lagos", state: "Lagos", center: { lat: 6.4541, lng: 3.4336 }, radiusMeters: 1000 }).expect(201);
       expect(await audits({ action: "hood_create", "target.id": created.body._id })).toEqual([expect.objectContaining({ target: expect.objectContaining({ label: "Ikoyi" }) })]);
       await t.http.delete(`/api/neighborhoods/${created.body._id}`).set(t.auth("admin1")).expect(204);
       expect(await audits({ action: "hood_archive", "target.id": created.body._id })).toHaveLength(1);
@@ -168,13 +168,13 @@ describe("Groups and staff actions finish what they start", () => {
     it("creating and changing a Hood", async () => {
       auditFails();
       quiet();
-      await t.http.post("/api/admin/hoods").set(t.auth("admin1")).send({ name: "Surulere", city: "Lagos", center: { lat: 6.5, lng: 3.35 }, radiusMeters: 1500 }).expect(500);
+      await t.http.post("/api/admin/hoods").set(t.auth("admin1")).send({ name: "Surulere", city: "Lagos", state: "Lagos", center: { lat: 6.5, lng: 3.35 }, radiusMeters: 1500 }).expect(500);
       await t.http.patch(`/api/admin/hoods/${lekki2}`).set(t.auth("admin1")).send({ status: "paused", reason: "Flooding" }).expect(500);
       jest.restoreAllMocks();
       expect(await t.hoods.countDocuments({ name: "Surulere" })).toBe(0);
       expect((await t.hoods.findById(lekki2).lean())!.status).toBe("active");
 
-      await t.http.post("/api/admin/hoods").set(t.auth("admin1")).send({ name: "Surulere", city: "Lagos", center: { lat: 6.5, lng: 3.35 }, radiusMeters: 1500 }).expect(201);
+      await t.http.post("/api/admin/hoods").set(t.auth("admin1")).send({ name: "Surulere", city: "Lagos", state: "Lagos", center: { lat: 6.5, lng: 3.35 }, radiusMeters: 1500 }).expect(201);
       expect(await t.hoods.countDocuments({ name: "Surulere" })).toBe(1);
     });
 

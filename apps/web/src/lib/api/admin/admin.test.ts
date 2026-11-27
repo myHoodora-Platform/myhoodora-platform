@@ -3,7 +3,7 @@ import type { User } from "firebase/auth";
 import { ApiError } from "../client";
 import { isRemoved } from "../mock/moderation-state";
 import { submitReport } from "../reports";
-import { actOnNeighbour, createHood, getNeighbour, hoodsNear, listVerification, setAiOperator, updateHood } from "./community";
+import { actOnNeighbour, createHood, getNeighbour, hoodsNear, listHoodPlaces, listHoods, listVerification, setAiOperator, updateHood } from "./community";
 import { actOnReport, getReport, listAudit, listReports, setReportClaim } from "./moderation";
 import { actOnBusiness, listBusinesses } from "./businesses";
 import { getAdminSession } from "./session";
@@ -97,10 +97,21 @@ describe("community", () => {
 
   it("refuses a Hood centred inside an existing one, and archives instead of deleting", async () => {
     await expect(
-      createHood(staff, { name: "Lekki Central", city: "Lagos", country: "Nigeria", center: { lat: 6.448, lng: 3.475 }, radiusMeters: 1000 }, "admin"),
+      createHood(staff, { name: "Lekki Central", city: "Lagos", state: "Lagos", country: "Nigeria", center: { lat: 6.448, lng: 3.475 }, radiusMeters: 1000 }, "admin"),
     ).rejects.toThrow(/centre is inside Lekki Phase 1/);
     const archived = await updateHood(staff, "hood-apapa", { status: "archived", reason: "Merged" }, "admin");
     expect(archived.status).toBe("archived");
+  });
+
+  it("files a Hood under its city and state, and lists the places that have Hoods", async () => {
+    const places = await listHoodPlaces(staff);
+    expect(places).toContainEqual(expect.objectContaining({ state: "Lagos", city: "Lagos" }));
+    expect(places).toContainEqual(expect.objectContaining({ state: "Oyo", city: "Ibadan" }));
+    const moved = await updateHood(staff, "hood-ikeja", { city: "Ikeja Town", state: "Lagos", reason: "Test" }, "admin");
+    expect(moved).toMatchObject({ city: "Ikeja Town", state: "Lagos" });
+    const oyo = await listHoods(staff, { state: "Oyo", pageSize: 100 });
+    expect(oyo.items.length).toBeGreaterThan(0);
+    expect(oyo.items.every((h) => h.state === "Oyo")).toBe(true);
   });
 
   it("moves a Hood's centre, under the same rules as a new Hood", async () => {

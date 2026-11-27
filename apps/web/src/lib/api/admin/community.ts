@@ -20,7 +20,7 @@ import {
   saveNeighbours,
   type NeighbourRecord,
 } from "./mock-db";
-import type { AccountStatus, AdminHood, AdminNeighbour, AdminRole, AiOperatorStatus, CreateHoodInput, HoodDetail, HoodFootprint, HoodLead, HoodStatus, ListQuery, NeighbourActionInput, NeighbourDetail, Page, VerificationCase, VerificationStatus } from "./types";
+import type { AccountStatus, AdminHood, AdminNeighbour, AdminRole, AiOperatorStatus, CreateHoodInput, HoodDetail, HoodFootprint, HoodLead, HoodPlace, HoodStatus, ListQuery, NeighbourActionInput, NeighbourDetail, Page, VerificationCase, VerificationStatus } from "./types";
 
 // ── Neighbours ──────────────────────────────────────────────────────────────
 
@@ -202,11 +202,12 @@ function withLiveStats(h: AdminHood): AdminHood {
 }
 
 /** live: GET /admin/hoods */
-export async function listHoods(user: User, query: ListQuery & { city?: string; status?: HoodStatus } = {}): Promise<Page<AdminHood>> {
+export async function listHoods(user: User, query: ListQuery & { state?: string; city?: string; status?: HoodStatus } = {}): Promise<Page<AdminHood>> {
   if (isLive("admin.hoods")) return adminGet(user, "/hoods", query);
   return mock(() => {
     const rows = hoods()
       .map(withLiveStats)
+      .filter((h) => !query.state || h.state === query.state)
       .filter((h) => !query.city || h.city === query.city)
       .filter((h) => (query.status ? h.status === query.status : h.status !== "archived"));
     return paginate(rows, { sort: "members:desc", ...query }, (h) => `${h.name} ${h.city}`, {
@@ -215,6 +216,21 @@ export async function listHoods(user: User, query: ListQuery & { city?: string; 
       growth: (a, b) => a.stats.growth7d - b.stats.growth7d,
       reports: (a, b) => a.stats.openReports - b.stats.openReports,
     });
+  });
+}
+
+/** live: GET /admin/hoods/places — every state and city with a Hood that isn't archived. */
+export async function listHoodPlaces(user: User): Promise<HoodPlace[]> {
+  if (isLive("admin.hoods")) return adminGet(user, "/hoods/places");
+  return mock(() => {
+    const byPlace = new Map<string, HoodPlace>();
+    for (const h of hoods().filter((x) => x.status !== "archived")) {
+      const k = `${h.state ?? ""}|${h.city}`;
+      const p = byPlace.get(k) ?? { state: h.state, city: h.city, hoods: 0 };
+      p.hoods += 1;
+      byPlace.set(k, p);
+    }
+    return [...byPlace.values()].sort((a, b) => (a.state ?? "").localeCompare(b.state ?? "") || a.city.localeCompare(b.city));
   });
 }
 
@@ -275,7 +291,7 @@ export async function createHood(user: User, input: CreateHoodInput, role: Admin
 export async function updateHood(
   user: User,
   id: string,
-  patch: Partial<Pick<AdminHood, "name" | "center" | "radiusMeters" | "status" | "description">> & { reason?: string },
+  patch: Partial<Pick<AdminHood, "name" | "city" | "center" | "radiusMeters" | "status" | "description">> & { state?: string; reason?: string },
   role: AdminRole,
 ): Promise<HoodDetail> {
   if (isLive("admin.hoods")) return adminSend(user, `/hoods/${id}`, patch, "PATCH");
