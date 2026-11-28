@@ -6,6 +6,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { Model, Types, type QueryFilter } from "mongoose";
 import { AuditService } from "../audit/audit.service";
 import { CommunicationsService } from "../communications/communications.service";
+import { HoodsService } from "../hoods/hoods.service";
 import { messageEmail } from "../communications/templates/email-templates";
 import { ModerationRegistry } from "../moderation/moderation-registry";
 import type { Viewer } from "../shared/auth/viewer";
@@ -67,6 +68,7 @@ export class BusinessesService implements OnModuleInit {
     private readonly registry: ModerationRegistry,
     private readonly config: ConfigService,
     private readonly accounts: AccountLifecycle,
+    private readonly hoods: HoodsService,
   ) {}
 
   onModuleInit() {
@@ -103,11 +105,25 @@ export class BusinessesService implements OnModuleInit {
 
   // ── Public application ────────────────────────────────────────────────────
 
+  /** Areas served must be open Hoods, so a page reaches real neighbours: stored in the Hood's own spelling, once each. */
+  private async servedHoods(names: string[]): Promise<string[]> {
+    const found = await this.hoods.liveNames(names);
+    const key = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
+    const missing = names.filter((n) => !found.has(key(n)));
+    if (missing.length) {
+      const list = missing.map((n) => `“${n.trim()}”`).join(", ");
+      throw new BadRequestException(`${list} ${missing.length === 1 ? "isn't a Hood" : "aren't Hoods"} on myHoodora yet. Choose from the list.`);
+    }
+    return [...new Set(names.map((n) => found.get(key(n))!))];
+  }
+
   async apply(dto: BusinessApplicationDto): Promise<{ id: string; status: "pending_review" }> {
     const recent = await this.pages.countDocuments({ phone: dto.phone, createdAt: { $gt: new Date(Date.now() - 86_400_000) } }).exec();
     if (recent >= APPLICATIONS_PER_PHONE_PER_DAY) throw new HttpException("We've already received applications from this number today.", HttpStatus.TOO_MANY_REQUESTS);
+    const areasServed = await this.servedHoods(dto.areasServed);
     const doc = await this.pages.create({
       ...dto,
+      areasServed,
       businessName: dto.businessName.trim(),
       description: dto.description.trim(),
       cacNumber: dto.cacNumber?.replace(/\s/g, "").toUpperCase(),
