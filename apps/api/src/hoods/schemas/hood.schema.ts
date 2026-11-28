@@ -57,6 +57,13 @@ export class Neighborhood {
   @Prop({ required: true, enum: HOOD_STATUSES, default: "active", index: true })
   status!: HoodStatus;
 
+  /**
+   * A demo Hood for the app-store reviewers (apps/mobile/store/src/review-seed.js), out at sea so no real
+   * address matches it. Left out of coverage: it isn't somewhere we're live.
+   */
+  @Prop()
+  reviewDemo?: boolean;
+
   /** @deprecated kept for rows not yet migrated (migration 002). */
   @Prop()
   isActive?: boolean;

@@ -8,7 +8,8 @@ import { IPhoneMockup, PhoneStage } from "@/components/marketing/iphone-mockup";
 import { MarketingPage } from "@/components/marketing/marketing-page";
 import { PhoneAppScreen } from "@/components/marketing/phone-app-screen";
 import { BusinessPageScreen, BusinessPostScreen, RecommendationScreen } from "@/components/marketing/business-screens";
-import { COVERAGE_COUNT } from "@/lib/coverage";
+import { COVERAGE_COUNT, coverageStates, joinNames } from "@/lib/coverage";
+import { getCoverage } from "@/lib/api/coverage";
 import { ANNOUNCEMENTS } from "@/lib/press";
 import { HOODORA_AI_LOGO } from "@/lib/site-images";
 
@@ -19,9 +20,12 @@ export const metadata: Metadata = publicPageMetadata("/press", {
 
 const container = "mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8";
 
-const FACTS = [
-  { value: "Lagos & Ibadan", label: "Where we're live today" },
-  { value: String(COVERAGE_COUNT), label: "Neighbourhoods open" },
+/** Live coverage is read from the API at most hourly. */
+export const revalidate = 3600;
+
+const facts = (where: string, count: number) => [
+  { value: where, label: "States we're live in today" },
+  { value: String(count), label: "Neighbourhoods open" },
   { value: "Free", label: "For every resident" },
   { value: "3", label: "Products: neighbourhoods, Business, AI" },
 ];
@@ -50,8 +54,10 @@ const SCREENS = [
   { label: "Business Page", screen: <BusinessPageScreen />, tone: "coral" as const },
 ];
 
-export default function PressPage() {
+export default async function PressPage() {
   const [featured, ...rest] = ANNOUNCEMENTS;
+  const coverage = await getCoverage(revalidate);
+  const FACTS = facts(joinNames(coverageStates(coverage.cities)), coverage.total ?? COVERAGE_COUNT);
 
   return (
     <MarketingPage>

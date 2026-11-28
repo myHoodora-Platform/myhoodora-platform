@@ -20,7 +20,8 @@ import { ExploreMore } from "@/components/marketing/explore-more";
 import { MarketingPage } from "@/components/marketing/marketing-page";
 import { TalentForm } from "@/features/company/talent-form";
 import { OPEN_ROLES, type OpenRole } from "@/lib/careers";
-import { COVERAGE_COUNT } from "@/lib/coverage";
+import { COVERAGE_COUNT, coverageStates, joinNames } from "@/lib/coverage";
+import { getCoverage } from "@/lib/api/coverage";
 import { CAREERS_IMAGE } from "@/lib/site-images";
 
 export const metadata: Metadata = publicPageMetadata("/careers", {
@@ -39,13 +40,19 @@ const TEAMS: { icon: LucideIcon; title: string; body: string }[] = [
   { icon: Headphones, title: "Operations & support", body: "Helping neighbours and businesses get the most out of myHoodora." },
 ];
 
-const WHY_NOW = [
+/** Live coverage is read from the API at most hourly. */
+export const revalidate = 3600;
+
+const whyNow = (count: number, where: string) => [
   { icon: Rocket, title: "Early, and it shows", body: "Join while the foundations are being laid. Your decisions will shape the product for years." },
-  { icon: MapPin, title: "Impact you can see", body: `We're live in ${COVERAGE_COUNT} neighbourhoods across Lagos and Ibadan. Your work reaches real streets.` },
+  { icon: MapPin, title: "Impact you can see", body: `We're live in ${count} neighbourhoods across ${where}. Your work reaches real streets.` },
   { icon: Sparkles, title: "More than one product", body: "The neighbourhood app, myHoodora for Business and myHoodora AI, all under one roof." },
 ];
 
-export default function CareersPage() {
+export default async function CareersPage() {
+  const coverage = await getCoverage(revalidate);
+  const count = coverage.total ?? COVERAGE_COUNT;
+  const where = `${joinNames(coverageStates(coverage.cities))} States`;
   return (
     <MarketingPage>
       {/* ── Hero: copy + one strong team photo ────────────────────────────── */}
@@ -93,8 +100,8 @@ export default function CareersPage() {
                 <MapPin className="size-5" aria-hidden />
               </span>
               <span>
-                <span className="block font-bold">{COVERAGE_COUNT} neighbourhoods live</span>
-                <span className="block text-sm text-muted-foreground">across Lagos &amp; Ibadan</span>
+                <span className="block font-bold">{count} neighbourhoods live</span>
+                <span className="block text-sm text-muted-foreground">across {where}</span>
               </span>
             </div>
           </div>
@@ -104,7 +111,7 @@ export default function CareersPage() {
       {/* ── Why join ────────────────────────────────────────────────────── */}
       <section className="py-14 lg:py-20">
         <ul className={`${container} grid gap-8 md:grid-cols-3`}>
-          {WHY_NOW.map((w) => (
+          {whyNow(count, where).map((w) => (
             <li key={w.title} className="flex gap-4">
               <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-brand-coral/10 text-brand-coral-ink">
                 <w.icon className="size-5" aria-hidden />

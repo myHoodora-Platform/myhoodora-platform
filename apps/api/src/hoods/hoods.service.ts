@@ -19,6 +19,14 @@ export interface HoodInput {
 /** A staff change to a Hood. `center` moves it. */
 export type HoodPatch = Partial<Pick<Neighborhood, "name" | "description" | "city" | "state" | "radiusMeters" | "status">> & { center?: { lat: number; lng: number } };
 
+/** Where we're live, for sign-up and the public pages (GET /neighborhoods/coverage). */
+export interface Coverage {
+  /** Open Hoods, demo ones left out. */
+  total: number;
+  /** Most Hoods first; each state's cities likewise; each city's Hoods by name. */
+  states: { state: string | null; hoods: number; cities: { city: string; areas: string[] }[] }[];
+}
+
 /** Where Hoods are: each state's cities and how many Hoods each has. */
 export interface HoodPlace {
   state: string | null;
@@ -53,6 +61,9 @@ export const NEARBY_HOOD_METERS = 5_000;
 /** Rows written before migration 002 still have isActive instead of status. */
 const OPEN: QueryFilter<Neighborhood> = { $or: [{ status: "active" }, { status: { $exists: false }, isActive: { $ne: false } }] };
 
+/** Open Hoods that are real places: the store reviewers' demo Hoods are left out of anything counted as coverage. */
+const LIVE: QueryFilter<Neighborhood> = { ...OPEN, reviewDemo: { $ne: true } };
+
 /** The same rule as OPEN, for a Hood already loaded. */
 export function isOpenHood(h: Pick<Neighborhood, "status" | "isActive">): boolean {
   return h.status === "active" || (!h.status && h.isActive !== false);
@@ -71,9 +82,30 @@ export class HoodsService {
     return this.hoods.find(OPEN).sort({ city: 1, name: 1 }).exec();
   }
 
-  /** Open Hoods per city, with each city's state, for the admin settings page (contract §13.9). */
+  /** Open Hoods per city, with each city's state, for the admin settings page (contract §13.9). Demo Hoods left out. */
   async coverageCities(): Promise<HoodPlace[]> {
-    return this.places(OPEN, { hoods: -1, "_id.city": 1 });
+    return this.places(LIVE, { hoods: -1, "_id.city": 1 });
+  }
+
+  /** Every open, real Hood by state and city, for sign-up and the public pages. */
+  async coverage(): Promise<Coverage> {
+    const rows = await this.hoods.find(LIVE).select({ name: 1, city: 1, state: 1 }).lean<Pick<Neighborhood, "name" | "city" | "state">[]>().exec();
+    const states = new Map<string, Map<string, string[]>>();
+    for (const h of rows) {
+      const key = h.state ?? "";
+      const cities = states.get(key) ?? new Map<string, string[]>();
+      cities.set(h.city, [...(cities.get(h.city) ?? []), h.name]);
+      states.set(key, cities);
+    }
+    const out = [...states.entries()].map(([state, cities]) => ({
+      state: state || null,
+      hoods: [...cities.values()].reduce((n, a) => n + a.length, 0),
+      cities: [...cities.entries()]
+        .map(([city, areas]) => ({ city, areas: areas.sort((a, b) => a.localeCompare(b)) }))
+        .sort((a, b) => b.areas.length - a.areas.length || a.city.localeCompare(b.city)),
+    }));
+    out.sort((a, b) => b.hoods - a.hoods || (a.state ?? "").localeCompare(b.state ?? ""));
+    return { total: rows.length, states: out };
   }
 
   /** Every state and city with a Hood that isn't archived, for the admin filters and the New Hood form. */

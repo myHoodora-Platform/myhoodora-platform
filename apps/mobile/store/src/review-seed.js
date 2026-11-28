@@ -33,7 +33,7 @@ COLLECTIONS.forEach((c) => db[c].deleteMany(TAG));
 function hood(name, lat, lng, description) {
   const _id = new ObjectId();
   db.neighborhoods.insertOne({
-    _id, ...TAG, name, city: "Lagos", country: "Nigeria", description, status: "active", isActive: true,
+    _id, ...TAG, name, city: "Lagos", state: "Lagos", country: "Nigeria", description, status: "active", isActive: true,
     location: { type: "Point", coordinates: [lng, lat] }, radiusMeters: 1500, createdAt: ago(120 * D), updatedAt: ago(120 * D),
   });
   return { id: _id.toHexString(), name, lat, lng };

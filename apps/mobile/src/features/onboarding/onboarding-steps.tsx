@@ -1,4 +1,4 @@
-import { COVERAGE } from "@myhoodora/api-contract/coverage";
+import { areaPreview } from "@myhoodora/api-contract/coverage";
 import { errorMessage } from "@myhoodora/api-contract/errors";
 import { joinAddress } from "@myhoodora/api-contract/lookups";
 import { Check, Hourglass, Lock, LocateFixed, MapPin, MapPinned, Pencil, ShieldCheck, Tag, ThumbsUp, TriangleAlert } from "lucide-react-native";
@@ -11,6 +11,7 @@ import { InlineAlert } from "@/shared/ui/inline-alert";
 import { Text } from "@/shared/ui/text";
 import { TextField } from "@/shared/ui/text-field";
 import { confirmAction, formatAccuracy, formatDistance, LOOSE_GPS_M } from "./onboarding-rules";
+import { useCoverage } from "./use-coverage";
 import type { Onboarding } from "./use-onboarding";
 
 type IconType = ComponentType<{ size?: number; color?: string }>;
@@ -113,6 +114,7 @@ function OrRule({ label }: { label: string }) {
 }
 
 export function DetailsStep({ o }: { o: Onboarding }) {
+  const coverage = useCoverage();
   const streetRef = useRef<TextInput>(null);
   const areaRef = useRef<TextInput>(null);
   const cityRef = useRef<TextInput>(null);
@@ -185,8 +187,8 @@ export function DetailsStep({ o }: { o: Onboarding }) {
         />
         {/* The cities we're live in, one tap away (the web offers them as suggestions). */}
         <View style={styles.chips} accessibilityLabel="Cities we're live in">
-          {COVERAGE.map((c) => (
-            <Chip key={c.city} label={c.city} selected={typedCity === c.city.toLowerCase()} onPress={() => o.editAddress({ city: c.city })} />
+          {coverage.map((c) => (
+            <Chip key={`${c.state ?? ""}|${c.city}`} label={c.city} selected={typedCity === c.city.toLowerCase()} onPress={() => o.editAddress({ city: c.city })} />
           ))}
         </View>
         {gpsKept ? (
@@ -451,6 +453,7 @@ export function RequestedStep({ o }: { o: Onboarding }) {
 
 export function OutsideStep({ o }: { o: Onboarding }) {
   const t = useTheme();
+  const coverage = useCoverage();
   return (
     <>
       <View style={styles.centre}>
@@ -458,11 +461,11 @@ export function OutsideStep({ o }: { o: Onboarding }) {
         <StepHeading centred title="We're not in your area yet" body="Your details are saved. We're opening new neighbourhoods as residents join. Here's where we're live today:" />
       </View>
       <View style={[styles.checklist, { borderColor: t.colors.border, borderRadius: t.radius["2xl"], backgroundColor: t.colors.card }]}>
-        {COVERAGE.map((c) => (
-          <View key={c.city}>
-            <Text variant="label">{c.city}</Text>
+        {coverage.map((c) => (
+          <View key={`${c.state ?? ""}|${c.city}`}>
+            <Text variant="label">{c.state && c.state !== c.city ? `${c.city}, ${c.state} State` : c.city}</Text>
             <Text variant="caption" tone="muted">
-              {c.areas.join(" · ")}
+              {areaPreview(c.areas)}
             </Text>
           </View>
         ))}
