@@ -128,7 +128,7 @@ export function NewHoodPage() {
             <Field label="Name" htmlFor="h-name" hint="What residents call it, e.g. “Lekki Phase 1” or “Bodija Estate”.">
               <input id="h-name" value={name} onChange={(e) => setName(e.target.value)} className={fieldInputClass} />
             </Field>
-            <Field label="City" htmlFor="h-city" hint={adding ? undefined : "A new city starts with its first Hood."}>
+            <Field label="City" htmlFor="h-city" hint={adding ? undefined : "A new city starts with its first Hood. Outside any city or big town, the city is its local government area."}>
               <select
                 id="h-city"
                 value={cityChoice}
@@ -155,7 +155,7 @@ export function NewHoodPage() {
                 hint={
                   sameAs
                     ? `Already a city on myHoodora: this Hood joins ${sameAs}.`
-                    : (cityProblem && newCity.trim() ? cityProblem : null) ?? (typed && typed !== newCity.trim() ? `Saved as “${typed}”.` : "As residents write it, e.g. “Abuja” or “Port Harcourt”.")
+                    : (cityProblem && newCity.trim() ? cityProblem : null) ?? (typed && typed !== newCity.trim() ? `Saved as “${typed}”.` : "As residents write it, e.g. “Abuja” or “Port Harcourt”. Outside any city or big town, use its local government area, e.g. “Obafemi Owode”.")
                 }
               >
                 <div className="flex gap-2">

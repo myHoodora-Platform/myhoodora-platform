@@ -796,6 +796,7 @@ interface AdminHood {
 | Method & path | Notes |
 | --- | --- |
 | `GET /admin/hoods?q&state&city&status` | Each Hood has `city` and `state` (one of Nigeria's 36 states or `FCT`; `null` on an older Hood until migration 006 or staff set it). `state` filters by state; `q` also matches the state |
+| `GET /neighborhoods/coverage` (public) | `{ total, states: [{ state, hoods, cities: [{ city, areas[] }] }] }`: every open Hood by state and city, most Hoods first. Leaves out the store reviewers' demo Hoods (`reviewDemo`). Sign-up and the Careers and Press pages show it; the built-in `COVERAGE` list is only their fallback. `coverageCities` in settings counts the same way |
 | `GET /admin/hoods/places` | `{ state, city, hoods }[]`: every state and city with a Hood that isn't archived, by state then city. For the State and City filters and the New Hood form |
 | `GET /admin/hoods/near?lat&lng` | `HoodFootprint[]` (`{ id, name, city, status, center, radiusMeters }`): every Hood, in any city and of any status, that a Hood centred at the point could overlap at the largest allowed radius (its circle comes within 20 km of the point). Nearest first, at most 200. Archived Hoods are included so staff can keep clear of one that may be reopened; the placement rules ignore them. For the admin map (§28) |
 | `GET /admin/hoods/:id` | Adds `timeline` and a `members7d` series for the chart |

@@ -270,7 +270,11 @@ export function HoodDetailPage({ id }: { id: string }) {
             <label className="block space-y-1.5">
               <span className="text-sm font-semibold">City</span>
               <input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} maxLength={60} className={fieldInputClass} />
-              {form.city.trim() && cityNameProblem(form.city) && <span className="block text-xs text-destructive">{cityNameProblem(form.city)}</span>}
+              {form.city.trim() && cityNameProblem(form.city) ? (
+                <span className="block text-xs text-destructive">{cityNameProblem(form.city)}</span>
+              ) : (
+                <span className="block text-xs text-muted-foreground">Outside any city or big town, use its local government area, e.g. “Obafemi Owode”.</span>
+              )}
             </label>
             <label className="block space-y-1.5">
               <span className="text-sm font-semibold">State</span>

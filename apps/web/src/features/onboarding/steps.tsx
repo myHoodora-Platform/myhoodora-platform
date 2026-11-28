@@ -5,7 +5,8 @@ import { AlertCircle, ArrowLeft, ArrowRight, Check, Hourglass, Info, Loader2, Lo
 import { Button } from "@myhoodora/ui/button";
 import { cn } from "@myhoodora/ui/utils";
 import { Field, fieldAria, fieldInputClass } from "@/components/shared/field";
-import { COVERAGE } from "@/lib/coverage";
+import { areaPreview } from "@/lib/coverage";
+import { useCoverage } from "@/lib/api/use-coverage";
 import { formatDistance } from "@/lib/format";
 import type { LocationPreview, NearbyHood } from "@/lib/api/types";
 import { joinAddress, type AddressParts, type PinSource } from "./address";
@@ -68,6 +69,7 @@ function locateLabel(locate: LocateState) {
 }
 
 export function DetailsStep({ name, address, locate, pinKept, geocoding, error, onName, onAddress, onDetect, onUseTypedAddress, onNext }: DetailsStepProps) {
+  const coverage = useCoverage();
   const detecting = locate.status === "detecting";
   const found = locate.status === "found";
   const label = locateLabel(locate);
@@ -156,8 +158,8 @@ export function DetailsStep({ name, address, locate, pinKept, geocoding, error, 
                 className={fieldInputClass}
               />
               <datalist id="onb-cities">
-                {COVERAGE.map((c) => (
-                  <option key={c.city} value={c.city} />
+                {coverage.cities.map((c) => (
+                  <option key={`${c.state ?? ""}|${c.city}`} value={c.city} />
                 ))}
               </datalist>
             </Field>
@@ -343,6 +345,7 @@ function CheckItem({ label, state }: { label: string; state: "waiting" | "active
 }
 
 export function VerifyStep({ status, outcome, neighbourhoodName, onRetry, onEditAddress, onContinue }: VerifyStepProps) {
+  const coverage = useCoverage();
   const item = (activeAt: number, failed = false): "waiting" | "active" | "done" | "failed" =>
     failed ? "failed" : status > activeAt ? "done" : status === activeAt ? "active" : "waiting";
 
@@ -376,10 +379,13 @@ export function VerifyStep({ status, outcome, neighbourhoodName, onRetry, onEdit
           </p>
         </div>
         <div className="space-y-3 rounded-2xl border border-border bg-card p-5">
-          {COVERAGE.map((c) => (
-            <div key={c.city}>
-              <p className="text-sm font-bold">{c.city}</p>
-              <p className="text-sm text-muted-foreground">{c.areas.join(" · ")}</p>
+          {coverage.cities.map((c) => (
+            <div key={`${c.state ?? ""}|${c.city}`}>
+              <p className="text-sm font-bold">
+                {c.city}
+                {c.state && c.state !== c.city ? <span className="font-normal text-muted-foreground">, {c.state} State</span> : null}
+              </p>
+              <p className="text-sm text-muted-foreground">{areaPreview(c.areas)}</p>
             </div>
           ))}
         </div>

@@ -3,6 +3,7 @@ import { ConfigService } from "@nestjs/config";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Type } from "class-transformer";
 import { IsLatitude, IsLongitude, IsOptional, IsInt, Min, Max } from "class-validator";
+import { Public } from "../shared/auth/public.decorator";
 import { CurrentViewer, type Viewer } from "../shared/auth/viewer";
 import { Can } from "../shared/authz/can.decorator";
 import { ParseObjectIdPipe } from "../shared/http/pagination";
@@ -68,6 +69,14 @@ export class HoodsController {
   @ApiOperation({ summary: "List open neighbourhoods (centre and radius only for your own Hood, or for staff)" })
   async findAll(@CurrentViewer() viewer: Viewer) {
     return (await this.hoods.findAll()).map((h) => this.forViewer(viewer, h));
+  }
+
+  /** Public: sign-up shows it before an account exists, and the website's pages count it. Before ":id". */
+  @Public()
+  @Get("coverage")
+  @ApiOperation({ summary: "Where we're live: open Hoods by state and city (demo Hoods left out)" })
+  coverage() {
+    return this.hoods.coverage();
   }
 
   @Get("nearby")

@@ -44,6 +44,22 @@ describe("Hood states", () => {
     ]);
   });
 
+  it("coverage is public, by state and city, and leaves out demo and closed Hoods", async () => {
+    await t.hoods.create({ name: "Agege (Demo)", city: "Lagos", state: "Lagos", country: "Nigeria", location: { type: "Point", coordinates: [3.3, 6.1] }, radiusMeters: 1500, status: "active", reviewDemo: true });
+    await t.hoods.create({ name: "Bodija", city: "Ibadan", state: "Oyo", country: "Nigeria", location: { type: "Point", coordinates: [3.9104, 7.4305] }, radiusMeters: 1500, status: "paused" });
+    const res = await t.http.get("/api/neighborhoods/coverage").expect(200);
+    expect(res.body).toEqual({
+      total: 2,
+      states: [
+        { state: "Lagos", hoods: 1, cities: [{ city: "Lagos", areas: ["Lekki Phase 1"] }] },
+        { state: "Oyo", hoods: 1, cities: [{ city: "Ogbomoso", areas: ["Takie"] }] },
+      ],
+    });
+    // Settings › Coverage counts the same way.
+    const settings = (await t.http.get("/api/admin/settings").set(t.auth("admin1")).expect(200)).body;
+    expect(settings.coverageCities).toEqual(expect.arrayContaining([{ state: "Lagos", city: "Lagos", hoods: 1 }]));
+  });
+
   it("staff can move a Hood to its right city and state, and the copies of its city follow", async () => {
     // Filed the old way: an Ogun town under the city "Lagos".
     const mowe = (await create({ name: "Mowe", city: "Lagos", state: "Lagos", center: { lat: 6.811, lng: 3.437 }, radiusMeters: 1500 }).expect(201)).body.id as string;
