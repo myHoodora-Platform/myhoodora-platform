@@ -66,6 +66,22 @@ export function AreaPicker({ value, onChange, max = 20, error, className }: Area
 
   return (
     <div className={cn("space-y-3", className)}>
+      <div className="relative">
+        <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+        <input
+          id={`${id}-search`}
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={`Search ${hoodCount} Hoods, e.g. Bodija or Sango-Ota`}
+          aria-label="Search neighbourhoods"
+          aria-describedby={`${id}-status`}
+          aria-invalid={error ? true : undefined}
+          autoComplete="off"
+          className={cn(fieldInputClass, "pl-10")}
+        />
+      </div>
+
       {value.length > 0 && (
         <div className="space-y-2">
           <p className="text-xs font-semibold text-muted-foreground">
@@ -87,22 +103,6 @@ export function AreaPicker({ value, onChange, max = 20, error, className }: Area
           </ul>
         </div>
       )}
-
-      <div className="relative">
-        <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-        <input
-          id={`${id}-search`}
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={`Search ${hoodCount} Hoods, e.g. Bodija or Sango-Ota`}
-          aria-label="Search neighbourhoods"
-          aria-describedby={`${id}-status`}
-          aria-invalid={error ? true : undefined}
-          autoComplete="off"
-          className={cn(fieldInputClass, "pl-10")}
-        />
-      </div>
 
       {states.length > 1 && (
         <FilterChips

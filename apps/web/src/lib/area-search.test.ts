@@ -23,6 +23,9 @@ describe("area search", () => {
 
   it("needs every word to match, and can be kept to one state", () => {
     expect(names("sabo oyo")).toEqual(["Sabo Oyo"]);
+    // A city or state only counts from the start of a word: "go" isn't a match for every Hood in Lagos or Ogun.
+    expect(names("go")).toEqual(["Sango-Ota"]);
+    expect(names("lag")).toEqual(["Ikeja", "Lekki Phase 1", "Ojodu Berger", "Sabo Yaba"]);
     expect(names("sabo", "Lagos")).toEqual(["Sabo Yaba"]);
     expect(names("   ")).toEqual([]);
   });
