@@ -108,6 +108,17 @@ export class HoodsService {
     return { total: rows.length, states: out };
   }
 
+  /**
+   * The open, real Hoods among `names`, matched ignoring case and extra spaces: lower-cased input → the
+   * Hood's own spelling. Anything missing from the map isn't a Hood people can join.
+   */
+  async liveNames(names: readonly string[]): Promise<Map<string, string>> {
+    const key = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
+    const wanted = new Set(names.map(key));
+    const rows = await this.hoods.find(LIVE).select({ name: 1 }).lean<Pick<Neighborhood, "name">[]>().exec();
+    return new Map(rows.filter((h) => wanted.has(key(h.name))).map((h) => [key(h.name), h.name]));
+  }
+
   /** Every state and city with a Hood that isn't archived, for the admin filters and the New Hood form. */
   async placesInUse(): Promise<HoodPlace[]> {
     return this.places({ status: { $ne: "archived" } }, { "_id.state": 1, "_id.city": 1 });

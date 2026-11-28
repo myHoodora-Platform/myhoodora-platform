@@ -83,11 +83,19 @@ describe("Inbound forms, support inbox and Business Pages", () => {
     it("applies publicly, validates Nigerian phone numbers and CAC format", async () => {
       await t.http.post("/api/business-pages/applications").send(application({ phone: "08031234567" })).expect(400);
       await t.http.post("/api/business-pages/applications").send(application({ cacNumber: "12345" })).expect(400);
-      const res = await t.http.post("/api/business-pages/applications").send(application()).expect(201);
+      const res = await t.http.post("/api/business-pages/applications").send(application({ areasServed: ["lekki  phase 1", "Lekki Phase 1"] })).expect(201);
       expect(res.body.status).toBe("pending_review");
       id = res.body.id;
+      // Stored once, in the Hood's own spelling.
+      const detail = await t.http.get(`/api/admin/businesses/${id}`).set(t.auth("admin1")).expect(200);
+      expect(detail.body.areasServed).toEqual(["Lekki Phase 1"]);
       const overview = await t.http.get("/api/admin/overview").set(t.auth("admin1")).expect(200);
       expect(overview.body.attention.businessApplications).toBe(1);
+    });
+
+    it("only open Hoods can be chosen as areas served", async () => {
+      const unknown = await t.http.post("/api/business-pages/applications").send(application({ areasServed: ["Lekki Phase 1", "Atlantis"] })).expect(400);
+      expect(unknown.body.message).toContain("“Atlantis” isn't a Hood");
     });
 
     it("moderators can view but not decide; request_info needs a message", async () => {

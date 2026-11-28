@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { AlertCircle, ArrowLeft, ArrowRight, Check, PartyPopper, Store } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowRight, PartyPopper, Store } from "lucide-react";
 import { Button } from "@myhoodora/ui/button";
 import { MascotWordmark } from "@myhoodora/ui/logo";
 import { cn } from "@myhoodora/ui/utils";
@@ -20,13 +20,16 @@ import {
   submitBusinessApplication,
   type BusinessCategory,
 } from "@/lib/api/business";
-import { COVERAGE } from "@/lib/coverage";
+import { AreaPicker } from "@/components/shared/area-picker";
+
+/** The API takes up to 20. */
+const MAX_AREAS = 20;
 
 const schema = z.object({
   businessName: z.string().trim().min(2, "Enter your business name.").max(80),
   category: z.string().min(1, "Choose what kind of business it is."),
   description: z.string().trim().min(20, "Tell neighbours what you offer (at least 20 characters).").max(300),
-  areasServed: z.array(z.string()).min(1, "Choose at least one neighbourhood you serve."),
+  areasServed: z.array(z.string()).min(1, "Choose at least one neighbourhood you serve.").max(MAX_AREAS, `Choose up to ${MAX_AREAS} neighbourhoods.`),
   address: z.string().trim().max(160).optional(),
   contactName: z.string().trim().min(2, "Enter your name.").max(80),
   phone: z.string().refine((v) => normaliseNigerianPhone(v) !== null, "Enter a Nigerian mobile number, e.g. 0803 123 4567."),
@@ -88,11 +91,6 @@ export function GetStartedFlow() {
       setServerError(errorMessage(err, "Couldn't send your details. Please try again."));
     }
   };
-
-  const toggleArea = (area: string) =>
-    setValue("areasServed", areas.includes(area) ? areas.filter((a) => a !== area) : [...areas, area], {
-      shouldValidate: true,
-    });
 
   if (done) {
     return (
@@ -168,31 +166,13 @@ export function GetStartedFlow() {
           <>
             <fieldset className="space-y-3">
               <legend className="text-sm font-semibold">Neighbourhoods you serve</legend>
-              <p className="text-xs text-muted-foreground">Neighbours here will see your posts. Choose as many as you like.</p>
-              {COVERAGE.map((c) => (
-                <div key={c.city} className="space-y-2">
-                  <p className="text-sm font-bold">{c.city}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {c.areas.map((a) => {
-                      const on = areas.includes(a);
-                      return (
-                        <button
-                          key={a}
-                          type="button"
-                          aria-pressed={on}
-                          onClick={() => toggleArea(a)}
-                          className={cn(
-                            "inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-sm font-semibold transition-colors",
-                            on ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-muted",
-                          )}
-                        >
-                          {on && <Check className="size-3.5" aria-hidden />} {a}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
+              <p className="text-xs text-muted-foreground">Neighbours in these Hoods will see your posts. Choose up to {MAX_AREAS}.</p>
+              <AreaPicker
+                value={areas}
+                max={MAX_AREAS}
+                error={errors.areasServed?.message}
+                onChange={(next) => setValue("areasServed", next, { shouldValidate: true })}
+              />
               {errors.areasServed && <p className="text-xs font-semibold text-destructive">{errors.areasServed.message}</p>}
             </fieldset>
             <Field label="Business address" htmlFor="biz-address" optional hint="If customers can visit you. Leave blank if you go to them.">
