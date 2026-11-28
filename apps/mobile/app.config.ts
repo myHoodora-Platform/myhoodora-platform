@@ -72,7 +72,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   name: "myHoodora",
   slug: "myhoodora",
   scheme: "myhoodora",
-  version: "1.0.0",
+  version: "1.0.1",
   orientation: "portrait",
   // No web build: the web app is apps/web.
   platforms: ["ios", "android"],
